@@ -1,0 +1,72 @@
+# Docker Compose stack for the Enrobill Laravel API.
+#
+#   app    - PHP 8.4 running the Laravel API over HTTP on :8000
+#   mysql  - MySQL 8 database
+#
+# The app is served by Laravel's built-in server (`php artisan serve`) — simple
+# and good enough for development. Put a proper web server / reverse proxy in
+# front of it at the infrastructure level when you deploy.
+#
+# The DB_* environment variables on the "app" service override whatever is in
+# .env (real environment variables take precedence in Laravel), so the
+# containers use MySQL while local `php artisan serve` can keep using SQLite.
+
+name: enrobill-backend
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enrobill-backend
+    container_name: enrobill-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    ports:
+      # API served over HTTP — reachable at http://localhost:8000
+      - "8000:8000"
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: enrobill
+      DB_USERNAME: enrobill
+      DB_PASSWORD: secret
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - enrobill
+
+  mysql:
+    image: mysql:8.0
+    container_name: enrobill-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: enrobill
+      MYSQL_USER: enrobill
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+    ports:
+      # Host 3307 -> container 3306 (avoids clashing with a local MySQL on 3306).
+      # The app connects over the internal network on 3306, unaffected by this.
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-psecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - enrobill
+
+volumes:
+  mysql-data:
+
+networks:
+  enrobill:
+    driver: bridge
