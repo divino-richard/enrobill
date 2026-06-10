@@ -1,7 +1,12 @@
-// Stable keys for the auth feature.
+import type { Role } from './types'
 
 // localStorage key used by the persisted Zustand auth store.
 export const AUTH_STORAGE_KEY = 'enrobill-auth'
 
-// TanStack Query mutation key for the login request.
-export const LOGIN_MUTATION_KEY = ['auth', 'login'] as const
+// Which roles belong to which portal.
+export const STAFF_ROLES: Role[] = ['admin', 'cashier']
+export const FAMILY_ROLES: Role[] = ['guardian', 'student']
+
+// TanStack Query mutation keys per portal login.
+export const ADMIN_LOGIN_MUTATION_KEY = ['auth', 'admin', 'login'] as const
+export const PORTAL_LOGIN_MUTATION_KEY = ['auth', 'portal', 'login'] as const

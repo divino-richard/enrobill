@@ -1,8 +1,15 @@
+import type { ReactNode } from 'react'
 import { Logo } from '@/components/brand/logo'
-import { LoginForm } from '@/features/auth/components/login-form'
 
-// Standalone, centered auth page with a subtle dotted-texture background.
-function LoginPage() {
+interface AuthLayoutProps {
+  // Portal label shown under the brand (e.g. "Guardian & Student Portal").
+  subtitle: string
+  children: ReactNode
+}
+
+// Shared centered auth screen with a dotted-texture background, used by the
+// public (family) portal login.
+export function AuthLayout({ subtitle, children }: AuthLayoutProps) {
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center gap-6 overflow-hidden bg-linear-to-b from-primary/5 via-background to-background p-4">
       {/* Dotted texture across the whole page. */}
@@ -22,13 +29,11 @@ function LoginPage() {
             <p className="text-foreground text-sm font-medium">
               Northlink Technological College
             </p>
-            <p className="text-muted-foreground text-sm">
-              Enrollment &amp; Tuition Portal
-            </p>
+            <p className="text-muted-foreground text-sm">{subtitle}</p>
           </div>
         </div>
 
-        <LoginForm />
+        {children}
 
         <p className="text-muted-foreground text-xs">
           © {new Date().getFullYear()} Northlink Technological College
@@ -37,5 +42,3 @@ function LoginPage() {
     </div>
   )
 }
-
-export default LoginPage

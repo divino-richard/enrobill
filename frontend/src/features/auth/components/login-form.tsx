@@ -1,53 +1,62 @@
-import { useForm } from "@tanstack/react-form";
+import type { ReactNode } from 'react'
+import { useForm } from '@tanstack/react-form'
+import type { UseMutationResult } from '@tanstack/react-query'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { FieldInfo } from "@/components/form/field-info";
-import { getErrorMessage } from "@/lib/get-error-message";
-import { useLogin } from "../hooks";
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { FieldInfo } from '@/components/form/field-info'
+import { getErrorMessage } from '@/lib/get-error-message'
+import type { AuthResponse, LoginCredentials } from '../types'
 
 function validateEmail(value: string): string | undefined {
-  if (!value) return "Email is required";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email";
-  return undefined;
+  if (!value) return 'Email is required'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email'
+  return undefined
 }
 
 function validatePassword(value: string): string | undefined {
-  if (!value) return "Password is required";
-  if (value.length < 6) return "Password must be at least 6 characters";
-  return undefined;
+  if (!value) return 'Password is required'
+  if (value.length < 6) return 'Password must be at least 6 characters'
+  return undefined
 }
 
-export function LoginForm() {
-  const login = useLogin();
+interface LoginFormProps {
+  title: string
+  description: string
+  // The portal-specific login mutation (useAdminLogin / usePortalLogin).
+  login: UseMutationResult<AuthResponse, Error, LoginCredentials>
+  footer?: ReactNode
+}
 
+// Reusable credentials form. The portal supplies the title, copy, and mutation.
+export function LoginForm({ title, description, login, footer }: LoginFormProps) {
   const form = useForm({
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: '', password: '' },
     onSubmit: async ({ value }) => {
-      await login.mutateAsync(value);
+      await login.mutateAsync(value)
     },
-  });
+  })
 
   return (
     <Card className="w-full max-w-sm overflow-hidden border-t-4 border-t-brand-accent shadow-lg">
       <CardHeader>
-        <CardTitle className="text-xl">Sign in</CardTitle>
-        <CardDescription>Use your Enrobill administrator account.</CardDescription>
+        <CardTitle className="text-xl">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         <form
           noValidate
           onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            void form.handleSubmit();
+            e.preventDefault()
+            e.stopPropagation()
+            void form.handleSubmit()
           }}
           className="space-y-4"
         >
@@ -112,16 +121,14 @@ export function LoginForm() {
                 className="w-full"
                 disabled={!canSubmit || login.isPending}
               >
-                {isSubmitting || login.isPending ? "Signing in…" : "Sign in"}
+                {isSubmitting || login.isPending ? 'Signing in…' : 'Sign in'}
               </Button>
             )}
           </form.Subscribe>
 
-          <p className="text-muted-foreground text-center text-sm">
-            Forgot your password? Contact your administrator.
-          </p>
+          {footer}
         </form>
       </CardContent>
     </Card>
-  );
+  )
 }
