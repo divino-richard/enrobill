@@ -3,7 +3,7 @@
 A decoupled application:
 
 - **`backend/`** — Laravel 13 (PHP 8.5) **API-only** backend. Exposes JSON endpoints under `/api/*`. No Blade frontend.
-- **`frontend/`** — React 19 single-page application built with Vite. Consumes the Laravel API.
+- **`frontend/`** — React 19 + **TypeScript** single-page application built with Vite, styled with **Tailwind CSS v4** and **shadcn/ui** components. Consumes the Laravel API.
 
 ## Prerequisites
 
@@ -114,6 +114,22 @@ hashed `/assets/*` aggressively, and never caches `index.html`.
 | GET    | `/api/user`   | `auth:sanctum`| The authenticated user     |
 
 Auth is scaffolded with **Laravel Sanctum** (token-based). The `User` model uses the `HasApiTokens` trait, ready for issuing API tokens.
+
+## UI (Tailwind + shadcn/ui)
+
+The frontend uses **Tailwind CSS v4** (via `@tailwindcss/vite`) and **shadcn/ui**
+(Radix-based, neutral theme, Geist font, lucide icons). Components live in
+`frontend/src/components/ui/` and are owned by the project (copy-in, not a
+dependency). The `@` import alias maps to `src/`.
+
+```bash
+cd frontend
+# Add more components as needed:
+npx shadcn@latest add dialog table form select ...
+```
+
+Config: `frontend/components.json`. Theme tokens (colors, radius, dark mode) are
+defined as CSS variables in `frontend/src/index.css`.
 
 ## Frontend routes (client-side SPA)
 
