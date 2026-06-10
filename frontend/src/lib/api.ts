@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { useAuthStore } from '@/features/auth/store'
 
 // Central axios instance used across the app to talk to the Laravel API.
 //
@@ -12,9 +13,10 @@ const api = axios.create({
   },
 })
 
-// Attach the stored bearer token (if any) to every request.
+// Attach the bearer token (if any) from the persisted auth store to every
+// request. Read non-reactively via getState() since this runs outside React.
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('token')
+  const token = useAuthStore.getState().token
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
