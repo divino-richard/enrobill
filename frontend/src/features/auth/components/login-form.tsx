@@ -30,7 +30,7 @@ function validatePassword(value: string): string | undefined {
 interface LoginFormProps {
   title: string
   description: string
-  // The portal-specific login mutation (useAdminLogin / usePortalLogin).
+  // The login mutation (useLogin).
   login: UseMutationResult<AuthResponse, Error, LoginCredentials>
   footer?: ReactNode
 }

@@ -1,17 +1,18 @@
 import { AuthLayout } from '@/features/auth/components/auth-layout'
 import { LoginForm } from '@/features/auth/components/login-form'
-import { useAdminLogin } from '@/features/auth/hooks'
+import { useLogin } from '@/features/auth/hooks'
 
-// Staff portal login (admin + cashier).
-function AdminLoginPage() {
-  const login = useAdminLogin()
+// Single login for all users (admin, cashier, student, applicant).
+// After authenticating, the role decides which area they land in.
+function LoginPage() {
+  const login = useLogin()
 
   return (
-    <AuthLayout subtitle="Administration Console">
+    <AuthLayout subtitle="Enrollment & Tuition Portal">
       <LoginForm
         login={login}
-        title="Staff sign in"
-        description="Use your Enrobill administrator account."
+        title="Sign in"
+        description="Access your Enrobill account."
         footer={
           <p className="text-muted-foreground text-center text-sm">
             Forgot your password? Contact your administrator.
@@ -22,4 +23,4 @@ function AdminLoginPage() {
   )
 }
 
-export default AdminLoginPage
+export default LoginPage

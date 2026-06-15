@@ -4,7 +4,7 @@ import { Logo } from '@/components/brand/logo'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/features/auth/store'
 
-// Self-service shell for the family portal (guardian + student).
+// Self-service shell for the portal (students + applicants).
 export function PortalLayout() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -12,7 +12,7 @@ export function PortalLayout() {
 
   const handleSignOut = () => {
     clearAuth()
-    navigate('/portal/login')
+    navigate('/login')
   }
 
   return (
@@ -24,7 +24,7 @@ export function PortalLayout() {
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold">Enrobill</p>
-            <p className="text-muted-foreground text-xs">Family Portal</p>
+            <p className="text-muted-foreground text-xs">Student Portal</p>
           </div>
         </div>
 

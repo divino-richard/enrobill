@@ -1,7 +1,7 @@
 // Domain types for the auth feature.
 
-// Roles span two portals: staff (admin, cashier) and family (guardian, student).
-export type Role = 'admin' | 'cashier' | 'guardian' | 'student'
+// Roles: staff (admin, cashier) and portal users (student, applicant).
+export type Role = 'admin' | 'cashier' | 'student' | 'applicant'
 
 export interface AuthUser {
   id: number

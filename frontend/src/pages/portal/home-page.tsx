@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/features/auth/store'
 
-// Placeholder family portal home — self-service screens will be built here.
+// Placeholder portal home — student/applicant self-service screens go here.
 function PortalHomePage() {
   const user = useAuthStore((state) => state.user)
 

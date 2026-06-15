@@ -1,24 +1,25 @@
 import { createBrowserRouter } from 'react-router-dom'
-import { FamilyGuard, StaffGuard } from './features/auth/components/guards'
+import { PortalGuard, StaffGuard } from './features/auth/components/guards'
 import { StaffLayout } from './layouts/staff-layout'
 import { PortalLayout } from './layouts/portal-layout'
 import RootRedirect from './pages/root-redirect'
 import NotFound from './pages/NotFound'
-import AdminLoginPage from './pages/admin/login-page'
+import LoginPage from './pages/login-page'
 import DashboardPage from './pages/admin/dashboard-page'
-import PortalLoginPage from './pages/portal/login-page'
 import PortalHomePage from './pages/portal/home-page'
 
-// Central route configuration. Two portals share one SPA:
+// Central route configuration. One shared login; two areas behind role guards:
 //   - Staff  (admin + cashier) under /admin
-//   - Family (guardian + student) under /portal
+//   - Portal (student + applicant) under /portal
 // Uses `Component` (not `element`) so this stays a plain .ts file with no JSX.
 export const router = createBrowserRouter([
-  // Entry point — redirects to the right place based on session + role.
+  // Entry point — redirects to login or the user's area based on session + role.
   { path: '/', Component: RootRedirect },
 
-  // --- Staff portal -------------------------------------------------------
-  { path: '/admin/login', Component: AdminLoginPage },
+  // Shared login for every user.
+  { path: '/login', Component: LoginPage },
+
+  // --- Staff area ---------------------------------------------------------
   {
     path: '/admin',
     Component: StaffGuard,
@@ -30,11 +31,10 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // --- Family portal ------------------------------------------------------
-  { path: '/portal/login', Component: PortalLoginPage },
+  // --- Portal area (students + applicants) --------------------------------
   {
     path: '/portal',
-    Component: FamilyGuard,
+    Component: PortalGuard,
     children: [
       {
         Component: PortalLayout,

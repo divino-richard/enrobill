@@ -2,13 +2,13 @@ import type { ReactNode } from 'react'
 import { Logo } from '@/components/brand/logo'
 
 interface AuthLayoutProps {
-  // Portal label shown under the brand (e.g. "Guardian & Student Portal").
+  // Label shown under the brand (e.g. "Enrollment & Tuition Portal").
   subtitle: string
   children: ReactNode
 }
 
 // Shared centered auth screen with a dotted-texture background, used by the
-// public (family) portal login.
+// single login page.
 export function AuthLayout({ subtitle, children }: AuthLayoutProps) {
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center gap-6 overflow-hidden bg-linear-to-b from-primary/5 via-background to-background p-4">

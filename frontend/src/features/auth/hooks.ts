@@ -1,39 +1,22 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { loginAdmin, loginPortal } from './api'
-import {
-  ADMIN_LOGIN_MUTATION_KEY,
-  PORTAL_LOGIN_MUTATION_KEY,
-} from './constants'
+import { login } from './api'
+import { LOGIN_MUTATION_KEY, STAFF_ROLES } from './constants'
 import { useAuthStore } from './store'
 import type { LoginCredentials } from './types'
 
-// Staff login: authenticates, stores the session, and enters the admin portal.
-export function useAdminLogin() {
+// Single login: authenticates, stores the session, then routes by role —
+// staff (admin/cashier) to /admin, portal users (student/applicant) to /portal.
+export function useLogin() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
 
   return useMutation({
-    mutationKey: ADMIN_LOGIN_MUTATION_KEY,
-    mutationFn: (credentials: LoginCredentials) => loginAdmin(credentials),
+    mutationKey: LOGIN_MUTATION_KEY,
+    mutationFn: (credentials: LoginCredentials) => login(credentials),
     onSuccess: (data) => {
       setAuth(data)
-      navigate('/admin')
-    },
-  })
-}
-
-// Family login: authenticates, stores the session, and enters the family portal.
-export function usePortalLogin() {
-  const navigate = useNavigate()
-  const setAuth = useAuthStore((state) => state.setAuth)
-
-  return useMutation({
-    mutationKey: PORTAL_LOGIN_MUTATION_KEY,
-    mutationFn: (credentials: LoginCredentials) => loginPortal(credentials),
-    onSuccess: (data) => {
-      setAuth(data)
-      navigate('/portal')
+      navigate(STAFF_ROLES.includes(data.user.role) ? '/admin' : '/portal')
     },
   })
 }
