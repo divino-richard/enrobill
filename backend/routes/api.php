@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -30,7 +31,13 @@ Route::get('/ping', function () {
     ]);
 });
 
-// Example protected endpoint (requires a Sanctum token).
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+// Authentication — single login for all users; issues a Sanctum token.
+Route::post('/login', [AuthController::class, 'login']);
+
+// Routes that require a valid Sanctum token.
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    // The authenticated user (id, name, email, role).
+    Route::get('/user', fn (Request $request) => $request->user());
+});

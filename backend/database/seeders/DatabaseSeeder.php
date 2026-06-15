@@ -2,9 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,11 +17,23 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // One account per role for development/testing. Password: "password".
+        $users = [
+            ['name' => 'Admin User', 'email' => 'admin@northlink.edu.ph', 'role' => Role::Admin],
+            ['name' => 'Cashier User', 'email' => 'cashier@northlink.edu.ph', 'role' => Role::Cashier],
+            ['name' => 'Student User', 'email' => 'student@northlink.edu.ph', 'role' => Role::Student],
+            ['name' => 'Applicant User', 'email' => 'applicant@northlink.edu.ph', 'role' => Role::Applicant],
+        ];
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        foreach ($users as $user) {
+            User::updateOrCreate(
+                ['email' => $user['email']],
+                [
+                    'name' => $user['name'],
+                    'role' => $user['role'],
+                    'password' => Hash::make('password'),
+                ],
+            );
+        }
     }
 }
