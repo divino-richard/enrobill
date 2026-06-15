@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/form/password-input'
 import { FieldInfo } from '@/components/form/field-info'
 import { getErrorMessage } from '@/lib/get-error-message'
 import type { AuthResponse, LoginCredentials } from '../types'
@@ -89,10 +90,9 @@ export function LoginForm({ title, description, login, footer }: LoginFormProps)
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>Password</Label>
-                <Input
+                <PasswordInput
                   id={field.name}
                   name={field.name}
-                  type="password"
                   autoComplete="current-password"
                   value={field.state.value}
                   onBlur={field.handleBlur}

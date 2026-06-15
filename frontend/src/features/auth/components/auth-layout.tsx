@@ -1,15 +1,22 @@
 import type { ReactNode } from 'react'
 import { Logo } from '@/components/brand/logo'
+import { cn } from '@/lib/utils'
 
 interface AuthLayoutProps {
   // Label shown under the brand (e.g. "Enrollment & Tuition Portal").
   subtitle: string
   children: ReactNode
+  // Width of the centered content column (defaults to a narrow login width).
+  contentClassName?: string
 }
 
 // Shared centered auth screen with a dotted-texture background, used by the
-// single login page.
-export function AuthLayout({ subtitle, children }: AuthLayoutProps) {
+// login and registration pages.
+export function AuthLayout({
+  subtitle,
+  children,
+  contentClassName,
+}: AuthLayoutProps) {
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center gap-6 overflow-hidden bg-linear-to-b from-primary/5 via-background to-background p-4">
       {/* Dotted texture across the whole page. */}
@@ -17,7 +24,12 @@ export function AuthLayout({ subtitle, children }: AuthLayoutProps) {
       {/* Soft brand-orange glow up top to echo the logo's accent. */}
       <div className="bg-brand-accent/20 pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full blur-3xl" />
 
-      <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6">
+      <div
+        className={cn(
+          'relative z-10 flex w-full flex-col items-center gap-6',
+          contentClassName ?? 'max-w-sm',
+        )}
+      >
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="ring-border rounded-full bg-white p-1.5 shadow-sm ring-1">
             <Logo className="size-20 rounded-full" />

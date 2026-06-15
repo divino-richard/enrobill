@@ -5,6 +5,7 @@ import { PortalLayout } from './layouts/portal-layout'
 import RootRedirect from './pages/root-redirect'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/login-page'
+import RegisterPage from './pages/register-page'
 import DashboardPage from './pages/admin/dashboard-page'
 import PortalHomePage from './pages/portal/home-page'
 
@@ -16,8 +17,9 @@ export const router = createBrowserRouter([
   // Entry point — redirects to login or the user's area based on session + role.
   { path: '/', Component: RootRedirect },
 
-  // Shared login for every user.
+  // Shared login for every user; public applicant registration.
   { path: '/login', Component: LoginPage },
+  { path: '/register', Component: RegisterPage },
 
   // --- Staff area ---------------------------------------------------------
   {

@@ -7,5 +7,6 @@ export const AUTH_STORAGE_KEY = 'enrobill-auth'
 export const STAFF_ROLES: Role[] = ['admin', 'cashier']
 export const PORTAL_ROLES: Role[] = ['student', 'applicant']
 
-// TanStack Query mutation key for the single login.
+// TanStack Query mutation keys.
 export const LOGIN_MUTATION_KEY = ['auth', 'login'] as const
+export const REGISTER_MUTATION_KEY = ['auth', 'register'] as const

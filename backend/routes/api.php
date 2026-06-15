@@ -33,6 +33,9 @@ Route::get('/ping', function () {
     ]);
 });
 
+// Public registration for student aspirants (applicants).
+Route::post('/register', [AuthController::class, 'register']);
+
 // Authentication — single login for all users; issues a Sanctum token.
 Route::post('/login', [AuthController::class, 'login']);
 
