@@ -9,7 +9,7 @@ interface PasswordRequirementsProps {
 // Live checklist that guides the user toward a strong password.
 export function PasswordRequirements({ value }: PasswordRequirementsProps) {
   return (
-    <ul className="space-y-1" aria-label="Password requirements">
+    <ul className="space-y-1 flex gap-2" aria-label="Password requirements">
       {PASSWORD_RULES.map((rule) => {
         const met = rule.test(value);
         return (
