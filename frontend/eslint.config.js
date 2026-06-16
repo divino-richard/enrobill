@@ -27,4 +27,12 @@ export default defineConfig([
       'react-refresh/only-export-components': 'off',
     },
   },
+  {
+    // Vendored shadcn code (ui primitives + hooks) — exempt from the opinionated
+    // set-state-in-effect rule so generated files lint cleanly.
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/hooks/**/*.{ts,tsx}'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ])

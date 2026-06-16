@@ -8,6 +8,7 @@ import LoginPage from './pages/login-page'
 import RegisterPage from './pages/register-page'
 import DashboardPage from './pages/admin/dashboard-page'
 import PortalHomePage from './pages/portal/home-page'
+import ApplicationPage from './pages/portal/application-page'
 
 // Central route configuration. One shared login; two areas behind role guards:
 //   - Staff  (admin + cashier) under /admin
@@ -40,7 +41,10 @@ export const router = createBrowserRouter([
     children: [
       {
         Component: PortalLayout,
-        children: [{ index: true, Component: PortalHomePage }],
+        children: [
+          { index: true, Component: PortalHomePage },
+          { path: 'application', Component: ApplicationPage },
+        ],
       },
     ],
   },
