@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -35,6 +36,11 @@ Route::get('/ping', function () {
 
 // Public registration for student aspirants (applicants).
 Route::post('/register', [AuthController::class, 'register']);
+
+// Email verification — opened from the signed link in the verification email.
+Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+    ->middleware('signed')
+    ->name('verification.verify');
 
 // Authentication — single login for all users; issues a Sanctum token.
 Route::post('/login', [AuthController::class, 'login']);
