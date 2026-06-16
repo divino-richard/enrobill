@@ -2,19 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SendVerificationEmail;
 use App\Enums\Role;
-use App\Mail\VerifyEmailMail;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-
-use function Illuminate\Support\defer;
 
 class AuthController extends Controller
 {
@@ -23,7 +18,7 @@ class AuthController extends Controller
      * unverified applicant account and emails a verification link. No token is
      * issued — the applicant must verify their email before they can sign in.
      */
-    public function register(Request $request): JsonResponse
+    public function register(Request $request, SendVerificationEmail $sendVerification): JsonResponse
     {
         $data = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
@@ -59,29 +54,7 @@ class AuthController extends Controller
             'role' => Role::Applicant,
         ]);
 
-        // Signed, expiring link that verifies the applicant's email when opened.
-        $verificationUrl = URL::temporarySignedRoute(
-            'verification.verify',
-            now()->addHours(48),
-            [
-                'id' => $user->getKey(),
-                'hash' => sha1($user->getEmailForVerification()),
-            ],
-        );
-
-        // Send the verification email after the response so registration never
-        // waits on (or fails because of) the mail provider.
-        defer(function () use ($user, $verificationUrl) {
-            try {
-                Mail::to($user->email, $user->name)
-                    ->send(new VerifyEmailMail($user, $verificationUrl));
-            } catch (\Throwable $e) {
-                Log::warning('Verification email failed to send.', [
-                    'email' => $user->email,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        });
+        $sendVerification($user);
 
         return response()->json([
             'message' => 'Registration successful. Please check your email to verify your account before signing in.',
@@ -115,11 +88,13 @@ class AuthController extends Controller
             ]);
         }
 
-        // Block access until the email address has been verified.
+        // Block access until the email address has been verified. The "code"
+        // lets the SPA offer a "resend verification email" action.
         if (! $user->hasVerifiedEmail()) {
-            throw ValidationException::withMessages([
-                'email' => ['Please verify your email address before signing in. Check your inbox for the verification link.'],
-            ]);
+            return response()->json([
+                'message' => 'Please verify your email address before signing in. Check your inbox for the verification link.',
+                'code' => 'email_unverified',
+            ], 403);
         }
 
         $token = $user->createToken('spa')->plainTextToken;

@@ -42,6 +42,11 @@ Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 've
     ->middleware('signed')
     ->name('verification.verify');
 
+// Resend the verification email (rate-limited).
+Route::post('/email/resend', [EmailVerificationController::class, 'resend'])
+    ->middleware('throttle:6,1')
+    ->name('verification.resend');
+
 // Authentication — single login for all users; issues a Sanctum token.
 Route::post('/login', [AuthController::class, 'login']);
 

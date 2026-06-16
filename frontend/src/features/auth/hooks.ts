@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { login, register } from './api'
+import { login, register, resendVerification } from './api'
 import {
   LOGIN_MUTATION_KEY,
   REGISTER_MUTATION_KEY,
@@ -37,5 +37,13 @@ export function useRegister() {
     onSuccess: () => {
       navigate('/login?registered=1')
     },
+  })
+}
+
+// Resend the verification email for an unverified account.
+export function useResendVerification() {
+  return useMutation({
+    mutationKey: ['auth', 'resend-verification'],
+    mutationFn: (email: string) => resendVerification(email),
   })
 }

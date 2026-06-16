@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import axios from 'axios'
 import { useForm } from '@tanstack/react-form'
 import type { UseMutationResult } from '@tanstack/react-query'
 import {
@@ -28,16 +29,35 @@ function validatePassword(value: string): string | undefined {
   return undefined
 }
 
+// The login API returns 403 + { code: 'email_unverified' } for unverified accounts.
+function isUnverifiedError(error: unknown): boolean {
+  return (
+    axios.isAxiosError(error) &&
+    error.response?.status === 403 &&
+    (error.response?.data as { code?: string } | undefined)?.code ===
+      'email_unverified'
+  )
+}
+
 interface LoginFormProps {
   title: string
   description: string
   // The login mutation (useLogin).
   login: UseMutationResult<AuthResponse, Error, LoginCredentials>
+  // Optional resend-verification mutation; enables the "resend" action when the
+  // login fails because the email isn't verified.
+  resend?: UseMutationResult<{ message: string }, Error, string>
   footer?: ReactNode
 }
 
 // Reusable credentials form. The portal supplies the title, copy, and mutation.
-export function LoginForm({ title, description, login, footer }: LoginFormProps) {
+export function LoginForm({
+  title,
+  description,
+  login,
+  resend,
+  footer,
+}: LoginFormProps) {
   const form = useForm({
     defaultValues: { email: '', password: '' },
     onSubmit: async ({ value }) => {
@@ -103,11 +123,38 @@ export function LoginForm({ title, description, login, footer }: LoginFormProps)
             )}
           </form.Field>
 
-          {login.isError && (
-            <p className="text-sm text-destructive">
-              {getErrorMessage(login.error)}
-            </p>
-          )}
+          {login.isError &&
+            (isUnverifiedError(login.error) ? (
+              <div className="space-y-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/40">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  {getErrorMessage(login.error)}
+                </p>
+                {resend &&
+                  (resend.isSuccess ? (
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
+                      Verification email sent — check your inbox.
+                    </p>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto p-0 text-sm font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950 disabled:opacity-60 dark:text-amber-100 dark:hover:text-amber-50"
+                      disabled={resend.isPending}
+                      onClick={() =>
+                        resend.mutate(form.getFieldValue('email'))
+                      }
+                    >
+                      {resend.isPending
+                        ? 'Sending…'
+                        : 'Resend verification email'}
+                    </Button>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-sm text-destructive">
+                {getErrorMessage(login.error)}
+              </p>
+            ))}
 
           <form.Subscribe
             selector={(state) => ({

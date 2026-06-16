@@ -30,3 +30,11 @@ export async function register(
   })
   return data
 }
+
+// POST /api/email/resend — resend the verification email for an unverified account.
+export async function resendVerification(
+  email: string,
+): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>('/email/resend', { email })
+  return data
+}

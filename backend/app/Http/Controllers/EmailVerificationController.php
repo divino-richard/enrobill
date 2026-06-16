@@ -2,12 +2,36 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SendVerificationEmail;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class EmailVerificationController extends Controller
 {
+    /**
+     * Resend the verification email for an unverified account. Always returns
+     * the same response (never reveals whether the email exists) to avoid
+     * account enumeration; the route is rate-limited.
+     */
+    public function resend(Request $request, SendVerificationEmail $sendVerification): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+
+        if ($user && ! $user->hasVerifiedEmail()) {
+            $sendVerification($user);
+        }
+
+        return response()->json([
+            'message' => 'If an account with that email exists and is unverified, a new verification link has been sent.',
+        ]);
+    }
+
     /**
      * Verify a user's email from a signed link, then redirect back to the SPA.
      * The route uses the "signed" middleware, so the URL signature is validated
