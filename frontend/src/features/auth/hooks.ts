@@ -25,18 +25,17 @@ export function useLogin() {
   })
 }
 
-// Public applicant registration: creates an account, signs the user in, and
-// sends them into the portal (new applicants are portal users).
+// Public applicant registration: creates the account (unverified) and sends a
+// verification email. Does NOT sign the user in — it sends them to the login
+// page, which prompts them to verify their email first.
 export function useRegister() {
   const navigate = useNavigate()
-  const setAuth = useAuthStore((state) => state.setAuth)
 
   return useMutation({
     mutationKey: REGISTER_MUTATION_KEY,
     mutationFn: (input: RegisterCredentials) => register(input),
-    onSuccess: (data) => {
-      setAuth(data)
-      navigate('/portal')
+    onSuccess: () => {
+      navigate('/login?registered=1')
     },
   })
 }

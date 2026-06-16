@@ -30,3 +30,10 @@ export interface AuthResponse {
   token: string
   user: AuthUser
 }
+
+// Registration does not sign the user in — it returns a message + the created
+// (unverified) user. The applicant must verify their email before logging in.
+export interface RegisterResponse {
+  message: string
+  user: AuthUser
+}

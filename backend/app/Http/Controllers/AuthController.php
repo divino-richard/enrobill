@@ -20,7 +20,8 @@ class AuthController extends Controller
 {
     /**
      * Public registration for student aspirants (applicants). Creates an
-     * applicant account and issues a token so they're signed in immediately.
+     * unverified applicant account and emails a verification link. No token is
+     * issued — the applicant must verify their email before they can sign in.
      */
     public function register(Request $request): JsonResponse
     {
@@ -58,8 +59,6 @@ class AuthController extends Controller
             'role' => Role::Applicant,
         ]);
 
-        $token = $user->createToken('spa')->plainTextToken;
-
         // Signed, expiring link that verifies the applicant's email when opened.
         $verificationUrl = URL::temporarySignedRoute(
             'verification.verify',
@@ -85,7 +84,7 @@ class AuthController extends Controller
         });
 
         return response()->json([
-            'token' => $token,
+            'message' => 'Registration successful. Please check your email to verify your account before signing in.',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -113,6 +112,13 @@ class AuthController extends Controller
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
+            ]);
+        }
+
+        // Block access until the email address has been verified.
+        if (! $user->hasVerifiedEmail()) {
+            throw ValidationException::withMessages([
+                'email' => ['Please verify your email address before signing in. Check your inbox for the verification link.'],
             ]);
         }
 
