@@ -65,7 +65,7 @@ export function FormStepper({
               <button
                 type="button"
                 onClick={() => onStepSelect?.(index)}
-                className="hover:bg-background/60 flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors"
+                className="hover:bg-background/60 flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors cursor-pointer"
               >
                 {content}
               </button>

@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, CheckCircle2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -202,21 +207,32 @@ export function ApplicationForm() {
                 variant="outline"
                 onClick={goBack}
                 disabled={currentStep === 0}
+                className="cursor-pointer"
               >
+                <ChevronLeft />
                 Back
               </Button>
 
               {isReview ? (
                 <form.Subscribe selector={(state) => state.isSubmitting}>
                   {(isSubmitting) => (
-                    <Button type="submit" disabled={isSubmitting}>
+                    <Button
+                      type="submit"
+                      className="cursor-pointer"
+                      disabled={isSubmitting}
+                    >
                       {isSubmitting ? "Submitting…" : "Submit application"}
                     </Button>
                   )}
                 </form.Subscribe>
               ) : (
-                <Button type="button" onClick={goNext}>
+                <Button
+                  type="button"
+                  className="cursor-pointer"
+                  onClick={goNext}
+                >
                   Next
+                  <ChevronRight />
                 </Button>
               )}
             </div>

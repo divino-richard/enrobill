@@ -23,7 +23,7 @@ export function stepFilledCount(
   step: number,
   values: ApplicationFormValues,
 ): number {
-  return (STEP_FIELDS[step] ?? []).filter((name) => values[name].trim() !== "")
+  return (STEP_FIELDS[step] ?? []).filter((name) => values[name]?.trim() !== "")
     .length;
 }
 

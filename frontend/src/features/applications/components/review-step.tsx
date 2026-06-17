@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import type { ApplicationFormApi } from "../hooks/form";
+import { useAddress } from "../hooks/address";
 import {
   CIVIL_STATUS_OPTIONS,
   ENROLLMENT_TYPE_OPTIONS,
@@ -45,6 +46,7 @@ interface ReviewStepProps {
 
 export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
   const values = form.state.values;
+  const { getProvinceName, getCityName, getBarangayName } = useAddress({});
 
   return (
     <div className="space-y-6">
@@ -75,6 +77,21 @@ export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
           ["Gender", capitalize(values.gender)],
           ["Nationality", values.nationality || "—"],
           ["Civil status", labelFor(CIVIL_STATUS_OPTIONS, values.civilStatus)],
+          ["Place of birth", values.placeOfBirth || "—"],
+          ["Religion / Church", values.religion || "—"],
+          ["Health concerns", values.healthConcerns || "—"],
+        ]}
+      />
+
+      <div className="border-t" />
+
+      <ReviewSection
+        title="Complete Address (Permanent)"
+        rows={[
+          ["Province", getProvinceName(values.addressProvince) || "—"],
+          ["City / Municipality", getCityName(values.addressCity) || "—"],
+          ["Barangay", getBarangayName(values.addressBrangay) || "—"],
+          ["Street address", values.addressLine || "—"],
         ]}
       />
 

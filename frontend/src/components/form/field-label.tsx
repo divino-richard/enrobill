@@ -1,16 +1,16 @@
-import type { ReactNode } from 'react'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import { HelpHint } from './help-hint'
+import type { ReactNode } from "react";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { HelpHint } from "./help-hint";
 
 interface FieldLabelProps {
-  htmlFor?: string
-  required?: boolean
-  optional?: boolean
+  htmlFor?: string;
+  required?: boolean;
+  optional?: boolean;
   // Help text shown via a hover/focus question-mark icon.
-  hint?: ReactNode
-  className?: string
-  children: ReactNode
+  hint?: ReactNode;
+  className?: string;
+  children: ReactNode;
 }
 
 // Label with a clear required (*) / optional indicator and an optional help
@@ -24,8 +24,8 @@ export function FieldLabel({
   children,
 }: FieldLabelProps) {
   return (
-    <div className={cn('flex items-center gap-1.5', className)}>
-      <Label htmlFor={htmlFor} className="gap-1">
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <Label htmlFor={htmlFor} className="gap-1 text-xs">
         <span>{children}</span>
         {required && (
           <span className="text-destructive" aria-hidden="true">
@@ -40,5 +40,5 @@ export function FieldLabel({
       </Label>
       {hint && <HelpHint>{hint}</HelpHint>}
     </div>
-  )
+  );
 }

@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ClipboardListIcon, UserRoundIcon } from "lucide-react";
+import { ClipboardListIcon, MapPinHouse, UserRoundIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -22,6 +22,9 @@ import {
   type EnrollmentType,
   type Gender,
 } from "../types";
+import { useStore } from "@tanstack/react-form";
+import { AddressCombobox } from "./address-combobox";
+import { useAddress } from "../hooks/address";
 
 function required(message: string) {
   return ({ value }: { value: string }) =>
@@ -34,6 +37,14 @@ interface PersonalStepProps {
 }
 
 export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
+  // Cascading address options — recompute as the parent selections change.
+  const provinceCode = useStore(form.store, (s) => s.values.addressProvince);
+  const cityCode = useStore(form.store, (s) => s.values.addressCity);
+  const { provinces, cities, barangays } = useAddress({
+    provinceCode,
+    cityCode,
+  });
+
   return (
     <div className="space-y-8">
       <FormSection title="Enrollment Information" icon={ClipboardListIcon}>
@@ -168,12 +179,21 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                 >
                   Name suffix
                 </FieldLabel>
-                <Input
-                  id={field.name}
+                <Select
                   value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
+                  onValueChange={(v) => field.handleChange(v as any)}
+                >
+                  <SelectTrigger id={field.name} className="w-full">
+                    <SelectValue placeholder="Select suffix" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Jr.", "Sr.", "II", "III", "IV", "V"].map((suffix) => (
+                      <SelectItem key={suffix} value={suffix}>
+                        {suffix}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </form.Field>
@@ -271,13 +291,23 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                 >
                   Nationality / Citizenship
                 </FieldLabel>
-                <Input
-                  id={field.name}
-                  placeholder="e.g. Filipino, Dual Citizen"
+                <Select
                   value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
+                  onValueChange={(v) => field.handleChange(v as any)}
+                >
+                  <SelectTrigger id={field.name} className="w-full">
+                    <SelectValue placeholder="Select nationality/citizenship" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Filipino", "Dual Citizen", "Foreign National"].map(
+                      (suffix) => (
+                        <SelectItem key={suffix} value={suffix}>
+                          {suffix}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
                 <FieldInfo field={field} />
               </div>
             )}
@@ -307,6 +337,200 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="placeOfBirth"
+            validators={{ onChange: required("Place of birth is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="City/Municipality and Province where were born."
+                >
+                  Place of Birth
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="religion">
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  optional
+                  hint="Your religious affiliation"
+                >
+                  Religion / Church
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="healthConcerns">
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  optional
+                  hint="List any allergies or medical conditions for school health records."
+                >
+                  Health Concerns
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+        </div>
+      </FormSection>
+
+      <FormSection title="Complete Address (Permanent)" icon={MapPinHouse}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <form.Field
+            name="addressProvince"
+            validators={{ onChange: required("Province is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="The province of your permanent address."
+                >
+                  Province
+                </FieldLabel>
+                <AddressCombobox
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  placeholder="Select province"
+                  emptyText="No province found."
+                  options={provinces.map((p) => ({
+                    code: p.province_code,
+                    label: p.province_name,
+                  }))}
+                  onChange={(code) => {
+                    field.handleChange(code);
+                    // Reset the dependent selections.
+                    form.setFieldValue("addressCity", "");
+                    form.setFieldValue("addressBrangay", "");
+                  }}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="addressCity"
+            validators={{
+              onChange: required("City / Municipality is required"),
+            }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel htmlFor={field.name} required>
+                  City / Municipality
+                </FieldLabel>
+                <AddressCombobox
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  disabled={!provinceCode}
+                  placeholder={
+                    provinceCode
+                      ? "Select city / municipality"
+                      : "Select a province first"
+                  }
+                  emptyText="No city / municipality found."
+                  options={cities.map((c) => ({
+                    code: c.city_code,
+                    label: c.city_name,
+                  }))}
+                  onChange={(code) => {
+                    field.handleChange(code);
+                    form.setFieldValue("addressBrangay", "");
+                  }}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="addressBrangay"
+            validators={{ onChange: required("Barangay is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel htmlFor={field.name} required>
+                  Barangay
+                </FieldLabel>
+                <AddressCombobox
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  disabled={!cityCode}
+                  placeholder={
+                    cityCode ? "Select barangay" : "Select a city first"
+                  }
+                  emptyText="No barangay found."
+                  options={barangays.map((b) => ({
+                    code: b.brgy_code,
+                    label: b.brgy_name,
+                  }))}
+                  onChange={(code) => field.handleChange(code)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="addressStreet"
+            validators={{ onChange: required("Street address is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5 sm:col-span-2">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="House/unit number, street, and subdivision."
+                >
+                  Street address
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
                 <FieldInfo field={field} />
               </div>
             )}

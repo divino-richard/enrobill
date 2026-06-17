@@ -1,8 +1,25 @@
 import { useForm } from "@tanstack/react-form";
-import {
-  DEFAULT_APPLICATION_FORM_VALUES,
-  type ApplicationFormValues,
-} from "../types";
+import { type ApplicationFormValues } from "../types";
+
+export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
+  enrollmentType: "",
+  surname: "",
+  givenName: "",
+  middleName: "",
+  extension: "",
+  dateOfBirth: "",
+  age: "",
+  gender: "",
+  nationality: "Filipino",
+  civilStatus: "",
+  placeOfBirth: "",
+  religion: "",
+  healthConcerns: "",
+  addressStreet: "",
+  addressBrangay: "",
+  addressCity: "",
+  addressProvince: "",
+};
 
 // Single form instance for the whole multi-step application. Wrapping useForm in
 // a hook lets us derive a precise `ApplicationFormApi` type for the step

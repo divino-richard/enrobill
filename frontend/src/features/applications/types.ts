@@ -43,20 +43,14 @@ export interface ApplicationFormValues {
   gender: Gender;
   nationality: string;
   civilStatus: string;
+  placeOfBirth: string;
+  religion: string;
+  healthConcerns: string;
+  addressStreet: string;
+  addressBrangay: string;
+  addressCity: string;
+  addressProvince: string;
 }
-
-export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
-  enrollmentType: "",
-  surname: "",
-  givenName: "",
-  middleName: "",
-  extension: "",
-  dateOfBirth: "",
-  age: "",
-  gender: "",
-  nationality: "",
-  civilStatus: "",
-};
 
 export const ENROLLMENT_TYPE_OPTIONS = [
   { value: "senior_high", label: "Senior High School" },
