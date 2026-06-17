@@ -181,7 +181,7 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                 </FieldLabel>
                 <Select
                   value={field.state.value}
-                  onValueChange={(v) => field.handleChange(v as any)}
+                  onValueChange={(v) => field.handleChange(v)}
                 >
                   <SelectTrigger id={field.name} className="w-full">
                     <SelectValue placeholder="Select suffix" />
@@ -293,7 +293,7 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                 </FieldLabel>
                 <Select
                   value={field.state.value}
-                  onValueChange={(v) => field.handleChange(v as any)}
+                  onValueChange={(v) => field.handleChange(v)}
                 >
                   <SelectTrigger id={field.name} className="w-full">
                     <SelectValue placeholder="Select nationality/citizenship" />

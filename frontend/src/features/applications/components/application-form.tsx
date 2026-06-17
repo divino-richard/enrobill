@@ -193,7 +193,7 @@ export function ApplicationForm() {
               {currentStep === 0 && (
                 <PersonalStep form={form} enrollmentDate={enrollmentDate} />
               )}
-              {currentStep === 1 && <ContactStep />}
+              {currentStep === 1 && <ContactStep form={form} />}
               {currentStep === 2 && <AcademicStep />}
               {currentStep === 3 && <CourseStep />}
               {currentStep === 4 && (

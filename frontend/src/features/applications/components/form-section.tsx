@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
 interface FormSectionProps {
-  title: string
-  description?: string
-  icon?: LucideIcon
-  children: ReactNode
+  title: string;
+  description?: string;
+  icon?: LucideIcon;
+  children: ReactNode;
 }
 
 export function FormSection({
@@ -27,5 +27,5 @@ export function FormSection({
       </div>
       {children}
     </section>
-  )
+  );
 }

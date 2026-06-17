@@ -50,6 +50,16 @@ export interface ApplicationFormValues {
   addressBrangay: string;
   addressCity: string;
   addressProvince: string;
+  homeAddress: string;
+  mailingAddress: string;
+  phoneNumber: string;
+  emailAddress: string;
+  facebookAccount: string;
+  guardianName: string;
+  guardianRelation: string;
+  guardianContactNumber: string;
+  guardianAddress: string;
+  guardianOccupation: string;
 }
 
 export const ENROLLMENT_TYPE_OPTIONS = [

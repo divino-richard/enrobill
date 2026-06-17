@@ -19,6 +19,16 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
   addressBrangay: "",
   addressCity: "",
   addressProvince: "",
+  homeAddress: "",
+  mailingAddress: "",
+  phoneNumber: "",
+  emailAddress: "",
+  facebookAccount: "",
+  guardianName: "",
+  guardianRelation: "",
+  guardianContactNumber: "",
+  guardianAddress: "",
+  guardianOccupation: "",
 };
 
 // Single form instance for the whole multi-step application. Wrapping useForm in
