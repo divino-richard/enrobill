@@ -6,6 +6,7 @@ import {
   ENROLLMENT_TYPE_OPTIONS,
   labelFor,
 } from "../types";
+import { APPLICATION_DOCUMENT_TYPES } from "../documents";
 
 function formatBirthDate(value: string): string {
   if (!value) return "—";
@@ -46,7 +47,10 @@ interface ReviewStepProps {
 
 export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
   const values = form.state.values;
-  const { getProvinceName, getCityName, getBarangayName } = useAddress({});
+  const { getProvinceName, getCityName, getBarangayName } = useAddress({
+    provinceCode: values.addressProvince,
+    cityCode: values.addressCity,
+  });
 
   return (
     <div className="space-y-6">
@@ -93,6 +97,20 @@ export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
           ["Barangay", getBarangayName(values.addressBrangay) || "—"],
           ["Street address", values.addressStreet || "—"],
         ]}
+      />
+
+      <div className="border-t" />
+
+      <ReviewSection
+        title="Verification Documents"
+        rows={
+          values.documents.length > 0
+            ? values.documents.map((doc) => [
+                labelFor(APPLICATION_DOCUMENT_TYPES, doc.type),
+                doc.fileName,
+              ])
+            : [["Documents", "None uploaded"]]
+        }
       />
 
       <p className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">

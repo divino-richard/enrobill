@@ -1,15 +1,5 @@
 import { useCallback, useMemo } from "react";
-import REGIONS from "@/assets/static/region.json";
-import PROVINCES from "@/assets/static/province.json";
-import CITIES from "@/assets/static/city.json";
-import BARANGAYS from "@/assets/static/barangay.json";
-
-export type Region = {
-  id: number;
-  psgc_code: string;
-  region_name: string;
-  region_code: string;
-};
+import { useQuery } from "@tanstack/react-query";
 
 export type Province = {
   province_code: string;
@@ -34,13 +24,18 @@ export type Barangay = {
   region_code: string;
 };
 
-const regionList = REGIONS as Region[];
-const provinceList = PROVINCES as Province[];
-const cityList = CITIES as City[];
-const barangayList = BARANGAYS as Barangay[];
+// The address datasets live in /public/static and are fetched at runtime rather
+// than imported, so the large city/barangay files (barangay.json is ~4.7 MB)
+// stay out of the JS bundle and only load when the form actually needs them.
+async function fetchAddressJson<T>(file: string): Promise<T> {
+  const res = await fetch(`${import.meta.env.BASE_URL}static/${file}`);
+  if (!res.ok) {
+    throw new Error(`Failed to load ${file} (${res.status})`);
+  }
+  return (await res.json()) as T;
+}
 
-// Group a list by a parent code, sorting each group by a display name. Built
-// once at module load so the (large) barangay list is only indexed a single time.
+// Group a list by a parent code, sorting each group by a display name.
 function groupBy<T>(
   items: T[],
   keyOf: (item: T) => string,
@@ -59,92 +54,125 @@ function groupBy<T>(
   return map;
 }
 
-const regions = [...regionList].sort((a, b) =>
-  a.region_name.localeCompare(b.region_name),
-);
-
-const allProvinces = [...provinceList].sort((a, b) =>
-  a.province_name.localeCompare(b.province_name),
-);
-
-const provincesByRegion = groupBy(
-  provinceList,
-  (p) => p.region_code,
-  (p) => p.province_name,
-);
-const citiesByProvince = groupBy(
-  cityList,
-  (c) => c.province_code,
-  (c) => c.city_name,
-);
-const barangaysByCity = groupBy(
-  barangayList,
-  (b) => b.city_code,
-  (b) => b.brgy_name,
-);
-
-const regionByCode = new Map(regionList.map((r) => [r.region_code, r]));
-const provinceByCode = new Map(provinceList.map((p) => [p.province_code, p]));
-const cityByCode = new Map(cityList.map((c) => [c.city_code, c]));
-const barangayByCode = new Map(barangayList.map((b) => [b.brgy_code, b]));
+// Datasets never change within a session, so cache them forever.
+const ADDRESS_QUERY = {
+  staleTime: Infinity,
+  gcTime: Infinity,
+} as const;
 
 interface UseAddressProps {
-  regionCode?: string;
   provinceCode?: string;
   cityCode?: string;
 }
 
 /**
- * Cascading Philippine address options (region → province → city → barangay).
+ * Cascading Philippine address options (province → city → barangay).
  *
- * Pass the currently selected codes; each list narrows to the children of its
- * parent. Also exposes name lookups for displaying a selected address.
+ * Province data loads as soon as the hook mounts; the larger city and barangay
+ * datasets are fetched lazily only once their parent is selected. Pass the
+ * currently selected codes to narrow each list and to resolve display names.
  */
-export const useAddress = ({
-  regionCode,
-  provinceCode,
-  cityCode,
-}: UseAddressProps) => {
-  // Filtered to the selected region, or all provinces when no region is used
-  // (the form is province-first).
-  const provinces = useMemo<Province[]>(
-    () => (regionCode ? (provincesByRegion.get(regionCode) ?? []) : allProvinces),
-    [regionCode],
+export const useAddress = ({ provinceCode, cityCode }: UseAddressProps) => {
+  const provinceQuery = useQuery({
+    queryKey: ["address", "provinces"],
+    queryFn: () => fetchAddressJson<Province[]>("province.json"),
+    ...ADDRESS_QUERY,
+  });
+
+  const cityQuery = useQuery({
+    queryKey: ["address", "cities"],
+    queryFn: () => fetchAddressJson<City[]>("city.json"),
+    enabled: Boolean(provinceCode),
+    ...ADDRESS_QUERY,
+  });
+
+  const barangayQuery = useQuery({
+    queryKey: ["address", "barangays"],
+    queryFn: () => fetchAddressJson<Barangay[]>("barangay.json"),
+    enabled: Boolean(cityCode),
+    ...ADDRESS_QUERY,
+  });
+
+  const provinceData = useMemo(
+    () => provinceQuery.data ?? [],
+    [provinceQuery.data],
+  );
+  const cityData = useMemo(() => cityQuery.data ?? [], [cityQuery.data]);
+  const barangayData = useMemo(
+    () => barangayQuery.data ?? [],
+    [barangayQuery.data],
   );
 
+  const provinces = useMemo<Province[]>(
+    () =>
+      [...provinceData].sort((a, b) =>
+        a.province_name.localeCompare(b.province_name),
+      ),
+    [provinceData],
+  );
+
+  const citiesByProvince = useMemo(
+    () =>
+      groupBy(
+        cityData,
+        (c) => c.province_code,
+        (c) => c.city_name,
+      ),
+    [cityData],
+  );
   const cities = useMemo<City[]>(
     () => (provinceCode ? (citiesByProvince.get(provinceCode) ?? []) : []),
-    [provinceCode],
+    [provinceCode, citiesByProvince],
   );
 
+  const barangaysByCity = useMemo(
+    () =>
+      groupBy(
+        barangayData,
+        (b) => b.city_code,
+        (b) => b.brgy_name,
+      ),
+    [barangayData],
+  );
   const barangays = useMemo<Barangay[]>(
     () => (cityCode ? (barangaysByCity.get(cityCode) ?? []) : []),
-    [cityCode],
+    [cityCode, barangaysByCity],
   );
 
-  const getRegionName = useCallback(
-    (code: string) => regionByCode.get(code)?.region_name ?? "",
-    [],
+  const provinceByCode = useMemo(
+    () => new Map(provinceData.map((p) => [p.province_code, p])),
+    [provinceData],
   );
+  const cityByCode = useMemo(
+    () => new Map(cityData.map((c) => [c.city_code, c])),
+    [cityData],
+  );
+  const barangayByCode = useMemo(
+    () => new Map(barangayData.map((b) => [b.brgy_code, b])),
+    [barangayData],
+  );
+
   const getProvinceName = useCallback(
     (code: string) => provinceByCode.get(code)?.province_name ?? "",
-    [],
+    [provinceByCode],
   );
   const getCityName = useCallback(
     (code: string) => cityByCode.get(code)?.city_name ?? "",
-    [],
+    [cityByCode],
   );
   const getBarangayName = useCallback(
     (code: string) => barangayByCode.get(code)?.brgy_name ?? "",
-    [],
+    [barangayByCode],
   );
 
   return {
-    regions,
     provinces,
     cities,
     barangays,
-    getRegionName,
+    // First-load flags so the comboboxes can show a loading placeholder.
+    provincesLoading: provinceQuery.isLoading,
+    citiesLoading: cityQuery.isLoading,
+    barangaysLoading: barangayQuery.isLoading,
     getProvinceName,
     getCityName,
     getBarangayName,

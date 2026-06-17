@@ -15,7 +15,12 @@ import { ContactStep } from "./contact-step";
 import { CourseStep } from "./course-step";
 import { PersonalStep } from "./personal-step";
 import { ReviewStep } from "./review-step";
-import { REVIEW_STEP, STEP_FIELDS, WIZARD_STEPS } from "../constants";
+import {
+  REVIEW_STEP,
+  STEP_EXTRA_VALIDATED_FIELDS,
+  STEP_FIELDS,
+  WIZARD_STEPS,
+} from "../constants";
 import { isStepComplete, stepFilledCount } from "../utils";
 import { useApplicationForm } from "../hooks/form";
 import type { ApplicationFormValues } from "../types";
@@ -36,7 +41,10 @@ export function ApplicationForm() {
   // Validate the current step's fields before advancing; if anything's missing,
   // surface a message and jump the applicant straight to the first problem.
   async function goNext() {
-    const fields = STEP_FIELDS[currentStep] ?? [];
+    const fields = [
+      ...(STEP_FIELDS[currentStep] ?? []),
+      ...(STEP_EXTRA_VALIDATED_FIELDS[currentStep] ?? []),
+    ];
     for (const name of fields) {
       await form.validateField(name, "change");
       form.setFieldMeta(name, (meta) => ({ ...meta, isTouched: true }));
@@ -194,7 +202,7 @@ export function ApplicationForm() {
                 <PersonalStep form={form} enrollmentDate={enrollmentDate} />
               )}
               {currentStep === 1 && <ContactStep form={form} />}
-              {currentStep === 2 && <AcademicStep />}
+              {currentStep === 2 && <AcademicStep form={form} />}
               {currentStep === 3 && <CourseStep />}
               {currentStep === 4 && (
                 <ReviewStep form={form} enrollmentDate={enrollmentDate} />

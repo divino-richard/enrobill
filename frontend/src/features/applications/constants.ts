@@ -6,7 +6,11 @@ import {
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
-import type { Application, ApplicationFormValues } from "./types";
+import type {
+  Application,
+  ApplicationFormValues,
+  TextFieldKey,
+} from "./types";
 
 export interface WizardStep {
   title: string;
@@ -54,7 +58,7 @@ export const REVIEW_STEP = WIZARD_STEPS.length - 1;
 
 // Fields validated when leaving each step (by index). Later steps are
 // placeholders for now, so they have nothing to validate yet.
-export const STEP_FIELDS: Record<number, (keyof ApplicationFormValues)[]> = {
+export const STEP_FIELDS: Record<number, TextFieldKey[]> = {
   0: [
     "enrollmentType",
     "surname",
@@ -70,9 +74,25 @@ export const STEP_FIELDS: Record<number, (keyof ApplicationFormValues)[]> = {
     "addressStreet",
   ],
   1: [],
-  2: [],
+  2: [
+    "prevSchoolName",
+    "prevSchoolGradeLevel",
+    "prevSchoolType",
+    "prevSchoolAddress",
+    "prevSchoolYearGraduated",
+  ],
   3: [],
   4: [],
+};
+
+// Non-text required fields validated when advancing a step but excluded from
+// the text-based "filled" counter (e.g. the document uploads on the academic
+// step, which have their own progress indicator).
+export const STEP_EXTRA_VALIDATED_FIELDS: Record<
+  number,
+  (keyof ApplicationFormValues)[]
+> = {
+  2: ["documents"],
 };
 
 // Mock applications for an aspiring student. One active (under review) plus a

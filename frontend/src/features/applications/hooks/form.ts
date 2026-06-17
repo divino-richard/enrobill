@@ -29,6 +29,13 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
   guardianContactNumber: "",
   guardianAddress: "",
   guardianOccupation: "",
+  prevSchoolName: "",
+  prevSchoolGradeLevel: "",
+  prevSchoolAddress: "",
+  prevSchoolYearGraduated: "",
+  prevSchoolGpa: "",
+  prevSchoolType: "",
+  documents: [],
 };
 
 // Single form instance for the whole multi-step application. Wrapping useForm in

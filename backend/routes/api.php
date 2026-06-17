@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\UserController;
@@ -56,6 +57,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // The current authenticated user (any role may read their own record).
     Route::get('/me', fn (Request $request) => new UserResource($request->user()));
+
+    // Application document uploads — issue a pre-signed S3 URL so the browser
+    // uploads verification documents directly to the bucket.
+    Route::post('/applications/documents/presign', [ApplicationDocumentController::class, 'presign']);
 
     // User management — admins only.
     Route::middleware('role:admin')->group(function () {

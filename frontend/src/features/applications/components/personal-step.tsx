@@ -22,7 +22,7 @@ import {
   type EnrollmentType,
   type Gender,
 } from "../types";
-import { useStore } from "@tanstack/react-form";
+import { useStore } from "@tanstack/react-store";
 import { AddressCombobox } from "./address-combobox";
 import { useAddress } from "../hooks/address";
 
@@ -40,7 +40,14 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
   // Cascading address options — recompute as the parent selections change.
   const provinceCode = useStore(form.store, (s) => s.values.addressProvince);
   const cityCode = useStore(form.store, (s) => s.values.addressCity);
-  const { provinces, cities, barangays } = useAddress({
+  const {
+    provinces,
+    cities,
+    barangays,
+    provincesLoading,
+    citiesLoading,
+    barangaysLoading,
+  } = useAddress({
     provinceCode,
     cityCode,
   });
@@ -429,7 +436,10 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                   id={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  placeholder="Select province"
+                  disabled={provincesLoading}
+                  placeholder={
+                    provincesLoading ? "Loading provinces…" : "Select province"
+                  }
                   emptyText="No province found."
                   options={provinces.map((p) => ({
                     code: p.province_code,
@@ -462,11 +472,13 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                   id={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  disabled={!provinceCode}
+                  disabled={!provinceCode || citiesLoading}
                   placeholder={
-                    provinceCode
-                      ? "Select city / municipality"
-                      : "Select a province first"
+                    !provinceCode
+                      ? "Select a province first"
+                      : citiesLoading
+                        ? "Loading cities…"
+                        : "Select city / municipality"
                   }
                   emptyText="No city / municipality found."
                   options={cities.map((c) => ({
@@ -496,9 +508,13 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                   id={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  disabled={!cityCode}
+                  disabled={!cityCode || barangaysLoading}
                   placeholder={
-                    cityCode ? "Select barangay" : "Select a city first"
+                    !cityCode
+                      ? "Select a city first"
+                      : barangaysLoading
+                        ? "Loading barangays…"
+                        : "Select barangay"
                   }
                   emptyText="No barangay found."
                   options={barangays.map((b) => ({

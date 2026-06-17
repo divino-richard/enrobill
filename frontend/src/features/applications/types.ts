@@ -1,3 +1,5 @@
+import type { UploadedDocument } from "./documents";
+
 export type ApplicationStatus =
   | "draft"
   | "submitted"
@@ -60,7 +62,24 @@ export interface ApplicationFormValues {
   guardianContactNumber: string;
   guardianAddress: string;
   guardianOccupation: string;
+  prevSchoolName: string;
+  prevSchoolGradeLevel: string;
+  prevSchoolAddress: string;
+  prevSchoolYearGraduated: string;
+  prevSchoolGpa: string;
+  prevSchoolType: string;
+  // Previous-school verification documents uploaded to S3.
+  documents: UploadedDocument[];
 }
+
+// Keys of the form whose value is a plain string. The step counter and
+// validation gate operate on these (the `documents` array is handled
+// separately), so narrowing here keeps those helpers type-safe.
+export type TextFieldKey = {
+  [K in keyof ApplicationFormValues]: ApplicationFormValues[K] extends string
+    ? K
+    : never;
+}[keyof ApplicationFormValues];
 
 export const ENROLLMENT_TYPE_OPTIONS = [
   { value: "senior_high", label: "Senior High School" },
