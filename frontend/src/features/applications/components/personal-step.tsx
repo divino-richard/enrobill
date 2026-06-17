@@ -1,0 +1,318 @@
+import { format } from "date-fns";
+import { ClipboardListIcon, UserRoundIcon } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DatePicker } from "@/components/form/date-picker";
+import { FieldInfo } from "@/components/form/field-info";
+import { FieldLabel } from "@/components/form/field-label";
+import { FormSection } from "./form-section";
+import { calculateAge } from "@/features/applications/utils";
+import type { ApplicationFormApi } from "../hooks/form";
+import {
+  CIVIL_STATUS_OPTIONS,
+  ENROLLMENT_TYPE_OPTIONS,
+  type EnrollmentType,
+  type Gender,
+} from "../types";
+
+function required(message: string) {
+  return ({ value }: { value: string }) =>
+    value && value.trim() ? undefined : message;
+}
+
+interface PersonalStepProps {
+  form: ApplicationFormApi;
+  enrollmentDate: Date;
+}
+
+export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
+  return (
+    <div className="space-y-8">
+      <FormSection title="Enrollment Information" icon={ClipboardListIcon}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <form.Field
+            name="enrollmentType"
+            validators={{ onChange: required("Please select a type") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Select Senior High School or College, depending on the program you're applying for."
+                >
+                  Type
+                </FieldLabel>
+                <Select
+                  value={field.state.value}
+                  onValueChange={(v) => field.handleChange(v as EnrollmentType)}
+                >
+                  <SelectTrigger id={field.name} className="w-full">
+                    <SelectValue placeholder="Senior High School / College" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ENROLLMENT_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <div className="space-y-1.5">
+            <FieldLabel
+              htmlFor="enrollment-date"
+              hint="Automatically set to when you started this application."
+            >
+              Date/Time of Enrollment
+            </FieldLabel>
+            <Input
+              id="enrollment-date"
+              value={format(enrollmentDate, "PPP 'at' p")}
+              readOnly
+              disabled
+            />
+          </div>
+        </div>
+      </FormSection>
+
+      <FormSection title="Personal Information" icon={UserRoundIcon}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <form.Field
+            name="surname"
+            validators={{ onChange: required("Family name is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Enter your family name exactly as written on your PSA birth certificate."
+                >
+                  Family name / Surname
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="givenName"
+            validators={{ onChange: required("Given name is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Enter your given (first) name exactly as on your PSA birth certificate."
+                >
+                  Given name
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="middleName">
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  optional
+                  hint="Usually your mother's maiden surname. Leave blank if you have none."
+                >
+                  Middle name
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="extension">
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  optional
+                  hint="A suffix such as Jr., Sr., II, or III — only if it appears on your birth certificate."
+                >
+                  Name suffix
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="dateOfBirth"
+            validators={{ onChange: required("Date of birth is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Use the date shown on your PSA birth certificate."
+                >
+                  Date of Birth
+                </FieldLabel>
+                <DatePicker
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  placeholder="Select date of birth"
+                  onChange={(value) => {
+                    field.handleChange(value);
+                    const age = calculateAge(value, enrollmentDate);
+                    form.setFieldValue("age", age != null ? String(age) : "");
+                  }}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="age">
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  hint="Automatically calculated from your date of birth as of the enrollment date."
+                >
+                  Age
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  type="number"
+                  value={field.state.value}
+                  readOnly
+                  disabled
+                  placeholder="—"
+                />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="gender"
+            validators={{ onChange: required("Please select a gender") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel required>Gender</FieldLabel>
+                <RadioGroup
+                  value={field.state.value}
+                  onValueChange={(v) => field.handleChange(v as Gender)}
+                  className="flex gap-6 pt-1"
+                >
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="male" id="gender-male" />
+                    <Label htmlFor="gender-male" className="font-normal">
+                      Male
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="female" id="gender-female" />
+                    <Label htmlFor="gender-female" className="font-normal">
+                      Female
+                    </Label>
+                  </div>
+                </RadioGroup>
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="nationality"
+            validators={{ onChange: required("Nationality is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Your citizenship. Choose Dual Citizen if you hold two citizenships."
+                >
+                  Nationality / Citizenship
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  placeholder="e.g. Filipino, Dual Citizen"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="civilStatus"
+            validators={{ onChange: required("Please select a civil status") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel htmlFor={field.name} required>
+                  Civil status
+                </FieldLabel>
+                <Select
+                  value={field.state.value}
+                  onValueChange={(v) => field.handleChange(v)}
+                >
+                  <SelectTrigger id={field.name} className="w-full">
+                    <SelectValue placeholder="Select your current civil status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIVIL_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+        </div>
+      </FormSection>
+    </div>
+  );
+}

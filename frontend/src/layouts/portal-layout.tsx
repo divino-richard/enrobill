@@ -5,7 +5,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { PortalSidebar } from "@/features/portal/components/portal-sidebar";
+import { PortalSidebar } from "@/components/portal-sidebar";
 
 // Self-service shell for the portal (students + applicants), with the sidebar.
 export function PortalLayout() {
