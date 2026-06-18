@@ -5,6 +5,7 @@ import {
   CheckCircle2Icon,
   ChevronLeft,
   ChevronRight,
+  CircleAlertIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -191,9 +192,20 @@ export function ApplicationForm() {
             }}
           >
             {stepError && (
-              <div className="border-destructive/30 bg-destructive/5 text-destructive mb-5 rounded-md border px-3 py-2.5 text-sm">
-                Please complete the required fields highlighted below before
-                continuing.
+              <div
+                role="alert"
+                className="border-destructive/30 bg-destructive/5 text-destructive mb-5 flex items-start gap-3 rounded-lg border px-4 py-3"
+              >
+                <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-semibold">
+                    Let's finish this step first
+                  </p>
+                  <p className="text-destructive/80 text-xs leading-relaxed">
+                    A few required fields still need your attention. Please
+                    complete or fix the items highlighted below to continue.
+                  </p>
+                </div>
               </div>
             )}
 

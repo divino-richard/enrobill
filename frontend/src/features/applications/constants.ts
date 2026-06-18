@@ -73,7 +73,17 @@ export const STEP_FIELDS: Record<number, TextFieldKey[]> = {
     "addressBrangay",
     "addressStreet",
   ],
-  1: [],
+  1: [
+    "homeAddress",
+    "mailingAddress",
+    "phoneNumber",
+    "emailAddress",
+    "guardianName",
+    "guardianRelation",
+    "guardianContactNumber",
+    "guardianAddress",
+    "guardianOccupation",
+  ],
   2: [
     "prevSchoolName",
     "prevSchoolGradeLevel",

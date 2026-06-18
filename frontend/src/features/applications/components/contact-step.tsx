@@ -18,53 +18,53 @@ export function ContactStep({ form }: ContactStepProps) {
   return (
     <div className="space-y-8">
       <FormSection title="Contact Information" icon={PhoneCall}>
-        <form.Field
-          name="homeAddress"
-          validators={{ onChange: required("Home address is required") }}
-        >
-          {(field) => (
-            <div className="space-y-1.5">
-              <FieldLabel
-                htmlFor={field.name}
-                required
-                hint="Your current residential address where you seside dring school term."
-              >
-                Home Address (current)
-              </FieldLabel>
-              <Input
-                id={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-              />
-              <FieldInfo field={field} />
-            </div>
-          )}
-        </form.Field>
-        <form.Field
-          name="mailingAddress"
-          validators={{ onChange: required("Mailing address is required") }}
-        >
-          {(field) => (
-            <div className="space-y-1.5">
-              <FieldLabel
-                htmlFor={field.name}
-                required
-                hint="Address where school correspondence should be sent."
-              >
-                Mailing Address
-              </FieldLabel>
-              <Input
-                id={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-              />
-              <FieldInfo field={field} />
-            </div>
-          )}
-        </form.Field>
         <div className="grid gap-4 sm:grid-cols-2">
+          <form.Field
+            name="homeAddress"
+            validators={{ onChange: required("Home address is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Your current residential address where you seside dring school term."
+                >
+                  Home Address (current)
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+          <form.Field
+            name="mailingAddress"
+            validators={{ onChange: required("Mailing address is required") }}
+          >
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Address where school correspondence should be sent."
+                >
+                  Mailing Address
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
           <form.Field
             name="phoneNumber"
             validators={{ onChange: required("Phone number is required") }}
@@ -111,27 +111,27 @@ export function ContactStep({ form }: ContactStepProps) {
               </div>
             )}
           </form.Field>
+          <form.Field name="facebookAccount">
+            {(field) => (
+              <div className="space-y-1.5">
+                <FieldLabel
+                  htmlFor={field.name}
+                  optional
+                  hint="Facebook name or link for group communications and announcements"
+                >
+                  Facebook Account
+                </FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
         </div>
-        <form.Field name="facebookAccount">
-          {(field) => (
-            <div className="space-y-1.5">
-              <FieldLabel
-                htmlFor={field.name}
-                optional
-                hint="Facebook name or link for group communications and announcements"
-              >
-                Facebook Account
-              </FieldLabel>
-              <Input
-                id={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-              />
-              <FieldInfo field={field} />
-            </div>
-          )}
-        </form.Field>
       </FormSection>
 
       <FormSection title="Parent / Guardian Information" icon={FileUser}>

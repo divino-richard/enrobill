@@ -103,13 +103,16 @@ export const useAddress = ({ provinceCode, cityCode }: UseAddressProps) => {
     [barangayQuery.data],
   );
 
-  const provinces = useMemo<Province[]>(
-    () =>
-      [...provinceData].sort((a, b) =>
-        a.province_name.localeCompare(b.province_name),
-      ),
-    [provinceData],
-  );
+  const provinces = useMemo<Province[]>(() => {
+    // The source data has a few duplicate province codes (e.g. NCR Manila
+    // appears twice). Dedupe by code — keeping the last entry so the list
+    // matches the `provinceByCode` lookup below — to avoid duplicate React
+    // keys and an ambiguous selection.
+    const byCode = new Map(provinceData.map((p) => [p.province_code, p]));
+    return [...byCode.values()].sort((a, b) =>
+      a.province_name.localeCompare(b.province_name),
+    );
+  }, [provinceData]);
 
   const citiesByProvince = useMemo(
     () =>

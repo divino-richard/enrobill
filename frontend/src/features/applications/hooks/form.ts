@@ -2,7 +2,7 @@ import { useForm } from "@tanstack/react-form";
 import { type ApplicationFormValues } from "../types";
 
 export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
-  enrollmentType: "",
+  enrollmentType: "senior_high",
   surname: "",
   givenName: "",
   middleName: "",

@@ -65,13 +65,14 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                 <FieldLabel
                   htmlFor={field.name}
                   required
-                  hint="Select Senior High School or College, depending on the program you're applying for."
+                  hint="Enrollment is currently open for Senior High School only."
                 >
                   Type
                 </FieldLabel>
                 <Select
                   value={field.state.value}
                   onValueChange={(v) => field.handleChange(v as EnrollmentType)}
+                  disabled
                 >
                   <SelectTrigger id={field.name} className="w-full">
                     <SelectValue placeholder="Senior High School / College" />
@@ -533,7 +534,7 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
             validators={{ onChange: required("Street address is required") }}
           >
             {(field) => (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5">
                 <FieldLabel
                   htmlFor={field.name}
                   required

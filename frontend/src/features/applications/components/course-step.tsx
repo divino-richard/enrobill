@@ -61,7 +61,7 @@ export function CourseStep({ form }: CourseStepProps) {
             }}
           >
             {(field) => (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5">
                 <FieldLabel
                   htmlFor={field.name}
                   required
@@ -206,7 +206,12 @@ export function CourseStep({ form }: CourseStepProps) {
                 >
                   Student Name
                 </FieldLabel>
-                <Input id={field.name} value={field.state.value} disabled readOnly />
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  disabled
+                  readOnly
+                />
                 <FieldInfo field={field} />
               </div>
             )}
@@ -225,7 +230,12 @@ export function CourseStep({ form }: CourseStepProps) {
                 >
                   Guardian Name
                 </FieldLabel>
-                <Input id={field.name} value={field.state.value} disabled readOnly />
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  disabled
+                  readOnly
+                />
                 <FieldInfo field={field} />
               </div>
             )}
