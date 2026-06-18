@@ -47,6 +47,12 @@ class ApplicationResource extends JsonResource
             'status' => $this->status,
             'submittedAt' => $this->submitted_at?->toIso8601String(),
             'updatedAt' => $this->updated_at?->toIso8601String(),
+            // Present for admin listings (when the applicant is eager-loaded).
+            'applicant' => $this->whenLoaded('user', fn () => [
+                'id' => $this->user->id,
+                'name' => $this->user->name,
+                'email' => $this->user->email,
+            ]),
             'values' => $this->formValues(),
         ];
     }

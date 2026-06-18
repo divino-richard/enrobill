@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
@@ -72,9 +73,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/applications/{application}', [ApplicationController::class, 'show']);
     Route::put('/applications/{application}', [ApplicationController::class, 'update']);
 
-    // User management — admins only.
+    // Back-office endpoints — admins only.
     Route::middleware('role:admin')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
         Route::get('/users/{user}', [UserController::class, 'show']);
+
+        // All applications across every applicant.
+        Route::get('/admin/applications', [AdminApplicationController::class, 'index']);
+        Route::get('/admin/applications/{application}', [AdminApplicationController::class, 'show']);
     });
 });

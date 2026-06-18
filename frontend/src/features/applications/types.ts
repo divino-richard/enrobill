@@ -24,6 +24,18 @@ export interface ApplicationDetail extends Application {
   values: ApplicationFormValues;
 }
 
+// The applicant who owns an application (included in admin listings).
+export interface ApplicationApplicant {
+  id: number;
+  name: string;
+  email: string;
+}
+
+// An application as seen by staff, with the owning applicant attached.
+export interface AdminApplication extends Application {
+  applicant: ApplicationApplicant;
+}
+
 // Statuses that count as an in-progress application (only one allowed at a time).
 export const ACTIVE_STATUSES: ApplicationStatus[] = [
   "draft",

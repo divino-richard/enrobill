@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  fetchAllApplications,
   fetchApplication,
   fetchApplications,
   submitApplication,
@@ -8,12 +9,21 @@ import {
 import type { ApplicationFormValues } from "../types";
 
 export const applicationsQueryKey = ["applications"] as const;
+export const adminApplicationsQueryKey = ["admin", "applications"] as const;
 
 // Load the authenticated applicant's applications.
 export function useApplications() {
   return useQuery({
     queryKey: applicationsQueryKey,
     queryFn: fetchApplications,
+  });
+}
+
+// Load every applicant's applications (admin).
+export function useAllApplications() {
+  return useQuery({
+    queryKey: adminApplicationsQueryKey,
+    queryFn: fetchAllApplications,
   });
 }
 

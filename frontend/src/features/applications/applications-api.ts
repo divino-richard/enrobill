@@ -1,5 +1,6 @@
 import api from "@/lib/api";
 import type {
+  AdminApplication,
   Application,
   ApplicationDetail,
   ApplicationFormValues,
@@ -13,6 +14,13 @@ interface Wrapped<T> {
 // The authenticated applicant's submitted applications, newest first.
 export async function fetchApplications(): Promise<Application[]> {
   const { data } = await api.get<Wrapped<Application[]>>("/applications");
+  return data.data;
+}
+
+// All applications across every applicant (admin only).
+export async function fetchAllApplications(): Promise<AdminApplication[]> {
+  const { data } =
+    await api.get<Wrapped<AdminApplication[]>>("/admin/applications");
   return data.data;
 }
 
