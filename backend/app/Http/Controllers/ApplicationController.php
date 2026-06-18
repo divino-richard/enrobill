@@ -33,25 +33,7 @@ class ApplicationController extends Controller
      */
     public function store(Request $request): ApplicationResource
     {
-        $request->validate([
-            'enrollmentType' => ['required', 'in:senior_high,college'],
-            'surname' => ['required', 'string', 'max:100'],
-            'givenName' => ['required', 'string', 'max:100'],
-            'dateOfBirth' => ['required', 'date'],
-            'gender' => ['required', 'string'],
-            'trackOrStrand' => ['required', 'string'],
-            'yearLevel' => ['required', 'string'],
-            'semester' => ['required', 'string'],
-            'schoolYear' => ['required', 'string'],
-            'agreementAccepted' => ['accepted'],
-            'documents' => ['array', 'min:3'],
-            'documents.*.type' => ['required', 'string'],
-            'documents.*.key' => ['required', 'string'],
-            'documents.*.fileName' => ['required', 'string'],
-        ], [
-            'agreementAccepted.accepted' => 'You must agree to the declaration before submitting.',
-            'documents.min' => 'Please upload at least 3 verification documents.',
-        ]);
+        $this->validateApplication($request);
 
         $user = $request->user();
 
@@ -76,17 +58,7 @@ class ApplicationController extends Controller
                 'reference' => sprintf('APP-%d-%06d', $application->created_at->year, $application->id),
             ])->save();
 
-            $documents = collect($request->input('documents', []))
-                ->map(fn (array $doc) => [
-                    'type' => $doc['type'],
-                    's3_key' => $doc['key'],
-                    'file_name' => $doc['fileName'],
-                    'size' => $doc['size'] ?? null,
-                    'content_type' => $doc['contentType'] ?? null,
-                ])
-                ->all();
-
-            $application->documents()->createMany($documents);
+            $application->documents()->createMany($this->mapDocuments($request));
 
             return $application;
         });
@@ -102,6 +74,93 @@ class ApplicationController extends Controller
         abort_unless($application->user_id === $request->user()->id, 404);
 
         return new ApplicationResource($application->load('documents'));
+    }
+
+    /**
+     * Edit and resubmit a rejected application. Updates the answers, replaces
+     * the documents, and moves the application back to "submitted".
+     */
+    public function update(Request $request, Application $application): ApplicationResource
+    {
+        abort_unless($application->user_id === $request->user()->id, 404);
+        abort_unless(
+            $application->status === 'rejected',
+            403,
+            'Only a rejected application can be edited and resubmitted.',
+        );
+
+        // Resubmitting makes this application active again — block it if another
+        // application is already in progress, to keep at most one active.
+        $hasOtherActive = $request->user()->applications()
+            ->whereIn('status', self::ACTIVE_STATUSES)
+            ->whereKeyNot($application->id)
+            ->exists();
+
+        if ($hasOtherActive) {
+            throw ValidationException::withMessages([
+                'application' => 'You already have an application in progress. Please resolve it before resubmitting this one.',
+            ]);
+        }
+
+        $this->validateApplication($request);
+
+        DB::transaction(function () use ($application, $request) {
+            $application->update([
+                'status' => 'submitted',
+                'submitted_at' => now(),
+                ...$this->mapAttributes($request),
+            ]);
+
+            // Replace the document set with whatever the applicant resubmitted.
+            $application->documents()->delete();
+            $application->documents()->createMany($this->mapDocuments($request));
+        });
+
+        return new ApplicationResource($application->fresh()->load('documents'));
+    }
+
+    /**
+     * Shared validation for submitting / resubmitting an application.
+     */
+    private function validateApplication(Request $request): void
+    {
+        $request->validate([
+            'enrollmentType' => ['required', 'in:senior_high,college'],
+            'surname' => ['required', 'string', 'max:100'],
+            'givenName' => ['required', 'string', 'max:100'],
+            'dateOfBirth' => ['required', 'date'],
+            'gender' => ['required', 'string'],
+            'trackOrStrand' => ['required', 'string'],
+            'yearLevel' => ['required', 'string'],
+            'semester' => ['required', 'string'],
+            'schoolYear' => ['required', 'string'],
+            'agreementAccepted' => ['accepted'],
+            'documents' => ['array', 'min:3'],
+            'documents.*.type' => ['required', 'string'],
+            'documents.*.key' => ['required', 'string'],
+            'documents.*.fileName' => ['required', 'string'],
+        ], [
+            'agreementAccepted.accepted' => 'You must agree to the declaration before submitting.',
+            'documents.min' => 'Please upload at least 3 verification documents.',
+        ]);
+    }
+
+    /**
+     * Normalize the incoming documents into rows for `application_documents`.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function mapDocuments(Request $request): array
+    {
+        return collect($request->input('documents', []))
+            ->map(fn (array $doc) => [
+                'type' => $doc['type'],
+                's3_key' => $doc['key'],
+                'file_name' => $doc['fileName'],
+                'size' => $doc['size'] ?? null,
+                'content_type' => $doc['contentType'] ?? null,
+            ])
+            ->all();
     }
 
     /**

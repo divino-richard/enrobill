@@ -86,18 +86,32 @@ export function clearApplicationDraft(): void {
   }
 }
 
+interface UseApplicationFormOptions {
+  // Seed the form with these values instead of the saved draft (edit mode).
+  initialValues?: ApplicationFormValues;
+  // Whether to restore/auto-save the localStorage draft. Off for editing an
+  // existing application so we don't clobber a new-application draft.
+  persistDraft?: boolean;
+}
+
 // Single form instance for the whole multi-step application. Wrapping useForm in
 // a hook lets us derive a precise `ApplicationFormApi` type for the step
-// components without re-declaring TanStack Form's generics. It also restores any
-// saved draft on mount and auto-saves changes back to localStorage.
+// components without re-declaring TanStack Form's generics. In create mode it
+// restores any saved draft and auto-saves changes; in edit mode it is seeded
+// with the application's values and does not touch the draft.
 export function useApplicationForm(
   onSubmit: (values: ApplicationFormValues) => void | Promise<void>,
+  options: UseApplicationFormOptions = {},
 ) {
-  // Restore the saved draft (if any) as the initial values, once.
-  const [initialValues] = useState(loadApplicationDraft);
+  const { initialValues, persistDraft = true } = options;
+
+  // Seed once: provided values (edit) or the saved draft (create).
+  const [defaults] = useState(
+    () => initialValues ?? loadApplicationDraft(),
+  );
 
   const form = useForm({
-    defaultValues: initialValues,
+    defaultValues: defaults,
     onSubmit: async ({ value }) => {
       await onSubmit(value);
     },
@@ -105,6 +119,7 @@ export function useApplicationForm(
 
   // Auto-save: debounce-write the latest values whenever the form changes.
   useEffect(() => {
+    if (!persistDraft) return;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const subscription = form.store.subscribe(() => {
       if (timeout) clearTimeout(timeout);
@@ -116,7 +131,7 @@ export function useApplicationForm(
       if (timeout) clearTimeout(timeout);
       subscription.unsubscribe();
     };
-  }, [form]);
+  }, [form, persistDraft]);
 
   return form;
 }

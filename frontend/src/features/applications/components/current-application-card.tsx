@@ -40,10 +40,12 @@ function Field({
 
 interface CurrentApplicationCardProps {
   application: Application;
+  onView?: () => void;
 }
 
 export function CurrentApplicationCard({
   application,
+  onView,
 }: CurrentApplicationCardProps) {
   const meta = APPLICATION_STATUS_META[application.status];
   const needsAction =
@@ -83,7 +85,10 @@ export function CurrentApplicationCard({
         </dl>
 
         <div className="flex justify-end">
-          <Button variant={needsAction ? "default" : "outline"}>
+          <Button
+            variant={needsAction ? "default" : "outline"}
+            onClick={onView}
+          >
             {needsAction ? "Continue application" : "View details"}
             <ArrowRightIcon />
           </Button>

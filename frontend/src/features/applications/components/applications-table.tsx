@@ -13,9 +13,13 @@ import { formatDate } from "../utils";
 
 interface ApplicationsTableProps {
   applications: Application[];
+  onView?: (id: number) => void;
 }
 
-export function ApplicationsTable({ applications }: ApplicationsTableProps) {
+export function ApplicationsTable({
+  applications,
+  onView,
+}: ApplicationsTableProps) {
   return (
     <Table>
       <TableHeader>
@@ -45,7 +49,11 @@ export function ApplicationsTable({ applications }: ApplicationsTableProps) {
               {formatDate(application.submittedAt)}
             </TableCell>
             <TableCell className="text-right">
-              <Button variant="ghost" size="sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onView?.(application.id)}
+              >
                 View
               </Button>
             </TableCell>

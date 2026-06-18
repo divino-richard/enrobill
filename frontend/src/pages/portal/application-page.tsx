@@ -48,7 +48,12 @@ function ApplicationPage() {
       ) : (
         <>
           {activeApplication && (
-            <CurrentApplicationCard application={activeApplication} />
+            <CurrentApplicationCard
+              application={activeApplication}
+              onView={() =>
+                navigate(`/portal/application/${activeApplication.id}`)
+              }
+            />
           )}
 
           {previousApplications.length > 0 && (
@@ -57,7 +62,10 @@ function ApplicationPage() {
                 Application history
               </h2>
               <div className="overflow-hidden rounded-lg border">
-                <ApplicationsTable applications={previousApplications} />
+                <ApplicationsTable
+                  applications={previousApplications}
+                  onView={(id) => navigate(`/portal/application/${id}`)}
+                />
               </div>
             </section>
           )}

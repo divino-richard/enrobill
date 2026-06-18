@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Application;
+use App\Models\ApplicationDocument;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -68,6 +70,27 @@ class ApplicationDocumentController extends Controller
             'key' => $key,
             'url' => $signed['url'],
             'headers' => $signed['headers'],
+        ]);
+    }
+
+    /**
+     * Issue a short-lived, pre-signed GET URL so the owner can view a previously
+     * uploaded document (e.g. inside a modal preview).
+     */
+    public function viewUrl(Request $request, Application $application, ApplicationDocument $document): JsonResponse
+    {
+        abort_unless($application->user_id === $request->user()->id, 404);
+        abort_unless($document->application_id === $application->id, 404);
+
+        $url = Storage::disk('s3')->temporaryUrl(
+            $document->s3_key,
+            now()->addMinutes(10),
+        );
+
+        return response()->json([
+            'url' => $url,
+            'fileName' => $document->file_name,
+            'contentType' => $document->content_type,
         ]);
     }
 }

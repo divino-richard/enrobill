@@ -10,6 +10,8 @@ import DashboardPage from './pages/admin/dashboard-page'
 import PortalHomePage from './pages/portal/home-page'
 import ApplicationPage from './pages/portal/application-page'
 import ApplicationNewPage from './pages/portal/application-new-page'
+import ApplicationDetailPage from './pages/portal/application-detail-page'
+import ApplicationEditPage from './pages/portal/application-edit-page'
 
 // Central route configuration. One shared login; two areas behind role guards:
 //   - Staff  (admin + cashier) under /admin
@@ -46,6 +48,8 @@ export const router = createBrowserRouter([
           { index: true, Component: PortalHomePage },
           { path: 'application', Component: ApplicationPage },
           { path: 'application/new', Component: ApplicationNewPage },
+          { path: 'application/:id', Component: ApplicationDetailPage },
+          { path: 'application/:id/edit', Component: ApplicationEditPage },
         ],
       },
     ],

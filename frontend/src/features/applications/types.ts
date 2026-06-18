@@ -19,6 +19,11 @@ export interface Application {
   updatedAt: string;
 }
 
+// A single application with its full submitted answers (detail / edit screens).
+export interface ApplicationDetail extends Application {
+  values: ApplicationFormValues;
+}
+
 // Statuses that count as an in-progress application (only one allowed at a time).
 export const ACTIVE_STATUSES: ApplicationStatus[] = [
   "draft",

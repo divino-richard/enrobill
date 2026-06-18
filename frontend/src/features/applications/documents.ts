@@ -13,7 +13,9 @@ export type ApplicationDocumentType =
 
 // A document successfully uploaded to S3. The `key` is the object key returned
 // by the presign endpoint; that's what gets submitted with the application.
+// `id` is only present for documents already persisted with an application.
 export interface UploadedDocument {
+  id?: number;
   type: ApplicationDocumentType;
   key: string;
   fileName: string;

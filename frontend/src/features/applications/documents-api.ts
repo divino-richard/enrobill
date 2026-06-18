@@ -43,3 +43,20 @@ export async function uploadApplicationDocument(
     contentType: file.type,
   };
 }
+
+export interface DocumentViewUrl {
+  url: string;
+  fileName: string;
+  contentType: string | null;
+}
+
+// Fetch a short-lived URL to view a previously uploaded document.
+export async function fetchDocumentViewUrl(
+  applicationId: number,
+  documentId: number,
+): Promise<DocumentViewUrl> {
+  const { data } = await api.get<DocumentViewUrl>(
+    `/applications/${applicationId}/documents/${documentId}`,
+  );
+  return data;
+}

@@ -28,12 +28,27 @@ import {
   clearApplicationDraft,
   useApplicationForm,
 } from "../hooks/form";
-import { useSubmitApplication } from "../hooks/use-applications";
+import {
+  useSubmitApplication,
+  useUpdateApplication,
+} from "../hooks/use-applications";
 import { getErrorMessage } from "@/lib/get-error-message";
 import type { ApplicationFormValues } from "../types";
 
-export function ApplicationForm() {
+interface ApplicationFormProps {
+  // "edit" resubmits an existing (rejected) application; defaults to "create".
+  mode?: "create" | "edit";
+  applicationId?: number;
+  initialValues?: ApplicationFormValues;
+}
+
+export function ApplicationForm({
+  mode = "create",
+  applicationId,
+  initialValues,
+}: ApplicationFormProps = {}) {
   const navigate = useNavigate();
+  const isEdit = mode === "edit";
   const enrollmentDate = useMemo(() => new Date(), []);
   const [currentStep, setCurrentStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -41,18 +56,28 @@ export function ApplicationForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const submitApplication = useSubmitApplication();
+  const updateApplication = useUpdateApplication(applicationId ?? 0);
 
-  const form = useApplicationForm(async (values: ApplicationFormValues) => {
-    setSubmitError(null);
-    try {
-      await submitApplication.mutateAsync(values);
-      // The application is in; drop the locally saved draft.
-      clearApplicationDraft();
-      setSubmitted(true);
-    } catch (error) {
-      setSubmitError(getErrorMessage(error));
-    }
-  });
+  const form = useApplicationForm(
+    async (values: ApplicationFormValues) => {
+      setSubmitError(null);
+      try {
+        if (isEdit) {
+          await updateApplication.mutateAsync(values);
+        } else {
+          await submitApplication.mutateAsync(values);
+          // The application is in; drop the locally saved draft.
+          clearApplicationDraft();
+        }
+        setSubmitted(true);
+      } catch (error) {
+        setSubmitError(getErrorMessage(error));
+      }
+    },
+    // Stop auto-saving once submitted, so a debounced write can't re-create the
+    // draft we just cleared.
+    { initialValues, persistDraft: !isEdit && !submitted },
+  );
 
   // Discard the saved draft and reset the wizard back to an empty first step.
   function startOver() {
@@ -111,10 +136,13 @@ export function ApplicationForm() {
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
           <CheckCircle2Icon className="size-12 text-emerald-600 dark:text-emerald-500" />
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Application submitted</h2>
+            <h2 className="text-lg font-semibold">
+              {isEdit ? "Application resubmitted" : "Application submitted"}
+            </h2>
             <p className="text-muted-foreground text-sm">
-              Your application has been submitted for review. You can track its
-              status anytime.
+              {isEdit
+                ? "Your updated application has been resubmitted for review. You can track its status anytime."
+                : "Your application has been submitted for review. You can track its status anytime."}
             </p>
           </div>
           <Button onClick={() => navigate("/portal/application")}>
@@ -149,7 +177,9 @@ export function ApplicationForm() {
             <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
               Enrollment
             </p>
-            <h2 className="text-base font-semibold">New Application</h2>
+            <h2 className="text-base font-semibold">
+              {isEdit ? "Edit Application" : "New Application"}
+            </h2>
           </div>
           <form.Subscribe selector={(state) => state.values}>
             {(values) => (
@@ -163,20 +193,22 @@ export function ApplicationForm() {
             )}
           </form.Subscribe>
 
-          {/* Autosave status + reset. */}
-          <div className="mt-auto border-t pt-4">
-            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-              <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-500" />
-              Progress saved on this device
-            </p>
-            <button
-              type="button"
-              onClick={startOver}
-              className="text-muted-foreground hover:text-destructive mt-2 cursor-pointer text-xs underline-offset-2 hover:underline"
-            >
-              Start over
-            </button>
-          </div>
+          {/* Autosave status + reset (new applications only). */}
+          {!isEdit && (
+            <div className="mt-auto border-t pt-4">
+              <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-500" />
+                Progress saved on this device
+              </p>
+              <button
+                type="button"
+                onClick={startOver}
+                className="text-muted-foreground hover:text-destructive mt-2 cursor-pointer text-xs underline-offset-2 hover:underline"
+              >
+                Start over
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Right — form content. */}
@@ -300,7 +332,11 @@ export function ApplicationForm() {
                       className="cursor-pointer"
                       disabled={isSubmitting}
                     >
-                      {isSubmitting ? "Submitting…" : "Submit application"}
+                      {isSubmitting
+                        ? "Submitting…"
+                        : isEdit
+                          ? "Resubmit application"
+                          : "Submit application"}
                     </Button>
                   )}
                 </form.Subscribe>
