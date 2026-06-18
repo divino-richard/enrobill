@@ -15,6 +15,7 @@ export interface ListParams {
   sort?: string;
   dir?: "asc" | "desc";
   status?: string;
+  role?: string;
   search?: string;
 }
 
@@ -52,6 +53,7 @@ export function listParamsToQuery(params: ListParams) {
     sort: params.sort,
     dir: params.dir,
     status: params.status,
+    role: params.role,
     search: params.search,
   };
 }

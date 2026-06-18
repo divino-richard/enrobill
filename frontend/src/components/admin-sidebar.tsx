@@ -7,6 +7,7 @@ import {
   GraduationCapIcon,
   LayoutDashboardIcon,
   ReceiptTextIcon,
+  UsersIcon,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -53,6 +54,12 @@ const navItems: NavItem[] = [
     title: "Students",
     url: "/admin/students",
     icon: GraduationCapIcon,
+    ready: true,
+  },
+  {
+    title: "Users",
+    url: "/admin/users",
+    icon: UsersIcon,
     ready: true,
   },
   { title: "Fees & Assessments", icon: ReceiptTextIcon },
