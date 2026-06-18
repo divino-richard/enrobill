@@ -23,7 +23,11 @@ import {
   WIZARD_STEPS,
 } from "../constants";
 import { isStepComplete, stepFilledCount } from "../utils";
-import { useApplicationForm } from "../hooks/form";
+import {
+  DEFAULT_APPLICATION_FORM_VALUES,
+  clearApplicationDraft,
+  useApplicationForm,
+} from "../hooks/form";
 import type { ApplicationFormValues } from "../types";
 
 export function ApplicationForm() {
@@ -36,8 +40,22 @@ export function ApplicationForm() {
   const form = useApplicationForm((values: ApplicationFormValues) => {
     // Mocked submission for now — this will POST to the API later.
     console.log("Submitting application", values);
+    // The application is in; drop the locally saved draft.
+    clearApplicationDraft();
     setSubmitted(true);
   });
+
+  // Discard the saved draft and reset the wizard back to an empty first step.
+  function startOver() {
+    const confirmed = window.confirm(
+      "Discard your saved progress and start this application over?",
+    );
+    if (!confirmed) return;
+    clearApplicationDraft();
+    form.reset(DEFAULT_APPLICATION_FORM_VALUES);
+    setCurrentStep(0);
+    setStepError(false);
+  }
 
   // Validate the current step's fields before advancing; if anything's missing,
   // surface a message and jump the applicant straight to the first problem.
@@ -135,6 +153,21 @@ export function ApplicationForm() {
               />
             )}
           </form.Subscribe>
+
+          {/* Autosave status + reset. */}
+          <div className="mt-auto border-t pt-4">
+            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+              <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-500" />
+              Progress saved on this device
+            </p>
+            <button
+              type="button"
+              onClick={startOver}
+              className="text-muted-foreground hover:text-destructive mt-2 cursor-pointer text-xs underline-offset-2 hover:underline"
+            >
+              Start over
+            </button>
+          </div>
         </aside>
 
         {/* Right — form content. */}

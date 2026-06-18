@@ -450,7 +450,7 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                     field.handleChange(code);
                     // Reset the dependent selections.
                     form.setFieldValue("addressCity", "");
-                    form.setFieldValue("addressBrangay", "");
+                    form.setFieldValue("addressBarangay", "");
                   }}
                 />
                 <FieldInfo field={field} />
@@ -488,7 +488,7 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                   }))}
                   onChange={(code) => {
                     field.handleChange(code);
-                    form.setFieldValue("addressBrangay", "");
+                    form.setFieldValue("addressBarangay", "");
                   }}
                 />
                 <FieldInfo field={field} />
@@ -497,7 +497,7 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
           </form.Field>
 
           <form.Field
-            name="addressBrangay"
+            name="addressBarangay"
             validators={{ onChange: required("Barangay is required") }}
           >
             {(field) => (

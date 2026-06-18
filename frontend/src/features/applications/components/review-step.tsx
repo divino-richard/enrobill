@@ -97,7 +97,7 @@ export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
         rows={[
           ["Province", getProvinceName(values.addressProvince) || "—"],
           ["City / Municipality", getCityName(values.addressCity) || "—"],
-          ["Barangay", getBarangayName(values.addressBrangay) || "—"],
+          ["Barangay", getBarangayName(values.addressBarangay) || "—"],
           ["Street address", values.addressStreet || "—"],
         ]}
       />

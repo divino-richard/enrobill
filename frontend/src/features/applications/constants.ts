@@ -70,7 +70,7 @@ export const STEP_FIELDS: Record<number, TextFieldKey[]> = {
     "placeOfBirth",
     "addressProvince",
     "addressCity",
-    "addressBrangay",
+    "addressBarangay",
     "addressStreet",
   ],
   1: [

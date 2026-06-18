@@ -49,7 +49,7 @@ export interface ApplicationFormValues {
   religion: string;
   healthConcerns: string;
   addressStreet: string;
-  addressBrangay: string;
+  addressBarangay: string;
   addressCity: string;
   addressProvince: string;
   homeAddress: string;
