@@ -9,6 +9,8 @@ import RegisterPage from './pages/register-page'
 import DashboardPage from './pages/admin/dashboard-page'
 import AdminApplicationsPage from './pages/admin/applications-page'
 import AdminApplicationDetailPage from './pages/admin/application-detail-page'
+import AdminStudentsPage from './pages/admin/students-page'
+import AdminStudentDetailPage from './pages/admin/student-detail-page'
 import PortalHomePage from './pages/portal/home-page'
 import ApplicationPage from './pages/portal/application-page'
 import ApplicationNewPage from './pages/portal/application-new-page'
@@ -38,6 +40,8 @@ export const router = createBrowserRouter([
           { index: true, Component: DashboardPage },
           { path: 'applications', Component: AdminApplicationsPage },
           { path: 'applications/:id', Component: AdminApplicationDetailPage },
+          { path: 'students', Component: AdminStudentsPage },
+          { path: 'students/:id', Component: AdminStudentDetailPage },
         ],
       },
     ],

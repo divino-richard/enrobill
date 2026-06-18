@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
+use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
@@ -83,5 +84,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/applications/{application}', [AdminApplicationController::class, 'show']);
         Route::post('/admin/applications/{application}/accept', [AdminApplicationController::class, 'accept']);
         Route::post('/admin/applications/{application}/reject', [AdminApplicationController::class, 'reject']);
+
+        // Student records.
+        Route::get('/admin/students', [AdminStudentController::class, 'index']);
+        Route::get('/admin/students/{student}', [AdminStudentController::class, 'show']);
+        Route::put('/admin/students/{student}', [AdminStudentController::class, 'update']);
     });
 });
