@@ -1,6 +1,8 @@
-import { useMutation } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { login, register, resendVerification } from './api'
+import axios from 'axios'
+import { fetchCurrentUser, login, register, resendVerification } from './api'
 import {
   LOGIN_MUTATION_KEY,
   REGISTER_MUTATION_KEY,
@@ -46,4 +48,35 @@ export function useResendVerification() {
     mutationKey: ['auth', 'resend-verification'],
     mutationFn: (email: string) => resendVerification(email),
   })
+}
+
+// Keeps the cached user (especially their role) in sync with the server.
+//
+// Sanctum tokens aren't tied to a role — the backend reads it live from the
+// database on every request — so a server-side role change (e.g. applicant →
+// student when an application is accepted) is picked up here without forcing a
+// re-login. Re-fetches on mount and on window focus; a 401 means the token is
+// no longer valid, so we clear the session. Call once from a top-level component.
+export function useSessionSync() {
+  const token = useAuthStore((state) => state.token)
+  const setUser = useAuthStore((state) => state.setUser)
+  const clearAuth = useAuthStore((state) => state.clearAuth)
+
+  const { data, error } = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchCurrentUser,
+    enabled: Boolean(token),
+    retry: false,
+    staleTime: 30_000,
+  })
+
+  useEffect(() => {
+    if (data) setUser(data)
+  }, [data, setUser])
+
+  useEffect(() => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      clearAuth()
+    }
+  }, [error, clearAuth])
 }

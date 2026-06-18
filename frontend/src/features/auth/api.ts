@@ -1,10 +1,18 @@
 import api from '@/lib/api'
 import type {
   AuthResponse,
+  AuthUser,
   LoginCredentials,
   RegisterCredentials,
   RegisterResponse,
 } from './types'
+
+// GET /api/me — the authenticated user, with their role read live from the
+// database. Used to re-sync the cached session after a role change.
+export async function fetchCurrentUser(): Promise<AuthUser> {
+  const { data } = await api.get<{ data: AuthUser }>('/me')
+  return data.data
+}
 
 // POST /api/login — single login for all users (admin, cashier, student,
 // applicant). The response role decides where the SPA routes them next.

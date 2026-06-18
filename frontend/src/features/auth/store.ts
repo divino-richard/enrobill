@@ -8,6 +8,8 @@ interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
   setAuth: (payload: AuthResponse) => void
+  // Refresh just the cached user (e.g. after a server-side role change).
+  setUser: (user: AuthUser) => void
   clearAuth: () => void
 }
 
@@ -21,6 +23,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       setAuth: ({ token, user }) => set({ token, user, isAuthenticated: true }),
+      setUser: (user) => set({ user }),
       clearAuth: () => set({ token: null, user: null, isAuthenticated: false }),
     }),
     {
