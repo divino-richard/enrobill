@@ -1,108 +1,285 @@
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  getCoreRowModel,
+  useReactTable,
+  type Column,
+  type ColumnDef,
+  type OnChangeFn,
+  type PaginationState,
+  type SortingState,
+} from "@tanstack/react-table";
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ChevronsUpDownIcon,
+  SearchIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/ui/data-table";
+import { cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { useStudents } from "@/features/students/hooks";
-import { studentFullName } from "@/features/students/types";
+import {
+  STUDENT_STATUS_OPTIONS,
+  studentFullName,
+  type Student,
+  type StudentStatus,
+} from "@/features/students/types";
 import { formatDate } from "@/features/applications/utils";
+
+type StatusFilter = StudentStatus | "all";
+
+function SortHeader({
+  column,
+  title,
+}: {
+  column: Column<Student, unknown>;
+  title: string;
+}) {
+  const sorted = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      onClick={column.getToggleSortingHandler()}
+      className="hover:text-foreground -ml-1 inline-flex items-center gap-1 rounded px-1 whitespace-nowrap transition-colors"
+    >
+      {title}
+      {sorted === "asc" ? (
+        <ChevronUpIcon className="size-3.5" />
+      ) : sorted === "desc" ? (
+        <ChevronDownIcon className="size-3.5" />
+      ) : (
+        <ChevronsUpDownIcon className="size-3.5 opacity-40" />
+      )}
+    </button>
+  );
+}
 
 function StudentsPage() {
   const navigate = useNavigate();
-  const { data, isLoading, isError, refetch } = useStudents();
-  const students = data ?? [];
+
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "studentNumber", desc: false },
+  ]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15,
+  });
+
+  // Any change to the filters returns to the first page.
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [debouncedSearch, status]);
+
+  const sortState = sorting[0];
+  const query = useStudents({
+    page: pagination.pageIndex + 1,
+    perPage: pagination.pageSize,
+    sort: sortState?.id,
+    dir: sortState?.desc ? "desc" : "asc",
+    status: status === "all" ? undefined : status,
+    search: debouncedSearch || undefined,
+  });
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const columns = useMemo<ColumnDef<Student>[]>(
+    () => [
+      {
+        accessorKey: "studentNumber",
+        header: ({ column }) => (
+          <SortHeader column={column} title="Student No." />
+        ),
+        cell: ({ row }) => (
+          <span className="font-medium whitespace-nowrap">
+            {row.original.studentNumber}
+          </span>
+        ),
+        meta: { className: "whitespace-nowrap" },
+      },
+      {
+        id: "name",
+        header: ({ column }) => <SortHeader column={column} title="Name" />,
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-medium">{studentFullName(row.original)}</span>
+            {row.original.email && (
+              <span className="text-muted-foreground text-xs">
+                {row.original.email}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "gender",
+        header: "Gender",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground capitalize">
+            {row.original.gender ?? "—"}
+          </span>
+        ),
+      },
+      {
+        id: "track",
+        header: "Track / Strand",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground uppercase">
+            {row.original.trackOrStrand ?? "—"}
+          </span>
+        ),
+      },
+      {
+        id: "yearLevel",
+        header: "Year Level",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground whitespace-nowrap">
+            {row.original.yearLevel?.replace("_", " ") ?? "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "schoolYear",
+        header: ({ column }) => (
+          <SortHeader column={column} title="School Year" />
+        ),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground whitespace-nowrap">
+            {row.original.schoolYear ?? "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => <SortHeader column={column} title="Status" />,
+        cell: ({ row }) => <StudentStatusBadge status={row.original.status} />,
+      },
+      {
+        accessorKey: "createdAt",
+        header: ({ column }) => <SortHeader column={column} title="Admitted" />,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground whitespace-nowrap">
+            {formatDate(row.original.createdAt)}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { className: "text-right" },
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/admin/students/${row.original.id}`)}
+          >
+            Manage
+          </Button>
+        ),
+      },
+    ],
+    [navigate],
+  );
+
+  // TanStack Table returns non-memoizable functions; the React Compiler lint
+  // rule flags this by design — safe to ignore.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: query.data?.rows ?? [],
+    columns,
+    state: { sorting, pagination },
+    manualSorting: true,
+    manualPagination: true,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    rowCount: query.data?.meta.total ?? 0,
+    onSortingChange: handleSortingChange,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const filterPills: { value: StatusFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    ...STUDENT_STATUS_OPTIONS.map((option) => ({
+      value: option.value as StatusFilter,
+      label: option.label,
+    })),
+  ];
+
+  const hasFilters = Boolean(debouncedSearch) || status !== "all";
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Students</h1>
-          <p className="text-muted-foreground text-sm">
-            Manage admitted and enrolled student records.
-          </p>
-        </div>
-        {!isLoading && !isError && (
-          <span className="text-muted-foreground text-sm">
-            {students.length} {students.length === 1 ? "student" : "students"}
-          </span>
-        )}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Students</h1>
+        <p className="text-muted-foreground text-sm">
+          Manage admitted and enrolled student records.
+        </p>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-11 w-full rounded-md" />
-          <Skeleton className="h-11 w-full rounded-md" />
-          <Skeleton className="h-11 w-full rounded-md" />
-        </div>
-      ) : isError ? (
+      {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">
             We couldn't load students. Please try again.
           </p>
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => query.refetch()}>
             Try again
           </Button>
         </div>
-      ) : students.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <p className="font-medium">No students yet</p>
-          <p className="text-muted-foreground text-sm">
-            Students appear here once their applications are accepted.
-          </p>
-        </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student No.</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Track / Strand</TableHead>
-                <TableHead>Year Level</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Admitted</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell className="font-medium">
-                    {student.studentNumber}
-                  </TableCell>
-                  <TableCell>{studentFullName(student)}</TableCell>
-                  <TableCell className="text-muted-foreground uppercase">
-                    {student.trackOrStrand ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {student.yearLevel?.replace("_", " ") ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <StudentStatusBadge status={student.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(student.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate(`/admin/students/${student.id}`)}
-                    >
-                      Manage
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name, number, or email…"
+                className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {filterPills.map((pill) => {
+                const active = status === pill.value;
+                return (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    onClick={() => setStatus(pill.value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      active
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <DataTable
+            table={table}
+            isLoading={query.isLoading}
+            emptyMessage={
+              hasFilters ? "No students match your filters." : "No students yet."
+            }
+          />
         </div>
       )}
     </div>

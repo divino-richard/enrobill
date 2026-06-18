@@ -17,18 +17,47 @@ class StudentController extends Controller
     public const STATUSES = ['admitted', 'enrolled', 'inactive', 'graduated', 'dropped'];
 
     /**
-     * All students, alphabetical. Restricted to admins by route middleware.
+     * Sortable columns, mapped from their API key to the database column. Acts
+     * as an allow-list so a client can't sort by an arbitrary column.
+     */
+    private const SORTABLE = [
+        'studentNumber' => 'student_number',
+        'name' => 'last_name',
+        'schoolYear' => 'school_year',
+        'status' => 'status',
+        'createdAt' => 'created_at',
+    ];
+
+    /**
+     * Paginated, searchable, filterable, sortable list of students. Restricted
+     * to admins by route middleware.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $sort = self::SORTABLE[$request->string('sort')->value()] ?? 'last_name';
+        $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+
         $students = Student::query()
             ->when(
-                $request->filled('status'),
-                fn ($query) => $query->where('status', $request->string('status')),
+                in_array($request->string('status')->value(), self::STATUSES, true),
+                fn ($query) => $query->where('status', $request->string('status')->value()),
             )
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $term = '%'.$request->string('search')->value().'%';
+                $query->where(function ($sub) use ($term) {
+                    $sub->where('student_number', 'like', $term)
+                        ->orWhere('first_name', 'like', $term)
+                        ->orWhere('last_name', 'like', $term)
+                        ->orWhere('email', 'like', $term);
+                });
+            })
+            ->orderBy($sort, $direction)
+            // Stable secondary order so equal values don't shuffle between pages.
+            ->when($sort === 'last_name', fn ($query) => $query->orderBy('first_name', $direction))
+            ->orderBy('id', $direction)
+            ->paginate($perPage)
+            ->withQueryString();
 
         return StudentResource::collection($students);
     }
