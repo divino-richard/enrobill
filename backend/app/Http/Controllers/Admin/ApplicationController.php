@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\PromoteApplicantToStudent;
 use App\Actions\SendApplicationDecisionEmail;
-use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
@@ -77,14 +77,11 @@ class ApplicationController extends Controller
         DB::transaction(function () use ($application, $status) {
             $application->update(['status' => $status]);
 
-            // Promote the applicant to a student once their application is
-            // accepted. Their existing token stays valid — the role is read
-            // live from the database on every request.
+            // Once accepted, promote the applicant to a student (role flip +
+            // canonical student record). Their existing token stays valid — the
+            // role is read live from the database on every request.
             if ($status === 'accepted') {
-                $applicant = $application->user;
-                if ($applicant !== null && $applicant->role === Role::Applicant) {
-                    $applicant->update(['role' => Role::Student]);
-                }
+                app(PromoteApplicantToStudent::class)($application);
             }
         });
 
