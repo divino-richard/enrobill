@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   decideApplication,
   fetchAdminApplication,
@@ -8,6 +13,7 @@ import {
   submitApplication,
   updateApplication,
 } from "../applications-api";
+import type { ListParams } from "@/lib/pagination";
 import type { ApplicationFormValues } from "../types";
 
 export const applicationsQueryKey = ["applications"] as const;
@@ -21,18 +27,19 @@ export function useApplications() {
   });
 }
 
-// Load every applicant's applications (admin).
-export function useAllApplications() {
+// Load every applicant's applications (admin), paginated/searchable/sortable.
+export function useAllApplications(params: ListParams) {
   return useQuery({
-    queryKey: adminApplicationsQueryKey,
-    queryFn: fetchAllApplications,
+    queryKey: [...adminApplicationsQueryKey, "list", params],
+    queryFn: () => fetchAllApplications(params),
+    placeholderData: keepPreviousData,
   });
 }
 
 // Load a single application for staff review (admin).
 export function useAdminApplication(id: number) {
   return useQuery({
-    queryKey: [...adminApplicationsQueryKey, id],
+    queryKey: [...adminApplicationsQueryKey, "detail", id],
     queryFn: () => fetchAdminApplication(id),
   });
 }

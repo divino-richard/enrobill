@@ -19,19 +19,53 @@ class ApplicationController extends Controller
     private const DECIDABLE_STATUSES = ['submitted', 'under_review', 'returned'];
 
     /**
-     * All submitted applications across every applicant, newest first.
+     * Every status an application may hold (for filtering).
+     */
+    private const STATUSES = ['draft', 'submitted', 'under_review', 'returned', 'accepted', 'rejected'];
+
+    /**
+     * Sortable columns, mapped from API key to database column (allow-list).
+     */
+    private const SORTABLE = [
+        'reference' => 'reference',
+        'schoolYear' => 'school_year',
+        'status' => 'status',
+        'submittedAt' => 'submitted_at',
+    ];
+
+    /**
+     * Paginated, searchable, filterable, sortable list of all applications.
      * Restricted to admins by route middleware.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $sort = self::SORTABLE[$request->string('sort')->value()] ?? 'created_at';
+        $direction = $request->string('dir')->lower()->value() === 'asc' ? 'asc' : 'desc';
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+
         $applications = Application::query()
             ->with('user')
             ->when(
-                $request->filled('status'),
-                fn ($query) => $query->where('status', $request->string('status')),
+                in_array($request->string('status')->value(), self::STATUSES, true),
+                fn ($query) => $query->where('status', $request->string('status')->value()),
             )
-            ->latest()
-            ->get();
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $term = '%'.$request->string('search')->value().'%';
+                $query->where(function ($sub) use ($term) {
+                    $sub->where('reference', 'like', $term)
+                        ->orWhere('surname', 'like', $term)
+                        ->orWhere('given_name', 'like', $term)
+                        ->orWhere('email_address', 'like', $term)
+                        ->orWhereHas('user', function ($user) use ($term) {
+                            $user->where('name', 'like', $term)
+                                ->orWhere('email', 'like', $term);
+                        });
+                });
+            })
+            ->orderBy($sort, $direction)
+            ->orderBy('id', $direction)
+            ->paginate($perPage)
+            ->withQueryString();
 
         return ApplicationResource::collection($applications);
     }

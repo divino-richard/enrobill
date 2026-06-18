@@ -1,71 +1,33 @@
 import api from "@/lib/api";
+import {
+  listParamsToQuery,
+  toPageMeta,
+  type LaravelPaginated,
+  type ListParams,
+  type PageMeta,
+} from "@/lib/pagination";
 import type { Student, StudentFormValues } from "./types";
 
 interface Wrapped<T> {
   data: T;
 }
 
-export interface StudentListParams {
-  page?: number;
-  perPage?: number;
-  sort?: string;
-  dir?: "asc" | "desc";
-  status?: string;
-  search?: string;
-}
-
-export interface PageMeta {
-  currentPage: number;
-  lastPage: number;
-  perPage: number;
-  total: number;
-  from: number | null;
-  to: number | null;
-}
+export type StudentListParams = ListParams;
 
 export interface StudentsPage {
   rows: Student[];
   meta: PageMeta;
 }
 
-interface PaginatedResponse<T> {
-  data: T[];
-  meta: {
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-    from: number | null;
-    to: number | null;
-  };
-}
-
 // Paginated / searchable / sortable list of students (admin only).
 export async function fetchStudents(
   params: StudentListParams,
 ): Promise<StudentsPage> {
-  const { data } = await api.get<PaginatedResponse<Student>>("/admin/students", {
-    params: {
-      page: params.page,
-      per_page: params.perPage,
-      sort: params.sort,
-      dir: params.dir,
-      status: params.status,
-      search: params.search,
-    },
+  const { data } = await api.get<LaravelPaginated<Student>>("/admin/students", {
+    params: listParamsToQuery(params),
   });
 
-  return {
-    rows: data.data,
-    meta: {
-      currentPage: data.meta.current_page,
-      lastPage: data.meta.last_page,
-      perPage: data.meta.per_page,
-      total: data.meta.total,
-      from: data.meta.from,
-      to: data.meta.to,
-    },
-  };
+  return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
 // A single student record (admin only).

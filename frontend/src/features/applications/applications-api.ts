@@ -1,4 +1,11 @@
 import api from "@/lib/api";
+import {
+  listParamsToQuery,
+  toPageMeta,
+  type LaravelPaginated,
+  type ListParams,
+  type PageMeta,
+} from "@/lib/pagination";
 import type {
   AdminApplication,
   AdminApplicationDetail,
@@ -12,17 +19,27 @@ interface Wrapped<T> {
   data: T;
 }
 
+export interface ApplicationsPage {
+  rows: AdminApplication[];
+  meta: PageMeta;
+}
+
 // The authenticated applicant's submitted applications, newest first.
 export async function fetchApplications(): Promise<Application[]> {
   const { data } = await api.get<Wrapped<Application[]>>("/applications");
   return data.data;
 }
 
-// All applications across every applicant (admin only).
-export async function fetchAllApplications(): Promise<AdminApplication[]> {
-  const { data } =
-    await api.get<Wrapped<AdminApplication[]>>("/admin/applications");
-  return data.data;
+// Paginated / searchable / sortable list of all applications (admin only).
+export async function fetchAllApplications(
+  params: ListParams,
+): Promise<ApplicationsPage> {
+  const { data } = await api.get<LaravelPaginated<AdminApplication>>(
+    "/admin/applications",
+    { params: listParamsToQuery(params) },
+  );
+
+  return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
 // A single application for staff review (admin only).
