@@ -36,6 +36,14 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
   prevSchoolGpa: "",
   prevSchoolType: "",
   documents: [],
+  trackOrStrand: "",
+  yearLevel: "",
+  semester: "",
+  schoolYear: "",
+  declarationStudentName: "",
+  declarationGuardianName: "",
+  dateSigned: "",
+  agreementAccepted: false,
 };
 
 // Single form instance for the whole multi-step application. Wrapping useForm in

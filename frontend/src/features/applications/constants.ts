@@ -81,7 +81,14 @@ export const STEP_FIELDS: Record<number, TextFieldKey[]> = {
     "prevSchoolAddress",
     "prevSchoolYearGraduated",
   ],
-  3: [],
+  3: [
+    "trackOrStrand",
+    "yearLevel",
+    "semester",
+    "schoolYear",
+    "declarationStudentName",
+    "declarationGuardianName",
+  ],
   4: [],
 };
 
@@ -93,6 +100,7 @@ export const STEP_EXTRA_VALIDATED_FIELDS: Record<
   (keyof ApplicationFormValues)[]
 > = {
   2: ["documents"],
+  3: ["agreementAccepted"],
 };
 
 // Mock applications for an aspiring student. One active (under review) plus a

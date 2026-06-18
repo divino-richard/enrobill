@@ -4,6 +4,9 @@ import { useAddress } from "../hooks/address";
 import {
   CIVIL_STATUS_OPTIONS,
   ENROLLMENT_TYPE_OPTIONS,
+  SEMESTER_OPTIONS,
+  TRACK_STRAND_OPTIONS,
+  YEAR_LEVEL_OPTIONS,
   labelFor,
 } from "../types";
 import { APPLICATION_DOCUMENT_TYPES } from "../documents";
@@ -113,10 +116,29 @@ export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
         }
       />
 
-      <p className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">
-        Contact &amp; Guardian, Academic &amp; Documents, and Course &amp;
-        Strand details will be added in upcoming steps.
-      </p>
+      <div className="border-t" />
+
+      <ReviewSection
+        title="Course & Strand"
+        rows={[
+          ["Track / Strand", labelFor(TRACK_STRAND_OPTIONS, values.trackOrStrand)],
+          ["Year level", labelFor(YEAR_LEVEL_OPTIONS, values.yearLevel)],
+          ["Semester", labelFor(SEMESTER_OPTIONS, values.semester)],
+          ["School year", values.schoolYear || "—"],
+        ]}
+      />
+
+      <div className="border-t" />
+
+      <ReviewSection
+        title="Declaration"
+        rows={[
+          ["Student name", values.declarationStudentName || "—"],
+          ["Guardian name", values.declarationGuardianName || "—"],
+          ["Date signed", formatBirthDate(values.dateSigned.slice(0, 10))],
+          ["Agreement", values.agreementAccepted ? "Agreed" : "Not agreed"],
+        ]}
+      />
     </div>
   );
 }

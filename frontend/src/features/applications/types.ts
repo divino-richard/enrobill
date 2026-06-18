@@ -70,6 +70,16 @@ export interface ApplicationFormValues {
   prevSchoolType: string;
   // Previous-school verification documents uploaded to S3.
   documents: UploadedDocument[];
+  // Course & Strand Selection
+  trackOrStrand: string;
+  yearLevel: string;
+  semester: string;
+  schoolYear: string;
+  // Declaration / electronic signature
+  declarationStudentName: string;
+  declarationGuardianName: string;
+  dateSigned: string; // ISO timestamp, auto-populated
+  agreementAccepted: boolean;
 }
 
 // Keys of the form whose value is a plain string. The step counter and
@@ -93,6 +103,57 @@ export const CIVIL_STATUS_OPTIONS = [
   { value: "separated", label: "Separated" },
   { value: "divorced", label: "Divorced" },
 ] as const;
+
+// Track / strand options, grouped into the two senior-high tracks.
+export const TRACK_STRAND_GROUPS = [
+  {
+    label: "Academic Track",
+    options: [
+      {
+        value: "stem",
+        label: "STEM (Science, Technology, Engineering, Mathematics)",
+      },
+      { value: "assh", label: "ASSH (Humanities & Social Sciences)" },
+      { value: "abm", label: "BE-ABM (Accounting, Business & Management)" },
+      { value: "gas", label: "GAS (General Academic Strand)" },
+    ],
+  },
+  {
+    label: "TechVoc Track",
+    options: [
+      { value: "creative_arts", label: "Creative Arts" },
+      { value: "hospitality", label: "Hospitality" },
+      { value: "ict", label: "ICT (Information & Communications Technology)" },
+    ],
+  },
+] as const;
+
+// Flattened lookup of every track/strand option (used by the review step).
+export const TRACK_STRAND_OPTIONS: { value: string; label: string }[] =
+  TRACK_STRAND_GROUPS.flatMap((group) =>
+    group.options.map((option) => ({
+      value: option.value,
+      label: option.label,
+    })),
+  );
+
+export const YEAR_LEVEL_OPTIONS = [
+  { value: "grade_11", label: "Grade 11" },
+  { value: "grade_12", label: "Grade 12" },
+] as const;
+
+export const SEMESTER_OPTIONS = [
+  { value: "first", label: "1st Semester" },
+  { value: "second", label: "2nd Semester" },
+] as const;
+
+// Shown beside the agreement checkbox in the Declaration section.
+export const DECLARATION_AGREEMENT_TEXT =
+  "I agree that the information I provided will be processed and stored in " +
+  "accordance with the school's data privacy, and I hereby declare that all " +
+  "information provided is true and correct to the best of my knowledge. I " +
+  "understand that any false information may result in the cancellation of my " +
+  "enrollment.";
 
 // Human-readable label lookups (used by the review step).
 export function labelFor(

@@ -203,7 +203,7 @@ export function ApplicationForm() {
               )}
               {currentStep === 1 && <ContactStep form={form} />}
               {currentStep === 2 && <AcademicStep form={form} />}
-              {currentStep === 3 && <CourseStep />}
+              {currentStep === 3 && <CourseStep form={form} />}
               {currentStep === 4 && (
                 <ReviewStep form={form} enrollmentDate={enrollmentDate} />
               )}
