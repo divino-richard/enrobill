@@ -28,6 +28,8 @@ import {
   clearApplicationDraft,
   useApplicationForm,
 } from "../hooks/form";
+import { useSubmitApplication } from "../hooks/use-applications";
+import { getErrorMessage } from "@/lib/get-error-message";
 import type { ApplicationFormValues } from "../types";
 
 export function ApplicationForm() {
@@ -36,13 +38,20 @@ export function ApplicationForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [stepError, setStepError] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const form = useApplicationForm((values: ApplicationFormValues) => {
-    // Mocked submission for now — this will POST to the API later.
-    console.log("Submitting application", values);
-    // The application is in; drop the locally saved draft.
-    clearApplicationDraft();
-    setSubmitted(true);
+  const submitApplication = useSubmitApplication();
+
+  const form = useApplicationForm(async (values: ApplicationFormValues) => {
+    setSubmitError(null);
+    try {
+      await submitApplication.mutateAsync(values);
+      // The application is in; drop the locally saved draft.
+      clearApplicationDraft();
+      setSubmitted(true);
+    } catch (error) {
+      setSubmitError(getErrorMessage(error));
+    }
   });
 
   // Discard the saved draft and reset the wizard back to an empty first step.
@@ -253,6 +262,23 @@ export function ApplicationForm() {
                 <ReviewStep form={form} enrollmentDate={enrollmentDate} />
               )}
             </div>
+
+            {isReview && submitError && (
+              <div
+                role="alert"
+                className="border-destructive/30 bg-destructive/5 text-destructive mt-6 flex items-start gap-3 rounded-lg border px-4 py-3"
+              >
+                <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-semibold">
+                    We couldn't submit your application
+                  </p>
+                  <p className="text-destructive/80 text-xs leading-relaxed">
+                    {submitError}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="mt-8 flex items-center justify-between border-t pt-6">
               <Button

@@ -9,7 +9,7 @@ export type ApplicationStatus =
   | "rejected";
 
 export interface Application {
-  id: string;
+  id: number;
   reference: string;
   program: string;
   schoolYear: string;

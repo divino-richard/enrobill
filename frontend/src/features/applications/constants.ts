@@ -118,7 +118,7 @@ export const STEP_EXTRA_VALIDATED_FIELDS: Record<
 // the empty state.
 export const MOCK_APPLICATIONS: Application[] = [
   {
-    id: "app_2",
+    id: 2,
     reference: "APP-2026-001245",
     program: "BS Information Technology",
     schoolYear: "2026–2027",
@@ -128,7 +128,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     updatedAt: "2026-06-14T10:05:00Z",
   },
   {
-    id: "app_1",
+    id: 1,
     reference: "APP-2025-000871",
     program: "BS Information Technology",
     schoolYear: "2025–2026",

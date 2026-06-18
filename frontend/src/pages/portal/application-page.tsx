@@ -4,20 +4,23 @@ import { ApplicationsHeader } from "@/features/applications/components/applicati
 import { ApplicationsTable } from "@/features/applications/components/applications-table";
 import { CurrentApplicationCard } from "@/features/applications/components/current-application-card";
 import { isActiveStatus } from "@/features/applications/types";
-import { MOCK_APPLICATIONS } from "@/features/applications/constants";
+import { useApplications } from "@/features/applications/hooks/use-applications";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function ApplicationPage() {
   const navigate = useNavigate();
-  // Mocked for now — this will come from the API.
-  const applications = MOCK_APPLICATIONS;
+  const { data, isLoading, isError, refetch } = useApplications();
+
+  const startNewApplication = () => navigate("/portal/application/new");
+
+  const applications = data ?? [];
   const activeApplication = applications.find((app) =>
     isActiveStatus(app.status),
   );
   const previousApplications = applications.filter(
     (app) => app.id !== activeApplication?.id,
   );
-
-  const startNewApplication = () => navigate("/portal/application/new");
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -26,7 +29,21 @@ function ApplicationPage() {
         onNewApplication={startNewApplication}
       />
 
-      {applications.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-44 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
+          <p className="text-muted-foreground text-sm">
+            We couldn't load your applications. Please try again.
+          </p>
+          <Button variant="outline" onClick={() => refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : applications.length === 0 ? (
         <ApplicationsEmptyState onNewApplication={startNewApplication} />
       ) : (
         <>
