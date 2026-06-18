@@ -6,7 +6,7 @@ function RegisterPage() {
   return (
     <AuthLayout
       subtitle="Student Aspirant Registration"
-      contentClassName="max-w-4xl"
+      contentClassName="max-w-5xl"
     >
       <RegisterForm />
     </AuthLayout>

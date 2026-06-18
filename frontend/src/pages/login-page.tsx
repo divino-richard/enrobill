@@ -42,7 +42,7 @@ function LoginPage() {
                 Create an account
               </Link>
             </p>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mt-10">
               Forgot your password? Contact your administrator.
             </p>
           </div>

@@ -36,6 +36,11 @@ export interface AdminApplication extends Application {
   applicant: ApplicationApplicant;
 }
 
+// A single application for staff review: full answers + the applicant.
+export interface AdminApplicationDetail extends ApplicationDetail {
+  applicant: ApplicationApplicant;
+}
+
 // Statuses that count as an in-progress application (only one allowed at a time).
 export const ACTIVE_STATUSES: ApplicationStatus[] = [
   "draft",

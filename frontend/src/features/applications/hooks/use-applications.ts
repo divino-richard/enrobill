@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  decideApplication,
+  fetchAdminApplication,
   fetchAllApplications,
   fetchApplication,
   fetchApplications,
@@ -24,6 +26,27 @@ export function useAllApplications() {
   return useQuery({
     queryKey: adminApplicationsQueryKey,
     queryFn: fetchAllApplications,
+  });
+}
+
+// Load a single application for staff review (admin).
+export function useAdminApplication(id: number) {
+  return useQuery({
+    queryKey: [...adminApplicationsQueryKey, id],
+    queryFn: () => fetchAdminApplication(id),
+  });
+}
+
+// Accept / reject an application; refreshes the admin list and detail.
+export function useDecideApplication(id: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (decision: "accept" | "reject") =>
+      decideApplication(id, decision),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
+    },
   });
 }
 

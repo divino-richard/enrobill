@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use Illuminate\Http\JsonResponse;
@@ -79,7 +80,12 @@ class ApplicationDocumentController extends Controller
      */
     public function viewUrl(Request $request, Application $application, ApplicationDocument $document): JsonResponse
     {
-        abort_unless($application->user_id === $request->user()->id, 404);
+        $user = $request->user();
+        // The owning applicant, or any admin reviewing the application.
+        abort_unless(
+            $application->user_id === $user->id || $user->role === Role::Admin,
+            404,
+        );
         abort_unless($document->application_id === $application->id, 404);
 
         $url = Storage::disk('s3')->temporaryUrl(

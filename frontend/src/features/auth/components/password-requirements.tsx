@@ -27,7 +27,7 @@ export function PasswordRequirements({ value }: PasswordRequirementsProps) {
             ) : (
               <Circle className="size-3 shrink-0" />
             )}
-            <span>{rule.label}</span>
+            <span className="text-xs">{rule.label}</span>
           </li>
         );
       })}

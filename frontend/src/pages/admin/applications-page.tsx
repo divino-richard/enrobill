@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import {
   Table,
   TableBody,
@@ -13,6 +14,7 @@ import { useAllApplications } from "@/features/applications/hooks/use-applicatio
 import { formatDate } from "@/features/applications/utils";
 
 function AdminApplicationsPage() {
+  const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useAllApplications();
   const applications = data ?? [];
 
@@ -66,6 +68,7 @@ function AdminApplicationsPage() {
                 <TableHead>School Year</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Submitted</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -93,6 +96,17 @@ function AdminApplicationsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(application.submittedAt)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        navigate(`/admin/applications/${application.id}`)
+                      }
+                    >
+                      Review
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

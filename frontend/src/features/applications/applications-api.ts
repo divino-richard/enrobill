@@ -1,6 +1,7 @@
 import api from "@/lib/api";
 import type {
   AdminApplication,
+  AdminApplicationDetail,
   Application,
   ApplicationDetail,
   ApplicationFormValues,
@@ -21,6 +22,27 @@ export async function fetchApplications(): Promise<Application[]> {
 export async function fetchAllApplications(): Promise<AdminApplication[]> {
   const { data } =
     await api.get<Wrapped<AdminApplication[]>>("/admin/applications");
+  return data.data;
+}
+
+// A single application for staff review (admin only).
+export async function fetchAdminApplication(
+  id: number,
+): Promise<AdminApplicationDetail> {
+  const { data } = await api.get<Wrapped<AdminApplicationDetail>>(
+    `/admin/applications/${id}`,
+  );
+  return data.data;
+}
+
+// Accept / reject an application — notifies the applicant by email (admin only).
+export async function decideApplication(
+  id: number,
+  decision: "accept" | "reject",
+): Promise<AdminApplicationDetail> {
+  const { data } = await api.post<Wrapped<AdminApplicationDetail>>(
+    `/admin/applications/${id}/${decision}`,
+  );
   return data.data;
 }
 
