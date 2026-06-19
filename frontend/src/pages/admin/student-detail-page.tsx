@@ -12,6 +12,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { StudentEditForm } from "@/features/students/components/student-edit-form";
+import { BillCard } from "@/features/bills/components/bill-card";
 import { useStudent } from "@/features/students/hooks";
 import { studentFullName } from "@/features/students/types";
 
@@ -63,6 +64,8 @@ function StudentDetailPage() {
               </CardAction>
             </CardHeader>
           </Card>
+
+          <BillCard studentId={student.id} />
 
           <Card>
             <CardContent>

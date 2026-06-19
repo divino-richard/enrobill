@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
+  BanknoteIcon,
   BarChart3Icon,
   CalendarRangeIcon,
   ClipboardListIcon,
@@ -73,6 +74,12 @@ const navItems: NavItem[] = [
     title: "Fee Structures",
     url: "/admin/fees",
     icon: ReceiptTextIcon,
+    ready: true,
+  },
+  {
+    title: "Billing",
+    url: "/admin/billing",
+    icon: BanknoteIcon,
     ready: true,
   },
   { title: "Payments", icon: CreditCardIcon },

@@ -244,8 +244,7 @@ function FeesPage() {
             Fee Structures
           </h1>
           <p className="text-muted-foreground text-sm">
-            Flat per-semester fees for each program. Assessments are built from
-            these.
+            Flat per-semester fees for each program. Bills are built from these.
           </p>
         </div>
         <Button onClick={() => setNewOpen(true)}>

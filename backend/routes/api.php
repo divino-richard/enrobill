@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
+use App\Http\Controllers\Admin\BillController as AdminBillController;
 use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\Admin\TermController as AdminTermController;
@@ -97,6 +98,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/students/{student}', [AdminStudentController::class, 'show']);
         Route::put('/admin/students/{student}', [AdminStudentController::class, 'update']);
 
+        // A student's bill for the open term.
+        Route::get('/admin/students/{student}/bill', [AdminBillController::class, 'showForStudent']);
+
         // Academic terms (enrollment periods).
         Route::get('/admin/terms', [AdminTermController::class, 'index']);
         Route::post('/admin/terms', [AdminTermController::class, 'store']);
@@ -109,5 +113,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'show']);
         Route::put('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'update']);
         Route::delete('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'destroy']);
+
+        // Billing — bills for the open term.
+        Route::get('/admin/bills', [AdminBillController::class, 'index']);
+        Route::post('/admin/bills/generate', [AdminBillController::class, 'generate']);
     });
 });
