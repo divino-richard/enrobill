@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   BarChart3Icon,
+  CalendarRangeIcon,
   ClipboardListIcon,
   CreditCardIcon,
   GraduationCapIcon,
@@ -60,6 +61,12 @@ const navItems: NavItem[] = [
     title: "Users",
     url: "/admin/users",
     icon: UsersIcon,
+    ready: true,
+  },
+  {
+    title: "Academic Terms",
+    url: "/admin/terms",
+    icon: CalendarRangeIcon,
     ready: true,
   },
   { title: "Fees & Assessments", icon: ReceiptTextIcon },

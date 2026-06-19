@@ -13,6 +13,7 @@ import AdminStudentsPage from './pages/admin/students-page'
 import AdminStudentDetailPage from './pages/admin/student-detail-page'
 import AdminUsersPage from './pages/admin/users-page'
 import AdminUserDetailPage from './pages/admin/user-detail-page'
+import AdminTermsPage from './pages/admin/terms-page'
 import PortalHomePage from './pages/portal/home-page'
 import ApplicationPage from './pages/portal/application-page'
 import ApplicationNewPage from './pages/portal/application-new-page'
@@ -46,6 +47,7 @@ export const router = createBrowserRouter([
           { path: 'students/:id', Component: AdminStudentDetailPage },
           { path: 'users', Component: AdminUsersPage },
           { path: 'users/:id', Component: AdminUserDetailPage },
+          { path: 'terms', Component: AdminTermsPage },
         ],
       },
     ],

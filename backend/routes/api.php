@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
+use App\Http\Controllers\Admin\TermController as AdminTermController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
@@ -94,5 +95,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/students', [AdminStudentController::class, 'index']);
         Route::get('/admin/students/{student}', [AdminStudentController::class, 'show']);
         Route::put('/admin/students/{student}', [AdminStudentController::class, 'update']);
+
+        // Academic terms (enrollment periods).
+        Route::get('/admin/terms', [AdminTermController::class, 'index']);
+        Route::post('/admin/terms', [AdminTermController::class, 'store']);
+        Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
+        Route::delete('/admin/terms/{term}', [AdminTermController::class, 'destroy']);
     });
 });
