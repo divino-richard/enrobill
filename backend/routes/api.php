@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
+use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\Admin\TermController as AdminTermController;
 use App\Http\Controllers\ApplicationController;
@@ -101,5 +102,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/terms', [AdminTermController::class, 'store']);
         Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
         Route::delete('/admin/terms/{term}', [AdminTermController::class, 'destroy']);
+
+        // Fee structures (flat per-semester fees per program).
+        Route::get('/admin/fee-structures', [AdminFeeStructureController::class, 'index']);
+        Route::post('/admin/fee-structures', [AdminFeeStructureController::class, 'store']);
+        Route::get('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'show']);
+        Route::put('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'update']);
+        Route::delete('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'destroy']);
     });
 });

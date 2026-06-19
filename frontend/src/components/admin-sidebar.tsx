@@ -69,7 +69,12 @@ const navItems: NavItem[] = [
     icon: CalendarRangeIcon,
     ready: true,
   },
-  { title: "Fees & Assessments", icon: ReceiptTextIcon },
+  {
+    title: "Fee Structures",
+    url: "/admin/fees",
+    icon: ReceiptTextIcon,
+    ready: true,
+  },
   { title: "Payments", icon: CreditCardIcon },
   { title: "Reports", icon: BarChart3Icon },
 ];
