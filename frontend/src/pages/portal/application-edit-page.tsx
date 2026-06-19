@@ -57,17 +57,23 @@ function ApplicationEditPage() {
     );
   }
 
-  // Resubmitting would create a second active application — block it.
+  // An accepted application means the user is already enrolled — no resubmit.
+  const hasAccepted = applications?.some((app) => app.status === "accepted");
+  // Resubmitting would otherwise create a second active application.
   const activeApplication = applications?.find((app) =>
     isActiveStatus(app.status),
   );
-  if (activeApplication && activeApplication.id !== application.id) {
+  const blockingApplication =
+    activeApplication && activeApplication.id !== application.id;
+
+  if (hasAccepted || blockingApplication) {
     return (
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
           <p className="text-muted-foreground text-sm">
-            You have another application in progress. Please resolve it before
-            resubmitting this one.
+            {hasAccepted
+              ? "You already have an accepted application, so this one can no longer be resubmitted."
+              : "You have another application in progress. Please resolve it before resubmitting this one."}
           </p>
           <Button onClick={() => navigate("/portal/application")}>
             Back to Applications

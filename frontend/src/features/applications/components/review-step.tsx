@@ -1,5 +1,9 @@
+import { useAuthStore } from "@/features/auth/store";
 import type { ApplicationFormApi } from "../hooks/form";
 import { ApplicationSummary } from "./application-summary";
+import { useState } from "react";
+import type { UploadedDocument } from "../documents";
+import { DocumentViewerDialog } from "./document-viewer-dialog";
 
 interface ReviewStepProps {
   form: ApplicationFormApi;
@@ -7,6 +11,10 @@ interface ReviewStepProps {
 }
 
 export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
+  const { user } = useAuthStore();
+  const [viewingDocument, setViewingDocument] =
+    useState<UploadedDocument | null>(null);
+
   return (
     <div className="space-y-6">
       <p className="text-muted-foreground text-sm">
@@ -17,7 +25,17 @@ export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
       <ApplicationSummary
         values={form.state.values}
         enrollmentDate={enrollmentDate}
+        onViewDocument={setViewingDocument}
       />
+      {user && (
+        <DocumentViewerDialog
+          applicationId={user.id}
+          document={viewingDocument}
+          onOpenChange={(open) => {
+            if (!open) setViewingDocument(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -37,6 +37,14 @@ class ApplicationController extends Controller
 
         $user = $request->user();
 
+        // An accepted application means the user is already enrolled — no more
+        // applications.
+        if ($user->applications()->where('status', 'accepted')->exists()) {
+            throw ValidationException::withMessages([
+                'application' => 'You already have an accepted application and cannot submit another.',
+            ]);
+        }
+
         // Enforce one in-progress application at a time.
         if ($user->applications()->whereIn('status', self::ACTIVE_STATUSES)->exists()) {
             throw ValidationException::withMessages([
@@ -88,6 +96,14 @@ class ApplicationController extends Controller
             403,
             'Only a rejected application can be edited and resubmitted.',
         );
+
+        // An accepted application elsewhere means the user is already enrolled —
+        // resubmitting a rejected one would let them back into the pipeline.
+        if ($request->user()->applications()->where('status', 'accepted')->exists()) {
+            throw ValidationException::withMessages([
+                'application' => 'You already have an accepted application and cannot resubmit.',
+            ]);
+        }
 
         // Resubmitting makes this application active again — block it if another
         // application is already in progress, to keep at most one active.

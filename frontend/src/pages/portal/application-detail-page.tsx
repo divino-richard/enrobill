@@ -45,6 +45,10 @@ function ApplicationDetailPage() {
   );
   const hasOtherActive =
     activeApplication != null && activeApplication.id !== application?.id;
+  // An accepted application anywhere means the user is enrolled — no resubmit.
+  const hasAccepted =
+    applications?.some((app) => app.status === "accepted") ?? false;
+  const resubmitBlocked = hasOtherActive || hasAccepted;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -117,10 +121,11 @@ function ApplicationDetailPage() {
               </dl>
 
               {isRejected &&
-                (hasOtherActive ? (
+                (resubmitBlocked ? (
                   <p className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">
-                    You have another application in progress. Please resolve it
-                    before resubmitting this one.
+                    {hasAccepted
+                      ? "You already have an accepted application, so this one can no longer be resubmitted."
+                      : "You have another application in progress. Please resolve it before resubmitting this one."}
                   </p>
                 ) : (
                   <div className="flex justify-end">
