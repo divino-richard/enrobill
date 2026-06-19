@@ -6,6 +6,7 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -60,6 +61,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // The current authenticated user (any role may read their own record).
     Route::get('/me', fn (Request $request) => new UserResource($request->user()));
+
+    // The current user's own student record (once accepted).
+    Route::get('/me/student', [StudentProfileController::class, 'show']);
 
     // Application document uploads — issue a pre-signed S3 URL so the browser
     // uploads verification documents directly to the bucket.

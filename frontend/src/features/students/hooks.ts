@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  fetchMyStudent,
   fetchStudent,
   fetchStudents,
   updateStudent,
@@ -13,6 +14,16 @@ import {
 import type { StudentFormValues } from "./types";
 
 export const studentsQueryKey = ["admin", "students"] as const;
+export const myStudentQueryKey = ["me", "student"] as const;
+
+// The signed-in user's own student record.
+export function useMyStudent() {
+  return useQuery({
+    queryKey: myStudentQueryKey,
+    queryFn: fetchMyStudent,
+    retry: false,
+  });
+}
 
 export function useStudents(params: StudentListParams) {
   return useQuery({

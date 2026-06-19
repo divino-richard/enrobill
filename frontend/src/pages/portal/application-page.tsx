@@ -5,12 +5,14 @@ import { ApplicationsTable } from "@/features/applications/components/applicatio
 import { CurrentApplicationCard } from "@/features/applications/components/current-application-card";
 import { isActiveStatus } from "@/features/applications/types";
 import { useApplications } from "@/features/applications/hooks/use-applications";
+import { useAuthStore } from "@/features/auth/store";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function ApplicationPage() {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useApplications();
+  const isStudent = useAuthStore((state) => state.user?.role) === "student";
 
   const startNewApplication = () => navigate("/portal/application/new");
 
@@ -27,6 +29,7 @@ function ApplicationPage() {
       <ApplicationsHeader
         hasActiveApplication={Boolean(activeApplication)}
         onNewApplication={startNewApplication}
+        canCreate={!isStudent}
       />
 
       {isLoading ? (
@@ -44,7 +47,9 @@ function ApplicationPage() {
           </Button>
         </div>
       ) : applications.length === 0 ? (
-        <ApplicationsEmptyState onNewApplication={startNewApplication} />
+        <ApplicationsEmptyState
+          onNewApplication={isStudent ? undefined : startNewApplication}
+        />
       ) : (
         <>
           {activeApplication && (

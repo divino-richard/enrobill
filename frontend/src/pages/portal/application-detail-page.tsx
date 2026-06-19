@@ -23,6 +23,7 @@ import {
   isActiveStatus,
 } from "@/features/applications/types";
 import type { UploadedDocument } from "@/features/applications/documents";
+import { useAuthStore } from "@/features/auth/store";
 import { formatDate } from "@/features/applications/utils";
 
 function ApplicationDetailPage() {
@@ -34,8 +35,10 @@ function ApplicationDetailPage() {
   const { data: applications } = useApplications();
   const [viewingDocument, setViewingDocument] =
     useState<UploadedDocument | null>(null);
+  const isStudent = useAuthStore((state) => state.user?.role) === "student";
 
-  const isRejected = application?.status === "rejected";
+  // Only applicants edit/resubmit a rejected application.
+  const isRejected = application?.status === "rejected" && !isStudent;
   // Another in-progress application blocks resubmitting this one.
   const activeApplication = applications?.find((app) =>
     isActiveStatus(app.status),

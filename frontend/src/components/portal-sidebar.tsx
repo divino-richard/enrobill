@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { NavUser } from "@/components/nav-user";
+import { useAuthStore } from "@/features/auth/store";
 import {
   Sidebar,
   SidebarContent,
@@ -28,15 +29,23 @@ interface NavItem {
   end?: boolean;
 }
 
-// Applicant access is intentionally limited: submit an enrollment application
-// and monitor its status. (More items unlock once they become a student.)
-const navItems: NavItem[] = [
+// Applicants are working toward admission; students are already enrolled, so
+// each sees a portal shaped around their stage.
+const APPLICANT_NAV: NavItem[] = [
   { title: "Overview", url: "/portal", icon: LayoutDashboardIcon, end: true },
   { title: "Applications", url: "/portal/application", icon: FileTextIcon },
 ];
 
+const STUDENT_NAV: NavItem[] = [
+  { title: "Dashboard", url: "/portal", icon: LayoutDashboardIcon, end: true },
+  { title: "Admission", url: "/portal/application", icon: FileTextIcon },
+];
+
 export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation();
+  const role = useAuthStore((state) => state.user?.role);
+  const isStudent = role === "student";
+  const navItems = isStudent ? STUDENT_NAV : APPLICANT_NAV;
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -49,7 +58,7 @@ export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Enrobill</span>
                   <span className="text-muted-foreground truncate text-xs">
-                    Student Portal
+                    {isStudent ? "Student Portal" : "Applicant Portal"}
                   </span>
                 </div>
               </NavLink>
@@ -60,7 +69,9 @@ export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            {isStudent ? "Enrollment" : "Application"}
+          </SidebarGroupLabel>
           <SidebarMenu>
             {navItems.map((item) => {
               const isActive = item.end

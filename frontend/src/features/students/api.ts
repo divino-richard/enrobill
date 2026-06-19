@@ -36,6 +36,12 @@ export async function fetchStudent(id: number): Promise<Student> {
   return data.data;
 }
 
+// The authenticated user's own student record (404 if not a student yet).
+export async function fetchMyStudent(): Promise<Student> {
+  const { data } = await api.get<Wrapped<Student>>("/me/student");
+  return data.data;
+}
+
 // Update a student record (admin only).
 export async function updateStudent(
   id: number,

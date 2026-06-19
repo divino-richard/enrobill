@@ -1,19 +1,13 @@
-import { useAuthStore } from '@/features/auth/store'
+import { useAuthStore } from "@/features/auth/store";
+import { StudentDashboard } from "@/features/students/components/student-dashboard";
+import { ApplicantOverview } from "@/features/applications/components/applicant-overview";
 
-// Placeholder portal home — student/applicant self-service screens go here.
+// Portal home is shaped by stage: enrolled students get their dashboard,
+// applicants get their application overview.
 function PortalHomePage() {
-  const user = useAuthStore((state) => state.user)
+  const role = useAuthStore((state) => state.user?.role);
 
-  return (
-    <div className="space-y-2">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        Welcome{user ? `, ${user.name}` : ''}
-      </h1>
-      <p className="text-muted-foreground">
-        Your enrollment status, bills, and payments will appear here.
-      </p>
-    </div>
-  )
+  return role === "student" ? <StudentDashboard /> : <ApplicantOverview />;
 }
 
-export default PortalHomePage
+export default PortalHomePage;
