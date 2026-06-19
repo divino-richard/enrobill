@@ -1,8 +1,12 @@
 <?php
 
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
+use App\Http\Controllers\Admin\BillAdjustmentController as AdminBillAdjustmentController;
 use App\Http\Controllers\Admin\BillController as AdminBillController;
+use App\Http\Controllers\Admin\BillInstallmentController as AdminBillInstallmentController;
+use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
+use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\Admin\TermController as AdminTermController;
 use App\Http\Controllers\ApplicationController;
@@ -114,8 +118,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'update']);
         Route::delete('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'destroy']);
 
+        // Discount catalog (reusable discounts, scholarships, vouchers).
+        Route::get('/admin/discounts', [AdminDiscountController::class, 'index']);
+        Route::post('/admin/discounts', [AdminDiscountController::class, 'store']);
+        Route::put('/admin/discounts/{discount}', [AdminDiscountController::class, 'update']);
+        Route::delete('/admin/discounts/{discount}', [AdminDiscountController::class, 'destroy']);
+
         // Billing — bills for the open term.
         Route::get('/admin/bills', [AdminBillController::class, 'index']);
         Route::post('/admin/bills/generate', [AdminBillController::class, 'generate']);
+        Route::get('/admin/bills/{bill}', [AdminBillController::class, 'show']);
+
+        // Apply or remove a catalog discount on a bill.
+        Route::post('/admin/bills/{bill}/adjustments', [AdminBillAdjustmentController::class, 'store']);
+        Route::delete('/admin/bills/{bill}/adjustments/{adjustment}', [AdminBillAdjustmentController::class, 'destroy']);
+
+        // Set a bill's installment schedule.
+        Route::put('/admin/bills/{bill}/installments', [AdminBillInstallmentController::class, 'update']);
+
+        // Record or void payments against a bill.
+        Route::post('/admin/bills/{bill}/payments', [AdminPaymentController::class, 'store']);
+        Route::delete('/admin/bills/{bill}/payments/{payment}', [AdminPaymentController::class, 'destroy']);
     });
 });

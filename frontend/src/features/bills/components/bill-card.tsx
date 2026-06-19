@@ -63,8 +63,22 @@ export function BillCard({ studentId }: BillCardProps) {
 
             <div className="space-y-2 border-t pt-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Total</span>
+                <span className="text-muted-foreground">Gross total</span>
                 <span className="font-medium">{formatPeso(bill.total)}</span>
+              </div>
+              {bill.discountTotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    Discounts
+                  </span>
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                    − {formatPeso(bill.discountTotal)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Net total</span>
+                <span className="font-medium">{formatPeso(bill.netTotal)}</span>
               </div>
               {bill.amountPaid > 0 && (
                 <div className="flex justify-between">

@@ -46,4 +46,70 @@ class Bill extends Model
     {
         return $this->hasMany(BillItem::class);
     }
+
+    /**
+     * Discounts, scholarships and vouchers credited against this bill.
+     *
+     * @return HasMany<BillAdjustment, $this>
+     */
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(BillAdjustment::class);
+    }
+
+    /**
+     * The installment schedule for this bill, in due order.
+     *
+     * @return HasMany<BillInstallment, $this>
+     */
+    public function installments(): HasMany
+    {
+        return $this->hasMany(BillInstallment::class)->orderBy('sequence');
+    }
+
+    /**
+     * @return HasMany<Payment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Total credits (discounts/scholarships/vouchers) applied to this bill.
+     */
+    public function discountTotal(): float
+    {
+        $adjustments = $this->relationLoaded('adjustments')
+            ? $this->adjustments
+            : $this->adjustments();
+
+        return round((float) $adjustments->sum('amount'), 2);
+    }
+
+    /**
+     * What the student actually owes: gross charges minus credits, floored at 0.
+     */
+    public function netTotal(): float
+    {
+        return round(max((float) $this->total - $this->discountTotal(), 0), 2);
+    }
+
+    /**
+     * Recompute amount_paid and status from recorded payments and current
+     * credits. Call after any payment or adjustment change.
+     */
+    public function recalculate(): void
+    {
+        $paid = round((float) $this->payments()->sum('amount'), 2);
+        $net = $this->netTotal();
+
+        $status = match (true) {
+            $paid <= 0 => 'unpaid',
+            $paid >= $net => 'paid',
+            default => 'partial',
+        };
+
+        $this->update(['amount_paid' => $paid, 'status' => $status]);
+    }
 }

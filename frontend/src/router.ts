@@ -16,7 +16,9 @@ import AdminUserDetailPage from './pages/admin/user-detail-page'
 import AdminTermsPage from './pages/admin/terms-page'
 import AdminFeesPage from './pages/admin/fees-page'
 import AdminFeeStructurePage from './pages/admin/fee-structure-page'
+import AdminDiscountsPage from './pages/admin/discounts-page'
 import AdminBillingPage from './pages/admin/billing-page'
+import AdminBillDetailPage from './pages/admin/bill-detail-page'
 import PortalHomePage from './pages/portal/home-page'
 import ApplicationPage from './pages/portal/application-page'
 import ApplicationNewPage from './pages/portal/application-new-page'
@@ -53,7 +55,9 @@ export const router = createBrowserRouter([
           { path: 'terms', Component: AdminTermsPage },
           { path: 'fees', Component: AdminFeesPage },
           { path: 'fees/:id', Component: AdminFeeStructurePage },
+          { path: 'discounts', Component: AdminDiscountsPage },
           { path: 'billing', Component: AdminBillingPage },
+          { path: 'billing/:id', Component: AdminBillDetailPage },
         ],
       },
     ],

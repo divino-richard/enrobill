@@ -5,10 +5,10 @@ import {
   BarChart3Icon,
   CalendarRangeIcon,
   ClipboardListIcon,
-  CreditCardIcon,
   GraduationCapIcon,
   LayoutDashboardIcon,
   ReceiptTextIcon,
+  TagIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -77,12 +77,17 @@ const navItems: NavItem[] = [
     ready: true,
   },
   {
+    title: "Discounts",
+    url: "/admin/discounts",
+    icon: TagIcon,
+    ready: true,
+  },
+  {
     title: "Billing",
     url: "/admin/billing",
     icon: BanknoteIcon,
     ready: true,
   },
-  { title: "Payments", icon: CreditCardIcon },
   { title: "Reports", icon: BarChart3Icon },
 ];
 

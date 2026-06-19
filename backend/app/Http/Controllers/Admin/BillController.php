@@ -24,7 +24,7 @@ class BillController extends Controller
         $bills = Bill::query()
             ->when($term !== null, fn ($query) => $query->where('term_id', $term->id))
             ->when($term === null, fn ($query) => $query->whereRaw('1 = 0'))
-            ->with(['student', 'term', 'items'])
+            ->with(['student', 'term', 'items', 'adjustments'])
             ->latest()
             ->get();
 
@@ -42,6 +42,16 @@ class BillController extends Controller
     }
 
     /**
+     * A single bill with its items, credits, installment plan and payments.
+     */
+    public function show(Bill $bill): BillResource
+    {
+        return new BillResource(
+            $bill->load(['student', 'term', 'items', 'adjustments', 'installments', 'payments.recorder']),
+        );
+    }
+
+    /**
      * A single student's bill for the open term. 404 if there's no open term or
      * the student hasn't been billed yet.
      */
@@ -52,7 +62,7 @@ class BillController extends Controller
 
         $bill = $student->bills()
             ->where('term_id', $term->id)
-            ->with(['items', 'term'])
+            ->with(['items', 'term', 'adjustments', 'installments', 'payments.recorder'])
             ->first();
 
         abort_if($bill === null, 404, 'This student has not been billed yet.');

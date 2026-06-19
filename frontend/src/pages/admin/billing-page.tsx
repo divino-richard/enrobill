@@ -91,7 +91,7 @@ function BillingPage() {
                 <TableHead>Student No.</TableHead>
                 <TableHead>Student</TableHead>
                 <TableHead>Program</TableHead>
-                <TableHead>Total</TableHead>
+                <TableHead>Net total</TableHead>
                 <TableHead>Balance</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -110,7 +110,12 @@ function BillingPage() {
                       : "—"}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {formatPeso(bill.total)}
+                    {formatPeso(bill.netTotal)}
+                    {bill.discountTotal > 0 && (
+                      <span className="text-muted-foreground ml-1 text-xs">
+                        (−{formatPeso(bill.discountTotal)})
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="font-medium whitespace-nowrap">
                     {formatPeso(bill.balance)}
@@ -127,11 +132,9 @@ function BillingPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
-                        navigate(`/admin/students/${bill.studentId}`)
-                      }
+                      onClick={() => navigate(`/admin/billing/${bill.id}`)}
                     >
-                      View
+                      Manage
                     </Button>
                   </TableCell>
                 </TableRow>

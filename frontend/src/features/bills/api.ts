@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import type { Bill } from "./types";
+import type { Bill, PaymentMethod } from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -23,6 +23,84 @@ export async function generateBills(): Promise<{ created: number }> {
 export async function fetchStudentBill(studentId: number): Promise<Bill> {
   const { data } = await api.get<Wrapped<Bill>>(
     `/admin/students/${studentId}/bill`,
+  );
+  return data.data;
+}
+
+// A single bill with its items, credits, installment plan and payments.
+export async function fetchBill(billId: number): Promise<Bill> {
+  const { data } = await api.get<Wrapped<Bill>>(`/admin/bills/${billId}`);
+  return data.data;
+}
+
+// Apply a catalog discount to a bill.
+export async function applyAdjustment(
+  billId: number,
+  discountId: number,
+): Promise<Bill> {
+  const { data } = await api.post<Wrapped<Bill>>(
+    `/admin/bills/${billId}/adjustments`,
+    { discountId },
+  );
+  return data.data;
+}
+
+// Remove an applied discount from a bill.
+export async function removeAdjustment(
+  billId: number,
+  adjustmentId: number,
+): Promise<Bill> {
+  const { data } = await api.delete<Wrapped<Bill>>(
+    `/admin/bills/${billId}/adjustments/${adjustmentId}`,
+  );
+  return data.data;
+}
+
+export interface InstallmentInput {
+  label: string;
+  amount: number;
+  dueDate: string;
+}
+
+// Replace a bill's installment schedule (must sum to the net total).
+export async function setInstallments(
+  billId: number,
+  installments: InstallmentInput[],
+): Promise<Bill> {
+  const { data } = await api.put<Wrapped<Bill>>(
+    `/admin/bills/${billId}/installments`,
+    { installments },
+  );
+  return data.data;
+}
+
+export interface PaymentInput {
+  amount: number;
+  method: PaymentMethod;
+  reference?: string | null;
+  paidAt: string;
+  note?: string | null;
+}
+
+// Record a payment against a bill.
+export async function recordPayment(
+  billId: number,
+  input: PaymentInput,
+): Promise<Bill> {
+  const { data } = await api.post<Wrapped<Bill>>(
+    `/admin/bills/${billId}/payments`,
+    input,
+  );
+  return data.data;
+}
+
+// Void a recorded payment.
+export async function voidPayment(
+  billId: number,
+  paymentId: number,
+): Promise<Bill> {
+  const { data } = await api.delete<Wrapped<Bill>>(
+    `/admin/bills/${billId}/payments/${paymentId}`,
   );
   return data.data;
 }
