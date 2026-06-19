@@ -4,8 +4,17 @@ export interface Term {
   id: number;
   schoolYear: string;
   semester: TermSemester;
+  startDate: string | null;
+  endDate: string | null;
   isOpen: boolean;
   createdAt: string | null;
+}
+
+export interface TermInput {
+  schoolYear: string;
+  semester: TermSemester;
+  startDate: string;
+  endDate: string;
 }
 
 export const TERM_SEMESTER_OPTIONS = [

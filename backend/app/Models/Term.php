@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['school_year', 'semester', 'is_open'])]
+#[Fillable(['school_year', 'semester', 'start_date', 'end_date', 'is_open'])]
 class Term extends Model
 {
     /**
@@ -15,6 +15,8 @@ class Term extends Model
     protected function casts(): array
     {
         return [
+            'start_date' => 'date',
+            'end_date' => 'date',
             'is_open' => 'boolean',
         ];
     }

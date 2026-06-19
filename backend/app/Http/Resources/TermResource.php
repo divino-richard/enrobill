@@ -20,6 +20,8 @@ class TermResource extends JsonResource
             'id' => $this->id,
             'schoolYear' => $this->school_year,
             'semester' => $this->semester,
+            'startDate' => $this->start_date?->format('Y-m-d'),
+            'endDate' => $this->end_date?->format('Y-m-d'),
             'isOpen' => (bool) $this->is_open,
             'createdAt' => $this->created_at?->toIso8601String(),
         ];

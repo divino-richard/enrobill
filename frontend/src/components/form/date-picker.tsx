@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,11 @@ interface DatePickerProps {
   onBlur?: () => void
   placeholder?: string
   disabled?: boolean
+  // Dropdown range + which dates are selectable. Defaults to past dates only
+  // (suits dates of birth); pass these to allow current/future dates.
+  startMonth?: Date
+  endMonth?: Date
+  disabledDates?: ComponentProps<typeof Calendar>['disabled']
 }
 
 function parseDate(value?: string): Date | undefined {
@@ -34,6 +40,9 @@ export function DatePicker({
   onBlur,
   placeholder = 'Select date',
   disabled,
+  startMonth,
+  endMonth,
+  disabledDates,
 }: DatePickerProps) {
   const selected = parseDate(value)
   const today = new Date()
@@ -62,9 +71,9 @@ export function DatePicker({
           selected={selected}
           defaultMonth={selected}
           captionLayout="dropdown"
-          startMonth={new Date(1950, 0)}
-          endMonth={today}
-          disabled={{ after: today }}
+          startMonth={startMonth ?? new Date(1950, 0)}
+          endMonth={endMonth ?? today}
+          disabled={disabledDates ?? { after: today }}
           onSelect={(date) =>
             onChange(date ? format(date, 'yyyy-MM-dd') : '')
           }

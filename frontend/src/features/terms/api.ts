@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import type { Term, TermSemester } from "./types";
+import type { Term, TermInput } from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -10,10 +10,7 @@ export async function fetchTerms(): Promise<Term[]> {
   return data.data;
 }
 
-export async function createTerm(input: {
-  schoolYear: string;
-  semester: TermSemester;
-}): Promise<Term> {
+export async function createTerm(input: TermInput): Promise<Term> {
   const { data } = await api.post<Wrapped<Term>>("/admin/terms", input);
   return data.data;
 }

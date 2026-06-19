@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   CalendarDaysIcon,
   CircleAlertIcon,
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -42,9 +43,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FieldLabel } from "@/components/form/field-label";
+import { DatePicker } from "@/components/form/date-picker";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/get-error-message";
-import { getSchoolYearOptions } from "@/features/applications/utils";
+import { formatDate } from "@/features/applications/utils";
 import {
   useCreateTerm,
   useDeleteTerm,
@@ -59,6 +61,18 @@ import {
   type TermSemester,
 } from "@/features/terms/types";
 
+// Two consecutive 4-digit years, e.g. "2026-2027".
+const SCHOOL_YEAR_PATTERN = /^(\d{4})-(\d{4})$/;
+
+function isValidSchoolYear(value: string): boolean {
+  const match = SCHOOL_YEAR_PATTERN.exec(value.trim());
+  return match !== null && Number(match[2]) === Number(match[1]) + 1;
+}
+
+// Term dates can be current/future, so widen the calendar and allow any date.
+const TERM_DATE_START = new Date(new Date().getFullYear() - 2, 0);
+const TERM_DATE_END = new Date(new Date().getFullYear() + 6, 11);
+
 function NewTermDialog({
   open,
   onOpenChange,
@@ -66,21 +80,34 @@ function NewTermDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const schoolYearOptions = useMemo(() => getSchoolYearOptions(new Date(), 4), []);
   const [schoolYear, setSchoolYear] = useState("");
   const [semester, setSemester] = useState<TermSemester | "">("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const create = useCreateTerm();
+
+  const schoolYearValid = isValidSchoolYear(schoolYear);
+  const datesValid =
+    startDate !== "" && endDate !== "" && endDate >= startDate;
+  const canCreate = schoolYearValid && Boolean(semester) && datesValid;
 
   function reset() {
     setSchoolYear("");
     setSemester("");
+    setStartDate("");
+    setEndDate("");
     create.reset();
   }
 
   async function handleCreate() {
-    if (!schoolYear || !semester) return;
+    if (!canCreate) return;
     try {
-      await create.mutateAsync({ schoolYear, semester });
+      await create.mutateAsync({
+        schoolYear: schoolYear.trim(),
+        semester: semester as TermSemester,
+        startDate,
+        endDate,
+      });
       reset();
       onOpenChange(false);
     } catch {
@@ -106,21 +133,24 @@ function NewTermDialog({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <FieldLabel htmlFor="schoolYear" required>
+            <FieldLabel
+              htmlFor="schoolYear"
+              required
+              hint="Two consecutive years, e.g. 2026-2027."
+            >
               School Year
             </FieldLabel>
-            <Select value={schoolYear} onValueChange={setSchoolYear}>
-              <SelectTrigger id="schoolYear" className="w-full">
-                <SelectValue placeholder="Select school year" />
-              </SelectTrigger>
-              <SelectContent>
-                {schoolYearOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="schoolYear"
+              value={schoolYear}
+              onChange={(e) => setSchoolYear(e.target.value)}
+              placeholder="2026-2027"
+            />
+            {schoolYear.trim() !== "" && !schoolYearValid && (
+              <p className="text-destructive text-xs">
+                Use the format 2026-2027 (consecutive years).
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -143,6 +173,41 @@ function NewTermDialog({
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="startDate" required>
+              Start date
+            </FieldLabel>
+            <DatePicker
+              id="startDate"
+              value={startDate}
+              onChange={setStartDate}
+              placeholder="Select start date"
+              startMonth={TERM_DATE_START}
+              endMonth={TERM_DATE_END}
+              disabledDates={[]}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="endDate" required>
+              End date
+            </FieldLabel>
+            <DatePicker
+              id="endDate"
+              value={endDate}
+              onChange={setEndDate}
+              placeholder="Select end date"
+              startMonth={TERM_DATE_START}
+              endMonth={TERM_DATE_END}
+              disabledDates={startDate ? { before: new Date(`${startDate}T00:00:00`) } : []}
+            />
+            {startDate !== "" && endDate !== "" && endDate < startDate && (
+              <p className="text-destructive text-xs">
+                The end date must be on or after the start date.
+              </p>
+            )}
+          </div>
         </div>
 
         {create.isError && (
@@ -159,10 +224,7 @@ function NewTermDialog({
           >
             Cancel
           </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={!schoolYear || !semester || create.isPending}
-          >
+          <Button onClick={handleCreate} disabled={!canCreate || create.isPending}>
             {create.isPending ? "Adding…" : "Add term"}
           </Button>
         </DialogFooter>
@@ -254,6 +316,7 @@ function TermsPage() {
               <TableRow>
                 <TableHead>School Year</TableHead>
                 <TableHead>Semester</TableHead>
+                <TableHead>Period</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -265,6 +328,11 @@ function TermsPage() {
                     {term.schoolYear}
                   </TableCell>
                   <TableCell>{semesterLabel(term.semester)}</TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {term.startDate && term.endDate
+                      ? `${formatDate(term.startDate)} – ${formatDate(term.endDate)}`
+                      : "—"}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"

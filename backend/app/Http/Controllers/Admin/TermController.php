@@ -31,20 +31,33 @@ class TermController extends Controller
             'schoolYear' => [
                 'required',
                 'string',
-                'max:20',
+                'regex:/^\d{4}-\d{4}$/',
+                // Second year must be the first year + 1 (e.g. 2026-2027).
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if (preg_match('/^(\d{4})-(\d{4})$/', (string) $value, $m)
+                        && (int) $m[2] !== (int) $m[1] + 1) {
+                        $fail('The school year must be two consecutive years, e.g. 2026-2027.');
+                    }
+                },
                 Rule::unique('terms', 'school_year')->where(
                     'semester',
                     $request->input('semester'),
                 ),
             ],
             'semester' => ['required', Rule::in(self::SEMESTERS)],
+            'startDate' => ['required', 'date'],
+            'endDate' => ['required', 'date', 'after_or_equal:startDate'],
         ], [
+            'schoolYear.regex' => 'The school year must look like 2026-2027.',
             'schoolYear.unique' => 'That school year and semester already exists.',
+            'endDate.after_or_equal' => 'The end date must be on or after the start date.',
         ]);
 
         $term = Term::create([
             'school_year' => $validated['schoolYear'],
             'semester' => $validated['semester'],
+            'start_date' => $validated['startDate'],
+            'end_date' => $validated['endDate'],
             'is_open' => false,
         ]);
 

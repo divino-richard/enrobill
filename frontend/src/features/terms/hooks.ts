@@ -5,7 +5,7 @@ import {
   fetchTerms,
   setTermOpen,
 } from "./api";
-import type { TermSemester } from "./types";
+import type { TermInput } from "./types";
 
 export const termsQueryKey = ["admin", "terms"] as const;
 
@@ -19,8 +19,7 @@ export function useTerms() {
 export function useCreateTerm() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { schoolYear: string; semester: TermSemester }) =>
-      createTerm(input),
+    mutationFn: (input: TermInput) => createTerm(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: termsQueryKey });
     },
