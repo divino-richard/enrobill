@@ -4,10 +4,17 @@ import {
   deleteFeeStructure,
   fetchFeeStructure,
   fetchFeeStructures,
+  fetchStandardFeeItems,
+  generateFeeStructures,
   updateFeeStructureItems,
+  updateStandardFeeItems,
 } from "./api";
 
 export const feeStructuresQueryKey = ["admin", "fee-structures"] as const;
+export const standardFeeItemsQueryKey = [
+  "admin",
+  "standard-fee-items",
+] as const;
 
 export function useFeeStructures() {
   return useQuery({
@@ -55,6 +62,34 @@ export function useDeleteFeeStructure() {
     mutationFn: (id: number) => deleteFeeStructure(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: feeStructuresQueryKey });
+    },
+  });
+}
+
+export function useGenerateFeeStructures() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: generateFeeStructures,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: feeStructuresQueryKey });
+    },
+  });
+}
+
+export function useStandardFeeItems() {
+  return useQuery({
+    queryKey: standardFeeItemsQueryKey,
+    queryFn: fetchStandardFeeItems,
+  });
+}
+
+export function useUpdateStandardFeeItems() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: { name: string; amount: number }[]) =>
+      updateStandardFeeItems(items),
+    onSuccess: (items) => {
+      queryClient.setQueryData(standardFeeItemsQueryKey, items);
     },
   });
 }

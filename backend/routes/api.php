@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\BillInstallmentController as AdminBillInstallment
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
+use App\Http\Controllers\Admin\StandardFeeItemController as AdminStandardFeeItemController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\Admin\TermController as AdminTermController;
 use App\Http\Controllers\ApplicationController;
@@ -111,9 +112,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
         Route::delete('/admin/terms/{term}', [AdminTermController::class, 'destroy']);
 
+        // Standard fee items (the default items new fee structures are seeded with).
+        Route::get('/admin/standard-fee-items', [AdminStandardFeeItemController::class, 'index']);
+        Route::put('/admin/standard-fee-items', [AdminStandardFeeItemController::class, 'update']);
+
         // Fee structures (flat per-semester fees per program).
         Route::get('/admin/fee-structures', [AdminFeeStructureController::class, 'index']);
         Route::post('/admin/fee-structures', [AdminFeeStructureController::class, 'store']);
+        Route::post('/admin/fee-structures/generate', [AdminFeeStructureController::class, 'generate']);
         Route::get('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'show']);
         Route::put('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'update']);
         Route::delete('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'destroy']);

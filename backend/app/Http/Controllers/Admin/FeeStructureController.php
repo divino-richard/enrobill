@@ -2,19 +2,23 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\GenerateTermFeeStructures;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\FeeStructureResource;
 use App\Models\FeeStructure;
+use App\Models\StandardFeeItem;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class FeeStructureController extends Controller
 {
-    private const TRACKS = ['stem', 'assh', 'abm', 'gas', 'creative_arts', 'hospitality', 'ict'];
+    private const TRACKS = FeeStructure::TRACKS;
 
-    private const YEAR_LEVELS = ['grade_11', 'grade_12'];
+    private const YEAR_LEVELS = FeeStructure::YEAR_LEVELS;
 
     /**
      * All fee structures, optionally filtered by term. Restricted to admins by
@@ -59,7 +63,28 @@ class FeeStructureController extends Controller
             'year_level' => $validated['yearLevel'],
         ]);
 
+        // Seed the new structure with the standard fee items, if any are defined.
+        $standard = StandardFeeItem::query()->orderBy('id')->get();
+        if ($standard->isNotEmpty()) {
+            $structure->items()->createMany(
+                $standard
+                    ->map(fn (StandardFeeItem $item) => ['name' => $item->name, 'amount' => $item->amount])
+                    ->all(),
+            );
+        }
+
         return new FeeStructureResource($structure->load(['term', 'items']));
+    }
+
+    /**
+     * Bulk-create fee structures for every program missing one in the open term,
+     * seeded with the standard fee items.
+     */
+    public function generate(GenerateTermFeeStructures $generate): JsonResponse
+    {
+        $created = $generate();
+
+        return response()->json(['created' => $created]);
     }
 
     /**
@@ -99,7 +124,7 @@ class FeeStructureController extends Controller
     /**
      * Delete a fee structure (and its items).
      */
-    public function destroy(FeeStructure $feeStructure): \Illuminate\Http\Response
+    public function destroy(FeeStructure $feeStructure): Response
     {
         $feeStructure->delete();
 

@@ -11,6 +11,12 @@ export interface FeeStructureItem {
   amount: number;
 }
 
+export interface StandardFeeItem {
+  id?: number;
+  name: string;
+  amount: number;
+}
+
 export interface FeeStructure {
   id: number;
   termId: number;
