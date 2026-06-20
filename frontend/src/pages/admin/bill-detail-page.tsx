@@ -46,8 +46,10 @@ import {
   useApplyAdjustment,
   useBill,
   useRecordPayment,
+  useRejectPayment,
   useRemoveAdjustment,
   useSetInstallments,
+  useVerifyPayment,
   useVoidPayment,
 } from "@/features/bills/hooks";
 import type { InstallmentInput } from "@/features/bills/api";
@@ -55,6 +57,8 @@ import {
   BILL_STATUS_META,
   INSTALLMENT_STATUS_META,
   PAYMENT_METHOD_OPTIONS,
+  PAYMENT_STATUS_META,
+  paymentMethodLabel,
   type Bill,
   type PaymentMethod,
 } from "@/features/bills/types";
@@ -557,6 +561,8 @@ function BillDetailPage() {
   const { data: bill, isLoading, isError, refetch } = useBill(billId);
   const removeAdjustment = useRemoveAdjustment(billId);
   const voidPayment = useVoidPayment(billId);
+  const verifyPayment = useVerifyPayment(billId);
+  const rejectPayment = useRejectPayment(billId);
   const programLabel = useProgramLabel();
 
   const termLabel = useMemo(() => {
@@ -790,29 +796,73 @@ function BillDetailPage() {
                       key={payment.id}
                       className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium">
                           {formatPeso(payment.amount)}
-                          <span className="text-muted-foreground ml-2 text-xs font-normal capitalize">
-                            {payment.method}
+                          <span className="text-muted-foreground ml-2 text-xs font-normal">
+                            {paymentMethodLabel(payment.method)}
                           </span>
                         </p>
                         <p className="text-muted-foreground text-xs">
                           {payment.paidAt ?? "—"}
                           {payment.reference ? ` · ${payment.reference}` : ""}
                           {payment.recordedBy ? ` · by ${payment.recordedBy}` : ""}
+                          {payment.submittedBy
+                            ? ` · from ${payment.submittedBy}`
+                            : ""}
                         </p>
+                        {payment.proofUrl && (
+                          <a
+                            href={payment.proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary text-xs underline"
+                          >
+                            View proof
+                          </a>
+                        )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-destructive size-8"
-                        disabled={voidPayment.isPending}
-                        onClick={() => voidPayment.mutate(payment.id)}
-                      >
-                        <Trash2Icon className="size-4" />
-                        <span className="sr-only">Void payment</span>
-                      </Button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={PAYMENT_STATUS_META[payment.status].className}
+                        >
+                          {PAYMENT_STATUS_META[payment.status].label}
+                        </Badge>
+                        {payment.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={verifyPayment.isPending}
+                              onClick={() => verifyPayment.mutate(payment.id)}
+                            >
+                              Verify
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-muted-foreground hover:text-destructive"
+                              disabled={rejectPayment.isPending}
+                              onClick={() => rejectPayment.mutate(payment.id)}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {payment.status !== "pending" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive size-8"
+                            disabled={voidPayment.isPending}
+                            onClick={() => voidPayment.mutate(payment.id)}
+                          >
+                            <Trash2Icon className="size-4" />
+                            <span className="sr-only">Void payment</span>
+                          </Button>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

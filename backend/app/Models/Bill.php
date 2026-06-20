@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'student_id', 'term_id', 'fee_structure_id', 'total', 'amount_paid', 'status',
+    'payment_option',
 ])]
 class Bill extends Model
 {
@@ -96,12 +97,52 @@ class Bill extends Model
     }
 
     /**
+     * The amount a student should pay now: the next unpaid installment's
+     * remaining balance if there's a plan, otherwise the full outstanding
+     * balance. Based on verified payments only. Zero when nothing is owed.
+     */
+    public function amountDue(): float
+    {
+        $outstanding = round(max($this->netTotal() - (float) $this->amount_paid, 0), 2);
+
+        if ($outstanding <= 0) {
+            return 0.0;
+        }
+
+        $installments = $this->relationLoaded('installments')
+            ? $this->installments
+            : $this->installments()->orderBy('sequence')->get();
+
+        if ($installments->isEmpty()) {
+            return $outstanding;
+        }
+
+        // Allocate verified payments across installments in due order; the first
+        // not-fully-covered installment's remainder is what's due now.
+        $remaining = (float) $this->amount_paid;
+        foreach ($installments as $installment) {
+            $amount = (float) $installment->amount;
+            if ($remaining >= $amount) {
+                $remaining = round($remaining - $amount, 2);
+
+                continue;
+            }
+
+            return round(min($amount - $remaining, $outstanding), 2);
+        }
+
+        return $outstanding;
+    }
+
+    /**
      * Recompute amount_paid and status from recorded payments and current
      * credits. Call after any payment or adjustment change.
      */
     public function recalculate(): void
     {
-        $paid = round((float) $this->payments()->sum('amount'), 2);
+        // Only verified payments count toward what's been paid; pending
+        // (student-submitted) and rejected payments don't.
+        $paid = round((float) $this->payments()->where('status', 'verified')->sum('amount'), 2);
         $net = $this->netTotal();
 
         $status = match (true) {

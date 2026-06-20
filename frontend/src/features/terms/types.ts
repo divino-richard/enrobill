@@ -1,5 +1,7 @@
 export type TermSemester = "first" | "second";
 
+export type DownpaymentType = "percentage" | "fixed";
+
 export interface Term {
   id: number;
   schoolYear: string;
@@ -7,10 +9,21 @@ export interface Term {
   startDate: string | null;
   endDate: string | null;
   isOpen: boolean;
+  installmentsEnabled: boolean;
+  downpaymentType: DownpaymentType | null;
+  downpaymentValue: number | null;
+  installmentCount: number | null;
   createdAt: string | null;
 }
 
-export interface TermInput {
+export interface InstallmentPolicyInput {
+  installmentsEnabled: boolean;
+  downpaymentType: DownpaymentType | null;
+  downpaymentValue: number | null;
+  installmentCount: number | null;
+}
+
+export interface TermInput extends InstallmentPolicyInput {
   schoolYear: string;
   semester: TermSemester;
   startDate: string;

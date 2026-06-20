@@ -21,7 +21,9 @@ import AdminFeeStructurePage from './pages/admin/fee-structure-page'
 import AdminDiscountsPage from './pages/admin/discounts-page'
 import AdminBillingPage from './pages/admin/billing-page'
 import AdminBillDetailPage from './pages/admin/bill-detail-page'
+import AdminPaymentChannelsPage from './pages/admin/payment-channels-page'
 import PortalHomePage from './pages/portal/home-page'
+import PortalBillsPage from './pages/portal/bills-page'
 import ApplicationPage from './pages/portal/application-page'
 import ApplicationNewPage from './pages/portal/application-new-page'
 import ApplicationDetailPage from './pages/portal/application-detail-page'
@@ -62,6 +64,7 @@ export const router = createBrowserRouter([
           { path: 'discounts', Component: AdminDiscountsPage },
           { path: 'billing', Component: AdminBillingPage },
           { path: 'billing/:id', Component: AdminBillDetailPage },
+          { path: 'payment-methods', Component: AdminPaymentChannelsPage },
         ],
       },
     ],
@@ -76,6 +79,7 @@ export const router = createBrowserRouter([
         Component: PortalLayout,
         children: [
           { index: true, Component: PortalHomePage },
+          { path: 'bills', Component: PortalBillsPage },
           { path: 'application', Component: ApplicationPage },
           { path: 'application/new', Component: ApplicationNewPage },
           { path: 'application/:id', Component: ApplicationDetailPage },

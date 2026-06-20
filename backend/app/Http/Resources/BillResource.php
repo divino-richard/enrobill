@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin Bill
@@ -30,6 +31,15 @@ class BillResource extends JsonResource
             'schoolYear' => $this->term?->school_year,
             'semester' => $this->term?->semester,
             'status' => $this->status,
+            'paymentOption' => $this->payment_option,
+            'installmentsAllowed' => (bool) ($this->term?->installments_enabled),
+            'installmentPolicy' => $this->term && $this->term->installments_enabled ? [
+                'downpaymentType' => $this->term->downpayment_type,
+                'downpaymentValue' => $this->term->downpayment_value !== null
+                    ? (float) $this->term->downpayment_value
+                    : null,
+                'installmentCount' => $this->term->installment_count,
+            ] : null,
             // Gross charges (sum of line items) before any credits.
             'total' => $gross,
             'discountTotal' => $discountTotal,
@@ -37,6 +47,8 @@ class BillResource extends JsonResource
             'netTotal' => $netTotal,
             'amountPaid' => $paid,
             'balance' => round($netTotal - $paid, 2),
+            // What a student should pay now (next installment, else balance).
+            'amountDue' => $this->amountDue(),
             'items' => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'name' => $item->name,
@@ -57,10 +69,15 @@ class BillResource extends JsonResource
                     'id' => $payment->id,
                     'amount' => (float) $payment->amount,
                     'method' => $payment->method,
+                    'status' => $payment->status,
                     'reference' => $payment->reference,
+                    'proofUrl' => $payment->proof_key
+                        ? Storage::disk('s3')->temporaryUrl($payment->proof_key, now()->addMinutes(10))
+                        : null,
                     'paidAt' => $payment->paid_at?->toDateString(),
                     'note' => $payment->note,
-                    'recordedBy' => $payment->whenLoaded('recorder', fn () => $payment->recorder?->name),
+                    'recordedBy' => $payment->relationLoaded('recorder') ? $payment->recorder?->name : null,
+                    'submittedBy' => $payment->relationLoaded('submitter') ? $payment->submitter?->name : null,
                 ])->values()),
             // Present in admin listings (when the student is eager-loaded).
             'student' => $this->whenLoaded('student', fn () => [

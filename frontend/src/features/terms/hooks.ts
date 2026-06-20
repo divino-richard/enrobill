@@ -4,8 +4,9 @@ import {
   deleteTerm,
   fetchTerms,
   setTermOpen,
+  updateTermPolicy,
 } from "./api";
-import type { TermInput } from "./types";
+import type { InstallmentPolicyInput, TermInput } from "./types";
 
 export const termsQueryKey = ["admin", "terms"] as const;
 
@@ -31,6 +32,16 @@ export function useSetTermOpen() {
   return useMutation({
     mutationFn: ({ id, isOpen }: { id: number; isOpen: boolean }) =>
       setTermOpen(id, isOpen),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: termsQueryKey });
+    },
+  });
+}
+
+export function useUpdateTermPolicy(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: InstallmentPolicyInput) => updateTermPolicy(id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: termsQueryKey });
     },

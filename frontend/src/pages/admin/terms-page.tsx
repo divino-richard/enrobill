@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -45,6 +46,7 @@ import {
 import { FieldLabel } from "@/components/form/field-label";
 import { DatePicker } from "@/components/form/date-picker";
 import { cn } from "@/lib/utils";
+import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { formatDate } from "@/features/applications/utils";
 import {
@@ -52,14 +54,189 @@ import {
   useDeleteTerm,
   useSetTermOpen,
   useTerms,
+  useUpdateTermPolicy,
 } from "@/features/terms/hooks";
 import {
   TERM_SEMESTER_OPTIONS,
   semesterLabel,
   termLabel,
+  type DownpaymentType,
   type Term,
   type TermSemester,
 } from "@/features/terms/types";
+
+interface PolicyState {
+  enabled: boolean;
+  type: DownpaymentType;
+  value: string;
+  count: string;
+}
+
+const EMPTY_POLICY: PolicyState = {
+  enabled: false,
+  type: "percentage",
+  value: "",
+  count: "",
+};
+
+function policyToInput(policy: PolicyState) {
+  return {
+    installmentsEnabled: policy.enabled,
+    downpaymentType: policy.enabled ? policy.type : null,
+    downpaymentValue: policy.enabled ? Number(policy.value) : null,
+    installmentCount: policy.enabled ? Number(policy.count) : null,
+  };
+}
+
+const policyComplete = (policy: PolicyState) =>
+  !policy.enabled || (policy.value !== "" && policy.count !== "");
+
+function policySummary(term: Term): string {
+  if (!term.installmentsEnabled) return "Full payment only";
+  const dp =
+    term.downpaymentType === "percentage"
+      ? `${term.downpaymentValue}%`
+      : formatPeso(term.downpaymentValue ?? 0);
+  return `${dp} DP · ${term.installmentCount}× monthly`;
+}
+
+// Shared installment-policy fields used by the create and edit dialogs.
+function PolicyFields({
+  policy,
+  onChange,
+}: {
+  policy: PolicyState;
+  onChange: (patch: Partial<PolicyState>) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border p-3 sm:col-span-2">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <Checkbox
+          checked={policy.enabled}
+          onCheckedChange={(checked) => onChange({ enabled: checked === true })}
+        />
+        Offer installment plans this term
+      </label>
+      {policy.enabled && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <FieldLabel>Downpayment type</FieldLabel>
+            <Select
+              value={policy.type}
+              onValueChange={(v) => onChange({ type: v as DownpaymentType })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentage">Percentage (%)</SelectItem>
+                <SelectItem value="fixed">Fixed (₱)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>
+              {policy.type === "percentage" ? "Downpayment %" : "Downpayment ₱"}
+            </FieldLabel>
+            <Input
+              type="number"
+              min={0}
+              max={policy.type === "percentage" ? 100 : undefined}
+              step="0.01"
+              value={policy.value}
+              onChange={(e) => onChange({ value: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Monthly installments</FieldLabel>
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              value={policy.count}
+              onChange={(e) => onChange({ count: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PolicyDialog({
+  term,
+  onOpenChange,
+}: {
+  term: Term | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={term !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Installment policy</DialogTitle>
+          <DialogDescription>
+            {term
+              ? `How ${termLabel(term)} can be paid. Students choose full or installment; the schedule is generated from this.`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {term && (
+          <PolicyForm
+            key={term.id}
+            term={term}
+            onDone={() => onOpenChange(false)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PolicyForm({ term, onDone }: { term: Term; onDone: () => void }) {
+  const save = useUpdateTermPolicy(term.id);
+  const [policy, setPolicy] = useState<PolicyState>({
+    enabled: term.installmentsEnabled,
+    type: term.downpaymentType ?? "percentage",
+    value: term.downpaymentValue !== null ? String(term.downpaymentValue) : "",
+    count: term.installmentCount !== null ? String(term.installmentCount) : "",
+  });
+
+  async function handleSave() {
+    if (!policyComplete(policy)) return;
+    try {
+      await save.mutateAsync(policyToInput(policy));
+      onDone();
+    } catch {
+      // Surfaced via save.isError.
+    }
+  }
+
+  return (
+    <>
+      <div className="grid gap-4">
+        <PolicyFields
+          policy={policy}
+          onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
+        />
+      </div>
+      {save.isError && (
+        <p className="text-destructive text-sm">{getErrorMessage(save.error)}</p>
+      )}
+      <DialogFooter>
+        <Button variant="outline" onClick={onDone} disabled={save.isPending}>
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSave}
+          disabled={!policyComplete(policy) || save.isPending}
+        >
+          {save.isPending ? "Saving…" : "Save policy"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
 
 // Two consecutive 4-digit years, e.g. "2026-2027".
 const SCHOOL_YEAR_PATTERN = /^(\d{4})-(\d{4})$/;
@@ -84,18 +261,21 @@ function NewTermDialog({
   const [semester, setSemester] = useState<TermSemester | "">("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [policy, setPolicy] = useState<PolicyState>(EMPTY_POLICY);
   const create = useCreateTerm();
 
   const schoolYearValid = isValidSchoolYear(schoolYear);
   const datesValid =
     startDate !== "" && endDate !== "" && endDate >= startDate;
-  const canCreate = schoolYearValid && Boolean(semester) && datesValid;
+  const canCreate =
+    schoolYearValid && Boolean(semester) && datesValid && policyComplete(policy);
 
   function reset() {
     setSchoolYear("");
     setSemester("");
     setStartDate("");
     setEndDate("");
+    setPolicy(EMPTY_POLICY);
     create.reset();
   }
 
@@ -107,6 +287,7 @@ function NewTermDialog({
         semester: semester as TermSemester,
         startDate,
         endDate,
+        ...policyToInput(policy),
       });
       reset();
       onOpenChange(false);
@@ -208,6 +389,11 @@ function NewTermDialog({
               </p>
             )}
           </div>
+
+          <PolicyFields
+            policy={policy}
+            onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
+          />
         </div>
 
         {create.isError && (
@@ -242,6 +428,7 @@ function TermsPage() {
   const remove = useDeleteTerm();
 
   const [newTermOpen, setNewTermOpen] = useState(false);
+  const [policyTerm, setPolicyTerm] = useState<Term | null>(null);
   const [deleting, setDeleting] = useState<Term | null>(null);
 
   async function confirmDelete() {
@@ -317,6 +504,7 @@ function TermsPage() {
                 <TableHead>School Year</TableHead>
                 <TableHead>Semester</TableHead>
                 <TableHead>Period</TableHead>
+                <TableHead>Payment plan</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -332,6 +520,9 @@ function TermsPage() {
                     {term.startDate && term.endDate
                       ? `${formatDate(term.startDate)} – ${formatDate(term.endDate)}`
                       : "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {policySummary(term)}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -359,6 +550,13 @@ function TermsPage() {
                       </Button>
                       <Button
                         variant="ghost"
+                        size="sm"
+                        onClick={() => setPolicyTerm(term)}
+                      >
+                        Plan
+                      </Button>
+                      <Button
+                        variant="ghost"
                         size="icon"
                         className="text-muted-foreground hover:text-destructive size-8"
                         onClick={() => setDeleting(term)}
@@ -376,6 +574,13 @@ function TermsPage() {
       )}
 
       <NewTermDialog open={newTermOpen} onOpenChange={setNewTermOpen} />
+
+      <PolicyDialog
+        term={policyTerm}
+        onOpenChange={(open) => {
+          if (!open) setPolicyTerm(null);
+        }}
+      />
 
       <AlertDialog
         open={deleting !== null}

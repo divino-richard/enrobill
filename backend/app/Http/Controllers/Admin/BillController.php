@@ -47,7 +47,7 @@ class BillController extends Controller
     public function show(Bill $bill): BillResource
     {
         return new BillResource(
-            $bill->load(['student', 'term', 'items', 'adjustments', 'installments', 'payments.recorder']),
+            $bill->load(['student', 'term', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
         );
     }
 
@@ -62,7 +62,7 @@ class BillController extends Controller
 
         $bill = $student->bills()
             ->where('term_id', $term->id)
-            ->with(['items', 'term', 'adjustments', 'installments', 'payments.recorder'])
+            ->with(['items', 'term', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter'])
             ->first();
 
         abort_if($bill === null, 404, 'This student has not been billed yet.');

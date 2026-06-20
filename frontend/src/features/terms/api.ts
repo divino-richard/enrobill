@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import type { Term, TermInput } from "./types";
+import type { InstallmentPolicyInput, Term, TermInput } from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -19,6 +19,17 @@ export async function setTermOpen(id: number, isOpen: boolean): Promise<Term> {
   const { data } = await api.put<Wrapped<Term>>(`/admin/terms/${id}`, {
     isOpen,
   });
+  return data.data;
+}
+
+export async function updateTermPolicy(
+  id: number,
+  input: InstallmentPolicyInput,
+): Promise<Term> {
+  const { data } = await api.put<Wrapped<Term>>(
+    `/admin/terms/${id}/installment-policy`,
+    input,
+  );
   return data.data;
 }
 

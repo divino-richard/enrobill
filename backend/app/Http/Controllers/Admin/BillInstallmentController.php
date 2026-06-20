@@ -49,7 +49,7 @@ class BillInstallmentController extends Controller
         });
 
         return new BillResource(
-            $bill->fresh()->load(['term', 'items', 'adjustments', 'installments', 'payments.recorder']),
+            $bill->fresh()->load(['term', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
         );
     }
 }

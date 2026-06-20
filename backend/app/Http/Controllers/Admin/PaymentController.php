@@ -12,10 +12,12 @@ use Illuminate\Validation\ValidationException;
 
 class PaymentController extends Controller
 {
-    private const METHODS = ['cash', 'gcash', 'bank', 'card', 'check'];
+    public const METHODS = ['cash', 'gcash', 'maya'];
 
     /**
-     * Record a payment against a bill and recompute its balance and status.
+     * Record a verified payment against a bill and recompute its balance and
+     * status. (Admin-recorded payments — e.g. cash at the cashier — are trusted
+     * and count immediately.)
      */
     public function store(Request $request, Bill $bill): BillResource
     {
@@ -38,12 +40,48 @@ class PaymentController extends Controller
         $bill->payments()->create([
             'amount' => $validated['amount'],
             'method' => $validated['method'],
+            'status' => 'verified',
             'reference' => $validated['reference'] ?? null,
             'paid_at' => $validated['paidAt'],
             'note' => $validated['note'] ?? null,
             'recorded_by' => $request->user()?->id,
         ]);
 
+        $bill->recalculate();
+
+        return $this->billResource($bill);
+    }
+
+    /**
+     * Finalize a student-submitted payment — verify it so it counts toward the
+     * balance.
+     */
+    public function verify(Bill $bill, Payment $payment): BillResource
+    {
+        abort_if($payment->bill_id !== $bill->id, 404);
+
+        $balance = round($bill->netTotal() - (float) $bill->amount_paid, 2);
+
+        if ($payment->status !== 'verified' && (float) $payment->amount > $balance + 0.01) {
+            throw ValidationException::withMessages([
+                'payment' => "Verifying this payment would exceed the outstanding balance of {$balance}.",
+            ]);
+        }
+
+        $payment->update(['status' => 'verified']);
+        $bill->recalculate();
+
+        return $this->billResource($bill);
+    }
+
+    /**
+     * Reject a student-submitted payment (e.g. invalid proof).
+     */
+    public function reject(Bill $bill, Payment $payment): BillResource
+    {
+        abort_if($payment->bill_id !== $bill->id, 404);
+
+        $payment->update(['status' => 'rejected']);
         $bill->recalculate();
 
         return $this->billResource($bill);
@@ -65,7 +103,7 @@ class PaymentController extends Controller
     private function billResource(Bill $bill): BillResource
     {
         return new BillResource(
-            $bill->fresh()->load(['term', 'items', 'adjustments', 'installments', 'payments.recorder']),
+            $bill->fresh()->load(['term', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
         );
     }
 }

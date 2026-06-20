@@ -5,13 +5,20 @@ import {
   fetchBills,
   fetchStudentBill,
   generateBills,
+  chooseMyPlan,
+  fetchMyBill,
   recordPayment,
+  rejectPayment,
   removeAdjustment,
   setInstallments,
+  submitMyPayment,
+  verifyPayment,
   voidPayment,
   type InstallmentInput,
   type PaymentInput,
+  type SubmitPaymentInput,
 } from "./api";
+import type { PaymentOption } from "./types";
 import type { Bill } from "./types";
 
 export const billsQueryKey = ["admin", "bills"] as const;
@@ -104,4 +111,51 @@ export function useVoidPayment(billId: number) {
     (paymentId: number) => voidPayment(billId, paymentId),
     billId,
   );
+}
+
+export function useVerifyPayment(billId: number) {
+  return useBillMutation(
+    (paymentId: number) => verifyPayment(billId, paymentId),
+    billId,
+  );
+}
+
+export function useRejectPayment(billId: number) {
+  return useBillMutation(
+    (paymentId: number) => rejectPayment(billId, paymentId),
+    billId,
+  );
+}
+
+// --- Student self-service ---------------------------------------------------
+
+export const myBillQueryKey = ["me", "bill"] as const;
+
+export function useMyBill() {
+  return useQuery({
+    queryKey: myBillQueryKey,
+    queryFn: fetchMyBill,
+    // A 404 means "no bill yet" — don't retry.
+    retry: false,
+  });
+}
+
+export function useSubmitMyPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SubmitPaymentInput) => submitMyPayment(input),
+    onSuccess: (bill) => {
+      queryClient.setQueryData(myBillQueryKey, bill);
+    },
+  });
+}
+
+export function useChooseMyPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (option: PaymentOption) => chooseMyPlan(option),
+    onSuccess: (bill) => {
+      queryClient.setQueryData(myBillQueryKey, bill);
+    },
+  });
 }

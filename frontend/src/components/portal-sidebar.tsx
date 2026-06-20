@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   FileTextIcon,
   LayoutDashboardIcon,
+  ReceiptTextIcon,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -38,6 +39,7 @@ const APPLICANT_NAV: NavItem[] = [
 
 const STUDENT_NAV: NavItem[] = [
   { title: "Dashboard", url: "/portal", icon: LayoutDashboardIcon, end: true },
+  { title: "My Bill", url: "/portal/bills", icon: ReceiptTextIcon },
   { title: "Admission", url: "/portal/application", icon: FileTextIcon },
 ];
 

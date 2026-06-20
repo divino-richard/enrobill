@@ -6,7 +6,10 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['school_year', 'semester', 'start_date', 'end_date', 'is_open'])]
+#[Fillable([
+    'school_year', 'semester', 'start_date', 'end_date', 'is_open',
+    'installments_enabled', 'downpayment_type', 'downpayment_value', 'installment_count',
+])]
 class Term extends Model
 {
     /**
@@ -18,6 +21,8 @@ class Term extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'is_open' => 'boolean',
+            'installments_enabled' => 'boolean',
+            'downpayment_value' => 'decimal:2',
         ];
     }
 

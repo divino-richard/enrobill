@@ -2,16 +2,52 @@ export type BillStatus = "unpaid" | "partial" | "paid";
 
 export type InstallmentStatus = "unpaid" | "partial" | "paid" | "overdue";
 
-export type PaymentMethod = "cash" | "gcash" | "bank" | "card" | "check";
+export type PaymentMethod = "cash" | "gcash" | "maya";
+
+export type PaymentStatus = "pending" | "verified" | "rejected";
+
+export type PaymentOption = "full" | "installment";
+
+export interface InstallmentPolicy {
+  downpaymentType: "percentage" | "fixed" | null;
+  downpaymentValue: number | null;
+  installmentCount: number | null;
+}
 
 export const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] =
   [
     { value: "cash", label: "Cash" },
     { value: "gcash", label: "GCash" },
-    { value: "bank", label: "Bank transfer" },
-    { value: "card", label: "Card" },
-    { value: "check", label: "Check" },
+    { value: "maya", label: "Maya" },
   ];
+
+export function paymentMethodLabel(method: string): string {
+  return (
+    PAYMENT_METHOD_OPTIONS.find((option) => option.value === method)?.label ??
+    method
+  );
+}
+
+export const PAYMENT_STATUS_META: Record<
+  PaymentStatus,
+  { label: string; className: string }
+> = {
+  pending: {
+    label: "Pending",
+    className:
+      "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  },
+  verified: {
+    label: "Verified",
+    className:
+      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+  },
+  rejected: {
+    label: "Rejected",
+    className:
+      "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300",
+  },
+};
 
 export interface BillItem {
   id?: number;
@@ -43,10 +79,13 @@ export interface BillPayment {
   id: number;
   amount: number;
   method: PaymentMethod;
+  status: PaymentStatus;
   reference: string | null;
+  proofUrl: string | null;
   paidAt: string | null;
   note: string | null;
   recordedBy?: string | null;
+  submittedBy?: string | null;
 }
 
 export interface BillStudent {
@@ -64,11 +103,15 @@ export interface Bill {
   schoolYear: string | null;
   semester: string | null;
   status: BillStatus;
+  paymentOption: PaymentOption | null;
+  installmentsAllowed: boolean;
+  installmentPolicy: InstallmentPolicy | null;
   total: number;
   discountTotal: number;
   netTotal: number;
   amountPaid: number;
   balance: number;
+  amountDue: number;
   items: BillItem[];
   adjustments?: BillAdjustment[];
   installments?: BillInstallment[];

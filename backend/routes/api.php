@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\BillController as AdminBillController;
 use App\Http\Controllers\Admin\BillInstallmentController as AdminBillInstallmentController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
+use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
@@ -15,7 +16,9 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\PaymentChannelController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\YearLevelController;
@@ -76,6 +79,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // The current user's own student record (once accepted).
     Route::get('/me/student', [StudentProfileController::class, 'show']);
 
+    // The current student's bill for the open term + self-service payment.
+    Route::get('/me/bill', [StudentBillController::class, 'show']);
+    Route::put('/me/bill/payment-option', [StudentBillController::class, 'choosePlan']);
+    Route::post('/me/bill/payments/presign', [StudentBillController::class, 'presign']);
+    Route::post('/me/bill/payments', [StudentBillController::class, 'storePayment']);
+
+    // Active payment channels (QR codes) students can pay to.
+    Route::get('/payment-channels', [PaymentChannelController::class, 'index']);
+
     // Active programs, for selection in the application form and other pickers.
     Route::get('/programs', [ProgramController::class, 'index']);
 
@@ -119,6 +131,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/terms', [AdminTermController::class, 'index']);
         Route::post('/admin/terms', [AdminTermController::class, 'store']);
         Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
+        Route::put('/admin/terms/{term}/installment-policy', [AdminTermController::class, 'updatePolicy']);
         Route::delete('/admin/terms/{term}', [AdminTermController::class, 'destroy']);
 
         // Year levels.
@@ -160,8 +173,15 @@ Route::middleware('auth:sanctum')->group(function () {
         // Set a bill's installment schedule.
         Route::put('/admin/bills/{bill}/installments', [AdminBillInstallmentController::class, 'update']);
 
-        // Record or void payments against a bill.
+        // Record, verify, reject or void payments against a bill.
         Route::post('/admin/bills/{bill}/payments', [AdminPaymentController::class, 'store']);
+        Route::post('/admin/bills/{bill}/payments/{payment}/verify', [AdminPaymentController::class, 'verify']);
+        Route::post('/admin/bills/{bill}/payments/{payment}/reject', [AdminPaymentController::class, 'reject']);
         Route::delete('/admin/bills/{bill}/payments/{payment}', [AdminPaymentController::class, 'destroy']);
+
+        // Payment channels (GCash / Maya QR codes).
+        Route::get('/admin/payment-channels', [AdminPaymentChannelController::class, 'index']);
+        Route::put('/admin/payment-channels/{paymentChannel}', [AdminPaymentChannelController::class, 'update']);
+        Route::post('/admin/payment-channels/{paymentChannel}/presign', [AdminPaymentChannelController::class, 'presign']);
     });
 });
