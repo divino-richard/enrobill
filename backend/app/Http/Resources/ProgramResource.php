@@ -22,11 +22,20 @@ class ProgramResource extends JsonResource
             'name' => $this->name,
             'category' => $this->category,
             'isActive' => $this->is_active,
-            'feeItems' => $this->whenLoaded('feeItems', fn () => $this->feeItems->map(fn ($item) => [
-                'id' => $item->id,
-                'name' => $item->name,
-                'amount' => (float) $item->amount,
+            'yearLevels' => $this->whenLoaded('yearLevels', fn () => $this->yearLevels->map(fn ($level) => [
+                'code' => $level->code,
+                'name' => $level->name,
+                'isActive' => $level->is_active,
             ])->values()),
+            // Flat (name, year_level, amount) rows grouped into a per-item matrix:
+            // { name, amounts: { <yearLevelCode>: amount } }.
+            'feeItems' => $this->whenLoaded('feeItems', fn () => $this->feeItems
+                ->groupBy('name')
+                ->map(fn ($rows, $name) => [
+                    'name' => $name,
+                    'amounts' => $rows->mapWithKeys(fn ($row) => [$row->year_level => (float) $row->amount]),
+                ])
+                ->values()),
         ];
     }
 }

@@ -28,7 +28,7 @@ class GenerateTermFeeStructures
 
         $programs = Program::query()
             ->where('is_active', true)
-            ->with('feeItems')
+            ->with(['feeItems', 'yearLevels'])
             ->ordered()
             ->get();
 
@@ -49,11 +49,7 @@ class GenerateTermFeeStructures
 
         DB::transaction(function () use ($term, $programs, $existing, &$created) {
             foreach ($programs as $program) {
-                $items = $program->feeItems
-                    ->map(fn ($item) => ['name' => $item->name, 'amount' => $item->amount])
-                    ->all();
-
-                foreach (FeeStructure::YEAR_LEVELS as $yearLevel) {
+                foreach ($program->activeYearLevelCodes() as $yearLevel) {
                     if ($existing->has($program->code.'|'.$yearLevel)) {
                         continue; // Already has a structure — leave it untouched.
                     }
@@ -63,6 +59,13 @@ class GenerateTermFeeStructures
                         'track' => $program->code,
                         'year_level' => $yearLevel,
                     ]);
+
+                    // Seed the items priced for this level (one flat row each).
+                    $items = $program->feeItems
+                        ->where('year_level', $yearLevel)
+                        ->map(fn ($item) => ['name' => $item->name, 'amount' => $item->amount])
+                        ->values()
+                        ->all();
 
                     if ($items !== []) {
                         $structure->items()->createMany($items);

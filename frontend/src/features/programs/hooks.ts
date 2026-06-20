@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { labelFor, YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
+import { useYearLevels } from "@/features/year-levels/hooks";
 import {
   createProgram,
   deleteProgram,
@@ -8,9 +8,10 @@ import {
   fetchPrograms,
   updateProgram,
   updateProgramFeeItems,
+  type ProgramFeeItemInput,
   type ProgramInput,
 } from "./api";
-import { groupActivePrograms } from "./types";
+import { groupActivePrograms, programYearLevelOptions } from "./types";
 
 export const programsQueryKey = ["programs"] as const;
 export const adminProgramsQueryKey = ["admin", "programs"] as const;
@@ -29,23 +30,38 @@ export function useProgramGroups() {
   return useMemo(() => groupActivePrograms(data ?? []), [data]);
 }
 
+// Resolve a program code to its offered (active) year level options.
+export function useProgramYearLevelOptions() {
+  const { data } = usePrograms();
+  return useCallback(
+    (code: string | null | undefined) =>
+      programYearLevelOptions((data ?? []).find((p) => p.code === code)),
+    [data],
+  );
+}
+
 // Resolve a program code (+ optional year level) to a display label.
 export function useProgramLabel() {
-  const { data } = usePrograms();
+  const { data: programs } = usePrograms();
+  const { data: levels } = useYearLevels();
   const names = useMemo(
-    () => new Map((data ?? []).map((program) => [program.code, program.name])),
-    [data],
+    () =>
+      new Map((programs ?? []).map((program) => [program.code, program.name])),
+    [programs],
+  );
+  const levelNames = useMemo(
+    () => new Map((levels ?? []).map((level) => [level.code, level.name])),
+    [levels],
   );
 
   return useCallback(
     (code: string | null | undefined, yearLevel?: string | null) => {
       if (!code) return "—";
       const name = names.get(code) ?? code;
-      return yearLevel
-        ? `${name} · ${labelFor(YEAR_LEVEL_OPTIONS, yearLevel)}`
-        : name;
+      if (!yearLevel) return name;
+      return `${name} · ${levelNames.get(yearLevel) ?? yearLevel}`;
     },
-    [names],
+    [names, levelNames],
   );
 }
 
@@ -83,7 +99,7 @@ export function useUpdateProgram(id: number) {
 export function useUpdateProgramFeeItems(id: number) {
   const invalidate = useInvalidatePrograms();
   return useMutation({
-    mutationFn: (items: { name: string; amount: number }[]) =>
+    mutationFn: (items: ProgramFeeItemInput[]) =>
       updateProgramFeeItems(id, items),
     onSuccess: invalidate,
   });

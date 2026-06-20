@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProgramResource;
 use App\Models\Program;
+use App\Models\YearLevel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -21,7 +22,7 @@ class ProgramController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return ProgramResource::collection(
-            Program::query()->ordered()->with('feeItems')->get(),
+            Program::query()->ordered()->with(['feeItems', 'yearLevels'])->get(),
         );
     }
 
@@ -35,6 +36,8 @@ class ProgramController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'category' => ['required', 'string', 'max:100'],
             'isActive' => ['sometimes', 'boolean'],
+            'yearLevelCodes' => ['present', 'array'],
+            'yearLevelCodes.*' => ['string', 'exists:year_levels,code'],
         ]);
 
         $code = $this->uniqueCode($validated['name']);
@@ -47,11 +50,14 @@ class ProgramController extends Controller
             'is_active' => $validated['isActive'] ?? true,
         ]);
 
-        return new ProgramResource($program->load('feeItems'));
+        $program->yearLevels()->sync($this->levelIds($validated['yearLevelCodes']));
+
+        return new ProgramResource($program->load(['feeItems', 'yearLevels']));
     }
 
     /**
-     * Update a program's name, category and active state. The code is fixed.
+     * Update a program's name, category, active state and offered year levels.
+     * The code is fixed.
      */
     public function update(Request $request, Program $program): ProgramResource
     {
@@ -59,6 +65,8 @@ class ProgramController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'category' => ['required', 'string', 'max:100'],
             'isActive' => ['required', 'boolean'],
+            'yearLevelCodes' => ['present', 'array'],
+            'yearLevelCodes.*' => ['string', 'exists:year_levels,code'],
         ]);
 
         $program->update([
@@ -67,7 +75,20 @@ class ProgramController extends Controller
             'is_active' => $validated['isActive'],
         ]);
 
-        return new ProgramResource($program->fresh()->load('feeItems'));
+        $program->yearLevels()->sync($this->levelIds($validated['yearLevelCodes']));
+
+        return new ProgramResource($program->fresh()->load(['feeItems', 'yearLevels']));
+    }
+
+    /**
+     * Map year level codes to ids for syncing the pivot.
+     *
+     * @param  array<int, string>  $codes
+     * @return array<int, int>
+     */
+    private function levelIds(array $codes): array
+    {
+        return YearLevel::whereIn('code', $codes)->pluck('id')->all();
     }
 
     /**
@@ -78,19 +99,35 @@ class ProgramController extends Controller
         $validated = $request->validate([
             'items' => ['present', 'array'],
             'items.*.name' => ['required', 'string', 'max:100'],
-            'items.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'items.*.amounts' => ['array'],
+            'items.*.amounts.*' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
         ]);
 
-        DB::transaction(function () use ($program, $validated) {
+        // Only amounts for year levels this program actually offers are stored.
+        $validCodes = collect($program->yearLevels()->pluck('code'))->flip();
+
+        DB::transaction(function () use ($program, $validated, $validCodes) {
             $program->feeItems()->delete();
-            $program->feeItems()->createMany(
-                collect($validated['items'])
-                    ->map(fn (array $item) => ['name' => $item['name'], 'amount' => $item['amount']])
-                    ->all(),
-            );
+
+            $rows = [];
+            foreach ($validated['items'] as $item) {
+                foreach (($item['amounts'] ?? []) as $code => $amount) {
+                    if ($amount !== null && $validCodes->has($code)) {
+                        $rows[] = [
+                            'name' => $item['name'],
+                            'year_level' => $code,
+                            'amount' => $amount,
+                        ];
+                    }
+                }
+            }
+
+            if ($rows !== []) {
+                $program->feeItems()->createMany($rows);
+            }
         });
 
-        return new ProgramResource($program->fresh()->load('feeItems'));
+        return new ProgramResource($program->fresh()->load(['feeItems', 'yearLevels']));
     }
 
     /**

@@ -9,6 +9,7 @@ export interface ProgramInput {
   name: string;
   category: string;
   isActive: boolean;
+  yearLevelCodes: string[];
 }
 
 // The program catalog, for dropdowns and label resolution (any authed user).
@@ -39,9 +40,15 @@ export async function updateProgram(
   return data.data;
 }
 
+export interface ProgramFeeItemInput {
+  name: string;
+  // Amount per year level code; null (or omitted) means not charged for it.
+  amounts: Record<string, number | null>;
+}
+
 export async function updateProgramFeeItems(
   id: number,
-  items: { name: string; amount: number }[],
+  items: ProgramFeeItemInput[],
 ): Promise<Program> {
   const { data } = await api.put<Wrapped<Program>>(
     `/admin/programs/${id}/fee-items`,

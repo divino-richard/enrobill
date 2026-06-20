@@ -16,8 +16,6 @@ use Illuminate\Validation\Rule;
 
 class FeeStructureController extends Controller
 {
-    private const YEAR_LEVELS = FeeStructure::YEAR_LEVELS;
-
     /**
      * All fee structures, optionally filtered by term. Restricted to admins by
      * route middleware.
@@ -46,7 +44,16 @@ class FeeStructureController extends Controller
             'track' => ['required', 'exists:programs,code'],
             'yearLevel' => [
                 'required',
-                Rule::in(self::YEAR_LEVELS),
+                'exists:year_levels,code',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                    $track = $request->input('track');
+                    $offered = $track && Program::where('code', $track)
+                        ->whereHas('yearLevels', fn ($q) => $q->where('code', $value))
+                        ->exists();
+                    if (! $offered) {
+                        $fail('The selected program does not offer this year level.');
+                    }
+                },
                 Rule::unique('fee_structures', 'year_level')
                     ->where('term_id', $request->integer('termId'))
                     ->where('track', $request->input('track')),
@@ -61,14 +68,19 @@ class FeeStructureController extends Controller
             'year_level' => $validated['yearLevel'],
         ]);
 
-        // Seed the new structure with the program's default fee items, if any.
+        // Seed the new structure with the program's default fee items priced for
+        // this year level (items not charged for the level have no row).
         $program = Program::where('code', $validated['track'])->with('feeItems')->first();
-        if ($program && $program->feeItems->isNotEmpty()) {
-            $structure->items()->createMany(
-                $program->feeItems
-                    ->map(fn ($item) => ['name' => $item->name, 'amount' => $item->amount])
-                    ->all(),
-            );
+        if ($program) {
+            $items = $program->feeItems
+                ->where('year_level', $validated['yearLevel'])
+                ->map(fn ($item) => ['name' => $item->name, 'amount' => $item->amount])
+                ->values()
+                ->all();
+
+            if ($items !== []) {
+                $structure->items()->createMany($items);
+            }
         }
 
         return new FeeStructureResource($structure->load(['term', 'items']));

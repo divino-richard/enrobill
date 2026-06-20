@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
+use App\Models\Program;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -147,7 +148,18 @@ class ApplicationController extends Controller
             'dateOfBirth' => ['required', 'date'],
             'gender' => ['required', 'string'],
             'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
-            'yearLevel' => ['required', 'string'],
+            'yearLevel' => [
+                'required', 'string', 'exists:year_levels,code',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                    $program = $request->input('trackOrStrand');
+                    $offered = $program && Program::where('code', $program)
+                        ->whereHas('yearLevels', fn ($q) => $q->where('code', $value))
+                        ->exists();
+                    if (! $offered) {
+                        $fail('The selected program does not offer this year level.');
+                    }
+                },
+            ],
             'semester' => ['required', 'string'],
             'schoolYear' => ['required', 'string'],
             'agreementAccepted' => ['accepted'],

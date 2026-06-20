@@ -16,6 +16,8 @@ class ProgramController extends Controller
      */
     public function index(): AnonymousResourceCollection
     {
-        return ProgramResource::collection(Program::query()->ordered()->get());
+        return ProgramResource::collection(
+            Program::query()->ordered()->with('yearLevels')->get(),
+        );
     }
 }

@@ -47,10 +47,13 @@ import {
 import { FieldLabel } from "@/components/form/field-label";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
-import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 import { useTerms } from "@/features/terms/hooks";
 import { termLabel } from "@/features/terms/types";
-import { useProgramGroups, useProgramLabel } from "@/features/programs/hooks";
+import {
+  useProgramGroups,
+  useProgramLabel,
+  useProgramYearLevelOptions,
+} from "@/features/programs/hooks";
 import {
   useCreateFeeStructure,
   useDeleteFeeStructure,
@@ -70,10 +73,13 @@ function NewStructureDialog({
 }) {
   const { data: terms } = useTerms();
   const programGroups = useProgramGroups();
+  const getYearLevelOptions = useProgramYearLevelOptions();
   const [termId, setTermId] = useState("");
   const [track, setTrack] = useState("");
   const [yearLevel, setYearLevel] = useState("");
   const create = useCreateFeeStructure();
+
+  const yearLevelOptions = getYearLevelOptions(track);
 
   function reset() {
     setTermId("");
@@ -138,7 +144,13 @@ function NewStructureDialog({
               <FieldLabel htmlFor="track" required>
                 Track / Strand
               </FieldLabel>
-              <Select value={track} onValueChange={setTrack}>
+              <Select
+                value={track}
+                onValueChange={(value) => {
+                  setTrack(value);
+                  setYearLevel(""); // levels depend on the chosen program
+                }}
+              >
                 <SelectTrigger id="track" className="w-full">
                   <SelectValue placeholder="Select track" />
                 </SelectTrigger>
@@ -166,7 +178,7 @@ function NewStructureDialog({
                   <SelectValue placeholder="Select year level" />
                 </SelectTrigger>
                 <SelectContent>
-                  {YEAR_LEVEL_OPTIONS.map((option) => (
+                  {yearLevelOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

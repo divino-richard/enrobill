@@ -1,7 +1,14 @@
 export interface ProgramFeeItem {
-  id?: number;
   name: string;
-  amount: number;
+  // Default amount keyed by year level code; only levels the item is charged
+  // for are present.
+  amounts: Record<string, number>;
+}
+
+export interface ProgramYearLevel {
+  code: string;
+  name: string;
+  isActive: boolean;
 }
 
 export interface Program {
@@ -10,7 +17,17 @@ export interface Program {
   name: string;
   category: string;
   isActive: boolean;
+  yearLevels?: ProgramYearLevel[];
   feeItems?: ProgramFeeItem[];
+}
+
+// Active year levels a program offers, as dropdown options.
+export function programYearLevelOptions(
+  program: Program | undefined,
+): { value: string; label: string }[] {
+  return (program?.yearLevels ?? [])
+    .filter((level) => level.isActive)
+    .map((level) => ({ value: level.code, label: level.name }));
 }
 
 export interface ProgramGroup {

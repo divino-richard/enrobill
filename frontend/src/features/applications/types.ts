@@ -126,14 +126,9 @@ export const CIVIL_STATUS_OPTIONS = [
   { value: "divorced", label: "Divorced" },
 ] as const;
 
-// Track / strand options now come from the admin-managed program catalog
-// (see @/features/programs). Year level, semester and enrollment type remain
-// fixed below.
-
-export const YEAR_LEVEL_OPTIONS = [
-  { value: "grade_11", label: "Grade 11" },
-  { value: "grade_12", label: "Grade 12" },
-] as const;
+// Track / strand options come from the admin-managed program catalog
+// (@/features/programs) and year levels from @/features/year-levels. Semester
+// and enrollment type remain fixed below.
 
 export const SEMESTER_OPTIONS = [
   { value: "first", label: "1st Semester" },

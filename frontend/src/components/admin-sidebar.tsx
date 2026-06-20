@@ -5,6 +5,7 @@ import {
   BarChart3Icon,
   CalendarRangeIcon,
   ClipboardListIcon,
+  GaugeIcon,
   GraduationCapIcon,
   LayersIcon,
   LayoutDashboardIcon,
@@ -69,6 +70,12 @@ const navItems: NavItem[] = [
     title: "Academic Terms",
     url: "/admin/terms",
     icon: CalendarRangeIcon,
+    ready: true,
+  },
+  {
+    title: "Year Levels",
+    url: "/admin/year-levels",
+    icon: GaugeIcon,
     ready: true,
   },
   {

@@ -32,7 +32,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FieldLabel } from "@/components/form/field-label";
-import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import {
   useAdminPrograms,
@@ -41,7 +40,11 @@ import {
   useUpdateProgram,
   useUpdateProgramFeeItems,
 } from "@/features/programs/hooks";
-import type { Program } from "@/features/programs/types";
+import { useYearLevels } from "@/features/year-levels/hooks";
+import {
+  programYearLevelOptions,
+  type Program,
+} from "@/features/programs/types";
 
 function ProgramDialog({
   open,
@@ -55,16 +58,26 @@ function ProgramDialog({
   const create = useCreateProgram();
   const update = useUpdateProgram(editing?.id ?? 0);
   const mutation = editing ? update : create;
+  const { data: allLevels } = useYearLevels();
+  const levelOptions = (allLevels ?? []).filter((level) => level.isActive);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [levelCodes, setLevelCodes] = useState<string[]>([]);
 
   function syncFromProps() {
     setName(editing?.name ?? "");
     setCategory(editing?.category ?? "");
     setIsActive(editing?.isActive ?? true);
+    setLevelCodes((editing?.yearLevels ?? []).map((level) => level.code));
     mutation.reset();
+  }
+
+  function toggleLevel(code: string, checked: boolean) {
+    setLevelCodes((prev) =>
+      checked ? [...new Set([...prev, code])] : prev.filter((c) => c !== code),
+    );
   }
 
   async function handleSave() {
@@ -74,6 +87,7 @@ function ProgramDialog({
         name: name.trim(),
         category: category.trim(),
         isActive,
+        yearLevelCodes: levelCodes,
       });
       onOpenChange(false);
     } catch {
@@ -122,6 +136,31 @@ function ProgramDialog({
               onChange={(event) => setCategory(event.target.value)}
             />
           </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Year levels offered</FieldLabel>
+            {levelOptions.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No active year levels. Add some under Year Levels first.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {levelOptions.map((level) => (
+                  <label
+                    key={level.code}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={levelCodes.includes(level.code)}
+                      onCheckedChange={(checked) =>
+                        toggleLevel(level.code, checked === true)
+                      }
+                    />
+                    {level.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={isActive}
@@ -163,32 +202,58 @@ function ProgramDialog({
 
 interface ItemRow {
   name: string;
-  amount: string;
+  // Amount input (string) keyed by year level code.
+  amounts: Record<string, string>;
 }
 
 function FeeItemsForm({
   program,
+  levels,
   onClose,
 }: {
   program: Program;
+  levels: { value: string; label: string }[];
   onClose: () => void;
 }) {
   const save = useUpdateProgramFeeItems(program.id);
-  const [rows, setRows] = useState<ItemRow[]>(() => {
-    const items = program.feeItems ?? [];
-    return items.length > 0
-      ? items.map((item) => ({ name: item.name, amount: String(item.amount) }))
-      : [{ name: "", amount: "" }];
+
+  const emptyRow = (): ItemRow => ({
+    name: "",
+    amounts: Object.fromEntries(levels.map((l) => [l.value, ""])),
   });
 
-  function updateRow(index: number, patch: Partial<ItemRow>) {
+  const [rows, setRows] = useState<ItemRow[]>(() => {
+    const items = program.feeItems ?? [];
+    if (items.length === 0) return [emptyRow()];
+    return items.map((item) => ({
+      name: item.name,
+      amounts: Object.fromEntries(
+        levels.map((l) => [
+          l.value,
+          item.amounts[l.value] !== undefined ? String(item.amounts[l.value]) : "",
+        ]),
+      ),
+    }));
+  });
+
+  function updateName(index: number, name: string) {
     setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+      prev.map((row, i) => (i === index ? { ...row, name } : row)),
+    );
+  }
+
+  function updateAmount(index: number, code: string, value: string) {
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === index
+          ? { ...row, amounts: { ...row.amounts, [code]: value } }
+          : row,
+      ),
     );
   }
 
   function addRow() {
-    setRows((prev) => [...prev, { name: "", amount: "" }]);
+    setRows((prev) => [...prev, emptyRow()]);
   }
 
   function removeRow(index: number) {
@@ -198,7 +263,15 @@ function FeeItemsForm({
   async function handleSave() {
     const items = rows
       .filter((row) => row.name.trim() !== "")
-      .map((row) => ({ name: row.name.trim(), amount: Number(row.amount) || 0 }));
+      .map((row) => ({
+        name: row.name.trim(),
+        amounts: Object.fromEntries(
+          levels.map((l) => [
+            l.value,
+            row.amounts[l.value]?.trim() ? Number(row.amounts[l.value]) : null,
+          ]),
+        ),
+      }));
     try {
       await save.mutateAsync(items);
       onClose();
@@ -209,6 +282,9 @@ function FeeItemsForm({
 
   return (
     <>
+      <p className="text-muted-foreground text-xs">
+        Leave a level blank if the item isn't charged for it.
+      </p>
       <div className="space-y-2">
         {rows.map((row, index) => (
           <div key={index} className="flex items-end gap-2">
@@ -217,19 +293,24 @@ function FeeItemsForm({
               <Input
                 value={row.name}
                 placeholder="e.g. Tuition Fee"
-                onChange={(e) => updateRow(index, { name: e.target.value })}
+                onChange={(e) => updateName(index, e.target.value)}
               />
             </div>
-            <div className="w-36 space-y-1">
-              {index === 0 && <FieldLabel>Default amount</FieldLabel>}
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={row.amount}
-                onChange={(e) => updateRow(index, { amount: e.target.value })}
-              />
-            </div>
+            {levels.map((level) => (
+              <div key={level.value} className="w-28 space-y-1">
+                {index === 0 && <FieldLabel>{level.label}</FieldLabel>}
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="—"
+                  value={row.amounts[level.value] ?? ""}
+                  onChange={(e) =>
+                    updateAmount(index, level.value, e.target.value)
+                  }
+                />
+              </div>
+            ))}
             <Button
               variant="ghost"
               size="icon"
@@ -270,20 +351,32 @@ function FeeItemsDialog({
   program: Program | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const levels = programYearLevelOptions(program ?? undefined);
+
   return (
     <Dialog open={program !== null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Default fee items</DialogTitle>
           <DialogDescription>
             {program
-              ? `Items new fee structures for ${program.name} are pre-filled with.`
+              ? `Per-year-level amounts new fee structures for ${program.name} are pre-filled with.`
               : ""}
           </DialogDescription>
         </DialogHeader>
-        {program && (
-          <FeeItemsForm program={program} onClose={() => onOpenChange(false)} />
-        )}
+        {program &&
+          (levels.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              This program offers no year levels yet. Assign some by editing the
+              program first.
+            </p>
+          ) : (
+            <FeeItemsForm
+              program={program}
+              levels={levels}
+              onClose={() => onOpenChange(false)}
+            />
+          ))}
       </DialogContent>
     </Dialog>
   );
@@ -371,7 +464,6 @@ function ProgramsPage() {
             <TableBody>
               {programs.map((program) => {
                 const items = program.feeItems ?? [];
-                const total = items.reduce((sum, item) => sum + item.amount, 0);
                 return (
                   <TableRow key={program.id}>
                     <TableCell className="font-medium">{program.name}</TableCell>
@@ -380,7 +472,7 @@ function ProgramsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {items.length > 0
-                        ? `${items.length} · ${formatPeso(total)}`
+                        ? `${items.length} ${items.length === 1 ? "item" : "items"}`
                         : "—"}
                     </TableCell>
                     <TableCell>

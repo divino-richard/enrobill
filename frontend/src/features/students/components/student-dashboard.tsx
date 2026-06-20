@@ -12,10 +12,10 @@ import { useAuthStore } from "@/features/auth/store";
 import { useAddress } from "@/features/applications/hooks/address";
 import {
   CIVIL_STATUS_OPTIONS,
-  YEAR_LEVEL_OPTIONS,
   labelFor,
 } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
+import { useYearLevelLabel } from "@/features/year-levels/hooks";
 import { useMyStudent } from "../hooks";
 import { studentFullName } from "../types";
 import { StudentStatusBadge } from "./student-status-badge";
@@ -43,6 +43,7 @@ export function StudentDashboard() {
   const user = useAuthStore((state) => state.user);
   const { data: student, isLoading, isError } = useMyStudent();
   const programLabel = useProgramLabel();
+  const yearLevelLabel = useYearLevelLabel();
   const { getProvinceName, getCityName, getBarangayName } = useAddress({
     provinceCode: student?.addressProvince ?? undefined,
     cityCode: student?.addressCity ?? undefined,
@@ -109,7 +110,7 @@ export function StudentDashboard() {
             />
             <Detail
               label="Year Level"
-              value={labelFor(YEAR_LEVEL_OPTIONS, student.yearLevel ?? "")}
+              value={yearLevelLabel(student.yearLevel)}
             />
             <Detail label="School Year" value={student.schoolYear ?? "—"} />
           </dl>
