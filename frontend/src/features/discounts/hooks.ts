@@ -1,18 +1,35 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   createDiscount,
   deleteDiscount,
+  fetchAllDiscounts,
   fetchDiscounts,
   updateDiscount,
   type DiscountInput,
+  type DiscountListParams,
 } from "./api";
 
 export const discountsQueryKey = ["admin", "discounts"] as const;
 
-export function useDiscounts() {
+// Paginated list for the catalog table.
+export function useDiscounts(params: DiscountListParams) {
   return useQuery({
-    queryKey: discountsQueryKey,
-    queryFn: fetchDiscounts,
+    queryKey: [...discountsQueryKey, "list", params],
+    queryFn: () => fetchDiscounts(params),
+    placeholderData: keepPreviousData,
+  });
+}
+
+// Full catalog, for the apply-discount picker on a bill.
+export function useAllDiscounts() {
+  return useQuery({
+    queryKey: [...discountsQueryKey, "all"],
+    queryFn: fetchAllDiscounts,
   });
 }
 

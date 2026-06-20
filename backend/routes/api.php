@@ -138,7 +138,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Fee structures (flat per-semester fees per program).
         Route::get('/admin/fee-structures', [AdminFeeStructureController::class, 'index']);
-        Route::post('/admin/fee-structures', [AdminFeeStructureController::class, 'store']);
         Route::post('/admin/fee-structures/generate', [AdminFeeStructureController::class, 'generate']);
         Route::get('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'show']);
         Route::put('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'update']);

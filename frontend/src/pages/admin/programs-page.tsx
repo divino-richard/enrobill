@@ -1,18 +1,30 @@
-import { useState } from "react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+  type OnChangeFn,
+  type PaginationState,
+  type SortingState,
+} from "@tanstack/react-table";
+import { PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable } from "@/components/ui/data-table";
+import { SortHeader } from "@/components/data-table-sort-header";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { cn } from "@/lib/utils";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RowActions } from "@/components/row-actions";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +53,10 @@ import {
   useUpdateProgramFeeItems,
 } from "@/features/programs/hooks";
 import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
-import type { Program } from "@/features/programs/types";
+import {
+  PROGRAM_CATEGORY_OPTIONS,
+  type Program,
+} from "@/features/programs/types";
 
 function ProgramDialog({
   open,
@@ -113,14 +128,20 @@ function ProgramDialog({
           </div>
           <div className="space-y-1.5">
             <FieldLabel htmlFor="category" required>
-              Category / grouping
+              Track
             </FieldLabel>
-            <Input
-              id="category"
-              value={category}
-              placeholder="e.g. TechVoc Track"
-              onChange={(event) => setCategory(event.target.value)}
-            />
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger id="category" className="w-full">
+                <SelectValue placeholder="Select track" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROGRAM_CATEGORY_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
@@ -340,10 +361,38 @@ function FeeItemsDialog({
   );
 }
 
+type CategoryFilter = "all" | (typeof PROGRAM_CATEGORY_OPTIONS)[number];
+type ActiveFilter = "all" | "active" | "inactive";
+
 function ProgramsPage() {
-  const { data, isLoading, isError, refetch } = useAdminPrograms();
-  const programs = data ?? [];
   const remove = useDeleteProgram();
+
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const [category, setCategory] = useState<CategoryFilter>("all");
+  const [active, setActive] = useState<ActiveFilter>("all");
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "name", desc: false },
+  ]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15,
+  });
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [debouncedSearch, category, active]);
+
+  const sortState = sorting[0];
+  const query = useAdminPrograms({
+    page: pagination.pageIndex + 1,
+    perPage: pagination.pageSize,
+    sort: sortState?.id,
+    dir: sortState?.desc ? "desc" : "asc",
+    category: category === "all" ? undefined : category,
+    active: active === "all" ? undefined : active,
+    search: debouncedSearch || undefined,
+  });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Program | null>(null);
@@ -370,6 +419,116 @@ function ProgramsPage() {
     }
   }
 
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const columns = useMemo<ColumnDef<Program>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => <SortHeader column={column} title="Program" />,
+        cell: ({ row }) => (
+          <span className="font-medium">{row.original.name}</span>
+        ),
+      },
+      {
+        accessorKey: "category",
+        header: ({ column }) => <SortHeader column={column} title="Track" />,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{row.original.category}</span>
+        ),
+      },
+      {
+        id: "items",
+        header: "Default items",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const count = (row.original.feeItems ?? []).length;
+          return (
+            <span className="text-muted-foreground whitespace-nowrap">
+              {count > 0 ? `${count} ${count === 1 ? "item" : "items"}` : "—"}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "isActive",
+        header: "Status",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Badge
+            variant="outline"
+            className={
+              row.original.isActive
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                : "text-muted-foreground"
+            }
+          >
+            {row.original.isActive ? "Active" : "Inactive"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { className: "text-right" },
+        cell: ({ row }) => (
+          <RowActions>
+            <DropdownMenuItem onClick={() => setItemsFor(row.original)}>
+              Fee items
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openEdit(row.original)}>
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => setDeleting(row.original)}
+            >
+              <Trash2Icon />
+              Delete
+            </DropdownMenuItem>
+          </RowActions>
+        ),
+      },
+    ],
+    [],
+  );
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: query.data?.rows ?? [],
+    columns,
+    state: { sorting, pagination },
+    manualSorting: true,
+    manualPagination: true,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    rowCount: query.data?.meta.total ?? 0,
+    onSortingChange: handleSortingChange,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const categoryPills: { value: CategoryFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    ...PROGRAM_CATEGORY_OPTIONS.map((option) => ({
+      value: option as CategoryFilter,
+      label: option,
+    })),
+  ];
+
+  const activePills: { value: ActiveFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "active", label: "Active" },
+    { value: "inactive", label: "Inactive" },
+  ];
+
+  const hasFilters =
+    Boolean(debouncedSearch) || category !== "all" || active !== "all";
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
@@ -386,97 +545,74 @@ function ProgramsPage() {
         </Button>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-11 w-full rounded-md" />
-          <Skeleton className="h-11 w-full rounded-md" />
-        </div>
-      ) : isError ? (
+      {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">
             We couldn't load programs. Please try again.
           </p>
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => query.refetch()}>
             Try again
           </Button>
         </div>
-      ) : programs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <p className="font-medium">No programs yet</p>
-          <p className="text-muted-foreground text-sm">
-            Add the tracks and strands your school offers.
-          </p>
-        </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Program</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Default items</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {programs.map((program) => {
-                const items = program.feeItems ?? [];
-                return (
-                  <TableRow key={program.id}>
-                    <TableCell className="font-medium">{program.name}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {program.category}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap">
-                      {items.length > 0
-                        ? `${items.length} ${items.length === 1 ? "item" : "items"}`
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          program.isActive
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
-                            : "text-muted-foreground"
-                        }
-                      >
-                        {program.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setItemsFor(program)}
-                        >
-                          Fee items
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEdit(program)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive size-8"
-                          onClick={() => setDeleting(program)}
-                        >
-                          <Trash2Icon className="size-4" />
-                          <span className="sr-only">Delete program</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search programs…"
+                className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-1.5">
+                {categoryPills.map((pill) => (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    onClick={() => setCategory(pill.value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      category === pill.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {activePills.map((pill) => (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    onClick={() => setActive(pill.value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      active === pill.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DataTable
+            table={table}
+            isLoading={query.isLoading}
+            emptyMessage={
+              hasFilters
+                ? "No programs match your filters."
+                : "No programs yet."
+            }
+          />
         </div>
       )}
 

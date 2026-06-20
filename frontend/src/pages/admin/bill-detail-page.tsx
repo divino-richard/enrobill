@@ -40,7 +40,7 @@ import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { semesterLabel } from "@/features/terms/types";
 import { useProgramLabel } from "@/features/programs/hooks";
-import { useDiscounts } from "@/features/discounts/hooks";
+import { useAllDiscounts } from "@/features/discounts/hooks";
 import { discountValueLabel } from "@/features/discounts/types";
 import {
   useApplyAdjustment,
@@ -106,7 +106,7 @@ function SummaryRow({
 function ApplyDiscountDialog({ bill }: { bill: Bill }) {
   const [open, setOpen] = useState(false);
   const [discountId, setDiscountId] = useState("");
-  const { data: discounts } = useDiscounts();
+  const { data: discounts } = useAllDiscounts();
   const apply = useApplyAdjustment(bill.id);
 
   const applied = new Set((bill.adjustments ?? []).map((a) => a.discountId));

@@ -9,26 +9,61 @@ use App\Models\Bill;
 use App\Models\Student;
 use App\Models\Term;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class BillController extends Controller
 {
+    private const STATUSES = ['unpaid', 'partial', 'paid'];
+
+    private const SORTABLE = [
+        'status' => 'status',
+        'createdAt' => 'created_at',
+    ];
+
     /**
-     * Bills for the currently open term. Restricted to admins by route
+     * Bills for the currently open term — paginated, searchable by student,
+     * filterable by status, and sortable. Restricted to admins by route
      * middleware.
      */
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         $term = Term::open();
+        $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+        $sortKey = $request->string('sort')->value();
 
-        $bills = Bill::query()
-            ->when($term !== null, fn ($query) => $query->where('term_id', $term->id))
-            ->when($term === null, fn ($query) => $query->whereRaw('1 = 0'))
-            ->with(['student', 'term', 'items', 'adjustments'])
-            ->latest()
-            ->get();
+        $query = Bill::query()
+            ->when($term !== null, fn ($q) => $q->where('term_id', $term->id))
+            ->when($term === null, fn ($q) => $q->whereRaw('1 = 0'))
+            ->when(
+                in_array($request->string('status')->value(), self::STATUSES, true),
+                fn ($q) => $q->where('status', $request->string('status')->value()),
+            )
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = '%'.$request->string('search')->value().'%';
+                $q->whereHas('student', function ($s) use ($term) {
+                    $s->where('first_name', 'like', $term)
+                        ->orWhere('last_name', 'like', $term)
+                        ->orWhere('student_number', 'like', $term);
+                });
+            })
+            ->with(['student', 'term', 'items', 'adjustments']);
 
-        return BillResource::collection($bills);
+        if ($sortKey === 'student') {
+            $query->orderBy(
+                Student::select('last_name')->whereColumn('students.id', 'bills.student_id'),
+                $direction,
+            );
+        } elseif (isset(self::SORTABLE[$sortKey])) {
+            $query->orderBy(self::SORTABLE[$sortKey], $direction);
+        } else {
+            $query->latest();
+        }
+
+        $query->orderBy('id', $direction);
+
+        return BillResource::collection($query->paginate($perPage)->withQueryString());
     }
 
     /**

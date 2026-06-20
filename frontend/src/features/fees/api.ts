@@ -1,18 +1,33 @@
 import api from "@/lib/api";
+import {
+  listParamsToQuery,
+  toPageMeta,
+  type LaravelPaginated,
+  type ListParams,
+  type PageMeta,
+} from "@/lib/pagination";
 import type { FeeStructure } from "./types";
 
 interface Wrapped<T> {
   data: T;
 }
 
+export type FeeStructureListParams = ListParams;
+
+export interface FeeStructuresPage {
+  rows: FeeStructure[];
+  meta: PageMeta;
+}
+
+// Paginated / searchable / sortable fee structures, filterable by term.
 export async function fetchFeeStructures(
-  termId?: number,
-): Promise<FeeStructure[]> {
-  const { data } = await api.get<Wrapped<FeeStructure[]>>(
+  params: FeeStructureListParams,
+): Promise<FeeStructuresPage> {
+  const { data } = await api.get<LaravelPaginated<FeeStructure>>(
     "/admin/fee-structures",
-    { params: { term_id: termId } },
+    { params: listParamsToQuery(params) },
   );
-  return data.data;
+  return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
 export async function fetchFeeStructure(id: number): Promise<FeeStructure> {
@@ -22,17 +37,6 @@ export async function fetchFeeStructure(id: number): Promise<FeeStructure> {
   return data.data;
 }
 
-export async function createFeeStructure(input: {
-  termId: number;
-  track: string;
-  yearLevel: string;
-}): Promise<FeeStructure> {
-  const { data } = await api.post<Wrapped<FeeStructure>>(
-    "/admin/fee-structures",
-    input,
-  );
-  return data.data;
-}
 
 export async function updateFeeStructureItems(
   id: number,

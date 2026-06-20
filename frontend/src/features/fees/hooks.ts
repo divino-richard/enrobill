@@ -1,19 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  createFeeStructure,
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
   deleteFeeStructure,
   fetchFeeStructure,
   fetchFeeStructures,
   generateFeeStructures,
   updateFeeStructureItems,
+  type FeeStructureListParams,
 } from "./api";
 
 export const feeStructuresQueryKey = ["admin", "fee-structures"] as const;
 
-export function useFeeStructures() {
+export function useFeeStructures(params: FeeStructureListParams) {
   return useQuery({
-    queryKey: [...feeStructuresQueryKey, "list"],
-    queryFn: () => fetchFeeStructures(),
+    queryKey: [...feeStructuresQueryKey, "list", params],
+    queryFn: () => fetchFeeStructures(params),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -21,17 +27,6 @@ export function useFeeStructure(id: number) {
   return useQuery({
     queryKey: [...feeStructuresQueryKey, "detail", id],
     queryFn: () => fetchFeeStructure(id),
-  });
-}
-
-export function useCreateFeeStructure() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { termId: number; track: string; yearLevel: string }) =>
-      createFeeStructure(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: feeStructuresQueryKey });
-    },
   });
 }
 

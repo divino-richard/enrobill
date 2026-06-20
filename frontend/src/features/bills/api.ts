@@ -1,5 +1,12 @@
 import axios from "axios";
 import api from "@/lib/api";
+import {
+  listParamsToQuery,
+  toPageMeta,
+  type LaravelPaginated,
+  type ListParams,
+  type PageMeta,
+} from "@/lib/pagination";
 import type { Bill, PaymentMethod, PaymentOption } from "./types";
 
 interface Wrapped<T> {
@@ -12,10 +19,19 @@ interface PresignResponse {
   headers: Record<string, string | string[]>;
 }
 
-// Bills for the currently open term (admin).
-export async function fetchBills(): Promise<Bill[]> {
-  const { data } = await api.get<Wrapped<Bill[]>>("/admin/bills");
-  return data.data;
+export type BillListParams = ListParams;
+
+export interface BillsPage {
+  rows: Bill[];
+  meta: PageMeta;
+}
+
+// Paginated / searchable / sortable bills for the open term (admin).
+export async function fetchBills(params: BillListParams): Promise<BillsPage> {
+  const { data } = await api.get<LaravelPaginated<Bill>>("/admin/bills", {
+    params: listParamsToQuery(params),
+  });
+  return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
 // Bulk-generate bills for all eligible admitted students in the open term.

@@ -17,6 +17,9 @@ export interface ListParams {
   status?: string;
   role?: string;
   search?: string;
+  category?: string;
+  active?: string;
+  termId?: number;
 }
 
 interface LaravelMeta {
@@ -55,5 +58,8 @@ export function listParamsToQuery(params: ListParams) {
     status: params.status,
     role: params.role,
     search: params.search,
+    category: params.category,
+    active: params.active,
+    term_id: params.termId,
   };
 }

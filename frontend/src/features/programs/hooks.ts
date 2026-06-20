@@ -1,5 +1,10 @@
 import { useCallback, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { labelFor, YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 import {
   createProgram,
@@ -10,6 +15,7 @@ import {
   updateProgramFeeItems,
   type ProgramFeeItemInput,
   type ProgramInput,
+  type ProgramListParams,
 } from "./api";
 import { groupActivePrograms } from "./types";
 
@@ -50,10 +56,11 @@ export function useProgramLabel() {
   );
 }
 
-export function useAdminPrograms() {
+export function useAdminPrograms(params: ProgramListParams) {
   return useQuery({
-    queryKey: adminProgramsQueryKey,
-    queryFn: fetchAdminPrograms,
+    queryKey: [...adminProgramsQueryKey, "list", params],
+    queryFn: () => fetchAdminPrograms(params),
+    placeholderData: keepPreviousData,
   });
 }
 

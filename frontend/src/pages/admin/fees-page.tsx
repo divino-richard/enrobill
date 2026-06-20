@@ -1,30 +1,25 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+  type OnChangeFn,
+  type PaginationState,
+  type SortingState,
+} from "@tanstack/react-table";
 import {
   CheckCircle2Icon,
   CircleAlertIcon,
-  PlusIcon,
+  SearchIcon,
   Trash2Icon,
   WandSparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/ui/data-table";
+import { SortHeader } from "@/components/data-table-sort-header";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,175 +33,26 @@ import {
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FieldLabel } from "@/components/form/field-label";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RowActions } from "@/components/row-actions";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
-import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 import { useTerms } from "@/features/terms/hooks";
 import { termLabel } from "@/features/terms/types";
-import { useProgramGroups, useProgramLabel } from "@/features/programs/hooks";
+import { useProgramLabel } from "@/features/programs/hooks";
 import {
-  useCreateFeeStructure,
   useDeleteFeeStructure,
   useFeeStructures,
   useGenerateFeeStructures,
 } from "@/features/fees/hooks";
 import { structureTermLabel, type FeeStructure } from "@/features/fees/types";
 
-function NewStructureDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: (structure: FeeStructure) => void;
-}) {
-  const { data: terms } = useTerms();
-  const programGroups = useProgramGroups();
-  const [termId, setTermId] = useState("");
-  const [track, setTrack] = useState("");
-  const [yearLevel, setYearLevel] = useState("");
-  const create = useCreateFeeStructure();
-
-  function reset() {
-    setTermId("");
-    setTrack("");
-    setYearLevel("");
-    create.reset();
-  }
-
-  async function handleCreate() {
-    if (!termId || !track || !yearLevel) return;
-    try {
-      const structure = await create.mutateAsync({
-        termId: Number(termId),
-        track,
-        yearLevel,
-      });
-      reset();
-      onOpenChange(false);
-      onCreated(structure);
-    } catch {
-      // Surfaced via create.isError.
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) reset();
-        onOpenChange(next);
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New fee structure</DialogTitle>
-          <DialogDescription>
-            Pick the term and program. You'll add the fee items next.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="term" required>
-              Term
-            </FieldLabel>
-            <Select value={termId} onValueChange={setTermId}>
-              <SelectTrigger id="term" className="w-full">
-                <SelectValue placeholder="Select term" />
-              </SelectTrigger>
-              <SelectContent>
-                {(terms ?? []).map((term) => (
-                  <SelectItem key={term.id} value={String(term.id)}>
-                    {termLabel(term)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="track" required>
-                Track / Strand
-              </FieldLabel>
-              <Select value={track} onValueChange={setTrack}>
-                <SelectTrigger id="track" className="w-full">
-                  <SelectValue placeholder="Select track" />
-                </SelectTrigger>
-                <SelectContent>
-                  {programGroups.map((group) => (
-                    <SelectGroup key={group.label}>
-                      <SelectLabel>{group.label}</SelectLabel>
-                      {group.options.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="yearLevel" required>
-                Year Level
-              </FieldLabel>
-              <Select value={yearLevel} onValueChange={setYearLevel}>
-                <SelectTrigger id="yearLevel" className="w-full">
-                  <SelectValue placeholder="Select year level" />
-                </SelectTrigger>
-                <SelectContent>
-                  {YEAR_LEVEL_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {create.isError && (
-          <p className="text-destructive text-sm">
-            {getErrorMessage(create.error)}
-          </p>
-        )}
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={create.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={!termId || !track || !yearLevel || create.isPending}
-          >
-            {create.isPending ? "Creating…" : "Create structure"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function FeesPage() {
   const navigate = useNavigate();
-  const { data, isLoading, isError, refetch } = useFeeStructures();
-  const structures = useMemo(() => data ?? [], [data]);
   const remove = useDeleteFeeStructure();
   const generate = useGenerateFeeStructures();
   const programLabel = useProgramLabel();
@@ -214,25 +60,31 @@ function FeesPage() {
   const { data: terms } = useTerms();
   const openTerm = (terms ?? []).find((term) => term.isOpen) ?? null;
 
-  const [newOpen, setNewOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const [termFilter, setTermFilter] = useState("all");
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "createdAt", desc: true },
+  ]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15,
+  });
   const [deleting, setDeleting] = useState<FeeStructure | null>(null);
 
-  // Distinct terms present, for the filter.
-  const termOptions = useMemo(() => {
-    const seen = new Map<number, string>();
-    for (const structure of structures) {
-      if (!seen.has(structure.termId)) {
-        seen.set(structure.termId, structureTermLabel(structure));
-      }
-    }
-    return [...seen.entries()].map(([id, label]) => ({ id, label }));
-  }, [structures]);
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [debouncedSearch, termFilter]);
 
-  const visible = structures.filter(
-    (structure) =>
-      termFilter === "all" || String(structure.termId) === termFilter,
-  );
+  const sortState = sorting[0];
+  const query = useFeeStructures({
+    page: pagination.pageIndex + 1,
+    perPage: pagination.pageSize,
+    sort: sortState?.id,
+    dir: sortState?.desc ? "desc" : "asc",
+    termId: termFilter === "all" ? undefined : Number(termFilter),
+    search: debouncedSearch || undefined,
+  });
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -242,6 +94,95 @@ function FeesPage() {
       setDeleting(null);
     }
   }
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const columns = useMemo<ColumnDef<FeeStructure>[]>(
+    () => [
+      {
+        id: "term",
+        header: "Term",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {structureTermLabel(row.original)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "program",
+        header: ({ column }) => <SortHeader column={column} title="Program" />,
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {programLabel(row.original.track, row.original.yearLevel)}
+          </span>
+        ),
+      },
+      {
+        id: "items",
+        header: "Items",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.items.length}
+          </span>
+        ),
+      },
+      {
+        id: "total",
+        header: "Total",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="font-medium whitespace-nowrap">
+            {formatPeso(row.original.total)}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { className: "text-right" },
+        cell: ({ row }) => (
+          <RowActions>
+            <DropdownMenuItem
+              onClick={() => navigate(`/admin/fees/${row.original.id}`)}
+            >
+              Manage items
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => setDeleting(row.original)}
+            >
+              <Trash2Icon />
+              Delete
+            </DropdownMenuItem>
+          </RowActions>
+        ),
+      },
+    ],
+    [navigate, programLabel],
+  );
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: query.data?.rows ?? [],
+    columns,
+    state: { sorting, pagination },
+    manualSorting: true,
+    manualPagination: true,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    rowCount: query.data?.meta.total ?? 0,
+    onSortingChange: handleSortingChange,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const hasFilters = Boolean(debouncedSearch) || termFilter !== "all";
 
   return (
     <div className="space-y-6">
@@ -254,25 +195,16 @@ function FeesPage() {
             Flat per-semester fees for each program. Bills are built from these.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => generate.mutate()}
-            disabled={!openTerm || generate.isPending}
-            title={
-              openTerm
-                ? `Generate for ${termLabel(openTerm)}`
-                : "Open a term first"
-            }
-          >
-            <WandSparklesIcon />
-            {generate.isPending ? "Generating…" : "Generate structures"}
-          </Button>
-          <Button onClick={() => setNewOpen(true)}>
-            <PlusIcon />
-            New structure
-          </Button>
-        </div>
+        <Button
+          onClick={() => generate.mutate()}
+          disabled={!openTerm || generate.isPending}
+          title={
+            openTerm ? `Generate for ${termLabel(openTerm)}` : "Open a term first"
+          }
+        >
+          <WandSparklesIcon />
+          {generate.isPending ? "Generating…" : "Generate structures"}
+        </Button>
       </div>
 
       {generate.isSuccess && (
@@ -294,104 +226,53 @@ function FeesPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-11 w-full rounded-md" />
-          <Skeleton className="h-11 w-full rounded-md" />
-        </div>
-      ) : isError ? (
+      {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">
             We couldn't load fee structures. Please try again.
           </p>
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => query.refetch()}>
             Try again
           </Button>
         </div>
-      ) : structures.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <p className="font-medium">No fee structures yet</p>
-          <p className="text-muted-foreground text-sm">
-            Create one per program to define what students owe.
-          </p>
-        </div>
       ) : (
         <div className="space-y-4">
-          {termOptions.length > 1 && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search program…"
+                className="pl-9"
+              />
+            </div>
             <Select value={termFilter} onValueChange={setTermFilter}>
-              <SelectTrigger size="sm" className="w-[16rem]">
-                <SelectValue />
+              <SelectTrigger size="sm" className="w-full sm:w-[16rem]">
+                <SelectValue placeholder="All terms" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All terms</SelectItem>
-                {termOptions.map((term) => (
+                {(terms ?? []).map((term) => (
                   <SelectItem key={term.id} value={String(term.id)}>
-                    {term.label}
+                    {termLabel(term)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          )}
-
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Term</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visible.map((structure) => (
-                  <TableRow key={structure.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {structureTermLabel(structure)}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {programLabel(structure.track, structure.yearLevel)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {structure.items.length}
-                    </TableCell>
-                    <TableCell className="font-medium whitespace-nowrap">
-                      {formatPeso(structure.total)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/admin/fees/${structure.id}`)}
-                        >
-                          Manage
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive size-8"
-                          onClick={() => setDeleting(structure)}
-                        >
-                          <Trash2Icon className="size-4" />
-                          <span className="sr-only">Delete structure</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
           </div>
+
+          <DataTable
+            table={table}
+            isLoading={query.isLoading}
+            emptyMessage={
+              hasFilters
+                ? "No fee structures match your filters."
+                : "No fee structures yet. Use Generate structures."
+            }
+          />
         </div>
       )}
-
-      <NewStructureDialog
-        open={newOpen}
-        onOpenChange={setNewOpen}
-        onCreated={(structure) => navigate(`/admin/fees/${structure.id}`)}
-      />
 
       <AlertDialog
         open={deleting !== null}

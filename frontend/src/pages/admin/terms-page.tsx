@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RowActions } from "@/components/row-actions";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -537,34 +539,26 @@ function TermsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
+                    <RowActions>
+                      <DropdownMenuItem
                         disabled={setOpen.isPending}
                         onClick={() =>
                           setOpen.mutate({ id: term.id, isOpen: !term.isOpen })
                         }
                       >
-                        {term.isOpen ? "Close" : "Open"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPolicyTerm(term)}
-                      >
-                        Plan
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-destructive size-8"
+                        {term.isOpen ? "Close enrollment" : "Open enrollment"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setPolicyTerm(term)}>
+                        Installment plan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
                         onClick={() => setDeleting(term)}
                       >
-                        <Trash2Icon className="size-4" />
-                        <span className="sr-only">Delete term</span>
-                      </Button>
-                    </div>
+                        <Trash2Icon />
+                        Delete
+                      </DropdownMenuItem>
+                    </RowActions>
                   </TableCell>
                 </TableRow>
               ))}

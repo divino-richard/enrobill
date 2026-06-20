@@ -1,29 +1,183 @@
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2Icon, CircleAlertIcon, SparklesIcon } from "lucide-react";
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+  type OnChangeFn,
+  type PaginationState,
+  type SortingState,
+} from "@tanstack/react-table";
+import {
+  CheckCircle2Icon,
+  CircleAlertIcon,
+  SearchIcon,
+  SparklesIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/ui/data-table";
+import { SortHeader } from "@/components/data-table-sort-header";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RowActions } from "@/components/row-actions";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useBills, useGenerateBills } from "@/features/bills/hooks";
-import { BILL_STATUS_META } from "@/features/bills/types";
+import {
+  BILL_STATUS_META,
+  type Bill,
+  type BillStatus,
+} from "@/features/bills/types";
+
+type StatusFilter = BillStatus | "all";
+
+const STATUS_PILLS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "partial", label: "Partial" },
+  { value: "paid", label: "Paid" },
+];
 
 function BillingPage() {
   const navigate = useNavigate();
-  const { data, isLoading, isError, refetch } = useBills();
-  const bills = data ?? [];
   const generate = useGenerateBills();
   const programLabel = useProgramLabel();
+
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "createdAt", desc: true },
+  ]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15,
+  });
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [debouncedSearch, status]);
+
+  const sortState = sorting[0];
+  const query = useBills({
+    page: pagination.pageIndex + 1,
+    perPage: pagination.pageSize,
+    sort: sortState?.id,
+    dir: sortState?.desc ? "desc" : "asc",
+    status: status === "all" ? undefined : status,
+    search: debouncedSearch || undefined,
+  });
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const columns = useMemo<ColumnDef<Bill>[]>(
+    () => [
+      {
+        id: "student",
+        header: ({ column }) => <SortHeader column={column} title="Student" />,
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-medium">{row.original.student?.name ?? "—"}</span>
+            <span className="text-muted-foreground text-xs">
+              {row.original.student?.studentNumber ?? "—"}
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: "program",
+        header: "Program",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.student
+              ? programLabel(
+                  row.original.student.track,
+                  row.original.student.yearLevel,
+                )
+              : "—"}
+          </span>
+        ),
+      },
+      {
+        id: "netTotal",
+        header: "Net total",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {formatPeso(row.original.netTotal)}
+            {row.original.discountTotal > 0 && (
+              <span className="text-muted-foreground ml-1 text-xs">
+                (−{formatPeso(row.original.discountTotal)})
+              </span>
+            )}
+          </span>
+        ),
+      },
+      {
+        id: "balance",
+        header: "Balance",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="font-medium whitespace-nowrap">
+            {formatPeso(row.original.balance)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => <SortHeader column={column} title="Status" />,
+        cell: ({ row }) => (
+          <Badge
+            variant="outline"
+            className={cn(BILL_STATUS_META[row.original.status].className)}
+          >
+            {BILL_STATUS_META[row.original.status].label}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { className: "text-right" },
+        cell: ({ row }) => (
+          <RowActions>
+            <DropdownMenuItem
+              onClick={() => navigate(`/admin/billing/${row.original.id}`)}
+            >
+              Manage bill
+            </DropdownMenuItem>
+          </RowActions>
+        ),
+      },
+    ],
+    [navigate, programLabel],
+  );
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: query.data?.rows ?? [],
+    columns,
+    state: { sorting, pagination },
+    manualSorting: true,
+    manualPagination: true,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    rowCount: query.data?.meta.total ?? 0,
+    onSortingChange: handleSortingChange,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const hasFilters = Boolean(debouncedSearch) || status !== "all";
 
   return (
     <div className="space-y-6">
@@ -35,10 +189,7 @@ function BillingPage() {
             structure.
           </p>
         </div>
-        <Button
-          onClick={() => generate.mutate()}
-          disabled={generate.isPending}
-        >
+        <Button onClick={() => generate.mutate()} disabled={generate.isPending}>
           <SparklesIcon />
           {generate.isPending ? "Generating…" : "Generate bills"}
         </Button>
@@ -63,85 +214,55 @@ function BillingPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-11 w-full rounded-md" />
-          <Skeleton className="h-11 w-full rounded-md" />
-        </div>
-      ) : isError ? (
+      {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">
             We couldn't load bills. Please try again.
           </p>
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => query.refetch()}>
             Try again
           </Button>
         </div>
-      ) : bills.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <p className="font-medium">No bills for the open term</p>
-          <p className="text-muted-foreground text-sm">
-            Use “Generate bills” to bill all eligible admitted students at once.
-          </p>
-        </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student No.</TableHead>
-                <TableHead>Student</TableHead>
-                <TableHead>Program</TableHead>
-                <TableHead>Net total</TableHead>
-                <TableHead>Balance</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bills.map((bill) => (
-                <TableRow key={bill.id}>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    {bill.student?.studentNumber ?? "—"}
-                  </TableCell>
-                  <TableCell>{bill.student?.name ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {bill.student
-                      ? programLabel(bill.student.track, bill.student.yearLevel)
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {formatPeso(bill.netTotal)}
-                    {bill.discountTotal > 0 && (
-                      <span className="text-muted-foreground ml-1 text-xs">
-                        (−{formatPeso(bill.discountTotal)})
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    {formatPeso(bill.balance)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn(BILL_STATUS_META[bill.status].className)}
-                    >
-                      {BILL_STATUS_META[bill.status].label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate(`/admin/billing/${bill.id}`)}
-                    >
-                      Manage
-                    </Button>
-                  </TableCell>
-                </TableRow>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search student name or number…"
+                className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_PILLS.map((pill) => (
+                <button
+                  key={pill.value}
+                  type="button"
+                  onClick={() => setStatus(pill.value)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    status === pill.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {pill.label}
+                </button>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          </div>
+
+          <DataTable
+            table={table}
+            isLoading={query.isLoading}
+            emptyMessage={
+              hasFilters
+                ? "No bills match your filters."
+                : "No bills for the open term yet. Use Generate bills."
+            }
+          />
         </div>
       )}
     </div>

@@ -11,19 +11,51 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ProgramController extends Controller
 {
+    /** The senior-high tracks a program can belong to. */
+    public const CATEGORIES = ['Academic Track', 'TVL Track'];
+
+    private const SORTABLE = [
+        'name' => 'name',
+        'category' => 'category',
+        'createdAt' => 'created_at',
+    ];
+
     /**
-     * The full program catalog with default fee items. Restricted to admins by
+     * The program catalog with default fee items — paginated, searchable,
+     * sortable, and filterable by track + active state. Restricted to admins by
      * route middleware.
      */
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
-        return ProgramResource::collection(
-            Program::query()->ordered()->with('feeItems')->get(),
-        );
+        $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+        $sortKey = $request->string('sort')->value();
+
+        $query = Program::query()
+            ->with('feeItems')
+            ->when(
+                in_array($request->string('category')->value(), self::CATEGORIES, true),
+                fn ($query) => $query->where('category', $request->string('category')->value()),
+            )
+            ->when($request->string('active')->value() === 'active', fn ($query) => $query->where('is_active', true))
+            ->when($request->string('active')->value() === 'inactive', fn ($query) => $query->where('is_active', false))
+            ->when(
+                $request->filled('search'),
+                fn ($query) => $query->where('name', 'like', '%'.$request->string('search')->value().'%'),
+            );
+
+        if (isset(self::SORTABLE[$sortKey])) {
+            $query->orderBy(self::SORTABLE[$sortKey], $direction)->orderBy('id', $direction);
+        } else {
+            $query->ordered();
+        }
+
+        return ProgramResource::collection($query->paginate($perPage)->withQueryString());
     }
 
     /**
@@ -34,7 +66,7 @@ class ProgramController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'category' => ['required', 'string', 'max:100'],
+            'category' => ['required', Rule::in(self::CATEGORIES)],
             'isActive' => ['sometimes', 'boolean'],
         ]);
 
@@ -56,7 +88,7 @@ class ProgramController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'category' => ['required', 'string', 'max:100'],
+            'category' => ['required', Rule::in(self::CATEGORIES)],
             'isActive' => ['required', 'boolean'],
         ]);
 

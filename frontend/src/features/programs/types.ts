@@ -14,6 +14,12 @@ export interface Program {
   feeItems?: ProgramFeeItem[];
 }
 
+// The senior-high tracks a program can belong to.
+export const PROGRAM_CATEGORY_OPTIONS = [
+  "Academic Track",
+  "TVL Track",
+] as const;
+
 export interface ProgramGroup {
   label: string;
   options: { value: string; label: string }[];

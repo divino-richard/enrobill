@@ -16,12 +16,38 @@ class DiscountController extends Controller
 
     private const TYPES = ['fixed', 'percentage'];
 
+    private const SORTABLE = [
+        'name' => 'name',
+        'category' => 'category',
+        'value' => 'value',
+        'createdAt' => 'created_at',
+    ];
+
     /**
-     * The reusable discount catalog. Restricted to admins by route middleware.
+     * The reusable discount catalog — paginated, searchable, sortable, and
+     * filterable by category. Restricted to admins by route middleware.
      */
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
-        return DiscountResource::collection(Discount::query()->latest()->get());
+        $sort = self::SORTABLE[$request->string('sort')->value()] ?? 'name';
+        $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+
+        $discounts = Discount::query()
+            ->when(
+                in_array($request->string('category')->value(), self::CATEGORIES, true),
+                fn ($query) => $query->where('category', $request->string('category')->value()),
+            )
+            ->when(
+                $request->filled('search'),
+                fn ($query) => $query->where('name', 'like', '%'.$request->string('search')->value().'%'),
+            )
+            ->orderBy($sort, $direction)
+            ->orderBy('id', $direction)
+            ->paginate($perPage)
+            ->withQueryString();
+
+        return DiscountResource::collection($discounts);
     }
 
     /**

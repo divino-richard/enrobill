@@ -1,4 +1,11 @@
 import api from "@/lib/api";
+import {
+  listParamsToQuery,
+  toPageMeta,
+  type LaravelPaginated,
+  type ListParams,
+  type PageMeta,
+} from "@/lib/pagination";
 import type { Program } from "./types";
 
 interface Wrapped<T> {
@@ -11,16 +18,27 @@ export interface ProgramInput {
   isActive: boolean;
 }
 
+export type ProgramListParams = ListParams;
+
+export interface ProgramsPage {
+  rows: Program[];
+  meta: PageMeta;
+}
+
 // The program catalog, for dropdowns and label resolution (any authed user).
 export async function fetchPrograms(): Promise<Program[]> {
   const { data } = await api.get<Wrapped<Program[]>>("/programs");
   return data.data;
 }
 
-// The full catalog with fee items (admin management).
-export async function fetchAdminPrograms(): Promise<Program[]> {
-  const { data } = await api.get<Wrapped<Program[]>>("/admin/programs");
-  return data.data;
+// Paginated / searchable / sortable catalog with fee items (admin management).
+export async function fetchAdminPrograms(
+  params: ProgramListParams,
+): Promise<ProgramsPage> {
+  const { data } = await api.get<LaravelPaginated<Program>>("/admin/programs", {
+    params: listParamsToQuery(params),
+  });
+  return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
 export async function createProgram(input: ProgramInput): Promise<Program> {

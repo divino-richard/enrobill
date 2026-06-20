@@ -12,74 +12,51 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class FeeStructureController extends Controller
 {
+    private const SORTABLE = [
+        'program' => 'track',
+        'yearLevel' => 'year_level',
+        'createdAt' => 'created_at',
+    ];
+
     /**
-     * All fee structures, optionally filtered by term. Restricted to admins by
-     * route middleware.
+     * Fee structures — paginated, searchable by program, filterable by term, and
+     * sortable. Restricted to admins by route middleware.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $structures = FeeStructure::query()
+        $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+        $sortKey = $request->string('sort')->value();
+
+        $query = FeeStructure::query()
             ->with(['term', 'items'])
             ->when(
                 $request->filled('term_id'),
                 fn ($query) => $query->where('term_id', $request->integer('term_id')),
             )
-            ->latest()
-            ->get();
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $term = '%'.$request->string('search')->value().'%';
+                $codes = Program::where('name', 'like', $term)
+                    ->orWhere('code', 'like', $term)
+                    ->pluck('code');
+                $query->whereIn('track', $codes);
+            });
 
-        return FeeStructureResource::collection($structures);
-    }
-
-    /**
-     * Create a fee structure for a program (track + year level) in a term.
-     */
-    public function store(Request $request): FeeStructureResource
-    {
-        $validated = $request->validate([
-            'termId' => ['required', 'integer', 'exists:terms,id'],
-            'track' => ['required', 'exists:programs,code'],
-            'yearLevel' => [
-                'required',
-                Rule::in(FeeStructure::YEAR_LEVELS),
-                Rule::unique('fee_structures', 'year_level')
-                    ->where('term_id', $request->integer('termId'))
-                    ->where('track', $request->input('track')),
-            ],
-        ], [
-            'yearLevel.unique' => 'A fee structure for this program already exists in this term.',
-        ]);
-
-        $structure = FeeStructure::create([
-            'term_id' => $validated['termId'],
-            'track' => $validated['track'],
-            'year_level' => $validated['yearLevel'],
-        ]);
-
-        // Seed the new structure with the program's default fee items priced for
-        // this year level (items not charged for the level have no row).
-        $program = Program::where('code', $validated['track'])->with('feeItems')->first();
-        if ($program) {
-            $items = $program->feeItems
-                ->where('year_level', $validated['yearLevel'])
-                ->map(fn ($item) => ['name' => $item->name, 'amount' => $item->amount])
-                ->values()
-                ->all();
-
-            if ($items !== []) {
-                $structure->items()->createMany($items);
-            }
+        if (isset(self::SORTABLE[$sortKey])) {
+            $query->orderBy(self::SORTABLE[$sortKey], $direction)->orderBy('id', $direction);
+        } else {
+            $query->latest();
         }
 
-        return new FeeStructureResource($structure->load(['term', 'items']));
+        return FeeStructureResource::collection($query->paginate($perPage)->withQueryString());
     }
 
     /**
      * Bulk-create fee structures for every program missing one in the open term,
-     * seeded with the standard fee items.
+     * each seeded with the program's default fee items.
      */
     public function generate(GenerateTermFeeStructures $generate): JsonResponse
     {

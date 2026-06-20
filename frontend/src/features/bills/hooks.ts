@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   applyAdjustment,
   fetchBill,
@@ -14,6 +19,7 @@ import {
   submitMyPayment,
   verifyPayment,
   voidPayment,
+  type BillListParams,
   type InstallmentInput,
   type PaymentInput,
   type SubmitPaymentInput,
@@ -23,10 +29,11 @@ import type { Bill } from "./types";
 
 export const billsQueryKey = ["admin", "bills"] as const;
 
-export function useBills() {
+export function useBills(params: BillListParams) {
   return useQuery({
-    queryKey: billsQueryKey,
-    queryFn: fetchBills,
+    queryKey: [...billsQueryKey, "list", params],
+    queryFn: () => fetchBills(params),
+    placeholderData: keepPreviousData,
   });
 }
 
