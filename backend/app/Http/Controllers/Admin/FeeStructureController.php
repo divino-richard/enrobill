@@ -44,16 +44,7 @@ class FeeStructureController extends Controller
             'track' => ['required', 'exists:programs,code'],
             'yearLevel' => [
                 'required',
-                'exists:year_levels,code',
-                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
-                    $track = $request->input('track');
-                    $offered = $track && Program::where('code', $track)
-                        ->whereHas('yearLevels', fn ($q) => $q->where('code', $value))
-                        ->exists();
-                    if (! $offered) {
-                        $fail('The selected program does not offer this year level.');
-                    }
-                },
+                Rule::in(FeeStructure::YEAR_LEVELS),
                 Rule::unique('fee_structures', 'year_level')
                     ->where('term_id', $request->integer('termId'))
                     ->where('track', $request->input('track')),

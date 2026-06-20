@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProgramResource;
+use App\Models\FeeStructure;
 use App\Models\Program;
-use App\Models\YearLevel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -22,7 +22,7 @@ class ProgramController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return ProgramResource::collection(
-            Program::query()->ordered()->with(['feeItems', 'yearLevels'])->get(),
+            Program::query()->ordered()->with('feeItems')->get(),
         );
     }
 
@@ -36,28 +36,21 @@ class ProgramController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'category' => ['required', 'string', 'max:100'],
             'isActive' => ['sometimes', 'boolean'],
-            'yearLevelCodes' => ['present', 'array'],
-            'yearLevelCodes.*' => ['string', 'exists:year_levels,code'],
         ]);
 
-        $code = $this->uniqueCode($validated['name']);
-
         $program = Program::create([
-            'code' => $code,
+            'code' => $this->uniqueCode($validated['name']),
             'name' => $validated['name'],
             'category' => $validated['category'],
             'sort_order' => (int) Program::max('sort_order') + 1,
             'is_active' => $validated['isActive'] ?? true,
         ]);
 
-        $program->yearLevels()->sync($this->levelIds($validated['yearLevelCodes']));
-
-        return new ProgramResource($program->load(['feeItems', 'yearLevels']));
+        return new ProgramResource($program->load('feeItems'));
     }
 
     /**
-     * Update a program's name, category, active state and offered year levels.
-     * The code is fixed.
+     * Update a program's name, category and active state. The code is fixed.
      */
     public function update(Request $request, Program $program): ProgramResource
     {
@@ -65,8 +58,6 @@ class ProgramController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'category' => ['required', 'string', 'max:100'],
             'isActive' => ['required', 'boolean'],
-            'yearLevelCodes' => ['present', 'array'],
-            'yearLevelCodes.*' => ['string', 'exists:year_levels,code'],
         ]);
 
         $program->update([
@@ -75,20 +66,7 @@ class ProgramController extends Controller
             'is_active' => $validated['isActive'],
         ]);
 
-        $program->yearLevels()->sync($this->levelIds($validated['yearLevelCodes']));
-
-        return new ProgramResource($program->fresh()->load(['feeItems', 'yearLevels']));
-    }
-
-    /**
-     * Map year level codes to ids for syncing the pivot.
-     *
-     * @param  array<int, string>  $codes
-     * @return array<int, int>
-     */
-    private function levelIds(array $codes): array
-    {
-        return YearLevel::whereIn('code', $codes)->pluck('id')->all();
+        return new ProgramResource($program->fresh()->load('feeItems'));
     }
 
     /**
@@ -103,8 +81,8 @@ class ProgramController extends Controller
             'items.*.amounts.*' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
         ]);
 
-        // Only amounts for year levels this program actually offers are stored.
-        $validCodes = collect($program->yearLevels()->pluck('code'))->flip();
+        // Only amounts for the fixed SHS year levels are stored.
+        $validCodes = collect(FeeStructure::YEAR_LEVELS)->flip();
 
         DB::transaction(function () use ($program, $validated, $validCodes) {
             $program->feeItems()->delete();
@@ -127,7 +105,7 @@ class ProgramController extends Controller
             }
         });
 
-        return new ProgramResource($program->fresh()->load(['feeItems', 'yearLevels']));
+        return new ProgramResource($program->fresh()->load('feeItems'));
     }
 
     /**

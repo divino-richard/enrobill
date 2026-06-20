@@ -17,11 +17,12 @@ import {
 } from "@/components/ui/select";
 import type { ApplicationFormApi } from "../hooks/form";
 import { getSchoolYearOptions } from "../utils";
+import { useProgramGroups } from "@/features/programs/hooks";
 import {
-  useProgramGroups,
-  useProgramYearLevelOptions,
-} from "@/features/programs/hooks";
-import { DECLARATION_AGREEMENT_TEXT, SEMESTER_OPTIONS } from "../types";
+  DECLARATION_AGREEMENT_TEXT,
+  SEMESTER_OPTIONS,
+  YEAR_LEVEL_OPTIONS,
+} from "../types";
 
 function required(message: string) {
   return ({ value }: { value: string }) =>
@@ -35,7 +36,6 @@ interface CourseStepProps {
 export function CourseStep({ form }: CourseStepProps) {
   const schoolYearOptions = useMemo(() => getSchoolYearOptions(), []);
   const programGroups = useProgramGroups();
-  const getYearLevelOptions = useProgramYearLevelOptions();
 
   // The name fields are locked, so keep them authoritative: always mirror the
   // values entered on earlier steps. The signing date is stamped once.
@@ -72,11 +72,7 @@ export function CourseStep({ form }: CourseStepProps) {
                 </FieldLabel>
                 <Select
                   value={field.state.value}
-                  onValueChange={(value) => {
-                    field.handleChange(value);
-                    // Levels depend on the program — clear any stale choice.
-                    form.setFieldValue("yearLevel", "");
-                  }}
+                  onValueChange={field.handleChange}
                 >
                   <SelectTrigger id={field.name} className="w-full">
                     <SelectValue placeholder="Select track or strand" />
@@ -108,35 +104,21 @@ export function CourseStep({ form }: CourseStepProps) {
                 <FieldLabel htmlFor={field.name} required>
                   Year Level
                 </FieldLabel>
-                <form.Subscribe selector={(s) => s.values.trackOrStrand}>
-                  {(track) => {
-                    const options = getYearLevelOptions(track);
-                    return (
-                      <Select
-                        value={field.state.value}
-                        onValueChange={field.handleChange}
-                        disabled={!track}
-                      >
-                        <SelectTrigger id={field.name} className="w-full">
-                          <SelectValue
-                            placeholder={
-                              track
-                                ? "Select year level"
-                                : "Select a track first"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  }}
-                </form.Subscribe>
+                <Select
+                  value={field.state.value}
+                  onValueChange={field.handleChange}
+                >
+                  <SelectTrigger id={field.name} className="w-full">
+                    <SelectValue placeholder="Select year level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {YEAR_LEVEL_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FieldInfo field={field} />
               </div>
             )}

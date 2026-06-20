@@ -40,11 +40,8 @@ import {
   useUpdateProgram,
   useUpdateProgramFeeItems,
 } from "@/features/programs/hooks";
-import { useYearLevels } from "@/features/year-levels/hooks";
-import {
-  programYearLevelOptions,
-  type Program,
-} from "@/features/programs/types";
+import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
+import type { Program } from "@/features/programs/types";
 
 function ProgramDialog({
   open,
@@ -58,26 +55,16 @@ function ProgramDialog({
   const create = useCreateProgram();
   const update = useUpdateProgram(editing?.id ?? 0);
   const mutation = editing ? update : create;
-  const { data: allLevels } = useYearLevels();
-  const levelOptions = (allLevels ?? []).filter((level) => level.isActive);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [levelCodes, setLevelCodes] = useState<string[]>([]);
 
   function syncFromProps() {
     setName(editing?.name ?? "");
     setCategory(editing?.category ?? "");
     setIsActive(editing?.isActive ?? true);
-    setLevelCodes((editing?.yearLevels ?? []).map((level) => level.code));
     mutation.reset();
-  }
-
-  function toggleLevel(code: string, checked: boolean) {
-    setLevelCodes((prev) =>
-      checked ? [...new Set([...prev, code])] : prev.filter((c) => c !== code),
-    );
   }
 
   async function handleSave() {
@@ -87,7 +74,6 @@ function ProgramDialog({
         name: name.trim(),
         category: category.trim(),
         isActive,
-        yearLevelCodes: levelCodes,
       });
       onOpenChange(false);
     } catch {
@@ -135,31 +121,6 @@ function ProgramDialog({
               placeholder="e.g. TechVoc Track"
               onChange={(event) => setCategory(event.target.value)}
             />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel>Year levels offered</FieldLabel>
-            {levelOptions.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No active year levels. Add some under Year Levels first.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
-                {levelOptions.map((level) => (
-                  <label
-                    key={level.code}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <Checkbox
-                      checked={levelCodes.includes(level.code)}
-                      onCheckedChange={(checked) =>
-                        toggleLevel(level.code, checked === true)
-                      }
-                    />
-                    {level.name}
-                  </label>
-                ))}
-              </div>
-            )}
           </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
@@ -351,7 +312,10 @@ function FeeItemsDialog({
   program: Program | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const levels = programYearLevelOptions(program ?? undefined);
+  const levels = YEAR_LEVEL_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
 
   return (
     <Dialog open={program !== null} onOpenChange={onOpenChange}>
@@ -364,19 +328,13 @@ function FeeItemsDialog({
               : ""}
           </DialogDescription>
         </DialogHeader>
-        {program &&
-          (levels.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              This program offers no year levels yet. Assign some by editing the
-              program first.
-            </p>
-          ) : (
-            <FeeItemsForm
-              program={program}
-              levels={levels}
-              onClose={() => onOpenChange(false)}
-            />
-          ))}
+        {program && (
+          <FeeItemsForm
+            program={program}
+            levels={levels}
+            onClose={() => onOpenChange(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

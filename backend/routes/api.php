@@ -11,7 +11,6 @@ use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\Admin\TermController as AdminTermController;
-use App\Http\Controllers\Admin\YearLevelController as AdminYearLevelController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
@@ -21,7 +20,6 @@ use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\YearLevelController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -91,9 +89,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Active programs, for selection in the application form and other pickers.
     Route::get('/programs', [ProgramController::class, 'index']);
 
-    // Year levels, for selection and label resolution.
-    Route::get('/year-levels', [YearLevelController::class, 'index']);
-
     // Application document uploads — issue a pre-signed S3 URL so the browser
     // uploads verification documents directly to the bucket.
     Route::post('/applications/documents/presign', [ApplicationDocumentController::class, 'presign']);
@@ -133,12 +128,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
         Route::put('/admin/terms/{term}/installment-policy', [AdminTermController::class, 'updatePolicy']);
         Route::delete('/admin/terms/{term}', [AdminTermController::class, 'destroy']);
-
-        // Year levels.
-        Route::get('/admin/year-levels', [AdminYearLevelController::class, 'index']);
-        Route::post('/admin/year-levels', [AdminYearLevelController::class, 'store']);
-        Route::put('/admin/year-levels/{yearLevel}', [AdminYearLevelController::class, 'update']);
-        Route::delete('/admin/year-levels/{yearLevel}', [AdminYearLevelController::class, 'destroy']);
 
         // Programs (tracks/strands) and their default fee items.
         Route::get('/admin/programs', [AdminProgramController::class, 'index']);

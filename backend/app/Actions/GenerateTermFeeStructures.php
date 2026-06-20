@@ -11,10 +11,10 @@ use Illuminate\Validation\ValidationException;
 class GenerateTermFeeStructures
 {
     /**
-     * Create a fee structure for every active program × year level that doesn't
-     * already have one in the open term, each seeded with that program's default
-     * fee items. Returns the number created. Idempotent — re-running only fills
-     * the gaps.
+     * Create a fee structure for every active program × SHS year level that
+     * doesn't already have one in the open term, each seeded with that program's
+     * default fee items. Returns the number created. Idempotent — re-running only
+     * fills the gaps.
      */
     public function __invoke(): int
     {
@@ -28,7 +28,7 @@ class GenerateTermFeeStructures
 
         $programs = Program::query()
             ->where('is_active', true)
-            ->with(['feeItems', 'yearLevels'])
+            ->with('feeItems')
             ->ordered()
             ->get();
 
@@ -49,7 +49,7 @@ class GenerateTermFeeStructures
 
         DB::transaction(function () use ($term, $programs, $existing, &$created) {
             foreach ($programs as $program) {
-                foreach ($program->activeYearLevelCodes() as $yearLevel) {
+                foreach (FeeStructure::YEAR_LEVELS as $yearLevel) {
                     if ($existing->has($program->code.'|'.$yearLevel)) {
                         continue; // Already has a structure — leave it untouched.
                     }

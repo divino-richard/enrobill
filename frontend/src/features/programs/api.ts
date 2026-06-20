@@ -9,7 +9,6 @@ export interface ProgramInput {
   name: string;
   category: string;
   isActive: boolean;
-  yearLevelCodes: string[];
 }
 
 // The program catalog, for dropdowns and label resolution (any authed user).

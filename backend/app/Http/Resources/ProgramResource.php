@@ -22,11 +22,6 @@ class ProgramResource extends JsonResource
             'name' => $this->name,
             'category' => $this->category,
             'isActive' => $this->is_active,
-            'yearLevels' => $this->whenLoaded('yearLevels', fn () => $this->yearLevels->map(fn ($level) => [
-                'code' => $level->code,
-                'name' => $level->name,
-                'isActive' => $level->is_active,
-            ])->values()),
             // Flat (name, year_level, amount) rows grouped into a per-item matrix:
             // { name, amounts: { <yearLevelCode>: amount } }.
             'feeItems' => $this->whenLoaded('feeItems', fn () => $this->feeItems

@@ -22,11 +22,11 @@ import { DatePicker } from "@/components/form/date-picker";
 import { FormSection } from "@/features/applications/components/form-section";
 import { AddressCombobox } from "@/features/applications/components/address-combobox";
 import { useAddress } from "@/features/applications/hooks/address";
-import { CIVIL_STATUS_OPTIONS } from "@/features/applications/types";
 import {
-  useProgramGroups,
-  useProgramYearLevelOptions,
-} from "@/features/programs/hooks";
+  CIVIL_STATUS_OPTIONS,
+  YEAR_LEVEL_OPTIONS,
+} from "@/features/applications/types";
+import { useProgramGroups } from "@/features/programs/hooks";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useUpdateStudent } from "../hooks";
 import {
@@ -50,8 +50,6 @@ export function StudentEditForm({ student }: StudentEditFormProps) {
   const [values, setValues] = useState<StudentFormValues>(initial);
   const update = useUpdateStudent(student.id);
   const programGroups = useProgramGroups();
-  const getYearLevelOptions = useProgramYearLevelOptions();
-  const yearLevelOptions = getYearLevelOptions(values.trackOrStrand);
   const [saved, setSaved] = useState(false);
 
   const { provinces, cities, barangays, citiesLoading, barangaysLoading } =
@@ -119,13 +117,7 @@ export function StudentEditForm({ student }: StudentEditFormProps) {
             <FieldLabel htmlFor="trackOrStrand">Track / Strand</FieldLabel>
             <Select
               value={values.trackOrStrand}
-              onValueChange={(v) =>
-                setValues((prev) => ({
-                  ...prev,
-                  trackOrStrand: v,
-                  yearLevel: "",
-                }))
-              }
+              onValueChange={(v) => set("trackOrStrand", v)}
             >
               <SelectTrigger id="trackOrStrand" className="w-full">
                 <SelectValue placeholder="Select track or strand" />
@@ -155,7 +147,7 @@ export function StudentEditForm({ student }: StudentEditFormProps) {
                 <SelectValue placeholder="Select year level" />
               </SelectTrigger>
               <SelectContent>
-                {yearLevelOptions.map((option) => (
+                {YEAR_LEVEL_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
-use App\Models\Program;
+use App\Models\FeeStructure;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -94,21 +94,7 @@ class StudentController extends Controller
             'addressBarangay' => ['nullable', 'string', 'max:50'],
             'addressStreet' => ['nullable', 'string', 'max:255'],
             'trackOrStrand' => ['nullable', 'string', 'exists:programs,code'],
-            'yearLevel' => [
-                'nullable', 'string', 'exists:year_levels,code',
-                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
-                    $program = $request->input('trackOrStrand');
-                    if (! $program) {
-                        return; // Nothing to check the level against.
-                    }
-                    $offered = Program::where('code', $program)
-                        ->whereHas('yearLevels', fn ($q) => $q->where('code', $value))
-                        ->exists();
-                    if (! $offered) {
-                        $fail('The selected program does not offer this year level.');
-                    }
-                },
-            ],
+            'yearLevel' => ['nullable', Rule::in(FeeStructure::YEAR_LEVELS)],
             'schoolYear' => ['nullable', 'string', 'max:20'],
             'status' => ['required', Rule::in(self::STATUSES)],
         ]);
