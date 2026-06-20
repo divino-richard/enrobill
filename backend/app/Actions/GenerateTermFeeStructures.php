@@ -3,7 +3,7 @@
 namespace App\Actions;
 
 use App\Models\FeeStructure;
-use App\Models\StandardFeeItem;
+use App\Models\Program;
 use App\Models\Term;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -11,9 +11,10 @@ use Illuminate\Validation\ValidationException;
 class GenerateTermFeeStructures
 {
     /**
-     * Create a fee structure for every program (track + year level) that doesn't
-     * already have one in the open term, each seeded with the standard fee items.
-     * Returns the number created. Idempotent — re-running only fills the gaps.
+     * Create a fee structure for every active program × year level that doesn't
+     * already have one in the open term, each seeded with that program's default
+     * fee items. Returns the number created. Idempotent — re-running only fills
+     * the gaps.
      */
     public function __invoke(): int
     {
@@ -25,43 +26,48 @@ class GenerateTermFeeStructures
             ]);
         }
 
-        $standard = StandardFeeItem::query()->orderBy('id')->get();
+        $programs = Program::query()
+            ->where('is_active', true)
+            ->with('feeItems')
+            ->ordered()
+            ->get();
 
-        if ($standard->isEmpty()) {
+        if ($programs->isEmpty()) {
             throw ValidationException::withMessages([
-                'feeStructures' => 'Define your standard fee items before generating fee structures.',
+                'feeStructures' => 'Define at least one active program before generating fee structures.',
             ]);
         }
 
-        // Programs that already have a structure in this term.
+        // Programs (by code|year) that already have a structure in this term.
         $existing = FeeStructure::query()
             ->where('term_id', $term->id)
             ->get()
             ->map(fn (FeeStructure $structure) => $structure->track.'|'.$structure->year_level)
-            ->all();
-
-        $existing = array_flip($existing);
-
-        $items = $standard
-            ->map(fn (StandardFeeItem $item) => ['name' => $item->name, 'amount' => $item->amount])
-            ->all();
+            ->flip();
 
         $created = 0;
 
-        DB::transaction(function () use ($term, $existing, $items, &$created) {
-            foreach (FeeStructure::TRACKS as $track) {
+        DB::transaction(function () use ($term, $programs, $existing, &$created) {
+            foreach ($programs as $program) {
+                $items = $program->feeItems
+                    ->map(fn ($item) => ['name' => $item->name, 'amount' => $item->amount])
+                    ->all();
+
                 foreach (FeeStructure::YEAR_LEVELS as $yearLevel) {
-                    if (isset($existing[$track.'|'.$yearLevel])) {
+                    if ($existing->has($program->code.'|'.$yearLevel)) {
                         continue; // Already has a structure — leave it untouched.
                     }
 
                     $structure = FeeStructure::create([
                         'term_id' => $term->id,
-                        'track' => $track,
+                        'track' => $program->code,
                         'year_level' => $yearLevel,
                     ]);
 
-                    $structure->items()->createMany($items);
+                    if ($items !== []) {
+                        $structure->items()->createMany($items);
+                    }
+
                     $created++;
                 }
             }

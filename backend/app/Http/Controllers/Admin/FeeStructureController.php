@@ -6,7 +6,7 @@ use App\Actions\GenerateTermFeeStructures;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\FeeStructureResource;
 use App\Models\FeeStructure;
-use App\Models\StandardFeeItem;
+use App\Models\Program;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -16,8 +16,6 @@ use Illuminate\Validation\Rule;
 
 class FeeStructureController extends Controller
 {
-    private const TRACKS = FeeStructure::TRACKS;
-
     private const YEAR_LEVELS = FeeStructure::YEAR_LEVELS;
 
     /**
@@ -45,7 +43,7 @@ class FeeStructureController extends Controller
     {
         $validated = $request->validate([
             'termId' => ['required', 'integer', 'exists:terms,id'],
-            'track' => ['required', Rule::in(self::TRACKS)],
+            'track' => ['required', 'exists:programs,code'],
             'yearLevel' => [
                 'required',
                 Rule::in(self::YEAR_LEVELS),
@@ -63,12 +61,12 @@ class FeeStructureController extends Controller
             'year_level' => $validated['yearLevel'],
         ]);
 
-        // Seed the new structure with the standard fee items, if any are defined.
-        $standard = StandardFeeItem::query()->orderBy('id')->get();
-        if ($standard->isNotEmpty()) {
+        // Seed the new structure with the program's default fee items, if any.
+        $program = Program::where('code', $validated['track'])->with('feeItems')->first();
+        if ($program && $program->feeItems->isNotEmpty()) {
             $structure->items()->createMany(
-                $standard
-                    ->map(fn (StandardFeeItem $item) => ['name' => $item->name, 'amount' => $item->amount])
+                $program->feeItems
+                    ->map(fn ($item) => ['name' => $item->name, 'amount' => $item->amount])
                     ->all(),
             );
         }

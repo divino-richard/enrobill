@@ -126,38 +126,9 @@ export const CIVIL_STATUS_OPTIONS = [
   { value: "divorced", label: "Divorced" },
 ] as const;
 
-// Track / strand options, grouped into the two senior-high tracks.
-export const TRACK_STRAND_GROUPS = [
-  {
-    label: "Academic Track",
-    options: [
-      {
-        value: "stem",
-        label: "STEM (Science, Technology, Engineering, Mathematics)",
-      },
-      { value: "assh", label: "ASSH (Humanities & Social Sciences)" },
-      { value: "abm", label: "BE-ABM (Accounting, Business & Management)" },
-      { value: "gas", label: "GAS (General Academic Strand)" },
-    ],
-  },
-  {
-    label: "TechVoc Track",
-    options: [
-      { value: "creative_arts", label: "Creative Arts" },
-      { value: "hospitality", label: "Hospitality" },
-      { value: "ict", label: "ICT (Information & Communications Technology)" },
-    ],
-  },
-] as const;
-
-// Flattened lookup of every track/strand option (used by the review step).
-export const TRACK_STRAND_OPTIONS: { value: string; label: string }[] =
-  TRACK_STRAND_GROUPS.flatMap((group) =>
-    group.options.map((option) => ({
-      value: option.value,
-      label: option.label,
-    })),
-  );
+// Track / strand options now come from the admin-managed program catalog
+// (see @/features/programs). Year level, semester and enrollment type remain
+// fixed below.
 
 export const YEAR_LEVEL_OPTIONS = [
   { value: "grade_11", label: "Grade 11" },

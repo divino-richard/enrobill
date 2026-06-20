@@ -24,9 +24,9 @@ import { AddressCombobox } from "@/features/applications/components/address-comb
 import { useAddress } from "@/features/applications/hooks/address";
 import {
   CIVIL_STATUS_OPTIONS,
-  TRACK_STRAND_GROUPS,
   YEAR_LEVEL_OPTIONS,
 } from "@/features/applications/types";
+import { useProgramGroups } from "@/features/programs/hooks";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useUpdateStudent } from "../hooks";
 import {
@@ -49,6 +49,7 @@ export function StudentEditForm({ student }: StudentEditFormProps) {
   const initial = useMemo(() => studentToFormValues(student), [student]);
   const [values, setValues] = useState<StudentFormValues>(initial);
   const update = useUpdateStudent(student.id);
+  const programGroups = useProgramGroups();
   const [saved, setSaved] = useState(false);
 
   const { provinces, cities, barangays, citiesLoading, barangaysLoading } =
@@ -122,7 +123,7 @@ export function StudentEditForm({ student }: StudentEditFormProps) {
                 <SelectValue placeholder="Select track or strand" />
               </SelectTrigger>
               <SelectContent>
-                {TRACK_STRAND_GROUPS.map((group) => (
+                {programGroups.map((group) => (
                   <SelectGroup key={group.label}>
                     <SelectLabel>{group.label}</SelectLabel>
                     {group.options.map((option) => (

@@ -23,8 +23,8 @@ import {
   useFeeStructure,
   useUpdateFeeStructureItems,
 } from "@/features/fees/hooks";
+import { useProgramLabel } from "@/features/programs/hooks";
 import {
-  programLabel,
   structureTermLabel,
   type FeeStructure,
 } from "@/features/fees/types";
@@ -174,6 +174,7 @@ function FeeStructurePage() {
   const { data: structure, isLoading, isError, refetch } = useFeeStructure(
     Number(id),
   );
+  const programLabel = useProgramLabel();
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">

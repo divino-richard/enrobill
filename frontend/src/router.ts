@@ -14,6 +14,7 @@ import AdminStudentDetailPage from './pages/admin/student-detail-page'
 import AdminUsersPage from './pages/admin/users-page'
 import AdminUserDetailPage from './pages/admin/user-detail-page'
 import AdminTermsPage from './pages/admin/terms-page'
+import AdminProgramsPage from './pages/admin/programs-page'
 import AdminFeesPage from './pages/admin/fees-page'
 import AdminFeeStructurePage from './pages/admin/fee-structure-page'
 import AdminDiscountsPage from './pages/admin/discounts-page'
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
           { path: 'users', Component: AdminUsersPage },
           { path: 'users/:id', Component: AdminUserDetailPage },
           { path: 'terms', Component: AdminTermsPage },
+          { path: 'programs', Component: AdminProgramsPage },
           { path: 'fees', Component: AdminFeesPage },
           { path: 'fees/:id', Component: AdminFeeStructurePage },
           { path: 'discounts', Component: AdminDiscountsPage },

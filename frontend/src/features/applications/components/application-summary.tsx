@@ -2,11 +2,11 @@ import { format } from "date-fns";
 import { EyeIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAddress } from "../hooks/address";
+import { useProgramLabel } from "@/features/programs/hooks";
 import {
   CIVIL_STATUS_OPTIONS,
   ENROLLMENT_TYPE_OPTIONS,
   SEMESTER_OPTIONS,
-  TRACK_STRAND_OPTIONS,
   YEAR_LEVEL_OPTIONS,
   labelFor,
   type ApplicationFormValues,
@@ -63,6 +63,7 @@ export function ApplicationSummary({
   enrollmentDate,
   onViewDocument,
 }: ApplicationSummaryProps) {
+  const programLabel = useProgramLabel();
   const { getProvinceName, getCityName, getBarangayName } = useAddress({
     provinceCode: values.addressProvince,
     cityCode: values.addressCity,
@@ -187,10 +188,7 @@ export function ApplicationSummary({
       <SummarySection
         title="Course & Strand"
         rows={[
-          [
-            "Track / Strand",
-            labelFor(TRACK_STRAND_OPTIONS, values.trackOrStrand),
-          ],
+          ["Track / Strand", programLabel(values.trackOrStrand)],
           ["Year level", labelFor(YEAR_LEVEL_OPTIONS, values.yearLevel)],
           ["Semester", labelFor(SEMESTER_OPTIONS, values.semester)],
           ["School year", values.schoolYear || "—"],

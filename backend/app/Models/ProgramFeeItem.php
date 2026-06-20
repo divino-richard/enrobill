@@ -4,9 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['name', 'amount'])]
-class StandardFeeItem extends Model
+#[Fillable(['program_id', 'name', 'amount'])]
+class ProgramFeeItem extends Model
 {
     /**
      * @return array<string, string>
@@ -16,5 +17,13 @@ class StandardFeeItem extends Model
         return [
             'amount' => 'decimal:2',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Program, $this>
+     */
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class);
     }
 }

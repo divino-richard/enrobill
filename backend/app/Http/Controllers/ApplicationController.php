@@ -146,7 +146,7 @@ class ApplicationController extends Controller
             'givenName' => ['required', 'string', 'max:100'],
             'dateOfBirth' => ['required', 'date'],
             'gender' => ['required', 'string'],
-            'trackOrStrand' => ['required', 'string'],
+            'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
             'yearLevel' => ['required', 'string'],
             'semester' => ['required', 'string'],
             'schoolYear' => ['required', 'string'],

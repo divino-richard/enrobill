@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { semesterLabel } from "@/features/terms/types";
-import { programLabel } from "@/features/fees/types";
+import { useProgramLabel } from "@/features/programs/hooks";
 import { useDiscounts } from "@/features/discounts/hooks";
 import { discountValueLabel } from "@/features/discounts/types";
 import {
@@ -557,6 +557,7 @@ function BillDetailPage() {
   const { data: bill, isLoading, isError, refetch } = useBill(billId);
   const removeAdjustment = useRemoveAdjustment(billId);
   const voidPayment = useVoidPayment(billId);
+  const programLabel = useProgramLabel();
 
   const termLabel = useMemo(() => {
     if (!bill?.schoolYear) return "—";

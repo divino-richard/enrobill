@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Application;
+use App\Models\Program;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,22 +13,31 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ApplicationResource extends JsonResource
 {
     /**
-     * Human-readable track / strand labels keyed by their stored code.
+     * Program names keyed by code, memoized for the request to avoid N+1 lookups
+     * across a collection of applications.
+     *
+     * @var array<string, string>|null
      */
-    private const TRACK_LABELS = [
-        'stem' => 'STEM',
-        'assh' => 'ASSH',
-        'abm' => 'BE-ABM',
-        'gas' => 'GAS',
-        'creative_arts' => 'Creative Arts',
-        'hospitality' => 'Hospitality',
-        'ict' => 'ICT',
-    ];
+    private static ?array $programNames = null;
 
     private const SEMESTER_LABELS = [
         'first' => '1st Semester',
         'second' => '2nd Semester',
     ];
+
+    /**
+     * Resolve a program code to its display name, falling back to the raw code.
+     */
+    private static function programLabel(?string $code): string
+    {
+        if ($code === null || $code === '') {
+            return '—';
+        }
+
+        self::$programNames ??= Program::pluck('name', 'code')->all();
+
+        return self::$programNames[$code] ?? $code;
+    }
 
     /**
      * Shape an application for API output. Summary fields drive the list view;
@@ -41,7 +51,7 @@ class ApplicationResource extends JsonResource
         return [
             'id' => $this->id,
             'reference' => $this->reference,
-            'program' => self::TRACK_LABELS[$this->track_or_strand] ?? ($this->track_or_strand ?? '—'),
+            'program' => self::programLabel($this->track_or_strand),
             'schoolYear' => $this->school_year ?? '—',
             'semester' => self::SEMESTER_LABELS[$this->semester] ?? ($this->semester ?? '—'),
             'status' => $this->status,

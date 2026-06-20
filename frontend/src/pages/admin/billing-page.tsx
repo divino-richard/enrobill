@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
-import { programLabel } from "@/features/fees/types";
+import { useProgramLabel } from "@/features/programs/hooks";
 import { useBills, useGenerateBills } from "@/features/bills/hooks";
 import { BILL_STATUS_META } from "@/features/bills/types";
 
@@ -23,6 +23,7 @@ function BillingPage() {
   const { data, isLoading, isError, refetch } = useBills();
   const bills = data ?? [];
   const generate = useGenerateBills();
+  const programLabel = useProgramLabel();
 
   return (
     <div className="space-y-6">

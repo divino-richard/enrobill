@@ -7,13 +7,14 @@ use App\Http\Controllers\Admin\BillInstallmentController as AdminBillInstallment
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
-use App\Http\Controllers\Admin\StandardFeeItemController as AdminStandardFeeItemController;
+use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\Admin\TermController as AdminTermController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
@@ -73,6 +74,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // The current user's own student record (once accepted).
     Route::get('/me/student', [StudentProfileController::class, 'show']);
 
+    // Active programs, for selection in the application form and other pickers.
+    Route::get('/programs', [ProgramController::class, 'index']);
+
     // Application document uploads — issue a pre-signed S3 URL so the browser
     // uploads verification documents directly to the bucket.
     Route::post('/applications/documents/presign', [ApplicationDocumentController::class, 'presign']);
@@ -112,9 +116,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
         Route::delete('/admin/terms/{term}', [AdminTermController::class, 'destroy']);
 
-        // Standard fee items (the default items new fee structures are seeded with).
-        Route::get('/admin/standard-fee-items', [AdminStandardFeeItemController::class, 'index']);
-        Route::put('/admin/standard-fee-items', [AdminStandardFeeItemController::class, 'update']);
+        // Programs (tracks/strands) and their default fee items.
+        Route::get('/admin/programs', [AdminProgramController::class, 'index']);
+        Route::post('/admin/programs', [AdminProgramController::class, 'store']);
+        Route::put('/admin/programs/{program}', [AdminProgramController::class, 'update']);
+        Route::put('/admin/programs/{program}/fee-items', [AdminProgramController::class, 'updateFeeItems']);
+        Route::delete('/admin/programs/{program}', [AdminProgramController::class, 'destroy']);
 
         // Fee structures (flat per-semester fees per program).
         Route::get('/admin/fee-structures', [AdminFeeStructureController::class, 'index']);

@@ -12,10 +12,10 @@ import { useAuthStore } from "@/features/auth/store";
 import { useAddress } from "@/features/applications/hooks/address";
 import {
   CIVIL_STATUS_OPTIONS,
-  TRACK_STRAND_OPTIONS,
   YEAR_LEVEL_OPTIONS,
   labelFor,
 } from "@/features/applications/types";
+import { useProgramLabel } from "@/features/programs/hooks";
 import { useMyStudent } from "../hooks";
 import { studentFullName } from "../types";
 import { StudentStatusBadge } from "./student-status-badge";
@@ -42,6 +42,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 export function StudentDashboard() {
   const user = useAuthStore((state) => state.user);
   const { data: student, isLoading, isError } = useMyStudent();
+  const programLabel = useProgramLabel();
   const { getProvinceName, getCityName, getBarangayName } = useAddress({
     provinceCode: student?.addressProvince ?? undefined,
     cityCode: student?.addressCity ?? undefined,
@@ -104,7 +105,7 @@ export function StudentDashboard() {
             <Detail label="Student No." value={student.studentNumber} />
             <Detail
               label="Program"
-              value={labelFor(TRACK_STRAND_OPTIONS, student.trackOrStrand ?? "")}
+              value={programLabel(student.trackOrStrand)}
             />
             <Detail
               label="Year Level"

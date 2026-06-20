@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import type { FeeStructure, StandardFeeItem } from "./types";
+import type { FeeStructure } from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -55,22 +55,4 @@ export async function generateFeeStructures(): Promise<{ created: number }> {
     "/admin/fee-structures/generate",
   );
   return data;
-}
-
-// The standard fee items new structures are seeded with.
-export async function fetchStandardFeeItems(): Promise<StandardFeeItem[]> {
-  const { data } = await api.get<Wrapped<StandardFeeItem[]>>(
-    "/admin/standard-fee-items",
-  );
-  return data.data;
-}
-
-export async function updateStandardFeeItems(
-  items: { name: string; amount: number }[],
-): Promise<StandardFeeItem[]> {
-  const { data } = await api.put<Wrapped<StandardFeeItem[]>>(
-    "/admin/standard-fee-items",
-    { items },
-  );
-  return data.data;
 }

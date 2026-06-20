@@ -17,10 +17,10 @@ import {
 } from "@/components/ui/select";
 import type { ApplicationFormApi } from "../hooks/form";
 import { getSchoolYearOptions } from "../utils";
+import { useProgramGroups } from "@/features/programs/hooks";
 import {
   DECLARATION_AGREEMENT_TEXT,
   SEMESTER_OPTIONS,
-  TRACK_STRAND_GROUPS,
   YEAR_LEVEL_OPTIONS,
 } from "../types";
 
@@ -35,6 +35,7 @@ interface CourseStepProps {
 
 export function CourseStep({ form }: CourseStepProps) {
   const schoolYearOptions = useMemo(() => getSchoolYearOptions(), []);
+  const programGroups = useProgramGroups();
 
   // The name fields are locked, so keep them authoritative: always mirror the
   // values entered on earlier steps. The signing date is stamped once.
@@ -77,7 +78,7 @@ export function CourseStep({ form }: CourseStepProps) {
                     <SelectValue placeholder="Select track or strand" />
                   </SelectTrigger>
                   <SelectContent>
-                    {TRACK_STRAND_GROUPS.map((group) => (
+                    {programGroups.map((group) => (
                       <SelectGroup key={group.label}>
                         <SelectLabel>{group.label}</SelectLabel>
                         {group.options.map((option) => (

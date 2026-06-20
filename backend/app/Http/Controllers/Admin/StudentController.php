@@ -92,7 +92,7 @@ class StudentController extends Controller
             'addressCity' => ['nullable', 'string', 'max:50'],
             'addressBarangay' => ['nullable', 'string', 'max:50'],
             'addressStreet' => ['nullable', 'string', 'max:255'],
-            'trackOrStrand' => ['nullable', 'string', 'max:50'],
+            'trackOrStrand' => ['nullable', 'string', 'exists:programs,code'],
             'yearLevel' => ['nullable', 'string', 'max:50'],
             'schoolYear' => ['nullable', 'string', 'max:20'],
             'status' => ['required', Rule::in(self::STATUSES)],

@@ -4,12 +4,10 @@ import {
   CheckCircle2Icon,
   CircleAlertIcon,
   PlusIcon,
-  SlidersHorizontalIcon,
   Trash2Icon,
   WandSparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -49,26 +47,17 @@ import {
 import { FieldLabel } from "@/components/form/field-label";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
-import {
-  TRACK_STRAND_GROUPS,
-  YEAR_LEVEL_OPTIONS,
-} from "@/features/applications/types";
+import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 import { useTerms } from "@/features/terms/hooks";
 import { termLabel } from "@/features/terms/types";
+import { useProgramGroups, useProgramLabel } from "@/features/programs/hooks";
 import {
   useCreateFeeStructure,
   useDeleteFeeStructure,
   useFeeStructures,
   useGenerateFeeStructures,
-  useStandardFeeItems,
-  useUpdateStandardFeeItems,
 } from "@/features/fees/hooks";
-import {
-  programLabel,
-  structureTermLabel,
-  type FeeStructure,
-  type StandardFeeItem,
-} from "@/features/fees/types";
+import { structureTermLabel, type FeeStructure } from "@/features/fees/types";
 
 function NewStructureDialog({
   open,
@@ -80,6 +69,7 @@ function NewStructureDialog({
   onCreated: (structure: FeeStructure) => void;
 }) {
   const { data: terms } = useTerms();
+  const programGroups = useProgramGroups();
   const [termId, setTermId] = useState("");
   const [track, setTrack] = useState("");
   const [yearLevel, setYearLevel] = useState("");
@@ -153,7 +143,7 @@ function NewStructureDialog({
                   <SelectValue placeholder="Select track" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TRACK_STRAND_GROUPS.map((group) => (
+                  {programGroups.map((group) => (
                     <SelectGroup key={group.label}>
                       <SelectLabel>{group.label}</SelectLabel>
                       {group.options.map((option) => (
@@ -213,166 +203,18 @@ function NewStructureDialog({
   );
 }
 
-interface ItemRow {
-  name: string;
-  amount: string;
-}
-
-function StandardItemsForm({
-  initialItems,
-  save,
-  onClose,
-}: {
-  initialItems: StandardFeeItem[];
-  save: ReturnType<typeof useUpdateStandardFeeItems>;
-  onClose: () => void;
-}) {
-  // Initialise straight from the loaded items — the form only mounts once the
-  // query has resolved, so this always reflects what's saved.
-  const [rows, setRows] = useState<ItemRow[]>(() =>
-    initialItems.length > 0
-      ? initialItems.map((item) => ({
-          name: item.name,
-          amount: String(item.amount),
-        }))
-      : [{ name: "", amount: "" }],
-  );
-
-  function updateRow(index: number, patch: Partial<ItemRow>) {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    );
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, { name: "", amount: "" }]);
-  }
-
-  function removeRow(index: number) {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  async function handleSave() {
-    const items = rows
-      .filter((row) => row.name.trim() !== "")
-      .map((row) => ({ name: row.name.trim(), amount: Number(row.amount) || 0 }));
-    try {
-      await save.mutateAsync(items);
-      onClose();
-    } catch {
-      // Surfaced via save.isError.
-    }
-  }
-
-  return (
-    <>
-      <div className="space-y-2">
-        {rows.map((row, index) => (
-          <div key={index} className="flex items-end gap-2">
-            <div className="flex-1 space-y-1">
-              {index === 0 && <FieldLabel>Item</FieldLabel>}
-              <Input
-                value={row.name}
-                placeholder="e.g. Tuition Fee"
-                onChange={(e) => updateRow(index, { name: e.target.value })}
-              />
-            </div>
-            <div className="w-36 space-y-1">
-              {index === 0 && <FieldLabel>Default amount</FieldLabel>}
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={row.amount}
-                onChange={(e) => updateRow(index, { amount: e.target.value })}
-              />
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-destructive size-9 shrink-0"
-              onClick={() => removeRow(index)}
-            >
-              <Trash2Icon className="size-4" />
-              <span className="sr-only">Remove item</span>
-            </Button>
-          </div>
-        ))}
-        <Button variant="ghost" size="sm" onClick={addRow}>
-          <PlusIcon />
-          Add item
-        </Button>
-      </div>
-
-      {save.isError && (
-        <p className="text-destructive text-sm">{getErrorMessage(save.error)}</p>
-      )}
-
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={save.isPending}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save standard items"}
-        </Button>
-      </DialogFooter>
-    </>
-  );
-}
-
-function StandardItemsDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const { data, isLoading } = useStandardFeeItems();
-  const save = useUpdateStandardFeeItems();
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) save.reset();
-        onOpenChange(next);
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Standard fee items</DialogTitle>
-          <DialogDescription>
-            The default items every new fee structure is pre-filled with. Adjust
-            amounts on individual structures afterwards.
-          </DialogDescription>
-        </DialogHeader>
-
-        {isLoading ? (
-          <Skeleton className="h-32 w-full rounded-md" />
-        ) : (
-          <StandardItemsForm
-            initialItems={data ?? []}
-            save={save}
-            onClose={() => onOpenChange(false)}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function FeesPage() {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useFeeStructures();
   const structures = useMemo(() => data ?? [], [data]);
   const remove = useDeleteFeeStructure();
   const generate = useGenerateFeeStructures();
+  const programLabel = useProgramLabel();
 
   const { data: terms } = useTerms();
   const openTerm = (terms ?? []).find((term) => term.isOpen) ?? null;
 
   const [newOpen, setNewOpen] = useState(false);
-  const [standardOpen, setStandardOpen] = useState(false);
   const [termFilter, setTermFilter] = useState("all");
   const [deleting, setDeleting] = useState<FeeStructure | null>(null);
 
@@ -413,10 +255,6 @@ function FeesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => setStandardOpen(true)}>
-            <SlidersHorizontalIcon />
-            Standard items
-          </Button>
           <Button
             variant="outline"
             onClick={() => generate.mutate()}
@@ -554,8 +392,6 @@ function FeesPage() {
         onOpenChange={setNewOpen}
         onCreated={(structure) => navigate(`/admin/fees/${structure.id}`)}
       />
-
-      <StandardItemsDialog open={standardOpen} onOpenChange={setStandardOpen} />
 
       <AlertDialog
         open={deleting !== null}
