@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BillAdjustmentController as AdminBillAdjustmentCo
 use App\Http\Controllers\Admin\BillController as AdminBillController;
 use App\Http\Controllers\Admin\BillInstallmentController as AdminBillInstallmentController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
+use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
 use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
 use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
@@ -125,6 +126,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // A student's bill for the open term.
         Route::get('/admin/students/{student}/bill', [AdminBillController::class, 'showForStudent']);
+
+        // A student's per-term enrollments + status management.
+        Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
+        Route::put('/admin/enrollments/{enrollment}', [AdminEnrollmentController::class, 'update']);
 
         // Academic terms (enrollment periods).
         Route::get('/admin/terms', [AdminTermController::class, 'index']);

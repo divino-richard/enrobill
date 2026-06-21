@@ -8,6 +8,7 @@ import {
 } from "@/lib/pagination";
 import type {
   EnrollmentRecord,
+  EnrollmentStatus,
   Student,
   StudentFormValues,
 } from "./types";
@@ -50,6 +51,28 @@ export async function fetchMyStudent(): Promise<Student> {
 export async function fetchMyEnrollments(): Promise<EnrollmentRecord[]> {
   const { data } = await api.get<Wrapped<EnrollmentRecord[]>>(
     "/me/enrollments",
+  );
+  return data.data;
+}
+
+// A student's per-term enrollments (admin only).
+export async function fetchStudentEnrollments(
+  studentId: number,
+): Promise<EnrollmentRecord[]> {
+  const { data } = await api.get<Wrapped<EnrollmentRecord[]>>(
+    `/admin/students/${studentId}/enrollments`,
+  );
+  return data.data;
+}
+
+// Update an enrollment's status (admin only).
+export async function updateEnrollmentStatus(
+  enrollmentId: number,
+  status: EnrollmentStatus,
+): Promise<EnrollmentRecord> {
+  const { data } = await api.put<Wrapped<EnrollmentRecord>>(
+    `/admin/enrollments/${enrollmentId}`,
+    { status },
   );
   return data.data;
 }

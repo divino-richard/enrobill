@@ -12,6 +12,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { StudentEditForm } from "@/features/students/components/student-edit-form";
+import { StudentEnrollmentsCard } from "@/features/students/components/student-enrollments-card";
 import { BillCard } from "@/features/bills/components/bill-card";
 import { useStudent } from "@/features/students/hooks";
 import { studentFullName } from "@/features/students/types";
@@ -64,6 +65,8 @@ function StudentDetailPage() {
               </CardAction>
             </CardHeader>
           </Card>
+
+          <StudentEnrollmentsCard studentId={student.id} />
 
           <BillCard studentId={student.id} />
 
