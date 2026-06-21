@@ -1,13 +1,23 @@
 import { useState } from "react";
-import { ReceiptTextIcon, UploadIcon } from "lucide-react";
+import {
+  CalendarClockIcon,
+  CheckCircle2Icon,
+  ChevronRightIcon,
+  ClockIcon,
+  EyeIcon,
+  ReceiptTextIcon,
+  UploadIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -31,12 +41,15 @@ import { FieldLabel } from "@/components/form/field-label";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { formatDate } from "@/features/applications/utils";
 import { semesterLabel } from "@/features/terms/types";
 import { useActivePaymentChannels } from "@/features/payment-channels/hooks";
+import type { PaymentChannel } from "@/features/payment-channels/types";
 import { uploadPaymentProof } from "@/features/bills/api";
 import {
   useChooseMyPlan,
   useMyBill,
+  useMyBills,
   useSubmitMyPayment,
 } from "@/features/bills/hooks";
 import {
@@ -49,6 +62,9 @@ import {
 } from "@/features/bills/types";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const termTitle = (bill: Bill) =>
+  `${semesterLabel(bill.semester ?? "")} · SY ${bill.schoolYear}`;
 
 function SummaryRow({
   label,
@@ -63,7 +79,10 @@ function SummaryRow({
 }) {
   return (
     <div
-      className={cn("flex justify-between gap-4", emphasize ? "text-base" : "text-sm")}
+      className={cn(
+        "flex justify-between gap-4",
+        emphasize ? "text-base" : "text-sm",
+      )}
     >
       <span
         className={cn(
@@ -85,22 +104,185 @@ function SummaryRow({
   );
 }
 
-function SubmitPaymentDialog({
+// A KPI tile for the current-bill overview.
+function StatTile({
+  label,
+  value,
+  hint,
+  accent,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3",
+        accent && "border-primary/20 bg-primary/5",
+      )}
+    >
+      <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "mt-1 text-xl font-bold tracking-tight tabular-nums",
+          accent && "text-primary",
+        )}
+      >
+        {value}
+      </p>
+      {hint && <p className="text-muted-foreground mt-0.5 text-xs">{hint}</p>}
+    </div>
+  );
+}
+
+// Read-only full breakdown of a bill (used for both the current bill and past
+// bills).
+function BillDetailDialog({
   bill,
-  methods,
+  onOpenChange,
+}: {
+  bill: Bill | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const installments = bill?.installments ?? [];
+  const payments = bill?.payments ?? [];
+
+  return (
+    <Dialog open={bill !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{bill ? termTitle(bill) : "Bill"}</DialogTitle>
+          <DialogDescription>Full breakdown of this bill.</DialogDescription>
+        </DialogHeader>
+        {bill && (
+          <div className="space-y-5">
+            <div>
+              <dl className="space-y-2">
+                {bill.items.map((item) => (
+                  <SummaryRow
+                    key={item.id}
+                    label={item.name}
+                    value={formatPeso(item.amount)}
+                  />
+                ))}
+              </dl>
+              <div className="mt-2 space-y-2 border-t pt-3">
+                <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
+                {bill.discountTotal > 0 && (
+                  <SummaryRow
+                    label="Discounts"
+                    value={`− ${formatPeso(bill.discountTotal)}`}
+                    muted
+                  />
+                )}
+                <SummaryRow
+                  label="Net total"
+                  value={formatPeso(bill.netTotal)}
+                  emphasize
+                />
+                <SummaryRow label="Paid" value={formatPeso(bill.amountPaid)} />
+                <SummaryRow
+                  label="Balance"
+                  value={formatPeso(bill.balance)}
+                  emphasize
+                />
+              </div>
+            </div>
+
+            {installments.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Payment schedule</p>
+                <ul className="divide-y rounded-lg border px-3">
+                  {installments.map((installment) => (
+                    <li
+                      key={installment.id}
+                      className="flex items-center justify-between gap-4 py-2 text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">{installment.label}</p>
+                        <p className="text-muted-foreground text-xs">
+                          Due {formatDate(installment.dueDate)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">
+                          {formatPeso(installment.amount)}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "w-20 justify-center",
+                            INSTALLMENT_STATUS_META[installment.status].className,
+                          )}
+                        >
+                          {INSTALLMENT_STATUS_META[installment.status].label}
+                        </Badge>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Payments</p>
+              {payments.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No payments yet.</p>
+              ) : (
+                <ul className="divide-y rounded-lg border px-3">
+                  {payments.map((payment) => (
+                    <li
+                      key={payment.id}
+                      className="flex items-center justify-between gap-4 py-2 text-sm"
+                    >
+                      <span>
+                        {formatPeso(payment.amount)}
+                        <span className="text-muted-foreground ml-2 text-xs">
+                          {paymentMethodLabel(payment.method)} ·{" "}
+                          {formatDate(payment.paidAt)}
+                        </span>
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={PAYMENT_STATUS_META[payment.status].className}
+                      >
+                        {PAYMENT_STATUS_META[payment.status].label}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// QR codes + the payment-submission form, in one focused dialog.
+function PayDialog({
+  bill,
+  channels,
 }: {
   bill: Bill;
-  methods: { value: string; label: string }[];
+  channels: PaymentChannel[];
 }) {
+  const methods = channels.map((c) => ({ value: c.code, label: c.label }));
+  const submit = useSubmitMyPayment();
+
   const [open, setOpen] = useState(false);
-  const [method, setMethod] = useState<string>("");
+  const [method, setMethod] = useState("");
   const [reference, setReference] = useState("");
   const [paidAt, setPaidAt] = useState(todayIso());
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const submit = useSubmitMyPayment();
 
   function reset() {
     setMethod(methods[0]?.value ?? "");
@@ -143,98 +325,129 @@ function SubmitPaymentDialog({
         setOpen(next);
       }}
     >
-      <Button onClick={() => setOpen(true)} disabled={bill.amountDue <= 0}>
+      <Button onClick={() => setOpen(true)}>
         <UploadIcon />
-        Submit payment
+        Pay now
       </Button>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Submit a payment</DialogTitle>
+          <DialogTitle>Pay your bill</DialogTitle>
           <DialogDescription>
-            Pay the amount due via GCash or Maya using the QR code, then upload
-            your receipt screenshot. Your payment is reviewed before it's applied.
+            Pay the amount due via GCash or Maya, then upload your receipt for
+            review.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="bg-muted/50 flex items-center justify-between rounded-lg border px-4 py-3">
+          <div className="bg-muted/40 flex items-center justify-between rounded-lg border px-4 py-3">
             <span className="text-muted-foreground text-sm">Amount to pay</span>
             <span className="text-lg font-semibold">
               {formatPeso(bill.amountDue)}
             </span>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="method" required>
-                Method
-              </FieldLabel>
-              <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger id="method" className="w-full">
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent>
-                  {methods.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="paidAt" required>
-                Date paid
-              </FieldLabel>
-              <Input
-                id="paidAt"
-                type="date"
-                value={paidAt}
-                onChange={(e) => setPaidAt(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <FieldLabel htmlFor="reference">Reference no.</FieldLabel>
-              <Input
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="proof" required>
-              Proof of payment (screenshot)
-            </FieldLabel>
-            <Input
-              id="proof"
-              type="file"
-              accept="image/png,image/jpeg"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="note">Note</FieldLabel>
-            <Textarea
-              id="note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </div>
+
+          {channels.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              Online payment isn't set up yet. Please pay at the cashier.
+            </p>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {channels.map((channel) => (
+                  <div
+                    key={channel.id}
+                    className="space-y-1 rounded-lg border p-3 text-center"
+                  >
+                    <p className="text-sm font-medium">{channel.label}</p>
+                    {channel.qrUrl && (
+                      <img
+                        src={channel.qrUrl}
+                        alt={`${channel.label} QR`}
+                        className="mx-auto size-32 object-contain"
+                      />
+                    )}
+                    {channel.accountName && (
+                      <p className="text-muted-foreground text-xs">
+                        {channel.accountName}
+                        {channel.accountNumber
+                          ? ` · ${channel.accountNumber}`
+                          : ""}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <FieldLabel htmlFor="pay-method" required>
+                    Method
+                  </FieldLabel>
+                  <Select value={method} onValueChange={setMethod}>
+                    <SelectTrigger id="pay-method" className="w-full">
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {methods.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <FieldLabel htmlFor="pay-date" required>
+                    Date paid
+                  </FieldLabel>
+                  <Input
+                    id="pay-date"
+                    type="date"
+                    value={paidAt}
+                    onChange={(e) => setPaidAt(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <FieldLabel htmlFor="pay-ref">Reference no.</FieldLabel>
+                  <Input
+                    id="pay-ref"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <FieldLabel htmlFor="pay-proof" required>
+                    Proof of payment (screenshot)
+                  </FieldLabel>
+                  <Input
+                    id="pay-proof"
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <FieldLabel htmlFor="pay-note">Note</FieldLabel>
+                  <Textarea
+                    id="pay-note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {error && <p className="text-destructive text-sm">{error}</p>}
         </div>
 
-        {error && <p className="text-destructive text-sm">{error}</p>}
-
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={busy}
-          >
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!method || !file || bill.amountDue <= 0 || busy}
+            disabled={!method || !file || channels.length === 0 || busy}
           >
             {uploading
               ? "Uploading…"
@@ -248,7 +461,8 @@ function SubmitPaymentDialog({
   );
 }
 
-function ChoosePlanCard({ bill }: { bill: Bill }) {
+// In-card prompt to pick full vs installment before paying.
+function ChoosePlan({ bill }: { bill: Bill }) {
   const choose = useChooseMyPlan();
   const policy = bill.installmentPolicy;
   const downpayment = policy
@@ -259,41 +473,98 @@ function ChoosePlanCard({ bill }: { bill: Bill }) {
     : 0;
 
   return (
-    <Card className="lg:col-span-1 h-fit">
-      <CardHeader>
-        <CardTitle className="text-base">Choose how to pay</CardTitle>
-        <CardDescription>
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium">Choose how to pay</p>
+        <p className="text-muted-foreground text-xs">
           Pick a plan to continue. You can't change it once you've paid.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"
           disabled={choose.isPending}
           onClick={() => choose.mutate("full")}
-          className="hover:border-primary w-full rounded-lg border p-3 text-left transition-colors"
+          className="hover:border-primary rounded-lg border p-3 text-left transition-colors"
         >
           <p className="text-sm font-medium">Pay in full</p>
           <p className="text-muted-foreground text-xs">
-            One payment of {formatPeso(bill.netTotal)}.
+            {formatPeso(bill.netTotal)} in one payment.
           </p>
         </button>
         <button
           type="button"
           disabled={choose.isPending}
           onClick={() => choose.mutate("installment")}
-          className="hover:border-primary w-full rounded-lg border p-3 text-left transition-colors"
+          className="hover:border-primary rounded-lg border p-3 text-left transition-colors"
         >
-          <p className="text-sm font-medium">Pay in installments</p>
+          <p className="text-sm font-medium">Installments</p>
           <p className="text-muted-foreground text-xs">
-            {formatPeso(downpayment)} downpayment now, then{" "}
-            {policy?.installmentCount ?? 0} monthly payments.
+            {formatPeso(downpayment)} down, then {policy?.installmentCount ?? 0}{" "}
+            monthly.
           </p>
         </button>
-        {choose.isError && (
-          <p className="text-destructive text-sm">
-            {getErrorMessage(choose.error)}
-          </p>
+      </div>
+      {choose.isError && (
+        <p className="text-destructive text-sm">
+          {getErrorMessage(choose.error)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function HistoryCard({
+  bills,
+  onView,
+}: {
+  bills: Bill[];
+  onView: (bill: Bill) => void;
+}) {
+  return (
+    <Card className="h-fit">
+      <CardHeader>
+        <CardTitle className="text-base">Bill history</CardTitle>
+        <CardDescription>Past and settled bills.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {bills.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No previous bills yet.</p>
+        ) : (
+          <ul className="space-y-1">
+            {bills.map((past) => (
+              <li key={past.id}>
+                <button
+                  type="button"
+                  onClick={() => onView(past)}
+                  className="hover:bg-muted/60 flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-full">
+                      <ReceiptTextIcon className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {termTitle(past)}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        Balance {formatPeso(past.balance)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={BILL_STATUS_META[past.status].className}
+                    >
+                      {BILL_STATUS_META[past.status].label}
+                    </Badge>
+                    <ChevronRightIcon className="text-muted-foreground size-4" />
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </CardContent>
     </Card>
@@ -301,34 +572,37 @@ function ChoosePlanCard({ bill }: { bill: Bill }) {
 }
 
 function BillsPage() {
-  const { data: bill, isLoading, isError } = useMyBill();
+  const { data: bill, isLoading } = useMyBill();
+  const { data: allBills } = useMyBills();
   const { data: channels } = useActivePaymentChannels();
   const payChannels = channels ?? [];
-  const methodOptions = payChannels.map((c) => ({
-    value: c.code,
-    label: c.label,
-  }));
+  const [detailBill, setDetailBill] = useState<Bill | null>(null);
 
   if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-40 rounded-md" />
-        <Skeleton className="h-64 w-full rounded-md" />
+        <Skeleton className="h-56 w-full rounded-md" />
       </div>
     );
   }
 
-  // A 404 (no bill yet) also lands here.
-  if (isError || !bill) {
+  // The open-term bill counts as "current" only while it still needs paying.
+  // Once it's fully settled it drops down into history (no duplicate card).
+  const currentBill = bill && bill.balance > 0 ? bill : null;
+  const settledBill = bill && bill.balance <= 0 ? bill : null;
+  const history = (allBills ?? []).filter((b) => b.id !== currentBill?.id);
+
+  if (!currentBill && history.length === 0) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">My Bill</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">My Bills</h1>
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
             <ReceiptTextIcon className="size-6" />
           </div>
           <div className="space-y-1">
-            <p className="font-medium">No bill yet</p>
+            <p className="font-medium">No bills yet</p>
             <p className="text-muted-foreground mx-auto max-w-sm text-sm">
               Your bill for the current term hasn't been issued yet. Please check
               back later.
@@ -339,200 +613,149 @@ function BillsPage() {
     );
   }
 
-  const installments = bill.installments ?? [];
-  const payments = bill.payments ?? [];
-
-  // The student must pick full vs installment before paying, when the term
-  // offers installments and they haven't chosen (and haven't paid) yet.
+  const paidPct =
+    currentBill && currentBill.netTotal > 0
+      ? Math.min(
+          100,
+          Math.round((currentBill.amountPaid / currentBill.netTotal) * 100),
+        )
+      : 0;
+  const pendingTotal = (currentBill?.payments ?? [])
+    .filter((p) => p.status === "pending")
+    .reduce((sum, p) => sum + p.amount, 0);
+  const nextInstallment =
+    (currentBill?.installments ?? []).find((i) => i.status !== "paid") ?? null;
   const mustChoosePlan =
-    bill.installmentsAllowed && bill.paymentOption === null;
+    !!currentBill &&
+    currentBill.installmentsAllowed &&
+    currentBill.paymentOption === null;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">My Bill</h1>
-          <p className="text-muted-foreground text-sm">
-            {semesterLabel(bill.semester ?? "")} · SY {bill.schoolYear}
-          </p>
-        </div>
-        <Badge variant="outline" className={BILL_STATUS_META[bill.status].className}>
-          {BILL_STATUS_META[bill.status].label}
-        </Badge>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">My Bills</h1>
+        <p className="text-muted-foreground text-sm">
+          Your current bill and payment history.
+        </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          {/* Summary */}
-          <Card>
+      {currentBill ? (
+        <div className="grid items-start gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-base">Summary</CardTitle>
+              <CardTitle className="text-base">Current bill</CardTitle>
+              <CardDescription>{termTitle(currentBill)}</CardDescription>
+              <CardAction>
+                <Badge
+                  variant="outline"
+                  className={BILL_STATUS_META[currentBill.status].className}
+                >
+                  {BILL_STATUS_META[currentBill.status].label}
+                </Badge>
+              </CardAction>
             </CardHeader>
+
             <CardContent className="space-y-4">
-              <dl className="space-y-2">
-                {bill.items.map((item) => (
-                  <SummaryRow
-                    key={item.id}
-                    label={item.name}
-                    value={formatPeso(item.amount)}
-                  />
-                ))}
-              </dl>
-              <div className="space-y-2 border-t pt-3">
-                <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
-                {bill.discountTotal > 0 && (
-                  <SummaryRow
-                    label="Discounts"
-                    value={`− ${formatPeso(bill.discountTotal)}`}
-                    muted
-                  />
-                )}
-                <SummaryRow
-                  label="Net total"
-                  value={formatPeso(bill.netTotal)}
-                  emphasize
-                />
-                <SummaryRow label="Paid" value={formatPeso(bill.amountPaid)} />
-                <SummaryRow
-                  label="Balance"
-                  value={formatPeso(bill.balance)}
-                  emphasize
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Installments */}
-          {installments.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Payment schedule</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="divide-y">
-                  {installments.map((installment) => (
-                    <li
-                      key={installment.id}
-                      className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{installment.label}</p>
-                        <p className="text-muted-foreground text-xs">
-                          Due {installment.dueDate ?? "—"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium">
-                          {formatPeso(installment.amount)}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "w-20 justify-center",
-                            INSTALLMENT_STATUS_META[installment.status].className,
-                          )}
-                        >
-                          {INSTALLMENT_STATUS_META[installment.status].label}
-                        </Badge>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Payment history */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Payment history</CardTitle>
-              <CardDescription>
-                Submitted payments are reviewed before they're applied.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {payments.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No payments yet.
-                </p>
+              {mustChoosePlan ? (
+                <ChoosePlan bill={currentBill} />
               ) : (
-                <ul className="divide-y">
-                  {payments.map((payment) => (
-                    <li
-                      key={payment.id}
-                      className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">
-                          {formatPeso(payment.amount)}
-                          <span className="text-muted-foreground ml-2 text-xs font-normal">
-                            {paymentMethodLabel(payment.method)}
-                          </span>
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {payment.paidAt ?? "—"}
-                          {payment.reference ? ` · ${payment.reference}` : ""}
-                        </p>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={PAYMENT_STATUS_META[payment.status].className}
-                      >
-                        {PAYMENT_STATUS_META[payment.status].label}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <StatTile
+                      label="Amount due now"
+                      value={formatPeso(currentBill.amountDue)}
+                      accent
+                    />
+                    <StatTile
+                      label="Total balance"
+                      value={formatPeso(currentBill.balance)}
+                    />
+                    <StatTile
+                      label="Paid"
+                      value={formatPeso(currentBill.amountPaid)}
+                      hint={`${paidPct}% of ${formatPeso(currentBill.netTotal)}`}
+                    />
+                  </div>
+
+                  <div
+                    className="bg-muted h-2 w-full overflow-hidden rounded-full"
+                    role="progressbar"
+                    aria-valuenow={paidPct}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div
+                      className="bg-primary h-full rounded-full transition-all"
+                      style={{ width: `${paidPct}%` }}
+                    />
+                  </div>
+
+                  {nextInstallment?.dueDate && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <CalendarClockIcon className="size-4" />
+                        Next payment
+                      </span>
+                      <span className="font-medium">
+                        {formatPeso(nextInstallment.amount)} · due{" "}
+                        {formatDate(nextInstallment.dueDate)}
+                      </span>
+                    </div>
+                  )}
+
+                  {pendingTotal > 0 && (
+                    <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                      <ClockIcon className="size-4 shrink-0" />
+                      {formatPeso(pendingTotal)} awaiting verification — it'll
+                      apply once an admin confirms it.
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
-          </Card>
-        </div>
 
-        {/* Pay panel — or the plan choice when one is required first */}
-        {mustChoosePlan ? (
-          <ChoosePlanCard bill={bill} />
-        ) : (
-          <Card className="lg:col-span-1 h-fit">
-          <CardHeader>
-            <CardTitle className="text-base">Pay your bill</CardTitle>
-            <CardDescription>
-              Scan a QR code with your e-wallet, then submit your receipt.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {payChannels.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                Online payment isn't set up yet. Please pay at the cashier.
-              </p>
-            ) : (
-              <>
-                {payChannels.map((channel) => (
-                  <div key={channel.id} className="space-y-2 rounded-lg border p-3">
-                    <p className="text-sm font-medium">{channel.label}</p>
-                    {channel.qrUrl && (
-                      <img
-                        src={channel.qrUrl}
-                        alt={`${channel.label} QR`}
-                        className="mx-auto size-40 object-contain"
-                      />
-                    )}
-                    {channel.accountName && (
-                      <p className="text-muted-foreground text-center text-xs">
-                        {channel.accountName}
-                        {channel.accountNumber
-                          ? ` · ${channel.accountNumber}`
-                          : ""}
-                      </p>
-                    )}
-                  </div>
-                ))}
-                <SubmitPaymentDialog bill={bill} methods={methodOptions} />
-              </>
+            {!mustChoosePlan && (
+              <CardFooter className="gap-2 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setDetailBill(currentBill)}
+                >
+                  <EyeIcon />
+                  View details
+                </Button>
+                <PayDialog bill={currentBill} channels={payChannels} />
+              </CardFooter>
             )}
-          </CardContent>
           </Card>
-        )}
-      </div>
+
+          <HistoryCard bills={history} onView={setDetailBill} />
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {settledBill && (
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+              <CheckCircle2Icon className="size-5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium">
+                  You're all paid up for {termTitle(settledBill)}
+                </p>
+                <p className="text-xs">
+                  Your current bill is fully settled — find it in your history
+                  below.
+                </p>
+              </div>
+            </div>
+          )}
+          <HistoryCard bills={history} onView={setDetailBill} />
+        </div>
+      )}
+
+      <BillDetailDialog
+        bill={detailBill}
+        onOpenChange={(open) => {
+          if (!open) setDetailBill(null);
+        }}
+      />
     </div>
   );
 }

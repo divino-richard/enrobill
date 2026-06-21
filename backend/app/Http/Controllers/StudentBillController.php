@@ -8,6 +8,7 @@ use App\Models\Bill;
 use App\Models\Term;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -33,6 +34,23 @@ class StudentBillController extends Controller
     public function show(Request $request): BillResource
     {
         return new BillResource($this->resolveBill($request));
+    }
+
+    /**
+     * All of the authenticated student's bills across every term, newest first —
+     * the current bill plus history.
+     */
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        $student = $request->user()->student;
+        abort_if($student === null, 404, 'No student record found.');
+
+        $bills = $student->bills()
+            ->with(['term', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter'])
+            ->latest()
+            ->get();
+
+        return BillResource::collection($bills);
     }
 
     /**

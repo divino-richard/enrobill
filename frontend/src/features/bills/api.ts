@@ -136,6 +136,12 @@ export async function fetchMyBill(): Promise<Bill> {
   return data.data;
 }
 
+// All of the student's bills across terms (current + history), newest first.
+export async function fetchMyBills(): Promise<Bill[]> {
+  const { data } = await api.get<Wrapped<Bill[]>>("/me/bills");
+  return data.data;
+}
+
 // Choose how to pay: full or installment (generates the schedule).
 export async function chooseMyPlan(option: PaymentOption): Promise<Bill> {
   const { data } = await api.put<Wrapped<Bill>>("/me/bill/payment-option", {

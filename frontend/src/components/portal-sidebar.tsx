@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   FileTextIcon,
+  GraduationCapIcon,
   LayoutDashboardIcon,
   ReceiptTextIcon,
   type LucideIcon,
@@ -39,7 +40,8 @@ const APPLICANT_NAV: NavItem[] = [
 
 const STUDENT_NAV: NavItem[] = [
   { title: "Dashboard", url: "/portal", icon: LayoutDashboardIcon, end: true },
-  { title: "My Bill", url: "/portal/bills", icon: ReceiptTextIcon },
+  { title: "My Program", url: "/portal/programs", icon: GraduationCapIcon },
+  { title: "My Bills", url: "/portal/bills", icon: ReceiptTextIcon },
   { title: "Admission", url: "/portal/application", icon: FileTextIcon },
 ];
 

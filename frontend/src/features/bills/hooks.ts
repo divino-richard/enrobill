@@ -12,6 +12,7 @@ import {
   generateBills,
   chooseMyPlan,
   fetchMyBill,
+  fetchMyBills,
   recordPayment,
   rejectPayment,
   removeAdjustment,
@@ -143,6 +144,16 @@ export function useMyBill() {
     queryKey: myBillQueryKey,
     queryFn: fetchMyBill,
     // A 404 means "no bill yet" — don't retry.
+    retry: false,
+  });
+}
+
+export const myBillsQueryKey = ["me", "bills"] as const;
+
+export function useMyBills() {
+  return useQuery({
+    queryKey: myBillsQueryKey,
+    queryFn: fetchMyBills,
     retry: false,
   });
 }

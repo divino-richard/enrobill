@@ -23,6 +23,7 @@ import AdminBillDetailPage from './pages/admin/bill-detail-page'
 import AdminPaymentChannelsPage from './pages/admin/payment-channels-page'
 import PortalHomePage from './pages/portal/home-page'
 import PortalBillsPage from './pages/portal/bills-page'
+import PortalProgramsPage from './pages/portal/programs-page'
 import ApplicationPage from './pages/portal/application-page'
 import ApplicationNewPage from './pages/portal/application-new-page'
 import ApplicationDetailPage from './pages/portal/application-detail-page'
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, Component: PortalHomePage },
           { path: 'bills', Component: PortalBillsPage },
+          { path: 'programs', Component: PortalProgramsPage },
           { path: 'application', Component: ApplicationPage },
           { path: 'application/new', Component: ApplicationNewPage },
           { path: 'application/:id', Component: ApplicationDetailPage },
