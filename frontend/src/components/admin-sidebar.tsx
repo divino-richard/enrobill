@@ -41,74 +41,105 @@ interface NavItem {
   ready?: boolean;
 }
 
-const navItems: NavItem[] = [
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+// Sidebar grouped by area of work so admins can find things quickly.
+const navGroups: NavGroup[] = [
   {
-    title: "Dashboard",
-    url: "/admin",
-    icon: LayoutDashboardIcon,
-    end: true,
-    ready: true,
+    label: "Overview",
+    items: [
+      {
+        title: "Dashboard",
+        url: "/admin",
+        icon: LayoutDashboardIcon,
+        end: true,
+        ready: true,
+      },
+      { title: "Reports", icon: BarChart3Icon },
+    ],
   },
   {
-    title: "Applications",
-    url: "/admin/applications",
-    icon: ClipboardListIcon,
-    ready: true,
+    label: "Enrollment",
+    items: [
+      {
+        title: "Applications",
+        url: "/admin/applications",
+        icon: ClipboardListIcon,
+        ready: true,
+      },
+      {
+        title: "Students",
+        url: "/admin/students",
+        icon: GraduationCapIcon,
+        ready: true,
+      },
+      {
+        title: "Progression",
+        url: "/admin/progression",
+        icon: CircleFadingArrowUp,
+        ready: true,
+      },
+    ],
   },
   {
-    title: "Students",
-    url: "/admin/students",
-    icon: GraduationCapIcon,
-    ready: true,
+    label: "Academics",
+    items: [
+      {
+        title: "Programs",
+        url: "/admin/programs",
+        icon: LayersIcon,
+        ready: true,
+      },
+      {
+        title: "Academic Terms",
+        url: "/admin/terms",
+        icon: CalendarRangeIcon,
+        ready: true,
+      },
+    ],
   },
   {
-    title: "Progression",
-    url: "/admin/progression",
-    icon: CircleFadingArrowUp,
-    ready: true,
+    label: "Finance",
+    items: [
+      {
+        title: "Fee Structures",
+        url: "/admin/fees",
+        icon: ReceiptTextIcon,
+        ready: true,
+      },
+      {
+        title: "Discounts",
+        url: "/admin/discounts",
+        icon: TagIcon,
+        ready: true,
+      },
+      {
+        title: "Billing",
+        url: "/admin/billing",
+        icon: BanknoteIcon,
+        ready: true,
+      },
+      {
+        title: "Payment Methods",
+        url: "/admin/payment-methods",
+        icon: QrCodeIcon,
+        ready: true,
+      },
+    ],
   },
   {
-    title: "Programs",
-    url: "/admin/programs",
-    icon: LayersIcon,
-    ready: true,
-  },
-  {
-    title: "Academic Terms",
-    url: "/admin/terms",
-    icon: CalendarRangeIcon,
-    ready: true,
-  },
-  {
-    title: "Fee Structures",
-    url: "/admin/fees",
-    icon: ReceiptTextIcon,
-    ready: true,
-  },
-  {
-    title: "Discounts",
-    url: "/admin/discounts",
-    icon: TagIcon,
-    ready: true,
-  },
-  {
-    title: "Billing",
-    url: "/admin/billing",
-    icon: BanknoteIcon,
-    ready: true,
-  },
-  {
-    title: "Payment Methods",
-    url: "/admin/payment-methods",
-    icon: QrCodeIcon,
-    ready: true,
-  },
-  { title: "Reports", icon: BarChart3Icon },
-  {
-    title: "Users",
-    url: "/admin/users",
-    icon: UsersIcon,
-    ready: true,
+    label: "System",
+    items: [
+      {
+        title: "Users",
+        url: "/admin/users",
+        icon: UsersIcon,
+        ready: true,
+      },
+    ],
   },
 ];
 
@@ -141,48 +172,50 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-          <SidebarMenu>
-            {navItems.map((item) => {
-              if (!item.ready || !item.url) {
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarMenu>
+              {group.items.map((item) => {
+                if (!item.ready || !item.url) {
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        disabled
+                        tooltip={`${item.title} — coming soon`}
+                        className="opacity-60"
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                      <SidebarMenuBadge>Soon</SidebarMenuBadge>
+                    </SidebarMenuItem>
+                  );
+                }
+
+                const isActive = item.end
+                  ? pathname === item.url
+                  : pathname.startsWith(item.url);
+
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      disabled
-                      tooltip={`${item.title} — coming soon`}
-                      className="opacity-60"
+                      asChild
+                      isActive={isActive}
+                      tooltip={item.title}
+                      className={ACTIVE_CLASSES}
                     >
-                      <item.icon />
-                      <span>{item.title}</span>
+                      <NavLink to={item.url} end={item.end}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </NavLink>
                     </SidebarMenuButton>
-                    <SidebarMenuBadge>Soon</SidebarMenuBadge>
                   </SidebarMenuItem>
                 );
-              }
-
-              const isActive = item.end
-                ? pathname === item.url
-                : pathname.startsWith(item.url);
-
-              return (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive}
-                    tooltip={item.title}
-                    className={ACTIVE_CLASSES}
-                  >
-                    <NavLink to={item.url} end={item.end}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
-        </SidebarGroup>
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
