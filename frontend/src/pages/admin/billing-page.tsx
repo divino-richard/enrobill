@@ -13,7 +13,7 @@ import {
   CircleAlertIcon,
   ReceiptTextIcon,
   SearchIcon,
-  SparklesIcon,
+  WandSparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -195,7 +195,7 @@ function BillingPage() {
           </p>
         </div>
         <Button onClick={() => generate.mutate()} disabled={generate.isPending}>
-          <SparklesIcon />
+          <WandSparklesIcon />
           {generate.isPending ? "Generating…" : "Generate bills"}
         </Button>
       </div>

@@ -61,21 +61,15 @@ const navItems: NavItem[] = [
     ready: true,
   },
   {
-    title: "Users",
-    url: "/admin/users",
-    icon: UsersIcon,
+    title: "Programs",
+    url: "/admin/programs",
+    icon: LayersIcon,
     ready: true,
   },
   {
     title: "Academic Terms",
     url: "/admin/terms",
     icon: CalendarRangeIcon,
-    ready: true,
-  },
-  {
-    title: "Programs",
-    url: "/admin/programs",
-    icon: LayersIcon,
     ready: true,
   },
   {
@@ -103,6 +97,12 @@ const navItems: NavItem[] = [
     ready: true,
   },
   { title: "Reports", icon: BarChart3Icon },
+  {
+    title: "Users",
+    url: "/admin/users",
+    icon: UsersIcon,
+    ready: true,
+  },
 ];
 
 // Highlight treatment applied to the active nav item (shared look with the

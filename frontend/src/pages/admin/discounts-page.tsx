@@ -136,16 +136,14 @@ function DiscountDialog({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <FieldLabel htmlFor="category" required>
                 Category
               </FieldLabel>
               <Select
                 value={category}
-                onValueChange={(next) =>
-                  setCategory(next as DiscountCategory)
-                }
+                onValueChange={(next) => setCategory(next as DiscountCategory)}
               >
                 <SelectTrigger id="category" className="w-full">
                   <SelectValue />
