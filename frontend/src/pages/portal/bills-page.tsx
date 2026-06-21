@@ -31,6 +31,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -463,9 +473,13 @@ function PayDialog({
   );
 }
 
-// In-card prompt to pick full vs installment before paying.
+// In-card prompt to pick full vs installment before paying. Selecting a plan
+// opens a confirmation modal first, since the choice is locked after paying.
 function ChoosePlan({ bill }: { bill: Bill }) {
   const choose = useChooseMyPlan();
+  const [pendingPlan, setPendingPlan] = useState<"full" | "installment" | null>(
+    null,
+  );
   const policy = bill.installmentPolicy;
   const downpayment = policy
     ? policy.downpaymentType === "percentage"
@@ -473,6 +487,18 @@ function ChoosePlan({ bill }: { bill: Bill }) {
         100
       : Math.min(policy.downpaymentValue ?? 0, bill.netTotal)
     : 0;
+
+  const openConfirm = (plan: "full" | "installment") => {
+    choose.reset();
+    setPendingPlan(plan);
+  };
+
+  const confirm = () => {
+    if (!pendingPlan) return;
+    // Keep the modal open until it succeeds; on success the parent stops
+    // rendering this prompt (a plan is now set), unmounting the modal.
+    choose.mutate(pendingPlan);
+  };
 
   return (
     <div className="space-y-3">
@@ -486,7 +512,7 @@ function ChoosePlan({ bill }: { bill: Bill }) {
         <button
           type="button"
           disabled={choose.isPending}
-          onClick={() => choose.mutate("full")}
+          onClick={() => openConfirm("full")}
           className="hover:border-primary rounded-lg border p-3 text-left transition-colors"
         >
           <p className="text-sm font-medium">Pay in full</p>
@@ -497,7 +523,7 @@ function ChoosePlan({ bill }: { bill: Bill }) {
         <button
           type="button"
           disabled={choose.isPending}
-          onClick={() => choose.mutate("installment")}
+          onClick={() => openConfirm("installment")}
           className="hover:border-primary rounded-lg border p-3 text-left transition-colors"
         >
           <p className="text-sm font-medium">Installments</p>
@@ -507,11 +533,49 @@ function ChoosePlan({ bill }: { bill: Bill }) {
           </p>
         </button>
       </div>
-      {choose.isError && (
-        <p className="text-destructive text-sm">
-          {getErrorMessage(choose.error)}
-        </p>
-      )}
+
+      <AlertDialog
+        open={pendingPlan !== null}
+        onOpenChange={(open) => {
+          if (!open && !choose.isPending) setPendingPlan(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingPlan === "full"
+                ? "Pay in full?"
+                : "Pay by installments?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingPlan === "full"
+                ? `You'll pay ${formatPeso(bill.netTotal)} in a single payment. Your payment plan can't be changed once a payment is made or under review.`
+                : `You'll pay ${formatPeso(downpayment)} as a down payment now, then ${policy?.installmentCount ?? 0} monthly installments. Your payment plan can't be changed once a payment is made or under review.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {choose.isError && (
+            <p className="text-destructive text-sm">
+              {getErrorMessage(choose.error)}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={choose.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={choose.isPending}
+              onClick={(e) => {
+                // Prevent the default auto-close so the modal stays up while the
+                // request is in flight (and on error).
+                e.preventDefault();
+                confirm();
+              }}
+            >
+              {choose.isPending ? "Saving…" : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

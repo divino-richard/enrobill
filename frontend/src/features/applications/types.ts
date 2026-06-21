@@ -139,6 +139,12 @@ export const SEMESTER_OPTIONS = [
   { value: "second", label: "2nd Semester" },
 ] as const;
 
+export const SCHOOL_TYPE_OPTIONS = [
+  { value: "Public", label: "Public" },
+  { value: "Private", label: "Private" },
+  { value: "Vocational", label: "Vocational" },
+] as const;
+
 // Shown beside the agreement checkbox in the Declaration section.
 export const DECLARATION_AGREEMENT_TEXT =
   "I agree that the information I provided will be processed and stored in " +

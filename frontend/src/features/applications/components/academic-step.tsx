@@ -4,7 +4,15 @@ import { DocumentUploadSection } from "./document-upload-section";
 import type { ApplicationFormApi } from "../hooks/form";
 import { FieldLabel } from "@/components/form/field-label";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FieldInfo } from "@/components/form/field-info";
+import { SCHOOL_TYPE_OPTIONS } from "../types";
 
 function required(message: string) {
   return ({ value }: { value: string }) =>
@@ -80,16 +88,25 @@ export function AcademicStep({ form }: AcademicStepProps) {
                 <FieldLabel
                   htmlFor={field.name}
                   required
-                  hint="e.g. Public, Private, or Vocational."
+                  hint="The kind of school you last attended."
                 >
                   School Type
                 </FieldLabel>
-                <Input
-                  id={field.name}
+                <Select
                   value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
+                  onValueChange={field.handleChange}
+                >
+                  <SelectTrigger id={field.name} className="w-full">
+                    <SelectValue placeholder="Select school type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCHOOL_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FieldInfo field={field} />
               </div>
             )}
