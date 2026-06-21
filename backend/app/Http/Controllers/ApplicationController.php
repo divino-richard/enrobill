@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
 use App\Models\FeeStructure;
+use App\Models\Term;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,9 @@ class ApplicationController extends Controller
 
         $user = $request->user();
 
+        // Applications can only be submitted while a term is open for enrollment.
+        $term = $this->openTermOrFail();
+
         // An accepted application means the user is already enrolled — no more
         // applications.
         if ($user->applications()->where('status', 'accepted')->exists()) {
@@ -54,7 +58,7 @@ class ApplicationController extends Controller
             ]);
         }
 
-        $application = DB::transaction(function () use ($user, $request) {
+        $application = DB::transaction(function () use ($user, $request, $term) {
             $application = $user->applications()->create([
                 // Temporary unique value; replaced with the readable reference
                 // once the auto-incremented id exists.
@@ -62,6 +66,9 @@ class ApplicationController extends Controller
                 'status' => 'submitted',
                 'submitted_at' => now(),
                 ...$this->mapAttributes($request),
+                // The term is set by the system, not the applicant.
+                'school_year' => $term->school_year,
+                'semester' => $term->semester,
             ]);
 
             $application->forceFill([
@@ -99,6 +106,9 @@ class ApplicationController extends Controller
             'Only a rejected application can be edited and resubmitted.',
         );
 
+        // Resubmitting is a fresh submission — only allowed while a term is open.
+        $term = $this->openTermOrFail();
+
         // An accepted application elsewhere means the user is already enrolled —
         // resubmitting a rejected one would let them back into the pipeline.
         if ($request->user()->applications()->where('status', 'accepted')->exists()) {
@@ -122,11 +132,14 @@ class ApplicationController extends Controller
 
         $this->validateApplication($request);
 
-        DB::transaction(function () use ($application, $request) {
+        DB::transaction(function () use ($application, $request, $term) {
             $application->update([
                 'status' => 'submitted',
                 'submitted_at' => now(),
                 ...$this->mapAttributes($request),
+                // The term is set by the system, not the applicant.
+                'school_year' => $term->school_year,
+                'semester' => $term->semester,
             ]);
 
             // Replace the document set with whatever the applicant resubmitted.
@@ -135,6 +148,22 @@ class ApplicationController extends Controller
         });
 
         return new ApplicationResource($application->fresh()->load('documents'));
+    }
+
+    /**
+     * The currently open enrollment term, or a validation error if none is open.
+     */
+    private function openTermOrFail(): Term
+    {
+        $term = Term::open();
+
+        if ($term === null) {
+            throw ValidationException::withMessages([
+                'application' => 'Enrollment is currently closed. You can submit an application once a term is open.',
+            ]);
+        }
+
+        return $term;
     }
 
     /**

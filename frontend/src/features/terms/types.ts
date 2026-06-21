@@ -1,5 +1,11 @@
 export type TermSemester = "first" | "second";
 
+// The minimal open-term info exposed to applicants (school year + semester).
+export interface OpenTerm {
+  schoolYear: string;
+  semester: TermSemester;
+}
+
 export type DownpaymentType = "percentage" | "fixed";
 
 export interface Term {

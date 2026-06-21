@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { format } from "date-fns";
 import { BookOpen, FileSignature } from "lucide-react";
 import { FormSection } from "./form-section";
@@ -16,13 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ApplicationFormApi } from "../hooks/form";
-import { getSchoolYearOptions } from "../utils";
 import { useProgramGroups } from "@/features/programs/hooks";
-import {
-  DECLARATION_AGREEMENT_TEXT,
-  SEMESTER_OPTIONS,
-  YEAR_LEVEL_OPTIONS,
-} from "../types";
+import { useOpenTerm } from "@/features/terms/hooks";
+import { semesterLabel } from "@/features/terms/types";
+import { DECLARATION_AGREEMENT_TEXT, YEAR_LEVEL_OPTIONS } from "../types";
 
 function required(message: string) {
   return ({ value }: { value: string }) =>
@@ -34,8 +31,8 @@ interface CourseStepProps {
 }
 
 export function CourseStep({ form }: CourseStepProps) {
-  const schoolYearOptions = useMemo(() => getSchoolYearOptions(), []);
   const programGroups = useProgramGroups();
+  const { data: openTerm } = useOpenTerm();
 
   // The name fields are locked, so keep them authoritative: always mirror the
   // values entered on earlier steps. The signing date is stamped once.
@@ -50,6 +47,14 @@ export function CourseStep({ form }: CourseStepProps) {
       form.setFieldValue("dateSigned", new Date().toISOString());
     }
   }, [form]);
+
+  // Semester and school year aren't chosen — they're fixed to the open term.
+  useEffect(() => {
+    if (openTerm) {
+      form.setFieldValue("semester", openTerm.semester);
+      form.setFieldValue("schoolYear", openTerm.schoolYear);
+    }
+  }, [form, openTerm]);
 
   return (
     <div className="space-y-8">
@@ -130,24 +135,21 @@ export function CourseStep({ form }: CourseStepProps) {
           >
             {(field) => (
               <div className="space-y-1.5">
-                <FieldLabel htmlFor={field.name} required>
+                <FieldLabel
+                  htmlFor={field.name}
+                  required
+                  hint="Set automatically by the current open enrollment term."
+                >
                   Semester
                 </FieldLabel>
-                <Select
-                  value={field.state.value}
-                  onValueChange={field.handleChange}
-                >
-                  <SelectTrigger id={field.name} className="w-full">
-                    <SelectValue placeholder="Select semester" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SEMESTER_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id={field.name}
+                  value={
+                    field.state.value ? semesterLabel(field.state.value) : ""
+                  }
+                  disabled
+                  readOnly
+                />
                 <FieldInfo field={field} />
               </div>
             )}
@@ -162,25 +164,16 @@ export function CourseStep({ form }: CourseStepProps) {
                 <FieldLabel
                   htmlFor={field.name}
                   required
-                  hint="The academic year you're enrolling for."
+                  hint="Set automatically by the current open enrollment term."
                 >
                   School Year
                 </FieldLabel>
-                <Select
+                <Input
+                  id={field.name}
                   value={field.state.value}
-                  onValueChange={field.handleChange}
-                >
-                  <SelectTrigger id={field.name} className="w-full">
-                    <SelectValue placeholder="Select school year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {schoolYearOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  disabled
+                  readOnly
+                />
                 <FieldInfo field={field} />
               </div>
             )}

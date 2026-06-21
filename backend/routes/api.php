@@ -21,6 +21,7 @@ use App\Http\Controllers\PaymentChannelController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentProfileController;
+use App\Http\Controllers\TermController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -94,6 +95,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Active programs, for selection in the application form and other pickers.
     Route::get('/programs', [ProgramController::class, 'index']);
+
+    // The currently open enrollment term (or null) — gates applications.
+    Route::get('/open-term', [TermController::class, 'open']);
 
     // Application document uploads — issue a pre-signed S3 URL so the browser
     // uploads verification documents directly to the bucket.

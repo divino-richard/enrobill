@@ -1,5 +1,10 @@
 import api from "@/lib/api";
-import type { InstallmentPolicyInput, Term, TermInput } from "./types";
+import type {
+  InstallmentPolicyInput,
+  OpenTerm,
+  Term,
+  TermInput,
+} from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -7,6 +12,13 @@ interface Wrapped<T> {
 
 export async function fetchTerms(): Promise<Term[]> {
   const { data } = await api.get<Wrapped<Term[]>>("/admin/terms");
+  return data.data;
+}
+
+// The currently open enrollment term, or null when enrollment is closed.
+// Readable by applicants (not admin-only).
+export async function fetchOpenTerm(): Promise<OpenTerm | null> {
+  const { data } = await api.get<Wrapped<OpenTerm | null>>("/open-term");
   return data.data;
 }
 

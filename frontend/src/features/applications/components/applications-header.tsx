@@ -12,15 +12,23 @@ interface ApplicationsHeaderProps {
   onNewApplication?: () => void;
   // Applicants can start new applications; enrolled students view history only.
   canCreate?: boolean;
+  // No enrollment term is currently open, so new applications are blocked.
+  enrollmentClosed?: boolean;
 }
 
 export function ApplicationsHeader({
   hasActiveApplication,
   onNewApplication,
   canCreate = true,
+  enrollmentClosed = false,
 }: ApplicationsHeaderProps) {
+  const disabled = hasActiveApplication || enrollmentClosed;
+  const disabledReason = enrollmentClosed
+    ? "Enrollment is currently closed."
+    : "You already have an application in progress.";
+
   const newButton = (
-    <Button onClick={onNewApplication} disabled={hasActiveApplication}>
+    <Button onClick={onNewApplication} disabled={disabled}>
       <PlusIcon />
       New application
     </Button>
@@ -40,15 +48,13 @@ export function ApplicationsHeader({
       </div>
 
       {canCreate &&
-        (hasActiveApplication ? (
+        (disabled ? (
           <Tooltip>
             {/* Wrapper span so the tooltip still fires on the disabled button. */}
             <TooltipTrigger asChild>
               <span className="inline-flex w-fit">{newButton}</span>
             </TooltipTrigger>
-            <TooltipContent>
-              You already have an application in progress.
-            </TooltipContent>
+            <TooltipContent>{disabledReason}</TooltipContent>
           </Tooltip>
         ) : (
           newButton

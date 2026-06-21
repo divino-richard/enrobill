@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTerm,
   deleteTerm,
+  fetchOpenTerm,
   fetchTerms,
   setTermOpen,
   updateTermPolicy,
@@ -9,11 +10,20 @@ import {
 import type { InstallmentPolicyInput, TermInput } from "./types";
 
 export const termsQueryKey = ["admin", "terms"] as const;
+export const openTermQueryKey = ["open-term"] as const;
 
 export function useTerms() {
   return useQuery({
     queryKey: termsQueryKey,
     queryFn: fetchTerms,
+  });
+}
+
+// The currently open enrollment term (or null). Available to applicants.
+export function useOpenTerm() {
+  return useQuery({
+    queryKey: openTermQueryKey,
+    queryFn: fetchOpenTerm,
   });
 }
 

@@ -1,9 +1,11 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { ApplicationForm } from "@/features/applications/components/application-form";
+import { EnrollmentClosedNotice } from "@/features/applications/components/enrollment-closed-notice";
 import {
   useApplication,
   useApplications,
 } from "@/features/applications/hooks/use-applications";
+import { useOpenTerm } from "@/features/terms/hooks";
 import { isActiveStatus } from "@/features/applications/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +19,7 @@ function ApplicationEditPage() {
     applicationId,
   );
   const { data: applications } = useApplications();
+  const { data: openTerm } = useOpenTerm();
 
   if (isLoading) {
     return (
@@ -54,6 +57,13 @@ function ApplicationEditPage() {
           </Button>
         </CardContent>
       </Card>
+    );
+  }
+
+  // Resubmitting is a fresh submission — only allowed while a term is open.
+  if (openTerm === null) {
+    return (
+      <EnrollmentClosedNotice description="Enrollment is currently closed. You can resubmit this application once a term is open." />
     );
   }
 

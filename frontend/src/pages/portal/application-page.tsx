@@ -5,6 +5,7 @@ import { ApplicationsTable } from "@/features/applications/components/applicatio
 import { CurrentApplicationCard } from "@/features/applications/components/current-application-card";
 import { isActiveStatus } from "@/features/applications/types";
 import { useApplications } from "@/features/applications/hooks/use-applications";
+import { useOpenTerm } from "@/features/terms/hooks";
 import { useAuthStore } from "@/features/auth/store";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 function ApplicationPage() {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useApplications();
+  const { data: openTerm } = useOpenTerm();
   const isStudent = useAuthStore((state) => state.user?.role) === "student";
 
   const startNewApplication = () => navigate("/portal/application/new");
@@ -24,12 +26,16 @@ function ApplicationPage() {
     (app) => app.id !== activeApplication?.id,
   );
 
+  // Applicants can only start an application while a term is open.
+  const enrollmentClosed = !isStudent && openTerm === null;
+
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <ApplicationsHeader
         hasActiveApplication={Boolean(activeApplication)}
         onNewApplication={startNewApplication}
         canCreate={!isStudent}
+        enrollmentClosed={enrollmentClosed}
       />
 
       {isLoading ? (
@@ -49,6 +55,7 @@ function ApplicationPage() {
       ) : applications.length === 0 ? (
         <ApplicationsEmptyState
           onNewApplication={isStudent ? undefined : startNewApplication}
+          enrollmentClosed={enrollmentClosed}
         />
       ) : (
         <>
