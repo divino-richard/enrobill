@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureContro
 use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
+use App\Http\Controllers\Admin\ProgressionController as AdminProgressionController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\Admin\TermController as AdminTermController;
 use App\Http\Controllers\ApplicationController;
@@ -130,6 +131,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // A student's per-term enrollments + status management.
         Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
         Route::put('/admin/enrollments/{enrollment}', [AdminEnrollmentController::class, 'update']);
+
+        // Year-end progression — promote, retain or graduate continuing students.
+        Route::get('/admin/progression', [AdminProgressionController::class, 'index']);
+        Route::post('/admin/progression', [AdminProgressionController::class, 'store']);
+        Route::post('/admin/progression/retain', [AdminProgressionController::class, 'retain']);
+        Route::post('/admin/progression/revert', [AdminProgressionController::class, 'revert']);
+        Route::post('/admin/progression/graduate', [AdminProgressionController::class, 'graduate']);
 
         // Academic terms (enrollment periods).
         Route::get('/admin/terms', [AdminTermController::class, 'index']);

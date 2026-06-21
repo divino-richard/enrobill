@@ -13,6 +13,7 @@ import {
   CircleAlertIcon,
   ReceiptTextIcon,
   SearchIcon,
+  TriangleAlertIcon,
   WandSparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,13 +28,19 @@ import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useProgramLabel } from "@/features/programs/hooks";
+import { useProgression } from "@/features/progression/hooks";
 import { useBills, useGenerateBills } from "@/features/bills/hooks";
 import {
   BILL_STATUS_META,
   type Bill,
   type BillStatus,
 } from "@/features/bills/types";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 
 type StatusFilter = BillStatus | "all";
 
@@ -48,6 +55,13 @@ function BillingPage() {
   const navigate = useNavigate();
   const generate = useGenerateBills();
   const programLabel = useProgramLabel();
+  const progression = useProgression();
+  // Continuing students still awaiting a year-end decision. Promote candidates
+  // would be billed at their current (lower) grade; finishers would be billed
+  // as repeating students. Both should be reviewed before generating.
+  const pendingPromotions = progression.data?.candidates.length ?? 0;
+  const ungraduatedFinishers = progression.data?.graduates.length ?? 0;
+  const pendingReview = pendingPromotions + ungraduatedFinishers;
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
@@ -194,7 +208,10 @@ function BillingPage() {
             fee structure.
           </p>
         </div>
-        <Button onClick={() => generate.mutate()} disabled={generate.isPending}>
+        <Button
+          onClick={() => generate.mutate()}
+          disabled={generate.isPending || pendingReview > 0}
+        >
           <WandSparklesIcon />
           {generate.isPending ? "Generating…" : "Generate bills"}
         </Button>
@@ -217,6 +234,31 @@ function BillingPage() {
           <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
           <AlertTitle>Generation failed</AlertTitle>
           <AlertDescription>{getErrorMessage(generate.error)}</AlertDescription>
+        </Alert>
+      )}
+
+      {pendingReview > 0 && (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <TriangleAlertIcon className="size-4 shrink-0" />
+          <AlertTitle>Finish year-end review to generate bills</AlertTitle>
+          <AlertDescription className="text-amber-700 dark:text-amber-300">
+            {pendingPromotions > 0 &&
+              `${pendingPromotions} student${pendingPromotions === 1 ? " is" : "s are"} awaiting a promotion decision. `}
+            {ungraduatedFinishers > 0 &&
+              `${ungraduatedFinishers} Grade 12 finisher${ungraduatedFinishers === 1 ? " is" : "s are"} awaiting a decision. `}
+            Bill generation is disabled until every continuing student has been
+            promoted, retained or graduated.
+          </AlertDescription>
+          <AlertAction>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-amber-300 bg-transparent text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900"
+              onClick={() => navigate("/admin/progression")}
+            >
+              Review
+            </Button>
+          </AlertAction>
         </Alert>
       )}
 

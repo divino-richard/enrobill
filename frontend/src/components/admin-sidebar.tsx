@@ -4,6 +4,7 @@ import {
   BanknoteIcon,
   BarChart3Icon,
   CalendarRangeIcon,
+  CircleFadingArrowUp,
   ClipboardListIcon,
   GraduationCapIcon,
   LayersIcon,
@@ -58,6 +59,12 @@ const navItems: NavItem[] = [
     title: "Students",
     url: "/admin/students",
     icon: GraduationCapIcon,
+    ready: true,
+  },
+  {
+    title: "Progression",
+    url: "/admin/progression",
+    icon: CircleFadingArrowUp,
     ready: true,
   },
   {
