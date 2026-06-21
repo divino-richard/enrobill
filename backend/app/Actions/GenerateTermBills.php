@@ -11,12 +11,20 @@ use Illuminate\Validation\ValidationException;
 
 class GenerateTermBills
 {
+    /**
+     * Students eligible to be billed for a term: newly admitted students and
+     * continuing (already enrolled) ones. Excludes dropped, graduated and
+     * inactive students.
+     */
+    private const BILLABLE_STATUSES = ['admitted', 'enrolled'];
+
     public function __construct(private EnsureEnrollment $ensureEnrollment) {}
 
     /**
-     * Generate bills for every admitted student in the open term whose program
-     * has a matching fee structure and who isn't billed yet. Returns the number
-     * of bills created. Idempotent — re-running only bills new students.
+     * Generate bills for every active student in the open term (newly admitted
+     * or continuing) whose program has a matching fee structure and who isn't
+     * billed for this term yet. Returns the number of bills created. Idempotent
+     * — re-running only bills students still missing one for the open term.
      */
     public function __invoke(): int
     {
@@ -50,7 +58,7 @@ class GenerateTermBills
             ->all();
 
         $students = Student::query()
-            ->where('status', 'admitted')
+            ->whereIn('status', self::BILLABLE_STATUSES)
             ->whereNotIn('id', $alreadyBilled)
             ->get();
 
