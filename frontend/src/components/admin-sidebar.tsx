@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { NavUser } from "@/components/nav-user";
+import { useAuthStore } from "@/features/auth/store";
+import type { Role } from "@/features/auth/types";
 import {
   Sidebar,
   SidebarContent,
@@ -43,6 +45,8 @@ interface NavItem {
 
 interface NavGroup {
   label: string;
+  // Roles allowed to see this group. Cashiers see accounting only.
+  roles: Role[];
   items: NavItem[];
 }
 
@@ -50,6 +54,7 @@ interface NavGroup {
 const navGroups: NavGroup[] = [
   {
     label: "Overview",
+    roles: ["admin", "cashier"],
     items: [
       {
         title: "Dashboard",
@@ -63,6 +68,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Enrollment",
+    roles: ["admin"],
     items: [
       {
         title: "Applications",
@@ -86,6 +92,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Academics",
+    roles: ["admin"],
     items: [
       {
         title: "Programs",
@@ -103,6 +110,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Finance",
+    roles: ["admin", "cashier"],
     items: [
       {
         title: "Fee Structures",
@@ -132,6 +140,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "System",
+    roles: ["admin"],
     items: [
       {
         title: "Users",
@@ -150,6 +159,10 @@ const ACTIVE_CLASSES =
 
 export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation();
+  const role = useAuthStore((state) => state.user?.role);
+  const groups = navGroups.filter(
+    (group) => role !== undefined && group.roles.includes(role),
+  );
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -162,7 +175,7 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Enrobill</span>
                   <span className="text-muted-foreground truncate text-xs">
-                    Admin Console
+                    {role === "cashier" ? "Cashier Console" : "Admin Console"}
                   </span>
                 </div>
               </NavLink>
@@ -172,7 +185,7 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        {navGroups.map((group) => (
+        {groups.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarMenu>

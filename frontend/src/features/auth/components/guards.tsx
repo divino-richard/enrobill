@@ -22,6 +22,11 @@ export function StaffGuard() {
   return <RequireRole allow={STAFF_ROLES} />
 }
 
+// Admin-only areas within the staff workspace (cashiers are redirected away).
+export function AdminGuard() {
+  return <RequireRole allow={['admin']} />
+}
+
 export function PortalGuard() {
   return <RequireRole allow={PORTAL_ROLES} />
 }

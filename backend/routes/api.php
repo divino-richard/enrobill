@@ -136,15 +136,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
         Route::put('/admin/enrollments/{enrollment}', [AdminEnrollmentController::class, 'update']);
 
-        // Year-end progression — promote, retain or graduate continuing students.
-        Route::get('/admin/progression', [AdminProgressionController::class, 'index']);
+        // Year-end progression decisions (read endpoint is shared below).
         Route::post('/admin/progression', [AdminProgressionController::class, 'store']);
         Route::post('/admin/progression/retain', [AdminProgressionController::class, 'retain']);
         Route::post('/admin/progression/revert', [AdminProgressionController::class, 'revert']);
         Route::post('/admin/progression/graduate', [AdminProgressionController::class, 'graduate']);
 
-        // Academic terms (enrollment periods).
-        Route::get('/admin/terms', [AdminTermController::class, 'index']);
+        // Academic terms — managing periods (read endpoint is shared below).
         Route::post('/admin/terms', [AdminTermController::class, 'store']);
         Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
         Route::put('/admin/terms/{term}/installment-policy', [AdminTermController::class, 'updatePolicy']);
@@ -156,6 +154,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/programs/{program}', [AdminProgramController::class, 'update']);
         Route::put('/admin/programs/{program}/fee-items', [AdminProgramController::class, 'updateFeeItems']);
         Route::delete('/admin/programs/{program}', [AdminProgramController::class, 'destroy']);
+    });
+
+    // Accounting endpoints — available to admins and cashiers.
+    Route::middleware('role:admin,cashier')->group(function () {
+        // Read-only supporting data the finance screens depend on.
+        Route::get('/admin/terms', [AdminTermController::class, 'index']);
+        Route::get('/admin/progression', [AdminProgressionController::class, 'index']);
 
         // Fee structures (flat per-semester fees per program).
         Route::get('/admin/fee-structures', [AdminFeeStructureController::class, 'index']);

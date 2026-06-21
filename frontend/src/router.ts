@@ -1,5 +1,9 @@
 import { createBrowserRouter } from 'react-router-dom'
-import { PortalGuard, StaffGuard } from './features/auth/components/guards'
+import {
+  AdminGuard,
+  PortalGuard,
+  StaffGuard,
+} from './features/auth/components/guards'
 import { StaffLayout } from './layouts/staff-layout'
 import { PortalLayout } from './layouts/portal-layout'
 import RootRedirect from './pages/root-redirect'
@@ -50,22 +54,33 @@ export const router = createBrowserRouter([
       {
         Component: StaffLayout,
         children: [
+          // Shared with cashiers: dashboard + accounting screens.
           { index: true, Component: DashboardPage },
-          { path: 'applications', Component: AdminApplicationsPage },
-          { path: 'applications/:id', Component: AdminApplicationDetailPage },
-          { path: 'students', Component: AdminStudentsPage },
-          { path: 'students/:id', Component: AdminStudentDetailPage },
-          { path: 'progression', Component: AdminProgressionPage },
-          { path: 'users', Component: AdminUsersPage },
-          { path: 'users/:id', Component: AdminUserDetailPage },
-          { path: 'terms', Component: AdminTermsPage },
-          { path: 'programs', Component: AdminProgramsPage },
           { path: 'fees', Component: AdminFeesPage },
           { path: 'fees/:id', Component: AdminFeeStructurePage },
           { path: 'discounts', Component: AdminDiscountsPage },
           { path: 'billing', Component: AdminBillingPage },
           { path: 'billing/:id', Component: AdminBillDetailPage },
           { path: 'payment-methods', Component: AdminPaymentChannelsPage },
+
+          // Admin-only areas (cashiers are redirected away).
+          {
+            Component: AdminGuard,
+            children: [
+              { path: 'applications', Component: AdminApplicationsPage },
+              {
+                path: 'applications/:id',
+                Component: AdminApplicationDetailPage,
+              },
+              { path: 'students', Component: AdminStudentsPage },
+              { path: 'students/:id', Component: AdminStudentDetailPage },
+              { path: 'progression', Component: AdminProgressionPage },
+              { path: 'users', Component: AdminUsersPage },
+              { path: 'users/:id', Component: AdminUserDetailPage },
+              { path: 'terms', Component: AdminTermsPage },
+              { path: 'programs', Component: AdminProgramsPage },
+            ],
+          },
         ],
       },
     ],
