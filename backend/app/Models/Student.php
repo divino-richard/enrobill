@@ -52,4 +52,44 @@ class Student extends Model
     {
         return $this->hasMany(Bill::class);
     }
+
+    /**
+     * The student's per-term enrollments (academic record).
+     *
+     * @return HasMany<Enrollment, $this>
+     */
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class);
+    }
+
+    /**
+     * Keep the student's global status as a convenience mirror of their latest
+     * enrollment (the open term if billed, else the most recent). Statuses that
+     * aren't enrollment-driven (graduated/inactive) are left untouched.
+     */
+    public function syncStatusFromLatestEnrollment(): void
+    {
+        $latest = $this->enrollments()
+            ->with('term')
+            ->get()
+            ->sortByDesc(fn (Enrollment $e) => ($e->term?->school_year ?? '').'|'.($e->term?->semester ?? ''))
+            ->first();
+
+        if ($latest === null) {
+            return;
+        }
+
+        $mirror = match ($latest->status) {
+            'enrolled' => 'enrolled',
+            'dropped' => 'dropped',
+            'completed' => 'graduated',
+            'withdrawn' => 'inactive',
+            default => 'admitted', // pending
+        };
+
+        if ($this->status !== $mirror) {
+            $this->update(['status' => $mirror]);
+        }
+    }
 }

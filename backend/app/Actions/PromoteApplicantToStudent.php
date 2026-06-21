@@ -5,10 +5,13 @@ namespace App\Actions;
 use App\Enums\Role;
 use App\Models\Application;
 use App\Models\Student;
+use App\Models\Term;
 use Illuminate\Support\Str;
 
 class PromoteApplicantToStudent
 {
+    public function __construct(private EnsureEnrollment $ensureEnrollment) {}
+
     /**
      * Promote the applicant behind an accepted application: flip their role to
      * student and create their canonical student record from the application
@@ -28,6 +31,8 @@ class PromoteApplicantToStudent
 
         // One student record per user.
         if ($user->student()->exists()) {
+            $this->ensureCurrentEnrollment($user->student);
+
             return $user->student;
         }
 
@@ -61,6 +66,21 @@ class PromoteApplicantToStudent
             'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
         ])->save();
 
+        $this->ensureCurrentEnrollment($student);
+
         return $student;
+    }
+
+    /**
+     * Open a pending enrollment for the current term, if one is open, so the
+     * admitted student's program/level/semester shows immediately.
+     */
+    private function ensureCurrentEnrollment(Student $student): void
+    {
+        $term = Term::open();
+
+        if ($term !== null) {
+            ($this->ensureEnrollment)($student, $term);
+        }
     }
 }

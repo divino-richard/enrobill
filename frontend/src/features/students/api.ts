@@ -6,7 +6,11 @@ import {
   type ListParams,
   type PageMeta,
 } from "@/lib/pagination";
-import type { Student, StudentFormValues } from "./types";
+import type {
+  EnrollmentRecord,
+  Student,
+  StudentFormValues,
+} from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -39,6 +43,14 @@ export async function fetchStudent(id: number): Promise<Student> {
 // The authenticated user's own student record (404 if not a student yet).
 export async function fetchMyStudent(): Promise<Student> {
   const { data } = await api.get<Wrapped<Student>>("/me/student");
+  return data.data;
+}
+
+// The authenticated student's per-term enrollment history.
+export async function fetchMyEnrollments(): Promise<EnrollmentRecord[]> {
+  const { data } = await api.get<Wrapped<EnrollmentRecord[]>>(
+    "/me/enrollments",
+  );
   return data.data;
 }
 

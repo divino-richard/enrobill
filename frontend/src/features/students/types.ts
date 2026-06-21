@@ -128,3 +128,54 @@ export function studentFullName(student: Student): string {
     .filter(Boolean)
     .join(" ");
 }
+
+export type EnrollmentStatus =
+  | "pending"
+  | "enrolled"
+  | "dropped"
+  | "completed"
+  | "withdrawn";
+
+// A student's enrollment (academic record) for a single term.
+export interface EnrollmentRecord {
+  id: number;
+  schoolYear: string | null;
+  semester: string | null;
+  program: string | null;
+  yearLevel: string | null;
+  status: EnrollmentStatus;
+  enrolledAt: string | null;
+  isCurrent: boolean;
+}
+
+// Soft badge colours per enrollment status.
+export const ENROLLMENT_STATUS_META: Record<
+  EnrollmentStatus,
+  { label: string; className: string }
+> = {
+  pending: {
+    label: "Pending",
+    className:
+      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
+  },
+  enrolled: {
+    label: "Enrolled",
+    className:
+      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+  },
+  completed: {
+    label: "Completed",
+    className:
+      "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300",
+  },
+  dropped: {
+    label: "Dropped",
+    className:
+      "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300",
+  },
+  withdrawn: {
+    label: "Withdrawn",
+    className:
+      "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
+  },
+};

@@ -48,6 +48,7 @@ class PaymentController extends Controller
         ]);
 
         $bill->recalculate();
+        $bill->settleEnrollment();
 
         return $this->billResource($bill);
     }
@@ -70,6 +71,7 @@ class PaymentController extends Controller
 
         $payment->update(['status' => 'verified']);
         $bill->recalculate();
+        $bill->settleEnrollment();
 
         return $this->billResource($bill);
     }

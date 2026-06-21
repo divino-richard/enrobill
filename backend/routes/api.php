@@ -81,6 +81,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/bill', [StudentBillController::class, 'show']);
     // All of the student's bills (current + history).
     Route::get('/me/bills', [StudentBillController::class, 'index']);
+    // The student's per-term enrollment (program/level/semester) + history.
+    Route::get('/me/enrollments', [StudentBillController::class, 'enrollments']);
     Route::put('/me/bill/payment-option', [StudentBillController::class, 'choosePlan']);
     Route::post('/me/bill/payments/presign', [StudentBillController::class, 'presign']);
     Route::post('/me/bill/payments', [StudentBillController::class, 'storePayment']);

@@ -11,6 +11,8 @@ use Illuminate\Validation\ValidationException;
 
 class GenerateTermBills
 {
+    public function __construct(private EnsureEnrollment $ensureEnrollment) {}
+
     /**
      * Generate bills for every admitted student in the open term whose program
      * has a matching fee structure and who isn't billed yet. Returns the number
@@ -64,8 +66,12 @@ class GenerateTermBills
                     continue; // No fee structure for this student's program.
                 }
 
+                // The academic record for this term; the bill bills against it.
+                $enrollment = ($this->ensureEnrollment)($student, $term);
+
                 $bill = $student->bills()->create([
                     'term_id' => $term->id,
+                    'enrollment_id' => $enrollment->id,
                     'fee_structure_id' => $structure->id,
                     'total' => $structure->items->sum('amount'),
                     'amount_paid' => 0,

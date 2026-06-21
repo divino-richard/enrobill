@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Actions\GenerateInstallmentSchedule;
 use App\Http\Resources\BillResource;
+use App\Http\Resources\EnrollmentResource;
 use App\Models\Bill;
+use App\Models\Enrollment;
 use App\Models\Term;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,6 +53,26 @@ class StudentBillController extends Controller
             ->get();
 
         return BillResource::collection($bills);
+    }
+
+    /**
+     * The student's enrollment per term — program, year level, semester and
+     * status for the current term plus past terms. Newest first.
+     */
+    public function enrollments(Request $request): AnonymousResourceCollection
+    {
+        $student = $request->user()->student;
+        abort_if($student === null, 404, 'No student record found.');
+
+        $records = $student->enrollments()
+            ->with('term')
+            ->get()
+            ->sortByDesc(
+                fn (Enrollment $e) => ($e->term?->school_year ?? '').'|'.($e->term?->semester ?? ''),
+            )
+            ->values();
+
+        return EnrollmentResource::collection($records);
     }
 
     /**

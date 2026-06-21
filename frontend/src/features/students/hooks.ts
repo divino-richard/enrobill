@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  fetchMyEnrollments,
   fetchMyStudent,
   fetchStudent,
   fetchStudents,
@@ -15,12 +16,22 @@ import type { StudentFormValues } from "./types";
 
 export const studentsQueryKey = ["admin", "students"] as const;
 export const myStudentQueryKey = ["me", "student"] as const;
+export const myEnrollmentsQueryKey = ["me", "enrollments"] as const;
 
 // The signed-in user's own student record.
 export function useMyStudent() {
   return useQuery({
     queryKey: myStudentQueryKey,
     queryFn: fetchMyStudent,
+    retry: false,
+  });
+}
+
+// The signed-in student's per-term enrollment history.
+export function useMyEnrollments() {
+  return useQuery({
+    queryKey: myEnrollmentsQueryKey,
+    queryFn: fetchMyEnrollments,
     retry: false,
   });
 }

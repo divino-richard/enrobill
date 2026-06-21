@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'school_year', 'semester', 'start_date', 'end_date', 'is_open',
@@ -40,5 +41,13 @@ class Term extends Model
     public function scopeNewestFirst(Builder $query): void
     {
         $query->orderByDesc('school_year')->orderBy('semester');
+    }
+
+    /**
+     * @return HasMany<Enrollment, $this>
+     */
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class);
     }
 }

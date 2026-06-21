@@ -11,7 +11,6 @@ import {
 import {
   CheckCircle2Icon,
   CircleAlertIcon,
-  InfoIcon,
   ReceiptTextIcon,
   SearchIcon,
   Trash2Icon,
@@ -54,7 +53,6 @@ import {
 import { structureTermLabel, type FeeStructure } from "@/features/fees/types";
 import {
   Alert,
-  AlertAction,
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";

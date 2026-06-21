@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'student_id', 'term_id', 'fee_structure_id', 'total', 'amount_paid', 'status',
+    'student_id', 'term_id', 'enrollment_id', 'fee_structure_id', 'total', 'amount_paid', 'status',
     'payment_option',
 ])]
 class Bill extends Model
@@ -38,6 +38,26 @@ class Bill extends Model
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
+    }
+
+    /**
+     * The fee structure (program + year level) this bill was generated from.
+     *
+     * @return BelongsTo<FeeStructure, $this>
+     */
+    public function feeStructure(): BelongsTo
+    {
+        return $this->belongsTo(FeeStructure::class);
+    }
+
+    /**
+     * The academic enrollment this bill bills for.
+     *
+     * @return BelongsTo<Enrollment, $this>
+     */
+    public function enrollment(): BelongsTo
+    {
+        return $this->belongsTo(Enrollment::class);
     }
 
     /**
@@ -152,5 +172,56 @@ class Bill extends Model
         };
 
         $this->update(['amount_paid' => $paid, 'status' => $status]);
+    }
+
+    /**
+     * Whether enough has been paid (verified) to enroll the student: the full
+     * net total for a full-payment bill, or the first installment (downpayment)
+     * for an installment plan.
+     */
+    public function enrollmentDownpaymentMet(): bool
+    {
+        $paid = (float) $this->amount_paid;
+
+        if ($paid <= 0) {
+            return false;
+        }
+
+        $installments = $this->relationLoaded('installments')
+            ? $this->installments
+            : $this->installments()->orderBy('sequence')->get();
+
+        if ($installments->isEmpty()) {
+            return $paid >= $this->netTotal() - 0.01;
+        }
+
+        return $paid >= (float) $installments->first()->amount - 0.01;
+    }
+
+    /**
+     * Finalize enrollment once the downpayment (or full payment) is met: mark
+     * this term's enrollment "enrolled" and mirror it onto the student's global
+     * status. One-directional — never reverts an enrollment.
+     */
+    public function settleEnrollment(): void
+    {
+        if (! $this->enrollmentDownpaymentMet()) {
+            return;
+        }
+
+        $enrollment = $this->enrollment;
+
+        if ($enrollment !== null) {
+            $enrollment->markEnrolled();
+            $this->student?->syncStatusFromLatestEnrollment();
+
+            return;
+        }
+
+        // Fallback for any bill without a linked enrollment (legacy data).
+        $student = $this->student;
+        if ($student !== null && $student->status === 'admitted') {
+            $student->update(['status' => 'enrolled']);
+        }
     }
 }
