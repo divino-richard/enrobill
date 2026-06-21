@@ -11,6 +11,7 @@ import {
 import {
   CheckCircle2Icon,
   CircleAlertIcon,
+  ReceiptTextIcon,
   SearchIcon,
   Trash2Icon,
   WandSparklesIcon,
@@ -143,7 +144,7 @@ function FeesPage() {
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => null,
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
@@ -151,6 +152,7 @@ function FeesPage() {
             <DropdownMenuItem
               onClick={() => navigate(`/admin/fees/${row.original.id}`)}
             >
+              <ReceiptTextIcon />
               Manage items
             </DropdownMenuItem>
             <DropdownMenuItem

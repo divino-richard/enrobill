@@ -11,6 +11,7 @@ import {
 import {
   CheckCircle2Icon,
   CircleAlertIcon,
+  ReceiptTextIcon,
   SearchIcon,
   SparklesIcon,
 } from "lucide-react";
@@ -145,7 +146,7 @@ function BillingPage() {
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => null,
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
@@ -153,6 +154,7 @@ function BillingPage() {
             <DropdownMenuItem
               onClick={() => navigate(`/admin/billing/${row.original.id}`)}
             >
+              <ReceiptTextIcon />
               Manage bill
             </DropdownMenuItem>
           </RowActions>

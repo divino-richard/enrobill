@@ -15,10 +15,13 @@ import {
   ChevronUpIcon,
   ChevronsUpDownIcon,
   SearchIcon,
+  SquarePenIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RowActions } from "@/components/row-actions";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { UserRoleBadge } from "@/features/users/components/user-role-badge";
@@ -135,17 +138,18 @@ function UsersPage() {
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => null,
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/admin/users/${row.original.id}`)}
-          >
-            Manage
-          </Button>
+          <RowActions>
+            <DropdownMenuItem
+              onClick={() => navigate(`/admin/users/${row.original.id}`)}
+            >
+              <SquarePenIcon />
+              Manage
+            </DropdownMenuItem>
+          </RowActions>
         ),
       },
     ],

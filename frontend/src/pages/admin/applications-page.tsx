@@ -13,11 +13,14 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   ChevronsUpDownIcon,
+  EyeIcon,
   SearchIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RowActions } from "@/components/row-actions";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ApplicationStatusBadge } from "@/features/applications/components/application-status-badge";
@@ -159,17 +162,18 @@ function AdminApplicationsPage() {
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => null,
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/admin/applications/${row.original.id}`)}
-          >
-            Review
-          </Button>
+          <RowActions>
+            <DropdownMenuItem
+              onClick={() => navigate(`/admin/applications/${row.original.id}`)}
+            >
+              <EyeIcon />
+              Review
+            </DropdownMenuItem>
+          </RowActions>
         ),
       },
     ],

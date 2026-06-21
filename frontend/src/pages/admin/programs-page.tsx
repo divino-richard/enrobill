@@ -7,7 +7,13 @@ import {
   type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
-import { PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import {
+  PencilIcon,
+  PlusIcon,
+  ReceiptTextIcon,
+  SearchIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -472,15 +478,17 @@ function ProgramsPage() {
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => null,
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
           <RowActions>
             <DropdownMenuItem onClick={() => setItemsFor(row.original)}>
+              <ReceiptTextIcon />
               Fee items
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => openEdit(row.original)}>
+              <PencilIcon />
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem

@@ -2,8 +2,11 @@ import { useState } from "react";
 import {
   CalendarDaysIcon,
   CircleAlertIcon,
+  LockIcon,
+  LockOpenIcon,
   PlusIcon,
   Trash2Icon,
+  WalletIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,7 +124,7 @@ function PolicyFields({
       </label>
       {policy.enabled && (
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-2">
             <FieldLabel>Downpayment type</FieldLabel>
             <Select
               value={policy.type}
@@ -149,7 +152,7 @@ function PolicyFields({
               onChange={(e) => onChange({ value: e.target.value })}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-2">
             <FieldLabel>Monthly installments</FieldLabel>
             <Input
               type="number"
@@ -223,7 +226,9 @@ function PolicyForm({ term, onDone }: { term: Term; onDone: () => void }) {
         />
       </div>
       {save.isError && (
-        <p className="text-destructive text-sm">{getErrorMessage(save.error)}</p>
+        <p className="text-destructive text-sm">
+          {getErrorMessage(save.error)}
+        </p>
       )}
       <DialogFooter>
         <Button variant="outline" onClick={onDone} disabled={save.isPending}>
@@ -267,10 +272,12 @@ function NewTermDialog({
   const create = useCreateTerm();
 
   const schoolYearValid = isValidSchoolYear(schoolYear);
-  const datesValid =
-    startDate !== "" && endDate !== "" && endDate >= startDate;
+  const datesValid = startDate !== "" && endDate !== "" && endDate >= startDate;
   const canCreate =
-    schoolYearValid && Boolean(semester) && datesValid && policyComplete(policy);
+    schoolYearValid &&
+    Boolean(semester) &&
+    datesValid &&
+    policyComplete(policy);
 
   function reset() {
     setSchoolYear("");
@@ -383,7 +390,9 @@ function NewTermDialog({
               placeholder="Select end date"
               startMonth={TERM_DATE_START}
               endMonth={TERM_DATE_END}
-              disabledDates={startDate ? { before: new Date(`${startDate}T00:00:00`) } : []}
+              disabledDates={
+                startDate ? { before: new Date(`${startDate}T00:00:00`) } : []
+              }
             />
             {startDate !== "" && endDate !== "" && endDate < startDate && (
               <p className="text-destructive text-xs">
@@ -412,7 +421,10 @@ function NewTermDialog({
           >
             Cancel
           </Button>
-          <Button onClick={handleCreate} disabled={!canCreate || create.isPending}>
+          <Button
+            onClick={handleCreate}
+            disabled={!canCreate || create.isPending}
+          >
             {create.isPending ? "Adding…" : "Add term"}
           </Button>
         </DialogFooter>
@@ -508,7 +520,7 @@ function TermsPage() {
                 <TableHead>Period</TableHead>
                 <TableHead>Payment plan</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -546,9 +558,11 @@ function TermsPage() {
                           setOpen.mutate({ id: term.id, isOpen: !term.isOpen })
                         }
                       >
+                        {term.isOpen ? <LockIcon /> : <LockOpenIcon />}
                         {term.isOpen ? "Close enrollment" : "Open enrollment"}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setPolicyTerm(term)}>
+                        <WalletIcon />
                         Installment plan
                       </DropdownMenuItem>
                       <DropdownMenuItem
