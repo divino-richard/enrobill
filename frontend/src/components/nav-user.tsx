@@ -21,6 +21,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/features/auth/store'
+import { STAFF_ROLES } from '@/features/auth/constants'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -46,6 +47,11 @@ export function NavUser() {
     clearAuth()
     navigate('/login')
   }
+
+  // Account lives in the same area the user is signed into.
+  const accountPath = STAFF_ROLES.includes(user.role)
+    ? '/admin/account'
+    : '/portal/account'
 
   return (
     <SidebarMenu>
@@ -89,7 +95,7 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem onClick={() => navigate(accountPath)}>
                 <BadgeCheckIcon />
                 Account
               </DropdownMenuItem>

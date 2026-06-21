@@ -26,6 +26,7 @@ import AdminDiscountsPage from './pages/admin/discounts-page'
 import AdminBillingPage from './pages/admin/billing-page'
 import AdminBillDetailPage from './pages/admin/bill-detail-page'
 import AdminPaymentChannelsPage from './pages/admin/payment-channels-page'
+import AccountPage from './pages/account-page'
 import PortalHomePage from './pages/portal/home-page'
 import PortalBillsPage from './pages/portal/bills-page'
 import PortalProgramsPage from './pages/portal/programs-page'
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
         children: [
           // Shared with cashiers: dashboard + accounting screens.
           { index: true, Component: DashboardPage },
+          { path: 'account', Component: AccountPage },
           { path: 'fees', Component: AdminFeesPage },
           { path: 'fees/:id', Component: AdminFeeStructurePage },
           { path: 'discounts', Component: AdminDiscountsPage },
@@ -95,6 +97,7 @@ export const router = createBrowserRouter([
         Component: PortalLayout,
         children: [
           { index: true, Component: PortalHomePage },
+          { path: 'account', Component: AccountPage },
           { path: 'bills', Component: PortalBillsPage },
           { path: 'programs', Component: PortalProgramsPage },
           { path: 'application', Component: ApplicationPage },

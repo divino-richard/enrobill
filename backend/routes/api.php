@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
 use App\Http\Controllers\Admin\BillAdjustmentController as AdminBillAdjustmentController;
 use App\Http\Controllers\Admin\BillController as AdminBillController;
@@ -76,6 +77,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // The current authenticated user (any role may read their own record).
     Route::get('/me', fn (Request $request) => new UserResource($request->user()));
+
+    // Self-service account management — available to every role.
+    Route::put('/me/profile', [AccountController::class, 'updateProfile']);
+    Route::put('/me/password', [AccountController::class, 'updatePassword']);
 
     // The current user's own student record (once accepted).
     Route::get('/me/student', [StudentProfileController::class, 'show']);
