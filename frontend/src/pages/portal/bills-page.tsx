@@ -268,9 +268,11 @@ function BillDetailDialog({
 function PayDialog({
   bill,
   channels,
+  disabled,
 }: {
   bill: Bill;
   channels: PaymentChannel[];
+  disabled?: boolean;
 }) {
   const methods = channels.map((c) => ({ value: c.code, label: c.label }));
   const submit = useSubmitMyPayment();
@@ -325,7 +327,7 @@ function PayDialog({
         setOpen(next);
       }}
     >
-      <Button onClick={() => setOpen(true)}>
+      <Button onClick={() => setOpen(true)} disabled={disabled}>
         <UploadIcon />
         Pay now
       </Button>
@@ -620,9 +622,11 @@ function BillsPage() {
           Math.round((currentBill.amountPaid / currentBill.netTotal) * 100),
         )
       : 0;
-  const pendingTotal = (currentBill?.payments ?? [])
-    .filter((p) => p.status === "pending")
-    .reduce((sum, p) => sum + p.amount, 0);
+  const pendingPayments = (currentBill?.payments ?? []).filter(
+    (p) => p.status === "pending",
+  );
+  const pendingTotal = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
+  const hasPending = pendingPayments.length > 0;
   const nextInstallment =
     (currentBill?.installments ?? []).find((i) => i.status !== "paid") ?? null;
   const mustChoosePlan =
@@ -703,11 +707,11 @@ function BillsPage() {
                     </div>
                   )}
 
-                  {pendingTotal > 0 && (
+                  {hasPending && (
                     <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
                       <ClockIcon className="size-4 shrink-0" />
-                      {formatPeso(pendingTotal)} awaiting verification — it'll
-                      apply once an admin confirms it.
+                      {formatPeso(pendingTotal)} awaiting verification — you can
+                      submit another payment once it's reviewed.
                     </div>
                   )}
                 </>
@@ -723,7 +727,11 @@ function BillsPage() {
                   <EyeIcon />
                   View details
                 </Button>
-                <PayDialog bill={currentBill} channels={payChannels} />
+                <PayDialog
+                  bill={currentBill}
+                  channels={payChannels}
+                  disabled={hasPending}
+                />
               </CardFooter>
             )}
           </Card>

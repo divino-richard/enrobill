@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\GenerateInstallmentSchedule;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
@@ -16,7 +17,7 @@ class BillAdjustmentController extends Controller
     /**
      * Apply a catalog discount to a bill, snapshotting its resolved peso credit.
      */
-    public function store(Request $request, Bill $bill): BillResource
+    public function store(Request $request, Bill $bill, GenerateInstallmentSchedule $generate): BillResource
     {
         $validated = $request->validate([
             'discountId' => [
@@ -45,6 +46,7 @@ class BillAdjustmentController extends Controller
             'amount' => $discount->resolveAmount((float) $bill->total),
         ]);
 
+        $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
 
         return $this->billResource($bill);
@@ -53,14 +55,26 @@ class BillAdjustmentController extends Controller
     /**
      * Remove an applied discount from a bill.
      */
-    public function destroy(Bill $bill, BillAdjustment $adjustment): BillResource
+    public function destroy(Bill $bill, BillAdjustment $adjustment, GenerateInstallmentSchedule $generate): BillResource
     {
         abort_if($adjustment->bill_id !== $bill->id, 404);
 
         $adjustment->delete();
+        $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
 
         return $this->billResource($bill);
+    }
+
+    /**
+     * When a bill is on an installment plan, regenerate its schedule so it matches
+     * the (now changed) net total after a discount is applied or removed.
+     */
+    private function syncInstallmentPlan(Bill $bill, GenerateInstallmentSchedule $generate): void
+    {
+        if ($bill->payment_option === 'installment' && $bill->term?->installments_enabled) {
+            $generate($bill);
+        }
     }
 
     private function billResource(Bill $bill): BillResource

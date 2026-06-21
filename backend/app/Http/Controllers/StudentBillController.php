@@ -132,6 +132,14 @@ class StudentBillController extends Controller
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Only one payment may be under review at a time — the student must wait
+        // for it to be verified or rejected before submitting another.
+        if ($bill->payments()->where('status', 'pending')->exists()) {
+            throw ValidationException::withMessages([
+                'payment' => 'You already have a payment awaiting verification. Please wait for it to be reviewed before submitting another.',
+            ]);
+        }
+
         // The amount is set by the system (next installment, else balance) — the
         // student can't choose it.
         $amount = $bill->amountDue();
