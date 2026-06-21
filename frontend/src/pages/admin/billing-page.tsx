@@ -33,6 +33,7 @@ import {
   type Bill,
   type BillStatus,
 } from "@/features/bills/types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type StatusFilter = BillStatus | "all";
 
@@ -85,7 +86,9 @@ function BillingPage() {
         header: ({ column }) => <SortHeader column={column} title="Student" />,
         cell: ({ row }) => (
           <div className="flex flex-col">
-            <span className="font-medium">{row.original.student?.name ?? "—"}</span>
+            <span className="font-medium">
+              {row.original.student?.name ?? "—"}
+            </span>
             <span className="text-muted-foreground text-xs">
               {row.original.student?.studentNumber ?? "—"}
             </span>
@@ -187,8 +190,8 @@ function BillingPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
           <p className="text-muted-foreground text-sm">
-            Bills for the open enrollment term, generated from each program's fee
-            structure.
+            Bills for the open enrollment term, generated from each program's
+            fee structure.
           </p>
         </div>
         <Button onClick={() => generate.mutate()} disabled={generate.isPending}>
@@ -198,22 +201,23 @@ function BillingPage() {
       </div>
 
       {generate.isSuccess && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+        <Alert className="border-primary bg-primary-foreground text-primary">
           <CheckCircle2Icon className="size-4 shrink-0" />
-          {generate.data.created > 0
-            ? `Generated ${generate.data.created} new ${generate.data.created === 1 ? "bill" : "bills"}.`
-            : "Everyone eligible is already billed — no new bills."}
-        </div>
+          <AlertTitle>Generation successful</AlertTitle>
+          <AlertDescription>
+            {generate.data.created > 0
+              ? `Generated ${generate.data.created} new ${generate.data.created === 1 ? "bill" : "bills"}.`
+              : "Everyone eligible is already billed — no new bills."}
+          </AlertDescription>
+        </Alert>
       )}
 
       {generate.isError && (
-        <div
-          role="alert"
-          className="border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-3 rounded-lg border px-4 py-3 text-sm"
-        >
+        <Alert className="border-destructive bg-red-50 text-destructive">
           <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
-          {getErrorMessage(generate.error)}
-        </div>
+          <AlertTitle>Generation failed</AlertTitle>
+          <AlertDescription>{getErrorMessage(generate.error)}</AlertDescription>
+        </Alert>
       )}
 
       {query.isError ? (
