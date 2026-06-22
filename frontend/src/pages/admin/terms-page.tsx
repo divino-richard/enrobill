@@ -444,6 +444,7 @@ function TermsPage() {
   const [newTermOpen, setNewTermOpen] = useState(false);
   const [policyTerm, setPolicyTerm] = useState<Term | null>(null);
   const [deleting, setDeleting] = useState<Term | null>(null);
+  const [toggling, setToggling] = useState<Term | null>(null);
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -453,6 +454,17 @@ function TermsPage() {
       // no-op
     } finally {
       setDeleting(null);
+    }
+  }
+
+  async function confirmToggle() {
+    if (!toggling) return;
+    try {
+      await setOpen.mutateAsync({ id: toggling.id, isOpen: !toggling.isOpen });
+    } catch {
+      // no-op
+    } finally {
+      setToggling(null);
     }
   }
 
@@ -554,9 +566,7 @@ function TermsPage() {
                     <RowActions>
                       <DropdownMenuItem
                         disabled={setOpen.isPending}
-                        onClick={() =>
-                          setOpen.mutate({ id: term.id, isOpen: !term.isOpen })
-                        }
+                        onClick={() => setToggling(term)}
                       >
                         {term.isOpen ? <LockIcon /> : <LockOpenIcon />}
                         {term.isOpen ? "Close enrollment" : "Open enrollment"}
@@ -623,6 +633,55 @@ function TermsPage() {
               }}
             >
               {remove.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={toggling !== null}
+        onOpenChange={(open) => {
+          if (!open && !setOpen.isPending) setToggling(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {toggling?.isOpen
+                ? "Close enrollment for this term?"
+                : "Open enrollment for this term?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {toggling
+                ? toggling.isOpen
+                  ? `${termLabel(toggling)} will be closed. New applications and bill generation will be blocked until a term is open again.`
+                  : `${termLabel(toggling)} will be opened. Applicants can submit applications and you can generate bills for this term.`
+                : ""}
+              {!toggling?.isOpen && openTerm && toggling && (
+                <span className="text-destructive mt-2 flex items-center gap-1.5">
+                  <CircleAlertIcon className="size-4" />
+                  {termLabel(openTerm)} is currently open. Make sure only one
+                  term should be open at a time.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={setOpen.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={setOpen.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmToggle();
+              }}
+            >
+              {setOpen.isPending
+                ? "Saving…"
+                : toggling?.isOpen
+                  ? "Close enrollment"
+                  : "Open enrollment"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
