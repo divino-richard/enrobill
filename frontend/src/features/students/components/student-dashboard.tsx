@@ -1,4 +1,6 @@
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
+import { ArrowRightIcon, GraduationCapIcon, ReceiptTextIcon } from "lucide-react";
 import {
   Card,
   CardAction,
@@ -7,7 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { formatPeso } from "@/lib/money";
 import { useAuthStore } from "@/features/auth/store";
 import { useAddress } from "@/features/applications/hooks/address";
 import {
@@ -16,6 +22,9 @@ import {
   labelFor,
 } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
+import { useMyBill } from "@/features/bills/hooks";
+import { BILL_STATUS_META } from "@/features/bills/types";
+import { semesterLabel } from "@/features/terms/types";
 import { useMyStudent } from "../hooks";
 import { studentFullName } from "../types";
 import { StudentStatusBadge } from "./student-status-badge";
@@ -39,9 +48,42 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+function QuickLink({
+  icon: Icon,
+  label,
+  description,
+  onClick,
+}: {
+  icon: typeof GraduationCapIcon;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="hover:border-primary hover:bg-muted/40 group flex items-start gap-3 rounded-lg border p-3 text-left transition-colors"
+    >
+      <div className="bg-muted text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+        <Icon className="size-4.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-1 text-sm font-medium">
+          {label}
+          <ArrowRightIcon className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+        </p>
+        <p className="text-muted-foreground text-xs">{description}</p>
+      </div>
+    </button>
+  );
+}
+
 export function StudentDashboard() {
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const { data: student, isLoading, isError } = useMyStudent();
+  const { data: bill } = useMyBill();
   const programLabel = useProgramLabel();
   const { getProvinceName, getCityName, getBarangayName } = useAddress({
     provinceCode: student?.addressProvince ?? undefined,
@@ -115,6 +157,68 @@ export function StudentDashboard() {
           </dl>
         </CardContent>
       </Card>
+
+      {bill && (
+        <Card>
+          <CardHeader>
+            <CardDescription className="text-xs font-medium tracking-wide uppercase">
+              Current bill · {semesterLabel(bill.semester)} · SY{" "}
+              {bill.schoolYear}
+            </CardDescription>
+            <CardTitle className="text-base">
+              {formatPeso(bill.balance)} balance
+            </CardTitle>
+            <CardAction>
+              <Badge
+                variant="outline"
+                className={cn(BILL_STATUS_META[bill.status].className)}
+              >
+                {BILL_STATUS_META[bill.status].label}
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Detail label="Net total" value={formatPeso(bill.netTotal)} />
+              <Detail label="Paid" value={formatPeso(bill.amountPaid)} />
+              <Detail label="Balance" value={formatPeso(bill.balance)} />
+              <Detail label="Due now" value={formatPeso(bill.amountDue)} />
+            </dl>
+            <div className="flex justify-end">
+              <Button onClick={() => navigate("/portal/bills")}>
+                {bill.balance > 0 ? (
+                  <>
+                    {bill.amountDue > 0
+                      ? `Pay ${formatPeso(bill.amountDue)}`
+                      : "View bill"}
+                    <ArrowRightIcon />
+                  </>
+                ) : (
+                  <>
+                    View bills
+                    <ReceiptTextIcon />
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <QuickLink
+          icon={ReceiptTextIcon}
+          label="My bills"
+          description="View bills and pay online"
+          onClick={() => navigate("/portal/bills")}
+        />
+        <QuickLink
+          icon={GraduationCapIcon}
+          label="My program"
+          description="Program, level and schedule"
+          onClick={() => navigate("/portal/programs")}
+        />
+      </div>
 
       <Card>
         <CardHeader>

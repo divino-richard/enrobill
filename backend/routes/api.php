@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\ApplicationController as AdminApplicationControll
 use App\Http\Controllers\Admin\BillAdjustmentController as AdminBillAdjustmentController;
 use App\Http\Controllers\Admin\BillController as AdminBillController;
 use App\Http\Controllers\Admin\BillInstallmentController as AdminBillInstallmentController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
 use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
@@ -163,6 +164,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Accounting endpoints — available to admins and cashiers.
     Route::middleware('role:admin,cashier')->group(function () {
+        // Staff dashboard stats (finance for all staff; enrollment for admins).
+        Route::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
+
         // Read-only supporting data the finance screens depend on.
         Route::get('/admin/terms', [AdminTermController::class, 'index']);
         Route::get('/admin/progression', [AdminProgressionController::class, 'index']);
