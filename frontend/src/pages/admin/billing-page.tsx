@@ -8,14 +8,7 @@ import {
   type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
-import {
-  CheckCircle2Icon,
-  CircleAlertIcon,
-  ReceiptTextIcon,
-  SearchIcon,
-  TriangleAlertIcon,
-  WandSparklesIcon,
-} from "lucide-react";
+import { ReceiptTextIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,21 +19,13 @@ import { RowActions } from "@/components/row-actions";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
-import { getErrorMessage } from "@/lib/get-error-message";
 import { useProgramLabel } from "@/features/programs/hooks";
-import { useProgression } from "@/features/progression/hooks";
-import { useBills, useGenerateBills } from "@/features/bills/hooks";
+import { useBills } from "@/features/bills/hooks";
 import {
   BILL_STATUS_META,
   type Bill,
   type BillStatus,
 } from "@/features/bills/types";
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
 
 type StatusFilter = BillStatus | "all";
 
@@ -53,15 +38,7 @@ const STATUS_PILLS: { value: StatusFilter; label: string }[] = [
 
 function BillingPage() {
   const navigate = useNavigate();
-  const generate = useGenerateBills();
   const programLabel = useProgramLabel();
-  const progression = useProgression();
-  // Continuing students still awaiting a year-end decision. Promote candidates
-  // would be billed at their current (lower) grade; finishers would be billed
-  // as repeating students. Both should be reviewed before generating.
-  const pendingPromotions = progression.data?.candidates.length ?? 0;
-  const ungraduatedFinishers = progression.data?.graduates.length ?? 0;
-  const pendingReview = pendingPromotions + ungraduatedFinishers;
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
@@ -200,67 +177,13 @@ function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
-          <p className="text-muted-foreground text-sm">
-            Bills for the open enrollment term, generated from each program's
-            fee structure.
-          </p>
-        </div>
-        <Button
-          onClick={() => generate.mutate()}
-          disabled={generate.isPending || pendingReview > 0}
-        >
-          <WandSparklesIcon />
-          {generate.isPending ? "Generating…" : "Generate bills"}
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
+        <p className="text-muted-foreground text-sm">
+          Bills for the active school year. A bill is created automatically when a
+          student is accepted, admitted, promoted or retained.
+        </p>
       </div>
-
-      {generate.isSuccess && (
-        <Alert className="border-primary bg-primary-foreground text-primary">
-          <CheckCircle2Icon className="size-4 shrink-0" />
-          <AlertTitle>Generation successful</AlertTitle>
-          <AlertDescription>
-            {generate.data.created > 0
-              ? `Generated ${generate.data.created} new ${generate.data.created === 1 ? "bill" : "bills"}.`
-              : "Everyone eligible is already billed — no new bills."}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {generate.isError && (
-        <Alert className="border-destructive bg-red-50 text-destructive">
-          <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
-          <AlertTitle>Generation failed</AlertTitle>
-          <AlertDescription>{getErrorMessage(generate.error)}</AlertDescription>
-        </Alert>
-      )}
-
-      {pendingReview > 0 && (
-        <Alert className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          <TriangleAlertIcon className="size-4 shrink-0" />
-          <AlertTitle>Finish year-end review to generate bills</AlertTitle>
-          <AlertDescription className="text-amber-700 dark:text-amber-300">
-            {pendingPromotions > 0 &&
-              `${pendingPromotions} student${pendingPromotions === 1 ? " is" : "s are"} awaiting a promotion decision. `}
-            {ungraduatedFinishers > 0 &&
-              `${ungraduatedFinishers} Grade 12 finisher${ungraduatedFinishers === 1 ? " is" : "s are"} awaiting a decision. `}
-            Bill generation is disabled until every continuing student has been
-            promoted, retained or graduated.
-          </AlertDescription>
-          <AlertAction>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-amber-300 bg-transparent text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900"
-              onClick={() => navigate("/admin/progression")}
-            >
-              Review
-            </Button>
-          </AlertAction>
-        </Alert>
-      )}
 
       {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
@@ -308,7 +231,7 @@ function BillingPage() {
             emptyMessage={
               hasFilters
                 ? "No bills match your filters."
-                : "No bills for the open term yet. Use Generate bills."
+                : "No bills for the active school year yet. Accept, admit or promote students to create them."
             }
           />
         </div>

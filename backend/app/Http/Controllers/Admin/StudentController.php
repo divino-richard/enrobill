@@ -100,7 +100,17 @@ class StudentController extends Controller
             'email.unique' => 'An account with this email already exists.',
         ]);
 
-        $student = DB::transaction(function () use ($validated, $generateBill, $request) {
+        // Admitting bills the student immediately, so the active school year must
+        // already have a fee schedule — otherwise we'd enroll without a bill.
+        $schoolYear = SchoolYear::active();
+        abort_if($schoolYear === null, 422, 'No school year is currently active.');
+        abort_if(
+            $schoolYear->fees()->count() === 0,
+            422,
+            "Set up fees for SY {$schoolYear->school_year} before admitting students.",
+        );
+
+        $student = DB::transaction(function () use ($validated, $generateBill, $request, $schoolYear) {
             $fullName = Str::squish(
                 "{$validated['firstName']} ".($validated['middleName'] ?? '')." {$validated['lastName']}"
             );
@@ -135,15 +145,12 @@ class StudentController extends Controller
             ])->save();
 
             // Open a pending enrollment + generate the bill for the active year.
-            $schoolYear = SchoolYear::active();
-            if ($schoolYear !== null) {
-                $generateBill(
-                    $student,
-                    $schoolYear,
-                    $request->user()?->id,
-                    (bool) ($validated['noDownpayment'] ?? false),
-                );
-            }
+            $generateBill(
+                $student,
+                $schoolYear,
+                $request->user()?->id,
+                (bool) ($validated['noDownpayment'] ?? false),
+            );
 
             return $student;
         });

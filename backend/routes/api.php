@@ -182,9 +182,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/discounts/{discount}', [AdminDiscountController::class, 'update']);
         Route::delete('/admin/discounts/{discount}', [AdminDiscountController::class, 'destroy']);
 
-        // Billing — bills for the open term.
+        // Billing — bills for the active school year (created when a student is
+        // accepted, admitted, promoted or retained).
         Route::get('/admin/bills', [AdminBillController::class, 'index']);
-        Route::post('/admin/bills/generate', [AdminBillController::class, 'generate']);
         Route::get('/admin/bills/{bill}', [AdminBillController::class, 'show']);
 
         // Apply or remove a catalog discount on a bill.

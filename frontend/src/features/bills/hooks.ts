@@ -9,7 +9,6 @@ import {
   fetchBill,
   fetchBills,
   fetchStudentBill,
-  generateBills,
   fetchMyBill,
   fetchMyBills,
   recordPayment,
@@ -31,18 +30,6 @@ export function useBills(params: BillListParams) {
     queryKey: [...billsQueryKey, "list", params],
     queryFn: () => fetchBills(params),
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useGenerateBills() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: generateBills,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: billsQueryKey });
-      // Per-student bill queries live under ["admin","students",id,"bill"].
-      queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
-    },
   });
 }
 

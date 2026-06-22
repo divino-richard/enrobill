@@ -278,6 +278,17 @@ class Bill extends Model
     }
 
     /**
+     * Whether this bill can be voided (deleted) when undoing a year-end decision:
+     * nothing has been paid and no payment is pending verification. A bill with any
+     * verified or pending payment is locked. Rejected payments don't block.
+     */
+    public function isVoidable(): bool
+    {
+        return (float) $this->amount_paid <= 0
+            && $this->payments()->whereIn('status', ['verified', 'pending'])->doesntExist();
+    }
+
+    /**
      * Finalize enrollment once the downpayment (or full payment) is met: mark this
      * year's enrollment "enrolled" and mirror it onto the student's global status.
      * One-directional — never reverts an enrollment.

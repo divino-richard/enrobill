@@ -34,14 +34,6 @@ export async function fetchBills(params: BillListParams): Promise<BillsPage> {
   return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
-// Bulk-generate bills for all eligible admitted students in the open term.
-export async function generateBills(): Promise<{ created: number }> {
-  const { data } = await api.post<{ created: number }>(
-    "/admin/bills/generate",
-  );
-  return data;
-}
-
 // A single student's bill for the open term (404 if not billed yet).
 export async function fetchStudentBill(studentId: number): Promise<Bill> {
   const { data } = await api.get<Wrapped<Bill>>(

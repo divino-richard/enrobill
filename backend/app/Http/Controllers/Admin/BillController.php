@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\GenerateSchoolYearBills;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
 use App\Models\SchoolYear;
 use App\Models\Student;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -64,16 +62,6 @@ class BillController extends Controller
         $query->orderBy('id', $direction);
 
         return BillResource::collection($query->paginate($perPage)->withQueryString());
-    }
-
-    /**
-     * Bulk-generate bills for all eligible students in the active school year.
-     */
-    public function generate(GenerateSchoolYearBills $generate): JsonResponse
-    {
-        $created = $generate();
-
-        return response()->json(['created' => $created]);
     }
 
     /**

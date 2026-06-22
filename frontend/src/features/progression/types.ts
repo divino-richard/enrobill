@@ -8,7 +8,7 @@ export interface PromoteCandidate {
   nextYearLevel: string | null;
 }
 
-// A student whose decision can still be undone (decided but not yet billed).
+// A student whose decision can still be undone (billed, but no payments yet).
 export interface RevertCandidate {
   id: number;
   studentNumber: string;
