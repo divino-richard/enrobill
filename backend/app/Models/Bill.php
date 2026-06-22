@@ -6,13 +6,16 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 #[Fillable([
-    'student_id', 'term_id', 'enrollment_id', 'fee_structure_id', 'total', 'amount_paid', 'status',
-    'payment_option',
+    'student_id', 'school_year_id', 'enrollment_id', 'total', 'amount_paid', 'status',
 ])]
 class Bill extends Model
 {
+    /** The label given to the required upfront installment row. */
+    public const DOWNPAYMENT_LABEL = 'Downpayment';
+
     /**
      * @return array<string, string>
      */
@@ -33,21 +36,11 @@ class Bill extends Model
     }
 
     /**
-     * @return BelongsTo<Term, $this>
+     * @return BelongsTo<SchoolYear, $this>
      */
-    public function term(): BelongsTo
+    public function schoolYear(): BelongsTo
     {
-        return $this->belongsTo(Term::class);
-    }
-
-    /**
-     * The fee structure (program + year level) this bill was generated from.
-     *
-     * @return BelongsTo<FeeStructure, $this>
-     */
-    public function feeStructure(): BelongsTo
-    {
-        return $this->belongsTo(FeeStructure::class);
+        return $this->belongsTo(SchoolYear::class);
     }
 
     /**
@@ -117,9 +110,8 @@ class Bill extends Model
     }
 
     /**
-     * The amount a student should pay now: the next unpaid installment's
-     * remaining balance if there's a plan, otherwise the full outstanding
-     * balance. Based on verified payments only. Zero when nothing is owed.
+     * The amount a student should pay now: the next unpaid installment's remaining
+     * balance, based on verified payments only. Zero when nothing is owed.
      */
     public function amountDue(): float
     {
@@ -129,9 +121,7 @@ class Bill extends Model
             return 0.0;
         }
 
-        $installments = $this->relationLoaded('installments')
-            ? $this->installments
-            : $this->installments()->orderBy('sequence')->get();
+        $installments = $this->orderedInstallments();
 
         if ($installments->isEmpty()) {
             return $outstanding;
@@ -155,8 +145,9 @@ class Bill extends Model
     }
 
     /**
-     * Recompute amount_paid and status from recorded payments and current
-     * credits. Call after any payment or adjustment change.
+     * Recompute amount_paid and status from recorded payments and current credits,
+     * then re-spread the remaining balance across the unpaid monthly installments.
+     * Call after any payment or adjustment change.
      */
     public function recalculate(): void
     {
@@ -172,24 +163,112 @@ class Bill extends Model
         };
 
         $this->update(['amount_paid' => $paid, 'status' => $status]);
+
+        $this->redistributeInstallments();
     }
 
     /**
-     * Whether enough has been paid (verified) to enroll the student: the full
-     * net total for a full-payment bill, or the first installment (downpayment)
-     * for an installment plan.
+     * Spread the outstanding balance equally across the monthly installments that
+     * aren't fully paid yet, preserving their due dates. The downpayment row is
+     * never touched. This is what makes "pay more now → smaller monthly" work: any
+     * amount paid beyond the downpayment lowers every remaining monthly evenly.
+     */
+    public function redistributeInstallments(): void
+    {
+        $installments = $this->orderedInstallments();
+
+        if ($installments->isEmpty()) {
+            return;
+        }
+
+        $downpayment = $installments->firstWhere('label', self::DOWNPAYMENT_LABEL);
+        $monthlies = $installments
+            ->reject(fn ($i) => $i->label === self::DOWNPAYMENT_LABEL)
+            ->values();
+
+        if ($monthlies->isEmpty()) {
+            return;
+        }
+
+        $net = $this->netTotal();
+        $paid = (float) $this->amount_paid;
+        $dpAmount = $downpayment ? (float) $downpayment->amount : 0.0;
+
+        // How much of what's been paid has reached the monthly installments.
+        $paidToMonthlies = round(max($paid - $dpAmount, 0), 2);
+
+        // Walk the monthlies to find the fully-paid prefix; `carry` is the partial
+        // payment sitting on the first not-fully-paid monthly.
+        $remaining = $paidToMonthlies;
+        $future = [];
+        $started = false;
+        foreach ($monthlies as $monthly) {
+            if ($started) {
+                $future[] = $monthly;
+
+                continue;
+            }
+
+            $amount = (float) $monthly->amount;
+            if ($remaining >= $amount - 0.001) {
+                $remaining = round($remaining - $amount, 2);
+            } else {
+                $started = true;
+                $future[] = $monthly;
+            }
+        }
+
+        $carry = round($remaining, 2);
+        $count = count($future);
+
+        if ($count === 0) {
+            return;
+        }
+
+        $monthliesTotal = round($net - $dpAmount, 2);
+        $outstanding = round(max($monthliesTotal - $paidToMonthlies, 0), 2);
+
+        $base = floor($outstanding / $count * 100) / 100;
+        $allocated = 0.0;
+
+        foreach ($future as $index => $monthly) {
+            if ($index === $count - 1) {
+                $amount = round($outstanding - $allocated, 2);
+            } else {
+                $amount = $base;
+                $allocated = round($allocated + $base, 2);
+            }
+
+            // The first not-fully-paid monthly carries the partial already paid
+            // into it, so its remaining balance still equals the even amount.
+            if ($index === 0) {
+                $amount = round($amount + $carry, 2);
+            }
+
+            if ((float) $monthly->amount !== $amount) {
+                $monthly->update(['amount' => $amount]);
+            }
+        }
+    }
+
+    /**
+     * Whether enough has been paid (verified) to enroll the student: the required
+     * downpayment for a normal bill, or nothing at all when the downpayment is
+     * waived (e.g. a private-school graduate).
      */
     public function enrollmentDownpaymentMet(): bool
     {
+        if ($this->enrollment?->no_downpayment) {
+            return true;
+        }
+
         $paid = (float) $this->amount_paid;
 
         if ($paid <= 0) {
             return false;
         }
 
-        $installments = $this->relationLoaded('installments')
-            ? $this->installments
-            : $this->installments()->orderBy('sequence')->get();
+        $installments = $this->orderedInstallments();
 
         if ($installments->isEmpty()) {
             return $paid >= $this->netTotal() - 0.01;
@@ -199,9 +278,9 @@ class Bill extends Model
     }
 
     /**
-     * Finalize enrollment once the downpayment (or full payment) is met: mark
-     * this term's enrollment "enrolled" and mirror it onto the student's global
-     * status. One-directional — never reverts an enrollment.
+     * Finalize enrollment once the downpayment (or full payment) is met: mark this
+     * year's enrollment "enrolled" and mirror it onto the student's global status.
+     * One-directional — never reverts an enrollment.
      */
     public function settleEnrollment(): void
     {
@@ -223,5 +302,17 @@ class Bill extends Model
         if ($student !== null && $student->status === 'admitted') {
             $student->update(['status' => 'enrolled']);
         }
+    }
+
+    /**
+     * The installment rows in due order, from the relation cache when available.
+     *
+     * @return Collection<int, BillInstallment>
+     */
+    private function orderedInstallments()
+    {
+        return $this->relationLoaded('installments')
+            ? $this->installments
+            : $this->installments()->orderBy('sequence')->get();
     }
 }

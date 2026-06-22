@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Student;
-use App\Models\Term;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -17,7 +16,7 @@ return new class extends Migration
         Schema::create('enrollments', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(Student::class)->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(Term::class)->constrained()->cascadeOnDelete();
+            $table->foreignId('term_id')->constrained('terms')->cascadeOnDelete();
             // Snapshot of the program at enrollment time (program code + level).
             $table->string('track')->nullable()->index();
             $table->string('year_level')->nullable();

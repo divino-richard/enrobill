@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProgramResource;
-use App\Models\FeeStructure;
 use App\Models\Program;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -26,9 +25,8 @@ class ProgramController extends Controller
     ];
 
     /**
-     * The program catalog with default fee items — paginated, searchable,
-     * sortable, and filterable by track + active state. Restricted to admins by
-     * route middleware.
+     * The program catalog — paginated, searchable, sortable, and filterable by
+     * track + active state. Restricted to admins by route middleware.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -37,7 +35,6 @@ class ProgramController extends Controller
         $sortKey = $request->string('sort')->value();
 
         $query = Program::query()
-            ->with('feeItems')
             ->when(
                 in_array($request->string('category')->value(), self::CATEGORIES, true),
                 fn ($query) => $query->where('category', $request->string('category')->value()),
@@ -60,7 +57,7 @@ class ProgramController extends Controller
 
     /**
      * Add a program. The code is derived from the name and is immutable, since
-     * applications/students/fee structures reference it.
+     * applications and students reference it.
      */
     public function store(Request $request): ProgramResource
     {
@@ -78,7 +75,7 @@ class ProgramController extends Controller
             'is_active' => $validated['isActive'] ?? true,
         ]);
 
-        return new ProgramResource($program->load('feeItems'));
+        return new ProgramResource($program);
     }
 
     /**
@@ -98,46 +95,7 @@ class ProgramController extends Controller
             'is_active' => $validated['isActive'],
         ]);
 
-        return new ProgramResource($program->fresh()->load('feeItems'));
-    }
-
-    /**
-     * Replace a program's default fee items.
-     */
-    public function updateFeeItems(Request $request, Program $program): ProgramResource
-    {
-        $validated = $request->validate([
-            'items' => ['present', 'array'],
-            'items.*.name' => ['required', 'string', 'max:100'],
-            'items.*.amounts' => ['array'],
-            'items.*.amounts.*' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
-        ]);
-
-        // Only amounts for the fixed SHS year levels are stored.
-        $validCodes = collect(FeeStructure::YEAR_LEVELS)->flip();
-
-        DB::transaction(function () use ($program, $validated, $validCodes) {
-            $program->feeItems()->delete();
-
-            $rows = [];
-            foreach ($validated['items'] as $item) {
-                foreach (($item['amounts'] ?? []) as $code => $amount) {
-                    if ($amount !== null && $validCodes->has($code)) {
-                        $rows[] = [
-                            'name' => $item['name'],
-                            'year_level' => $code,
-                            'amount' => $amount,
-                        ];
-                    }
-                }
-            }
-
-            if ($rows !== []) {
-                $program->feeItems()->createMany($rows);
-            }
-        });
-
-        return new ProgramResource($program->fresh()->load('feeItems'));
+        return new ProgramResource($program->fresh());
     }
 
     /**
@@ -146,12 +104,11 @@ class ProgramController extends Controller
     public function destroy(Program $program): Response
     {
         $referenced = DB::table('students')->where('track_or_strand', $program->code)->exists()
-            || DB::table('applications')->where('track_or_strand', $program->code)->exists()
-            || DB::table('fee_structures')->where('track', $program->code)->exists();
+            || DB::table('applications')->where('track_or_strand', $program->code)->exists();
 
         if ($referenced) {
             throw ValidationException::withMessages([
-                'program' => 'This program is in use by students, applications or fee structures. Deactivate it instead.',
+                'program' => 'This program is in use by students or applications. Deactivate it instead.',
             ]);
         }
 

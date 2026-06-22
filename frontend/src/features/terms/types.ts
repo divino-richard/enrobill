@@ -1,6 +1,6 @@
 export type TermSemester = "first" | "second";
 
-// The minimal open-term info exposed to applicants (school year + semester).
+// The minimal open info exposed to applicants (school year + current semester).
 export interface OpenTerm {
   schoolYear: string;
   semester: TermSemester;
@@ -8,31 +8,31 @@ export interface OpenTerm {
 
 export type DownpaymentType = "percentage" | "fixed";
 
+// A school year. The semester is just a pointer that tracks progress within it;
+// enrollment, admission and billing are all keyed by the school year itself.
 export interface Term {
   id: number;
   schoolYear: string;
-  semester: TermSemester;
+  currentSemester: TermSemester;
   startDate: string | null;
   endDate: string | null;
   isActive: boolean;
   admissionOpen: boolean;
-  installmentsEnabled: boolean;
-  downpaymentType: DownpaymentType | null;
-  downpaymentValue: number | null;
-  installmentCount: number | null;
+  downpaymentType: DownpaymentType;
+  downpaymentValue: number;
+  installmentCount: number;
   createdAt: string | null;
 }
 
+// Installments are always on; the policy is just the downpayment + monthly count.
 export interface InstallmentPolicyInput {
-  installmentsEnabled: boolean;
-  downpaymentType: DownpaymentType | null;
-  downpaymentValue: number | null;
-  installmentCount: number | null;
+  downpaymentType: DownpaymentType;
+  downpaymentValue: number;
+  installmentCount: number;
 }
 
 export interface TermInput extends InstallmentPolicyInput {
   schoolYear: string;
-  semester: TermSemester;
   startDate: string;
   endDate: string;
 }
@@ -50,5 +50,5 @@ export function semesterLabel(value: string): string {
 }
 
 export function termLabel(term: Term): string {
-  return `${semesterLabel(term.semester)} · SY ${term.schoolYear}`;
+  return `SY ${term.schoolYear}`;
 }

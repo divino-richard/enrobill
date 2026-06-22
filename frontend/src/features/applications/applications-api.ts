@@ -53,12 +53,15 @@ export async function fetchAdminApplication(
 }
 
 // Accept / reject an application — notifies the applicant by email (admin only).
+// On accept, `noDownpayment` waives the downpayment (private-school graduate).
 export async function decideApplication(
   id: number,
   decision: "accept" | "reject",
+  noDownpayment = false,
 ): Promise<AdminApplicationDetail> {
   const { data } = await api.post<Wrapped<AdminApplicationDetail>>(
     `/admin/applications/${id}/${decision}`,
+    decision === "accept" ? { noDownpayment } : undefined,
   );
   return data.data;
 }

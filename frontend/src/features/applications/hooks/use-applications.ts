@@ -49,8 +49,13 @@ export function useDecideApplication(id: number) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (decision: "accept" | "reject") =>
-      decideApplication(id, decision),
+    mutationFn: ({
+      decision,
+      noDownpayment,
+    }: {
+      decision: "accept" | "reject";
+      noDownpayment?: boolean;
+    }) => decideApplication(id, decision, noDownpayment),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
     },

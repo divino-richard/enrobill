@@ -22,15 +22,6 @@ class ProgramResource extends JsonResource
             'name' => $this->name,
             'category' => $this->category,
             'isActive' => $this->is_active,
-            // Flat (name, year_level, amount) rows grouped into a per-item matrix:
-            // { name, amounts: { <yearLevelCode>: amount } }.
-            'feeItems' => $this->whenLoaded('feeItems', fn () => $this->feeItems
-                ->groupBy('name')
-                ->map(fn ($rows, $name) => [
-                    'name' => $name,
-                    'amounts' => $rows->mapWithKeys(fn ($row) => [$row->year_level => (float) $row->amount]),
-                ])
-                ->values()),
         ];
     }
 }

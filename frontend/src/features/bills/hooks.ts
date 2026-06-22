@@ -10,7 +10,6 @@ import {
   fetchBills,
   fetchStudentBill,
   generateBills,
-  chooseMyPlan,
   fetchMyBill,
   fetchMyBills,
   recordPayment,
@@ -23,7 +22,6 @@ import {
   type PaymentInput,
   type SubmitPaymentInput,
 } from "./api";
-import type { PaymentOption } from "./types";
 import type { Bill } from "./types";
 
 export const billsQueryKey = ["admin", "bills"] as const;
@@ -159,12 +157,3 @@ export function useSubmitMyPayment() {
   });
 }
 
-export function useChooseMyPlan() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (option: PaymentOption) => chooseMyPlan(option),
-    onSuccess: (bill) => {
-      queryClient.setQueryData(myBillQueryKey, bill);
-    },
-  });
-}

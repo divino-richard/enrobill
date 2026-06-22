@@ -18,13 +18,14 @@ class EnrollmentResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'schoolYear' => $this->term?->school_year,
-            'semester' => $this->term?->semester,
+            'schoolYear' => $this->schoolYear?->school_year,
+            'semester' => $this->schoolYear?->current_semester,
             'program' => $this->track,
             'yearLevel' => $this->year_level,
+            'noDownpayment' => (bool) $this->no_downpayment,
             'status' => $this->status,
             'enrolledAt' => $this->enrolled_at?->toIso8601String(),
-            'isCurrent' => (bool) $this->term?->is_active,
+            'isCurrent' => (bool) $this->schoolYear?->is_active,
         ];
     }
 }

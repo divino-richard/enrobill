@@ -1,66 +1,59 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import {
-  deleteFeeStructure,
-  fetchFeeStructure,
-  fetchFeeStructures,
-  generateFeeStructures,
-  updateFeeStructureItems,
-  type FeeStructureListParams,
+  copyFees,
+  createFee,
+  deleteFee,
+  fetchFees,
+  updateFee,
 } from "./api";
+import type { FeeInput } from "./types";
 
-export const feeStructuresQueryKey = ["admin", "fee-structures"] as const;
+export const feesQueryKey = ["admin", "fees"] as const;
 
-export function useFeeStructures(params: FeeStructureListParams) {
+export function useFees(schoolYearId?: number) {
   return useQuery({
-    queryKey: [...feeStructuresQueryKey, "list", params],
-    queryFn: () => fetchFeeStructures(params),
-    placeholderData: keepPreviousData,
+    queryKey: [...feesQueryKey, schoolYearId ?? "active"],
+    queryFn: () => fetchFees(schoolYearId),
   });
 }
 
-export function useFeeStructure(id: number) {
-  return useQuery({
-    queryKey: [...feeStructuresQueryKey, "detail", id],
-    queryFn: () => fetchFeeStructure(id),
-  });
-}
-
-export function useUpdateFeeStructureItems(id: number) {
+export function useCreateFee() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (items: { name: string; amount: number }[]) =>
-      updateFeeStructureItems(id, items),
-    onSuccess: (structure) => {
-      queryClient.invalidateQueries({ queryKey: feeStructuresQueryKey });
-      queryClient.setQueryData(
-        [...feeStructuresQueryKey, "detail", id],
-        structure,
-      );
+    mutationFn: (input: FeeInput) => createFee(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: feesQueryKey });
     },
   });
 }
 
-export function useDeleteFeeStructure() {
+export function useUpdateFee(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => deleteFeeStructure(id),
+    mutationFn: (input: FeeInput) => updateFee(id, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: feeStructuresQueryKey });
+      queryClient.invalidateQueries({ queryKey: feesQueryKey });
     },
   });
 }
 
-export function useGenerateFeeStructures() {
+export function useDeleteFee() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: generateFeeStructures,
+    mutationFn: (id: number) => deleteFee(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: feeStructuresQueryKey });
+      queryClient.invalidateQueries({ queryKey: feesQueryKey });
+    },
+  });
+}
+
+export function useCopyFees() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ from, to }: { from: number; to: number }) =>
+      copyFees(from, to),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: feesQueryKey });
     },
   });
 }

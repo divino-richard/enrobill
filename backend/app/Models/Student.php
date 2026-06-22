@@ -71,9 +71,9 @@ class Student extends Model
     public function syncStatusFromLatestEnrollment(): void
     {
         $latest = $this->enrollments()
-            ->with('term')
+            ->with('schoolYear')
             ->get()
-            ->sortByDesc(fn (Enrollment $e) => ($e->term?->school_year ?? '').'|'.($e->term?->semester ?? ''))
+            ->sortByDesc(fn (Enrollment $e) => $e->schoolYear?->school_year ?? '')
             ->first();
 
         if ($latest === null) {

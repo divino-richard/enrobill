@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\EnsureEnrollment;
+use App\Actions\GenerateBillForStudent;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
-use App\Models\FeeStructure;
+use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\Term;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -71,10 +70,11 @@ class StudentController extends Controller
 
     /**
      * Admit a walk-in student directly (for applicants who didn't apply online).
-     * Creates their login account and student record, and opens a pending
-     * enrollment for the current term. Further details can be edited afterwards.
+     * Creates their login account and student record, opens a pending enrollment
+     * for the active school year, and generates their bill (when fees exist) so it
+     * shows immediately. Further details can be edited afterwards.
      */
-    public function store(Request $request, EnsureEnrollment $ensureEnrollment): StudentResource
+    public function store(Request $request, GenerateBillForStudent $generateBill): StudentResource
     {
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -90,8 +90,9 @@ class StudentController extends Controller
             'middleName' => ['nullable', 'string', 'max:100'],
             'lastName' => ['required', 'string', 'max:100'],
             'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
-            'yearLevel' => ['required', Rule::in(FeeStructure::YEAR_LEVELS)],
+            'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
             'schoolYear' => ['required', 'string', 'max:20'],
+            'noDownpayment' => ['sometimes', 'boolean'],
         ], [
             'password.min' => 'Password must be at least 8 characters.',
             'password.regex' => 'Password must include an uppercase letter and a number.',
@@ -99,7 +100,7 @@ class StudentController extends Controller
             'email.unique' => 'An account with this email already exists.',
         ]);
 
-        $student = DB::transaction(function () use ($validated, $ensureEnrollment) {
+        $student = DB::transaction(function () use ($validated, $generateBill, $request) {
             $fullName = Str::squish(
                 "{$validated['firstName']} ".($validated['middleName'] ?? '')." {$validated['lastName']}"
             );
@@ -133,10 +134,15 @@ class StudentController extends Controller
                 'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
             ])->save();
 
-            // Open a pending enrollment for the current term, if one is open.
-            $term = Term::active();
-            if ($term !== null) {
-                $ensureEnrollment($student, $term);
+            // Open a pending enrollment + generate the bill for the active year.
+            $schoolYear = SchoolYear::active();
+            if ($schoolYear !== null) {
+                $generateBill(
+                    $student,
+                    $schoolYear,
+                    $request->user()?->id,
+                    (bool) ($validated['noDownpayment'] ?? false),
+                );
             }
 
             return $student;
@@ -176,7 +182,7 @@ class StudentController extends Controller
             'addressBarangay' => ['nullable', 'string', 'max:50'],
             'addressStreet' => ['nullable', 'string', 'max:255'],
             'trackOrStrand' => ['nullable', 'string', 'exists:programs,code'],
-            'yearLevel' => ['nullable', Rule::in(FeeStructure::YEAR_LEVELS)],
+            'yearLevel' => ['nullable', Rule::in(SchoolYear::YEAR_LEVELS)],
             'schoolYear' => ['nullable', 'string', 'max:20'],
             'status' => ['required', Rule::in(self::STATUSES)],
         ]);

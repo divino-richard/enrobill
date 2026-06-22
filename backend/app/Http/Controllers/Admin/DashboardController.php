@@ -8,8 +8,8 @@ use App\Models\Application;
 use App\Models\Bill;
 use App\Models\BillAdjustment;
 use App\Models\Payment;
+use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\Term;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,15 +23,15 @@ class DashboardController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $term = Term::active();
+        $schoolYear = SchoolYear::active();
 
         $data = [
             'role' => $user->role->value,
-            'openTerm' => $term ? [
-                'schoolYear' => $term->school_year,
-                'semester' => $term->semester,
+            'openTerm' => $schoolYear ? [
+                'schoolYear' => $schoolYear->school_year,
+                'semester' => $schoolYear->current_semester,
             ] : null,
-            'finance' => $this->finance($term?->id),
+            'finance' => $this->finance($schoolYear?->id),
         ];
 
         if ($user->role === Role::Admin) {
@@ -42,13 +42,13 @@ class DashboardController extends Controller
     }
 
     /**
-     * Billing totals for the open term.
+     * Billing totals for the active school year.
      *
      * @return array<string, mixed>
      */
-    private function finance(?int $termId): array
+    private function finance(?int $schoolYearId): array
     {
-        $bills = Bill::query()->where('term_id', $termId);
+        $bills = Bill::query()->where('school_year_id', $schoolYearId);
 
         $gross = (float) (clone $bills)->sum('total');
         $collected = round((float) (clone $bills)->sum('amount_paid'), 2);

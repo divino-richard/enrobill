@@ -7,6 +7,7 @@ import {
   PlusIcon,
   PowerIcon,
   PowerOffIcon,
+  RefreshCwIcon,
   Trash2Icon,
   WalletIcon,
 } from "lucide-react";
@@ -21,7 +22,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RowActions } from "@/components/row-actions";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,7 +64,6 @@ import {
   useUpdateTermStatus,
 } from "@/features/terms/hooks";
 import {
-  TERM_SEMESTER_OPTIONS,
   semesterLabel,
   termLabel,
   type DownpaymentType,
@@ -73,14 +72,12 @@ import {
 } from "@/features/terms/types";
 
 interface PolicyState {
-  enabled: boolean;
   type: DownpaymentType;
   value: string;
   count: string;
 }
 
 const EMPTY_POLICY: PolicyState = {
-  enabled: false,
   type: "percentage",
   value: "",
   count: "",
@@ -88,18 +85,16 @@ const EMPTY_POLICY: PolicyState = {
 
 function policyToInput(policy: PolicyState) {
   return {
-    installmentsEnabled: policy.enabled,
-    downpaymentType: policy.enabled ? policy.type : null,
-    downpaymentValue: policy.enabled ? Number(policy.value) : null,
-    installmentCount: policy.enabled ? Number(policy.count) : null,
+    downpaymentType: policy.type,
+    downpaymentValue: Number(policy.value),
+    installmentCount: Number(policy.count),
   };
 }
 
 const policyComplete = (policy: PolicyState) =>
-  !policy.enabled || (policy.value !== "" && policy.count !== "");
+  policy.value !== "" && policy.count !== "";
 
 function policySummary(term: Term): string {
-  if (!term.installmentsEnabled) return "Full payment only";
   const dp =
     term.downpaymentType === "percentage"
       ? `${term.downpaymentValue}%`
@@ -117,55 +112,51 @@ function PolicyFields({
 }) {
   return (
     <div className="space-y-3 rounded-lg border p-3 sm:col-span-2">
-      <label className="flex items-center gap-2 text-sm font-medium">
-        <Checkbox
-          checked={policy.enabled}
-          onCheckedChange={(checked) => onChange({ enabled: checked === true })}
-        />
-        Offer installment plans this term
-      </label>
-      {policy.enabled && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5 sm:col-span-2">
-            <FieldLabel>Downpayment type</FieldLabel>
-            <Select
-              value={policy.type}
-              onValueChange={(v) => onChange({ type: v as DownpaymentType })}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="percentage">Percentage (%)</SelectItem>
-                <SelectItem value="fixed">Fixed (₱)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel>
-              {policy.type === "percentage" ? "Downpayment %" : "Downpayment ₱"}
-            </FieldLabel>
-            <Input
-              type="number"
-              min={0}
-              max={policy.type === "percentage" ? 100 : undefined}
-              step="0.01"
-              value={policy.value}
-              onChange={(e) => onChange({ value: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <FieldLabel>Monthly installments</FieldLabel>
-            <Input
-              type="number"
-              min={1}
-              max={24}
-              value={policy.count}
-              onChange={(e) => onChange({ count: e.target.value })}
-            />
-          </div>
+      <p className="text-sm font-medium">Installment policy</p>
+      <p className="text-muted-foreground text-xs">
+        Every bill is paid by installment: a downpayment plus equal monthly
+        payments. Paying more than the downpayment lowers the monthly amount.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-1.5 sm:col-span-2">
+          <FieldLabel>Downpayment type</FieldLabel>
+          <Select
+            value={policy.type}
+            onValueChange={(v) => onChange({ type: v as DownpaymentType })}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="percentage">Percentage (%)</SelectItem>
+              <SelectItem value="fixed">Fixed (₱)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      )}
+        <div className="space-y-1.5">
+          <FieldLabel>
+            {policy.type === "percentage" ? "Downpayment %" : "Downpayment ₱"}
+          </FieldLabel>
+          <Input
+            type="number"
+            min={0}
+            max={policy.type === "percentage" ? 100 : undefined}
+            step="0.01"
+            value={policy.value}
+            onChange={(e) => onChange({ value: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <FieldLabel>Monthly installments</FieldLabel>
+          <Input
+            type="number"
+            min={1}
+            max={24}
+            value={policy.count}
+            onChange={(e) => onChange({ count: e.target.value })}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -184,7 +175,7 @@ function PolicyDialog({
           <DialogTitle>Installment policy</DialogTitle>
           <DialogDescription>
             {term
-              ? `How ${termLabel(term)} can be paid. Students choose full or installment; the schedule is generated from this.`
+              ? `How ${termLabel(term)} is paid. The downpayment and monthly schedule are generated from this.`
               : ""}
           </DialogDescription>
         </DialogHeader>
@@ -203,10 +194,9 @@ function PolicyDialog({
 function PolicyForm({ term, onDone }: { term: Term; onDone: () => void }) {
   const save = useUpdateTermPolicy(term.id);
   const [policy, setPolicy] = useState<PolicyState>({
-    enabled: term.installmentsEnabled,
     type: term.downpaymentType ?? "percentage",
-    value: term.downpaymentValue !== null ? String(term.downpaymentValue) : "",
-    count: term.installmentCount !== null ? String(term.installmentCount) : "",
+    value: term.downpaymentValue != null ? String(term.downpaymentValue) : "",
+    count: term.installmentCount != null ? String(term.installmentCount) : "",
   });
 
   async function handleSave() {
@@ -255,7 +245,7 @@ function isValidSchoolYear(value: string): boolean {
   return match !== null && Number(match[2]) === Number(match[1]) + 1;
 }
 
-// Term dates can be current/future, so widen the calendar and allow any date.
+// School-year dates can be current/future, so widen the calendar.
 const TERM_DATE_START = new Date(new Date().getFullYear() - 2, 0);
 const TERM_DATE_END = new Date(new Date().getFullYear() + 6, 11);
 
@@ -267,7 +257,6 @@ function NewTermDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [schoolYear, setSchoolYear] = useState("");
-  const [semester, setSemester] = useState<TermSemester | "">("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [policy, setPolicy] = useState<PolicyState>(EMPTY_POLICY);
@@ -275,15 +264,10 @@ function NewTermDialog({
 
   const schoolYearValid = isValidSchoolYear(schoolYear);
   const datesValid = startDate !== "" && endDate !== "" && endDate >= startDate;
-  const canCreate =
-    schoolYearValid &&
-    Boolean(semester) &&
-    datesValid &&
-    policyComplete(policy);
+  const canCreate = schoolYearValid && datesValid && policyComplete(policy);
 
   function reset() {
     setSchoolYear("");
-    setSemester("");
     setStartDate("");
     setEndDate("");
     setPolicy(EMPTY_POLICY);
@@ -295,7 +279,6 @@ function NewTermDialog({
     try {
       await create.mutateAsync({
         schoolYear: schoolYear.trim(),
-        semester: semester as TermSemester,
         startDate,
         endDate,
         ...policyToInput(policy),
@@ -317,14 +300,15 @@ function NewTermDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New term</DialogTitle>
+          <DialogTitle>New school year</DialogTitle>
           <DialogDescription>
-            Add a school year and semester. Open it to start enrollment.
+            Add a school year and its installment policy. Activate it to start
+            enrollment.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-2">
             <FieldLabel
               htmlFor="schoolYear"
               required
@@ -343,27 +327,6 @@ function NewTermDialog({
                 Use the format 2026-2027 (consecutive years).
               </p>
             )}
-          </div>
-
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="semester" required>
-              Semester
-            </FieldLabel>
-            <Select
-              value={semester}
-              onValueChange={(value) => setSemester(value as TermSemester)}
-            >
-              <SelectTrigger id="semester" className="w-full">
-                <SelectValue placeholder="Select semester" />
-              </SelectTrigger>
-              <SelectContent>
-                {TERM_SEMESTER_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="space-y-1.5">
@@ -427,7 +390,7 @@ function NewTermDialog({
             onClick={handleCreate}
             disabled={!canCreate || create.isPending}
           >
-            {create.isPending ? "Adding…" : "Add term"}
+            {create.isPending ? "Adding…" : "Add school year"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -479,20 +442,24 @@ function TermsPage() {
     }
   }
 
+  function switchSemester(term: Term, next: TermSemester) {
+    void setStatus.mutateAsync({ id: term.id, currentSemester: next });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Academic Terms
+            Academic Years
           </h1>
           <p className="text-muted-foreground text-sm">
-            Set the active term, then open or close its enrollment window.
+            Set the active school year, then open or close its admissions window.
           </p>
         </div>
         <Button onClick={() => setNewTermOpen(true)}>
           <PlusIcon />
-          New term
+          New school year
         </Button>
       </div>
 
@@ -502,7 +469,8 @@ function TermsPage() {
           {activeTerm ? (
             <span>
               <span className="font-medium">{termLabel(activeTerm)}</span> is the
-              active term — admissions are{" "}
+              active school year ({semesterLabel(activeTerm.currentSemester)}) —
+              admissions are{" "}
               <span className="font-medium">
                 {activeTerm.admissionOpen ? "open" : "closed"}
               </span>
@@ -510,7 +478,7 @@ function TermsPage() {
             </span>
           ) : (
             <span className="text-muted-foreground">
-              No term is currently active.
+              No school year is currently active.
             </span>
           )}
         </div>
@@ -524,7 +492,7 @@ function TermsPage() {
       ) : isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">
-            We couldn't load terms. Please try again.
+            We couldn't load school years. Please try again.
           </p>
           <Button variant="outline" onClick={() => refetch()}>
             Try again
@@ -532,9 +500,9 @@ function TermsPage() {
         </div>
       ) : terms.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <p className="font-medium">No terms yet</p>
+          <p className="font-medium">No school years yet</p>
           <p className="text-muted-foreground text-sm">
-            Add a term to begin setting up enrollment.
+            Add a school year to begin setting up enrollment.
           </p>
         </div>
       ) : (
@@ -543,7 +511,7 @@ function TermsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>School Year</TableHead>
-                <TableHead>Semester</TableHead>
+                <TableHead>Current semester</TableHead>
                 <TableHead>Period</TableHead>
                 <TableHead>Payment plan</TableHead>
                 <TableHead>Status</TableHead>
@@ -556,7 +524,7 @@ function TermsPage() {
                   <TableCell className="font-medium">
                     {term.schoolYear}
                   </TableCell>
-                  <TableCell>{semesterLabel(term.semester)}</TableCell>
+                  <TableCell>{semesterLabel(term.currentSemester)}</TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">
                     {term.startDate && term.endDate
                       ? `${formatDate(term.startDate)} – ${formatDate(term.endDate)}`
@@ -606,7 +574,9 @@ function TermsPage() {
                         }
                       >
                         {term.isActive ? <PowerOffIcon /> : <PowerIcon />}
-                        {term.isActive ? "Deactivate term" : "Set as active"}
+                        {term.isActive
+                          ? "Deactivate school year"
+                          : "Set as active"}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={setStatus.isPending || !term.isActive}
@@ -623,9 +593,25 @@ function TermsPage() {
                           ? "Close admissions"
                           : "Open admissions"}
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={setStatus.isPending}
+                        onClick={() =>
+                          switchSemester(
+                            term,
+                            term.currentSemester === "first"
+                              ? "second"
+                              : "first",
+                          )
+                        }
+                      >
+                        <RefreshCwIcon />
+                        {term.currentSemester === "first"
+                          ? "Advance to 2nd semester"
+                          : "Back to 1st semester"}
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setPolicyTerm(term)}>
                         <WalletIcon />
-                        Installment plan
+                        Installment policy
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
@@ -660,7 +646,7 @@ function TermsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this term?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this school year?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting
                 ? `${termLabel(deleting)} will be removed. This can't be undone.`
@@ -668,7 +654,7 @@ function TermsPage() {
               {deleting?.isActive && (
                 <span className="text-destructive mt-2 flex items-center gap-1.5">
                   <CircleAlertIcon className="size-4" />
-                  This is currently the active term.
+                  This is currently the active school year.
                 </span>
               )}
             </AlertDialogDescription>
@@ -742,20 +728,20 @@ function TermsPage() {
 function statusActionTitle(action: StatusAction): string {
   if (action.kind === "active") {
     return action.next
-      ? "Set this term as active?"
-      : "Deactivate this term?";
+      ? "Set this school year as active?"
+      : "Deactivate this school year?";
   }
   return action.next
-    ? "Open admissions for this term?"
-    : "Close admissions for this term?";
+    ? "Open admissions for this school year?"
+    : "Close admissions for this school year?";
 }
 
 function statusActionBody(action: StatusAction): string {
   const label = termLabel(action.term);
   if (action.kind === "active") {
     return action.next
-      ? `${label} will become the active term. Bills, the student portal and dashboards will operate on it.`
-      : `${label} will be deactivated. Bills, the portal and dashboards will have no active term, and its admissions will close, until you activate another.`;
+      ? `${label} will become the active school year. Bills, the student portal and dashboards will operate on it.`
+      : `${label} will be deactivated. Bills, the portal and dashboards will have no active school year, and its admissions will close, until you activate another.`;
   }
   return action.next
     ? `Applicants will be able to submit applications for ${label}.`

@@ -67,20 +67,18 @@ class BillAdjustmentController extends Controller
     }
 
     /**
-     * When a bill is on an installment plan, regenerate its schedule so it matches
-     * the (now changed) net total after a discount is applied or removed.
+     * Regenerate the installment schedule so it matches the (now changed) net total
+     * after a discount is applied or removed. Every bill is installment.
      */
     private function syncInstallmentPlan(Bill $bill, GenerateInstallmentSchedule $generate): void
     {
-        if ($bill->payment_option === 'installment' && $bill->term?->installments_enabled) {
-            $generate($bill);
-        }
+        $generate($bill);
     }
 
     private function billResource(Bill $bill): BillResource
     {
         return new BillResource(
-            $bill->fresh()->load(['term', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
+            $bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
         );
     }
 }

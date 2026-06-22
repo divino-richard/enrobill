@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, CheckIcon, XIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,11 +48,17 @@ function AdminApplicationDetailPage() {
   const [pendingDecision, setPendingDecision] = useState<
     "accept" | "reject" | null
   >(null);
+  const [noDownpayment, setNoDownpayment] = useState(false);
+
+  function openDecision(decision: "accept" | "reject") {
+    setNoDownpayment(false);
+    setPendingDecision(decision);
+  }
 
   async function confirmDecision() {
     if (!pendingDecision) return;
     try {
-      await decide.mutateAsync(pendingDecision);
+      await decide.mutateAsync({ decision: pendingDecision, noDownpayment });
     } catch {
       // Surfaced below via decide.isError.
     } finally {
@@ -142,14 +149,14 @@ function AdminApplicationDetailPage() {
                   <Button
                     variant="destructive"
                     disabled={decide.isPending}
-                    onClick={() => setPendingDecision("reject")}
+                    onClick={() => openDecision("reject")}
                   >
                     <XIcon />
                     Reject
                   </Button>
                   <Button
                     disabled={decide.isPending}
-                    onClick={() => setPendingDecision("accept")}
+                    onClick={() => openDecision("accept")}
                   >
                     <CheckIcon />
                     Accept
@@ -201,9 +208,28 @@ function AdminApplicationDetailPage() {
                 <AlertDialogDescription>
                   {isReject
                     ? "The application will be marked as rejected and the applicant will be notified by email. They can edit and resubmit it."
-                    : "The application will be marked as accepted and the applicant will be notified by email."}
+                    : "The application will be marked as accepted, the student's bill for the active school year is generated, and the applicant is notified by email."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {!isReject && (
+                <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+                  <Checkbox
+                    checked={noDownpayment}
+                    onCheckedChange={(checked) =>
+                      setNoDownpayment(checked === true)
+                    }
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium">Waive downpayment</span>
+                    <span className="text-muted-foreground block text-xs">
+                      For private-school graduates — they enroll without a
+                      downpayment; the balance is spread across monthly
+                      installments.
+                    </span>
+                  </span>
+                </label>
+              )}
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={decide.isPending}>
                   Cancel

@@ -4,20 +4,22 @@ namespace App\Actions;
 
 use App\Enums\Role;
 use App\Models\Application;
+use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\Term;
 use Illuminate\Support\Str;
 
 class PromoteApplicantToStudent
 {
-    public function __construct(private EnsureEnrollment $ensureEnrollment) {}
+    public function __construct(private GenerateBillForStudent $generateBill) {}
 
     /**
      * Promote the applicant behind an accepted application: flip their role to
      * student and create their canonical student record from the application
-     * snapshot. Idempotent — a user already promoted is left untouched.
+     * snapshot. Generates their bill for the active school year immediately so it
+     * shows the moment they're accepted. Idempotent — a user already promoted is
+     * left untouched. `$noDownpayment` waives the downpayment (private-school grad).
      */
-    public function __invoke(Application $application): ?Student
+    public function __invoke(Application $application, bool $noDownpayment = false): ?Student
     {
         $user = $application->user;
 
@@ -31,7 +33,7 @@ class PromoteApplicantToStudent
 
         // One student record per user.
         if ($user->student()->exists()) {
-            $this->ensureCurrentEnrollment($user->student);
+            $this->ensureCurrentBill($user->student, $noDownpayment);
 
             return $user->student;
         }
@@ -66,21 +68,21 @@ class PromoteApplicantToStudent
             'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
         ])->save();
 
-        $this->ensureCurrentEnrollment($student);
+        $this->ensureCurrentBill($student, $noDownpayment);
 
         return $student;
     }
 
     /**
-     * Open a pending enrollment for the current term, if one is open, so the
-     * admitted student's program/level/semester shows immediately.
+     * Open the student's enrollment for the active school year and generate their
+     * bill (when fees are defined) so their program and balance show immediately.
      */
-    private function ensureCurrentEnrollment(Student $student): void
+    private function ensureCurrentBill(Student $student, bool $noDownpayment): void
     {
-        $term = Term::active();
+        $schoolYear = SchoolYear::active();
 
-        if ($term !== null) {
-            ($this->ensureEnrollment)($student, $term);
+        if ($schoolYear !== null) {
+            ($this->generateBill)($student, $schoolYear, noDownpayment: $noDownpayment);
         }
     }
 }

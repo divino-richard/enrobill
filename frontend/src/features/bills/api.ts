@@ -7,7 +7,7 @@ import {
   type ListParams,
   type PageMeta,
 } from "@/lib/pagination";
-import type { Bill, PaymentMethod, PaymentOption } from "./types";
+import type { Bill, PaymentMethod } from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -124,14 +124,6 @@ export async function fetchMyBills(): Promise<Bill[]> {
   return data.data;
 }
 
-// Choose how to pay: full or installment (generates the schedule).
-export async function chooseMyPlan(option: PaymentOption): Promise<Bill> {
-  const { data } = await api.put<Wrapped<Bill>>("/me/bill/payment-option", {
-    option,
-  });
-  return data.data;
-}
-
 // Presign + upload a proof-of-payment screenshot; returns the object key.
 export async function uploadPaymentProof(file: File): Promise<string> {
   const { data } = await api.post<PresignResponse>(
@@ -147,7 +139,8 @@ export async function uploadPaymentProof(file: File): Promise<string> {
 }
 
 export interface SubmitPaymentInput {
-  // The amount is set server-side (next installment, else balance).
+  // At least the amount due now (next installment), at most the balance.
+  amount: number;
   method: PaymentMethod;
   reference?: string | null;
   proofKey: string;

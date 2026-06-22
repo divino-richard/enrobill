@@ -7,22 +7,22 @@ use App\Http\Controllers\Admin\BillController as AdminBillController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
-use App\Http\Controllers\Admin\FeeStructureController as AdminFeeStructureController;
+use App\Http\Controllers\Admin\FeeController as AdminFeeController;
 use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
 use App\Http\Controllers\Admin\ProgressionController as AdminProgressionController;
+use App\Http\Controllers\Admin\SchoolYearController as AdminSchoolYearController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
-use App\Http\Controllers\Admin\TermController as AdminTermController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\PaymentChannelController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentProfileController;
-use App\Http\Controllers\TermController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -91,7 +91,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/bills', [StudentBillController::class, 'index']);
     // The student's per-term enrollment (program/level/semester) + history.
     Route::get('/me/enrollments', [StudentBillController::class, 'enrollments']);
-    Route::put('/me/bill/payment-option', [StudentBillController::class, 'choosePlan']);
     Route::post('/me/bill/payments/presign', [StudentBillController::class, 'presign']);
     Route::post('/me/bill/payments', [StudentBillController::class, 'storePayment']);
 
@@ -101,8 +100,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Active programs, for selection in the application form and other pickers.
     Route::get('/programs', [ProgramController::class, 'index']);
 
-    // The currently open enrollment term (or null) — gates applications.
-    Route::get('/open-term', [TermController::class, 'open']);
+    // The school year currently admitting (or null) — gates applications.
+    Route::get('/open-term', [SchoolYearController::class, 'open']);
 
     // Application document uploads — issue a pre-signed S3 URL so the browser
     // uploads verification documents directly to the bucket.
@@ -148,17 +147,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/progression/revert', [AdminProgressionController::class, 'revert']);
         Route::post('/admin/progression/graduate', [AdminProgressionController::class, 'graduate']);
 
-        // Academic terms — managing periods (read endpoint is shared below).
-        Route::post('/admin/terms', [AdminTermController::class, 'store']);
-        Route::put('/admin/terms/{term}', [AdminTermController::class, 'update']);
-        Route::put('/admin/terms/{term}/installment-policy', [AdminTermController::class, 'updatePolicy']);
-        Route::delete('/admin/terms/{term}', [AdminTermController::class, 'destroy']);
+        // School years — managing periods (read endpoint is shared below).
+        Route::post('/admin/school-years', [AdminSchoolYearController::class, 'store']);
+        Route::put('/admin/school-years/{schoolYear}', [AdminSchoolYearController::class, 'update']);
+        Route::put('/admin/school-years/{schoolYear}/installment-policy', [AdminSchoolYearController::class, 'updatePolicy']);
+        Route::delete('/admin/school-years/{schoolYear}', [AdminSchoolYearController::class, 'destroy']);
 
-        // Programs (tracks/strands) and their default fee items.
+        // Programs (tracks/strands).
         Route::get('/admin/programs', [AdminProgramController::class, 'index']);
         Route::post('/admin/programs', [AdminProgramController::class, 'store']);
         Route::put('/admin/programs/{program}', [AdminProgramController::class, 'update']);
-        Route::put('/admin/programs/{program}/fee-items', [AdminProgramController::class, 'updateFeeItems']);
         Route::delete('/admin/programs/{program}', [AdminProgramController::class, 'destroy']);
     });
 
@@ -168,15 +166,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
 
         // Read-only supporting data the finance screens depend on.
-        Route::get('/admin/terms', [AdminTermController::class, 'index']);
+        Route::get('/admin/school-years', [AdminSchoolYearController::class, 'index']);
         Route::get('/admin/progression', [AdminProgressionController::class, 'index']);
 
-        // Fee structures (flat per-semester fees per program).
-        Route::get('/admin/fee-structures', [AdminFeeStructureController::class, 'index']);
-        Route::post('/admin/fee-structures/generate', [AdminFeeStructureController::class, 'generate']);
-        Route::get('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'show']);
-        Route::put('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'update']);
-        Route::delete('/admin/fee-structures/{feeStructure}', [AdminFeeStructureController::class, 'destroy']);
+        // Global per-school-year fee schedule (by year level).
+        Route::get('/admin/fees', [AdminFeeController::class, 'index']);
+        Route::post('/admin/fees', [AdminFeeController::class, 'store']);
+        Route::post('/admin/fees/copy', [AdminFeeController::class, 'copy']);
+        Route::put('/admin/fees/{fee}', [AdminFeeController::class, 'update']);
+        Route::delete('/admin/fees/{fee}', [AdminFeeController::class, 'destroy']);
 
         // Discount catalog (reusable discounts, scholarships, vouchers).
         Route::get('/admin/discounts', [AdminDiscountController::class, 'index']);

@@ -31,16 +31,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -57,7 +47,6 @@ import { useActivePaymentChannels } from "@/features/payment-channels/hooks";
 import type { PaymentChannel } from "@/features/payment-channels/types";
 import { uploadPaymentProof } from "@/features/bills/api";
 import {
-  useChooseMyPlan,
   useMyBill,
   useMyBills,
   useSubmitMyPayment,
@@ -288,6 +277,7 @@ function PayDialog({
   const submit = useSubmitMyPayment();
 
   const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(String(bill.amountDue));
   const [method, setMethod] = useState("");
   const [reference, setReference] = useState("");
   const [paidAt, setPaidAt] = useState(todayIso());
@@ -297,6 +287,7 @@ function PayDialog({
   const [uploading, setUploading] = useState(false);
 
   function reset() {
+    setAmount(String(bill.amountDue));
     setMethod(methods[0]?.value ?? "");
     setReference("");
     setPaidAt(todayIso());
@@ -306,14 +297,23 @@ function PayDialog({
     submit.reset();
   }
 
+  const amountNum = Number(amount);
+  // Pay at least the amount due now (next installment / downpayment), up to the
+  // full balance. Paying more lowers the remaining monthly installments.
+  const amountValid =
+    amount !== "" &&
+    amountNum >= bill.amountDue - 0.01 &&
+    amountNum <= bill.balance + 0.01;
+
   async function handleSubmit() {
     setError(null);
-    if (!method || !file) return;
+    if (!method || !file || !amountValid) return;
     try {
       setUploading(true);
       const proofKey = await uploadPaymentProof(file);
       setUploading(false);
       await submit.mutateAsync({
+        amount: amountNum,
         method: method as PaymentMethod,
         reference: reference.trim() || null,
         proofKey,
@@ -351,11 +351,34 @@ function PayDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="bg-muted/40 flex items-center justify-between rounded-lg border px-4 py-3">
-            <span className="text-muted-foreground text-sm">Amount to pay</span>
-            <span className="text-lg font-semibold">
-              {formatPeso(bill.amountDue)}
-            </span>
+          <div className="space-y-1.5 rounded-lg border px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <FieldLabel htmlFor="pay-amount" required>
+                Amount to pay
+              </FieldLabel>
+              <span className="text-muted-foreground text-xs">
+                Due now {formatPeso(bill.amountDue)} · balance{" "}
+                {formatPeso(bill.balance)}
+              </span>
+            </div>
+            <Input
+              id="pay-amount"
+              type="number"
+              min={bill.amountDue}
+              max={bill.balance}
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">
+              Pay the amount due, or more to lower your future monthly payments.
+            </p>
+            {amount !== "" && !amountValid && (
+              <p className="text-destructive text-xs">
+                Enter between {formatPeso(bill.amountDue)} and{" "}
+                {formatPeso(bill.balance)}.
+              </p>
+            )}
           </div>
 
           {channels.length === 0 ? (
@@ -459,7 +482,9 @@ function PayDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!method || !file || channels.length === 0 || busy}
+            disabled={
+              !method || !file || !amountValid || channels.length === 0 || busy
+            }
           >
             {uploading
               ? "Uploading…"
@@ -470,113 +495,6 @@ function PayDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// In-card prompt to pick full vs installment before paying. Selecting a plan
-// opens a confirmation modal first, since the choice is locked after paying.
-function ChoosePlan({ bill }: { bill: Bill }) {
-  const choose = useChooseMyPlan();
-  const [pendingPlan, setPendingPlan] = useState<"full" | "installment" | null>(
-    null,
-  );
-  const policy = bill.installmentPolicy;
-  const downpayment = policy
-    ? policy.downpaymentType === "percentage"
-      ? Math.round(bill.netTotal * ((policy.downpaymentValue ?? 0) / 100) * 100) /
-        100
-      : Math.min(policy.downpaymentValue ?? 0, bill.netTotal)
-    : 0;
-
-  const openConfirm = (plan: "full" | "installment") => {
-    choose.reset();
-    setPendingPlan(plan);
-  };
-
-  const confirm = () => {
-    if (!pendingPlan) return;
-    // Keep the modal open until it succeeds; on success the parent stops
-    // rendering this prompt (a plan is now set), unmounting the modal.
-    choose.mutate(pendingPlan);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <p className="text-sm font-medium">Choose how to pay</p>
-        <p className="text-muted-foreground text-xs">
-          Pick a plan to continue. You can't change it once you've paid.
-        </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          disabled={choose.isPending}
-          onClick={() => openConfirm("full")}
-          className="hover:border-primary rounded-lg border p-3 text-left transition-colors"
-        >
-          <p className="text-sm font-medium">Pay in full</p>
-          <p className="text-muted-foreground text-xs">
-            {formatPeso(bill.netTotal)} in one payment.
-          </p>
-        </button>
-        <button
-          type="button"
-          disabled={choose.isPending}
-          onClick={() => openConfirm("installment")}
-          className="hover:border-primary rounded-lg border p-3 text-left transition-colors"
-        >
-          <p className="text-sm font-medium">Installments</p>
-          <p className="text-muted-foreground text-xs">
-            {formatPeso(downpayment)} down, then {policy?.installmentCount ?? 0}{" "}
-            monthly.
-          </p>
-        </button>
-      </div>
-
-      <AlertDialog
-        open={pendingPlan !== null}
-        onOpenChange={(open) => {
-          if (!open && !choose.isPending) setPendingPlan(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingPlan === "full"
-                ? "Pay in full?"
-                : "Pay by installments?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingPlan === "full"
-                ? `You'll pay ${formatPeso(bill.netTotal)} in a single payment. Your payment plan can't be changed once a payment is made or under review.`
-                : `You'll pay ${formatPeso(downpayment)} as a down payment now, then ${policy?.installmentCount ?? 0} monthly installments. Your payment plan can't be changed once a payment is made or under review.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {choose.isError && (
-            <p className="text-destructive text-sm">
-              {getErrorMessage(choose.error)}
-            </p>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={choose.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={choose.isPending}
-              onClick={(e) => {
-                // Prevent the default auto-close so the modal stays up while the
-                // request is in flight (and on error).
-                e.preventDefault();
-                confirm();
-              }}
-            >
-              {choose.isPending ? "Saving…" : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
   );
 }
 
@@ -693,10 +611,6 @@ function BillsPage() {
   const hasPending = pendingPayments.length > 0;
   const nextInstallment =
     (currentBill?.installments ?? []).find((i) => i.status !== "paid") ?? null;
-  const mustChoosePlan =
-    !!currentBill &&
-    currentBill.installmentsAllowed &&
-    currentBill.paymentOption === null;
 
   return (
     <div className="space-y-6">
@@ -724,80 +638,72 @@ function BillsPage() {
             </CardHeader>
 
             <CardContent className="space-y-4">
-              {mustChoosePlan ? (
-                <ChoosePlan bill={currentBill} />
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <StatTile
-                      label="Amount due now"
-                      value={formatPeso(currentBill.amountDue)}
-                      accent
-                    />
-                    <StatTile
-                      label="Total balance"
-                      value={formatPeso(currentBill.balance)}
-                    />
-                    <StatTile
-                      label="Paid"
-                      value={formatPeso(currentBill.amountPaid)}
-                      hint={`${paidPct}% of ${formatPeso(currentBill.netTotal)}`}
-                    />
-                  </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <StatTile
+                  label="Amount due now"
+                  value={formatPeso(currentBill.amountDue)}
+                  accent
+                />
+                <StatTile
+                  label="Total balance"
+                  value={formatPeso(currentBill.balance)}
+                />
+                <StatTile
+                  label="Paid"
+                  value={formatPeso(currentBill.amountPaid)}
+                  hint={`${paidPct}% of ${formatPeso(currentBill.netTotal)}`}
+                />
+              </div>
 
-                  <div
-                    className="bg-muted h-2 w-full overflow-hidden rounded-full"
-                    role="progressbar"
-                    aria-valuenow={paidPct}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                  >
-                    <div
-                      className="bg-primary h-full rounded-full transition-all"
-                      style={{ width: `${paidPct}%` }}
-                    />
-                  </div>
+              <div
+                className="bg-muted h-2 w-full overflow-hidden rounded-full"
+                role="progressbar"
+                aria-valuenow={paidPct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="bg-primary h-full rounded-full transition-all"
+                  style={{ width: `${paidPct}%` }}
+                />
+              </div>
 
-                  {nextInstallment?.dueDate && (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <CalendarClockIcon className="size-4" />
-                        Next payment
-                      </span>
-                      <span className="font-medium">
-                        {formatPeso(nextInstallment.amount)} · due{" "}
-                        {formatDate(nextInstallment.dueDate)}
-                      </span>
-                    </div>
-                  )}
+              {nextInstallment?.dueDate && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <CalendarClockIcon className="size-4" />
+                    Next payment
+                  </span>
+                  <span className="font-medium">
+                    {formatPeso(nextInstallment.amount)} · due{" "}
+                    {formatDate(nextInstallment.dueDate)}
+                  </span>
+                </div>
+              )}
 
-                  {hasPending && (
-                    <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                      <ClockIcon className="size-4 shrink-0" />
-                      {formatPeso(pendingTotal)} awaiting verification — you can
-                      submit another payment once it's reviewed.
-                    </div>
-                  )}
-                </>
+              {hasPending && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <ClockIcon className="size-4 shrink-0" />
+                  {formatPeso(pendingTotal)} awaiting verification — you can
+                  submit another payment once it's reviewed.
+                </div>
               )}
             </CardContent>
 
-            {!mustChoosePlan && (
-              <CardFooter className="gap-2 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => setDetailBill(currentBill)}
-                >
-                  <EyeIcon />
-                  View details
-                </Button>
-                <PayDialog
-                  bill={currentBill}
-                  channels={payChannels}
-                  disabled={hasPending}
-                />
-              </CardFooter>
-            )}
+            <CardFooter className="gap-2 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setDetailBill(currentBill)}
+              >
+                <EyeIcon />
+                View details
+              </Button>
+              <PayDialog
+                bill={currentBill}
+                channels={payChannels}
+                disabled={hasPending}
+              />
+            </CardFooter>
           </Card>
 
           <HistoryCard bills={history} onView={setDetailBill} />

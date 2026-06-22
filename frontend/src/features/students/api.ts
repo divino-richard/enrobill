@@ -70,6 +70,7 @@ export async function admitStudent(
     trackOrStrand: values.trackOrStrand,
     yearLevel: values.yearLevel,
     schoolYear: values.schoolYear,
+    noDownpayment: values.noDownpayment,
   });
   return data.data;
 }

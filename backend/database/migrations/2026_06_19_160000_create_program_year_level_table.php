@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Program;
-use App\Models\YearLevel;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +17,7 @@ return new class extends Migration
         Schema::create('program_year_level', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(Program::class)->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(YearLevel::class)->constrained()->cascadeOnDelete();
+            $table->foreignId('year_level_id')->constrained('year_levels')->cascadeOnDelete();
             $table->unique(['program_id', 'year_level_id']);
         });
 

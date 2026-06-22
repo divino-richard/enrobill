@@ -6,8 +6,6 @@ export type PaymentMethod = "cash" | "gcash" | "maya";
 
 export type PaymentStatus = "pending" | "verified" | "rejected";
 
-export type PaymentOption = "full" | "installment";
-
 export interface InstallmentPolicy {
   downpaymentType: "percentage" | "fixed" | null;
   downpaymentValue: number | null;
@@ -99,12 +97,11 @@ export interface BillStudent {
 export interface Bill {
   id: number;
   studentId: number;
-  termId: number;
+  schoolYearId: number;
   schoolYear: string | null;
   semester: string | null;
   status: BillStatus;
-  paymentOption: PaymentOption | null;
-  installmentsAllowed: boolean;
+  noDownpayment: boolean;
   installmentPolicy: InstallmentPolicy | null;
   total: number;
   discountTotal: number;

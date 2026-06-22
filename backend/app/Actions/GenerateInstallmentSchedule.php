@@ -5,35 +5,33 @@ namespace App\Actions;
 use App\Models\Bill;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class GenerateInstallmentSchedule
 {
     /**
-     * Build a bill's installment schedule from its term's policy: a downpayment
-     * plus N equal monthly installments covering the remainder. Replaces any
-     * existing installments. Throws if the term doesn't offer installments.
+     * Build a bill's installment schedule from its school year's policy: a
+     * downpayment plus N equal monthly installments covering the remainder. The
+     * downpayment is waived when the enrollment is flagged `no_downpayment` (e.g.
+     * a private-school graduate). Replaces any existing installments.
      */
     public function __invoke(Bill $bill): void
     {
-        $term = $bill->term;
+        $schoolYear = $bill->schoolYear;
+        $net = $bill->netTotal();
+        $count = max(1, (int) ($schoolYear?->installment_count ?? 1));
 
-        if ($term === null || ! $term->installments_enabled) {
-            throw ValidationException::withMessages([
-                'paymentOption' => 'Installments are not available for this term.',
-            ]);
+        $waiveDownpayment = (bool) ($bill->enrollment?->no_downpayment);
+
+        $downpayment = 0.0;
+        if (! $waiveDownpayment && $schoolYear !== null) {
+            $downpayment = $schoolYear->downpayment_type === 'percentage'
+                ? round($net * ((float) $schoolYear->downpayment_value / 100), 2)
+                : round(min((float) $schoolYear->downpayment_value, $net), 2);
+            $downpayment = max($downpayment, 0);
         }
 
-        $net = $bill->netTotal();
-        $count = max(1, (int) $term->installment_count);
-
-        $downpayment = $term->downpayment_type === 'percentage'
-            ? round($net * ((float) $term->downpayment_value / 100), 2)
-            : round(min((float) $term->downpayment_value, $net), 2);
-        $downpayment = max($downpayment, 0);
-
         $remaining = round($net - $downpayment, 2);
-        $anchor = $term->start_date ? Carbon::parse($term->start_date) : Carbon::today();
+        $anchor = $schoolYear?->start_date ? Carbon::parse($schoolYear->start_date) : Carbon::today();
 
         $rows = [];
         $sequence = 1;
@@ -41,7 +39,7 @@ class GenerateInstallmentSchedule
         if ($downpayment > 0) {
             $rows[] = [
                 'sequence' => $sequence++,
-                'label' => 'Downpayment',
+                'label' => Bill::DOWNPAYMENT_LABEL,
                 'amount' => $downpayment,
                 'due_date' => $anchor->toDateString(),
             ];

@@ -27,18 +27,17 @@ class BillResource extends JsonResource
         return [
             'id' => $this->id,
             'studentId' => $this->student_id,
-            'termId' => $this->term_id,
-            'schoolYear' => $this->term?->school_year,
-            'semester' => $this->term?->semester,
+            'schoolYearId' => $this->school_year_id,
+            'schoolYear' => $this->schoolYear?->school_year,
+            'semester' => $this->schoolYear?->current_semester,
             'status' => $this->status,
-            'paymentOption' => $this->payment_option,
-            'installmentsAllowed' => (bool) ($this->term?->installments_enabled),
-            'installmentPolicy' => $this->term && $this->term->installments_enabled ? [
-                'downpaymentType' => $this->term->downpayment_type,
-                'downpaymentValue' => $this->term->downpayment_value !== null
-                    ? (float) $this->term->downpayment_value
+            'noDownpayment' => (bool) ($this->whenLoaded('enrollment', fn () => $this->enrollment?->no_downpayment, false)),
+            'installmentPolicy' => $this->schoolYear ? [
+                'downpaymentType' => $this->schoolYear->downpayment_type,
+                'downpaymentValue' => $this->schoolYear->downpayment_value !== null
+                    ? (float) $this->schoolYear->downpayment_value
                     : null,
-                'installmentCount' => $this->term->installment_count,
+                'installmentCount' => $this->schoolYear->installment_count,
             ] : null,
             // Gross charges (sum of line items) before any credits.
             'total' => $gross,

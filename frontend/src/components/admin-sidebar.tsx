@@ -101,7 +101,7 @@ const navGroups: NavGroup[] = [
         ready: true,
       },
       {
-        title: "Academic Terms",
+        title: "Academic Years",
         url: "/admin/terms",
         icon: CalendarRangeIcon,
         ready: true,
@@ -113,7 +113,7 @@ const navGroups: NavGroup[] = [
     roles: ["admin", "cashier"],
     items: [
       {
-        title: "Fee Structures",
+        title: "Fees",
         url: "/admin/fees",
         icon: ReceiptTextIcon,
         ready: true,

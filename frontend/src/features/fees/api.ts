@@ -1,62 +1,48 @@
 import api from "@/lib/api";
-import {
-  listParamsToQuery,
-  toPageMeta,
-  type LaravelPaginated,
-  type ListParams,
-  type PageMeta,
-} from "@/lib/pagination";
-import type { FeeStructure } from "./types";
+import type { FeeInput, SchoolYearFee } from "./types";
 
 interface Wrapped<T> {
   data: T;
 }
 
-export type FeeStructureListParams = ListParams;
-
-export interface FeeStructuresPage {
-  rows: FeeStructure[];
-  meta: PageMeta;
-}
-
-// Paginated / searchable / sortable fee structures, filterable by term.
-export async function fetchFeeStructures(
-  params: FeeStructureListParams,
-): Promise<FeeStructuresPage> {
-  const { data } = await api.get<LaravelPaginated<FeeStructure>>(
-    "/admin/fee-structures",
-    { params: listParamsToQuery(params) },
-  );
-  return { rows: data.data, meta: toPageMeta(data.meta) };
-}
-
-export async function fetchFeeStructure(id: number): Promise<FeeStructure> {
-  const { data } = await api.get<Wrapped<FeeStructure>>(
-    `/admin/fee-structures/${id}`,
-  );
+// The fee schedule for a school year (defaults to the active one server-side).
+export async function fetchFees(
+  schoolYearId?: number,
+): Promise<SchoolYearFee[]> {
+  const { data } = await api.get<Wrapped<SchoolYearFee[]>>("/admin/fees", {
+    params: schoolYearId ? { school_year_id: schoolYearId } : undefined,
+  });
   return data.data;
 }
 
+export async function createFee(input: FeeInput): Promise<SchoolYearFee> {
+  const { data } = await api.post<Wrapped<SchoolYearFee>>("/admin/fees", input);
+  return data.data;
+}
 
-export async function updateFeeStructureItems(
+export async function updateFee(
   id: number,
-  items: { name: string; amount: number }[],
-): Promise<FeeStructure> {
-  const { data } = await api.put<Wrapped<FeeStructure>>(
-    `/admin/fee-structures/${id}`,
-    { items },
+  input: FeeInput,
+): Promise<SchoolYearFee> {
+  const { data } = await api.put<Wrapped<SchoolYearFee>>(
+    `/admin/fees/${id}`,
+    input,
   );
   return data.data;
 }
 
-export async function deleteFeeStructure(id: number): Promise<void> {
-  await api.delete(`/admin/fee-structures/${id}`);
+export async function deleteFee(id: number): Promise<void> {
+  await api.delete(`/admin/fees/${id}`);
 }
 
-// Bulk-generate structures for every program missing one in the open term.
-export async function generateFeeStructures(): Promise<{ created: number }> {
-  const { data } = await api.post<{ created: number }>(
-    "/admin/fee-structures/generate",
-  );
-  return data;
+// Copy a whole fee schedule from one school year into an empty one.
+export async function copyFees(
+  fromSchoolYearId: number,
+  toSchoolYearId: number,
+): Promise<SchoolYearFee[]> {
+  const { data } = await api.post<Wrapped<SchoolYearFee[]>>("/admin/fees/copy", {
+    fromSchoolYearId,
+    toSchoolYearId,
+  });
+  return data.data;
 }

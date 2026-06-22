@@ -105,7 +105,7 @@ class PaymentController extends Controller
     private function billResource(Bill $bill): BillResource
     {
         return new BillResource(
-            $bill->fresh()->load(['term', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
+            $bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
         );
     }
 }

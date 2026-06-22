@@ -23,11 +23,9 @@ class EnrollmentController extends Controller
     public function index(Student $student): AnonymousResourceCollection
     {
         $records = $student->enrollments()
-            ->with('term')
+            ->with('schoolYear')
             ->get()
-            ->sortByDesc(
-                fn (Enrollment $e) => ($e->term?->school_year ?? '').'|'.($e->term?->semester ?? ''),
-            )
+            ->sortByDesc(fn (Enrollment $e) => $e->schoolYear?->school_year ?? '')
             ->values();
 
         return EnrollmentResource::collection($records);
@@ -53,6 +51,6 @@ class EnrollmentController extends Controller
 
         $enrollment->student?->syncStatusFromLatestEnrollment();
 
-        return new EnrollmentResource($enrollment->fresh()->load('term'));
+        return new EnrollmentResource($enrollment->fresh()->load('schoolYear'));
     }
 }

@@ -2,14 +2,14 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Term;
+use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * @mixin Term
+ * @mixin SchoolYear
  */
-class TermResource extends JsonResource
+class SchoolYearResource extends JsonResource
 {
     /**
      * @return array<string, mixed>
@@ -19,12 +19,11 @@ class TermResource extends JsonResource
         return [
             'id' => $this->id,
             'schoolYear' => $this->school_year,
-            'semester' => $this->semester,
+            'currentSemester' => $this->current_semester,
             'startDate' => $this->start_date?->format('Y-m-d'),
             'endDate' => $this->end_date?->format('Y-m-d'),
             'isActive' => (bool) $this->is_active,
             'admissionOpen' => (bool) $this->admission_open,
-            'installmentsEnabled' => (bool) $this->installments_enabled,
             'downpaymentType' => $this->downpayment_type,
             'downpaymentValue' => $this->downpayment_value !== null ? (float) $this->downpayment_value : null,
             'installmentCount' => $this->installment_count,

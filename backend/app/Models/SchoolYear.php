@@ -8,11 +8,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'school_year', 'semester', 'start_date', 'end_date', 'is_active', 'admission_open',
-    'installments_enabled', 'downpayment_type', 'downpayment_value', 'installment_count',
+    'school_year', 'current_semester', 'start_date', 'end_date', 'is_active', 'admission_open',
+    'downpayment_type', 'downpayment_value', 'installment_count',
 ])]
-class Term extends Model
+class SchoolYear extends Model
 {
+    /** The fixed SHS year levels a student can hold (fees may also target 'all'). */
+    public const YEAR_LEVELS = ['grade_11', 'grade_12'];
+
     /**
      * @return array<string, string>
      */
@@ -23,13 +26,12 @@ class Term extends Model
             'end_date' => 'date',
             'is_active' => 'boolean',
             'admission_open' => 'boolean',
-            'installments_enabled' => 'boolean',
             'downpayment_value' => 'decimal:2',
         ];
     }
 
     /**
-     * The term the system currently operates on (bills, portal, dashboard).
+     * The school year the system currently operates on (bills, portal, dashboard).
      */
     public static function active(): ?self
     {
@@ -37,7 +39,7 @@ class Term extends Model
     }
 
     /**
-     * The active term, but only while it's accepting new applications.
+     * The active school year, but only while it's accepting new applications.
      */
     public static function admitting(): ?self
     {
@@ -48,11 +50,11 @@ class Term extends Model
     }
 
     /**
-     * @param  Builder<Term>  $query
+     * @param  Builder<SchoolYear>  $query
      */
     public function scopeNewestFirst(Builder $query): void
     {
-        $query->orderByDesc('school_year')->orderBy('semester');
+        $query->orderByDesc('school_year');
     }
 
     /**
@@ -61,5 +63,15 @@ class Term extends Model
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
+    }
+
+    /**
+     * The global fee schedule for this school year.
+     *
+     * @return HasMany<SchoolYearFee, $this>
+     */
+    public function fees(): HasMany
+    {
+        return $this->hasMany(SchoolYearFee::class);
     }
 }

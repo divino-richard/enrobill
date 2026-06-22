@@ -515,13 +515,15 @@ function BillDetailPage() {
             <CardHeader>
               <CardTitle className="text-base">Installment plan</CardTitle>
               <CardDescription>
-                Set by the student's chosen payment plan and the term policy.
+                {bill.noDownpayment
+                  ? "Downpayment waived — spread evenly over the school year."
+                  : "Downpayment plus equal monthly payments, from the school year's policy."}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {installments.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
-                  No installment plan. The full balance is due at once.
+                  No installment plan yet.
                 </p>
               ) : (
                 <ul className="divide-y">

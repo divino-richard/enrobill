@@ -4,8 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
-use App\Models\FeeStructure;
-use App\Models\Term;
+use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -40,8 +39,8 @@ class ApplicationController extends Controller
 
         $user = $request->user();
 
-        // Applications can only be submitted while a term is open for enrollment.
-        $term = $this->openTermOrFail();
+        // Applications can only be submitted while admissions are open.
+        $schoolYear = $this->openSchoolYearOrFail();
 
         // An accepted application means the user is already enrolled — no more
         // applications.
@@ -58,7 +57,7 @@ class ApplicationController extends Controller
             ]);
         }
 
-        $application = DB::transaction(function () use ($user, $request, $term) {
+        $application = DB::transaction(function () use ($user, $request, $schoolYear) {
             $application = $user->applications()->create([
                 // Temporary unique value; replaced with the readable reference
                 // once the auto-incremented id exists.
@@ -66,9 +65,9 @@ class ApplicationController extends Controller
                 'status' => 'submitted',
                 'submitted_at' => now(),
                 ...$this->mapAttributes($request),
-                // The term is set by the system, not the applicant.
-                'school_year' => $term->school_year,
-                'semester' => $term->semester,
+                // The school year is set by the system, not the applicant.
+                'school_year' => $schoolYear->school_year,
+                'semester' => $schoolYear->current_semester,
             ]);
 
             $application->forceFill([
@@ -106,8 +105,8 @@ class ApplicationController extends Controller
             'Only a rejected application can be edited and resubmitted.',
         );
 
-        // Resubmitting is a fresh submission — only allowed while a term is open.
-        $term = $this->openTermOrFail();
+        // Resubmitting is a fresh submission — only allowed while admissions open.
+        $schoolYear = $this->openSchoolYearOrFail();
 
         // An accepted application elsewhere means the user is already enrolled —
         // resubmitting a rejected one would let them back into the pipeline.
@@ -132,14 +131,14 @@ class ApplicationController extends Controller
 
         $this->validateApplication($request);
 
-        DB::transaction(function () use ($application, $request, $term) {
+        DB::transaction(function () use ($application, $request, $schoolYear) {
             $application->update([
                 'status' => 'submitted',
                 'submitted_at' => now(),
                 ...$this->mapAttributes($request),
-                // The term is set by the system, not the applicant.
-                'school_year' => $term->school_year,
-                'semester' => $term->semester,
+                // The school year is set by the system, not the applicant.
+                'school_year' => $schoolYear->school_year,
+                'semester' => $schoolYear->current_semester,
             ]);
 
             // Replace the document set with whatever the applicant resubmitted.
@@ -151,20 +150,20 @@ class ApplicationController extends Controller
     }
 
     /**
-     * The term currently accepting applications, or a validation error if
+     * The school year currently accepting applications, or a validation error if
      * admissions are closed.
      */
-    private function openTermOrFail(): Term
+    private function openSchoolYearOrFail(): SchoolYear
     {
-        $term = Term::admitting();
+        $schoolYear = SchoolYear::admitting();
 
-        if ($term === null) {
+        if ($schoolYear === null) {
             throw ValidationException::withMessages([
                 'application' => 'Admissions are currently closed. You can submit an application once admissions reopen.',
             ]);
         }
 
-        return $term;
+        return $schoolYear;
     }
 
     /**
@@ -179,7 +178,7 @@ class ApplicationController extends Controller
             'dateOfBirth' => ['required', 'date'],
             'gender' => ['required', 'string'],
             'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
-            'yearLevel' => ['required', Rule::in(FeeStructure::YEAR_LEVELS)],
+            'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
             'semester' => ['required', 'string'],
             'schoolYear' => ['required', 'string'],
             'agreementAccepted' => ['accepted'],

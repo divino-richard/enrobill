@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
-    'student_id', 'term_id', 'track', 'year_level', 'status', 'enrolled_at', 'created_by',
+    'student_id', 'school_year_id', 'track', 'year_level', 'no_downpayment', 'status', 'enrolled_at', 'created_by',
 ])]
 class Enrollment extends Model
 {
@@ -19,6 +19,7 @@ class Enrollment extends Model
     {
         return [
             'enrolled_at' => 'datetime',
+            'no_downpayment' => 'boolean',
         ];
     }
 
@@ -31,11 +32,11 @@ class Enrollment extends Model
     }
 
     /**
-     * @return BelongsTo<Term, $this>
+     * @return BelongsTo<SchoolYear, $this>
      */
-    public function term(): BelongsTo
+    public function schoolYear(): BelongsTo
     {
-        return $this->belongsTo(Term::class);
+        return $this->belongsTo(SchoolYear::class);
     }
 
     /**

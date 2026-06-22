@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\GenerateTermBills;
+use App\Actions\GenerateSchoolYearBills;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
+use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\Term;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -22,33 +22,33 @@ class BillController extends Controller
     ];
 
     /**
-     * Bills for the currently open term — paginated, searchable by student,
-     * filterable by status, and sortable. Restricted to admins by route
+     * Bills for the active school year — paginated, searchable by student,
+     * filterable by status, and sortable. Restricted to admins/cashiers by route
      * middleware.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $term = Term::active();
+        $schoolYear = SchoolYear::active();
         $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
         $perPage = min(max($request->integer('per_page', 15), 1), 100);
         $sortKey = $request->string('sort')->value();
 
         $query = Bill::query()
-            ->when($term !== null, fn ($q) => $q->where('term_id', $term->id))
-            ->when($term === null, fn ($q) => $q->whereRaw('1 = 0'))
+            ->when($schoolYear !== null, fn ($q) => $q->where('school_year_id', $schoolYear->id))
+            ->when($schoolYear === null, fn ($q) => $q->whereRaw('1 = 0'))
             ->when(
                 in_array($request->string('status')->value(), self::STATUSES, true),
                 fn ($q) => $q->where('status', $request->string('status')->value()),
             )
             ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.$request->string('search')->value().'%';
-                $q->whereHas('student', function ($s) use ($term) {
-                    $s->where('first_name', 'like', $term)
-                        ->orWhere('last_name', 'like', $term)
-                        ->orWhere('student_number', 'like', $term);
+                $needle = '%'.$request->string('search')->value().'%';
+                $q->whereHas('student', function ($s) use ($needle) {
+                    $s->where('first_name', 'like', $needle)
+                        ->orWhere('last_name', 'like', $needle)
+                        ->orWhere('student_number', 'like', $needle);
                 });
             })
-            ->with(['student', 'term', 'items', 'adjustments']);
+            ->with(['student', 'schoolYear', 'items', 'adjustments']);
 
         if ($sortKey === 'student') {
             $query->orderBy(
@@ -67,9 +67,9 @@ class BillController extends Controller
     }
 
     /**
-     * Bulk-generate bills for all eligible admitted students in the open term.
+     * Bulk-generate bills for all eligible students in the active school year.
      */
-    public function generate(GenerateTermBills $generate): JsonResponse
+    public function generate(GenerateSchoolYearBills $generate): JsonResponse
     {
         $created = $generate();
 
@@ -82,22 +82,22 @@ class BillController extends Controller
     public function show(Bill $bill): BillResource
     {
         return new BillResource(
-            $bill->load(['student', 'term', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
+            $bill->load(['student', 'schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
         );
     }
 
     /**
-     * A single student's bill for the open term. 404 if there's no open term or
-     * the student hasn't been billed yet.
+     * A single student's bill for the active school year. 404 if there's no active
+     * year or the student hasn't been billed yet.
      */
     public function showForStudent(Student $student): BillResource
     {
-        $term = Term::active();
-        abort_if($term === null, 404, 'No term is currently open.');
+        $schoolYear = SchoolYear::active();
+        abort_if($schoolYear === null, 404, 'No school year is currently active.');
 
         $bill = $student->bills()
-            ->where('term_id', $term->id)
-            ->with(['items', 'term', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter'])
+            ->where('school_year_id', $schoolYear->id)
+            ->with(['items', 'schoolYear', 'enrollment', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter'])
             ->first();
 
         abort_if($bill === null, 404, 'This student has not been billed yet.');
