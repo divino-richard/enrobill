@@ -16,12 +16,10 @@ import {
   recordPayment,
   rejectPayment,
   removeAdjustment,
-  setInstallments,
   submitMyPayment,
   verifyPayment,
   voidPayment,
   type BillListParams,
-  type InstallmentInput,
   type PaymentInput,
   type SubmitPaymentInput,
 } from "./api";
@@ -96,13 +94,6 @@ export function useApplyAdjustment(billId: number) {
 export function useRemoveAdjustment(billId: number) {
   return useBillMutation(
     (adjustmentId: number) => removeAdjustment(billId, adjustmentId),
-    billId,
-  );
-}
-
-export function useSetInstallments(billId: number) {
-  return useBillMutation(
-    (installments: InstallmentInput[]) => setInstallments(billId, installments),
     billId,
   );
 }

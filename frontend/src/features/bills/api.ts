@@ -79,24 +79,6 @@ export async function removeAdjustment(
   return data.data;
 }
 
-export interface InstallmentInput {
-  label: string;
-  amount: number;
-  dueDate: string;
-}
-
-// Replace a bill's installment schedule (must sum to the net total).
-export async function setInstallments(
-  billId: number,
-  installments: InstallmentInput[],
-): Promise<Bill> {
-  const { data } = await api.put<Wrapped<Bill>>(
-    `/admin/bills/${billId}/installments`,
-    { installments },
-  );
-  return data.data;
-}
-
 export interface PaymentInput {
   amount: number;
   method: PaymentMethod;

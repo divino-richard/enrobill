@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  ArrowLeftIcon,
-  PlusIcon,
-  Trash2Icon,
-  WandSparklesIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -48,11 +43,9 @@ import {
   useRecordPayment,
   useRejectPayment,
   useRemoveAdjustment,
-  useSetInstallments,
   useVerifyPayment,
   useVoidPayment,
 } from "@/features/bills/hooks";
-import type { InstallmentInput } from "@/features/bills/api";
 import {
   BILL_STATUS_META,
   INSTALLMENT_STATUS_META,
@@ -196,212 +189,6 @@ function ApplyDiscountDialog({ bill }: { bill: Bill }) {
             disabled={!discountId || apply.isPending}
           >
             {apply.isPending ? "Applying…" : "Apply"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-interface PlanRow {
-  label: string;
-  amount: string;
-  dueDate: string;
-}
-
-function InstallmentPlanDialog({ bill }: { bill: Bill }) {
-  const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<PlanRow[]>([]);
-  const save = useSetInstallments(bill.id);
-
-  function seed() {
-    const existing = bill.installments ?? [];
-    setRows(
-      existing.length > 0
-        ? existing.map((i) => ({
-            label: i.label,
-            amount: String(i.amount),
-            dueDate: i.dueDate ?? todayIso(),
-          }))
-        : [{ label: "Full payment", amount: String(bill.netTotal), dueDate: todayIso() }],
-    );
-    save.reset();
-  }
-
-  const sum = rows.reduce((acc, row) => acc + (Number(row.amount) || 0), 0);
-  const remaining = Math.round((bill.netTotal - sum) * 100) / 100;
-
-  function updateRow(index: number, patch: Partial<PlanRow>) {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    );
-  }
-
-  function addRow() {
-    setRows((prev) => [
-      ...prev,
-      { label: `Installment ${prev.length + 1}`, amount: "", dueDate: todayIso() },
-    ]);
-  }
-
-  function removeRow(index: number) {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  // Down payment + (count-1) equal monthly installments, evenly covering the net.
-  function autoSplit(count: number) {
-    const net = bill.netTotal;
-    const base = Math.floor((net / count) * 100) / 100;
-    const start = new Date();
-    const next: PlanRow[] = [];
-    let allocated = 0;
-    for (let i = 0; i < count; i += 1) {
-      const isLast = i === count - 1;
-      const amount = isLast ? Math.round((net - allocated) * 100) / 100 : base;
-      allocated = Math.round((allocated + amount) * 100) / 100;
-      const due = new Date(start);
-      due.setMonth(due.getMonth() + i);
-      next.push({
-        label: i === 0 ? "Down payment" : `Installment ${i}`,
-        amount: String(amount),
-        dueDate: due.toISOString().slice(0, 10),
-      });
-    }
-    setRows(next);
-  }
-
-  async function handleSave() {
-    const installments: InstallmentInput[] = rows.map((row) => ({
-      label: row.label.trim(),
-      amount: Number(row.amount),
-      dueDate: row.dueDate,
-    }));
-    try {
-      await save.mutateAsync(installments);
-      setOpen(false);
-    } catch {
-      // Surfaced via save.isError.
-    }
-  }
-
-  const hasPlan = (bill.installments ?? []).length > 0;
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) seed();
-        setOpen(next);
-      }}
-    >
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        {hasPlan ? "Edit plan" : "Set up plan"}
-      </Button>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Installment plan</DialogTitle>
-          <DialogDescription>
-            Split the net total of {formatPeso(bill.netTotal)} into scheduled
-            installments. They must add up to the net total.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-muted-foreground text-xs">Quick split:</span>
-          {[2, 3, 4, 5].map((count) => (
-            <Button
-              key={count}
-              variant="outline"
-              size="sm"
-              onClick={() => autoSplit(count)}
-            >
-              <WandSparklesIcon />
-              {count}×
-            </Button>
-          ))}
-        </div>
-
-        <div className="space-y-2">
-          {rows.map((row, index) => (
-            <div key={index} className="flex items-end gap-2">
-              <div className="flex-1 space-y-1">
-                {index === 0 && <FieldLabel>Label</FieldLabel>}
-                <Input
-                  value={row.label}
-                  onChange={(e) => updateRow(index, { label: e.target.value })}
-                />
-              </div>
-              <div className="w-32 space-y-1">
-                {index === 0 && <FieldLabel>Amount</FieldLabel>}
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={row.amount}
-                  onChange={(e) => updateRow(index, { amount: e.target.value })}
-                />
-              </div>
-              <div className="w-40 space-y-1">
-                {index === 0 && <FieldLabel>Due date</FieldLabel>}
-                <Input
-                  type="date"
-                  value={row.dueDate}
-                  onChange={(e) => updateRow(index, { dueDate: e.target.value })}
-                />
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-destructive size-9 shrink-0"
-                onClick={() => removeRow(index)}
-              >
-                <Trash2Icon className="size-4" />
-                <span className="sr-only">Remove installment</span>
-              </Button>
-            </div>
-          ))}
-
-          <Button variant="ghost" size="sm" onClick={addRow}>
-            <PlusIcon />
-            Add installment
-          </Button>
-        </div>
-
-        <div
-          className={cn(
-            "flex justify-between rounded-md border px-3 py-2 text-sm",
-            Math.abs(remaining) < 0.01
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
-              : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
-          )}
-        >
-          <span>Scheduled {formatPeso(sum)}</span>
-          <span>
-            {Math.abs(remaining) < 0.01
-              ? "Balanced"
-              : `${formatPeso(Math.abs(remaining))} ${remaining > 0 ? "left" : "over"}`}
-          </span>
-        </div>
-
-        {save.isError && (
-          <p className="text-destructive text-sm">
-            {getErrorMessage(save.error)}
-          </p>
-        )}
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={save.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={Math.abs(remaining) >= 0.01 || save.isPending}
-          >
-            {save.isPending ? "Saving…" : "Save plan"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -728,11 +515,8 @@ function BillDetailPage() {
             <CardHeader>
               <CardTitle className="text-base">Installment plan</CardTitle>
               <CardDescription>
-                Scheduled payments covering the net total.
+                Set by the student's chosen payment plan and the term policy.
               </CardDescription>
-              <CardAction>
-                <InstallmentPlanDialog bill={bill} />
-              </CardAction>
             </CardHeader>
             <CardContent>
               {installments.length === 0 ? (

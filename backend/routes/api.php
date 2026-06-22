@@ -4,7 +4,6 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
 use App\Http\Controllers\Admin\BillAdjustmentController as AdminBillAdjustmentController;
 use App\Http\Controllers\Admin\BillController as AdminBillController;
-use App\Http\Controllers\Admin\BillInstallmentController as AdminBillInstallmentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
@@ -193,9 +192,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Apply or remove a catalog discount on a bill.
         Route::post('/admin/bills/{bill}/adjustments', [AdminBillAdjustmentController::class, 'store']);
         Route::delete('/admin/bills/{bill}/adjustments/{adjustment}', [AdminBillAdjustmentController::class, 'destroy']);
-
-        // Set a bill's installment schedule.
-        Route::put('/admin/bills/{bill}/installments', [AdminBillInstallmentController::class, 'update']);
 
         // Record, verify, reject or void payments against a bill.
         Route::post('/admin/bills/{bill}/payments', [AdminPaymentController::class, 'store']);
