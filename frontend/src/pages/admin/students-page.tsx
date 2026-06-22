@@ -15,6 +15,7 @@ import {
   ChevronsUpDownIcon,
   SearchIcon,
   SquarePenIcon,
+  UserPlusIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import { RowActions } from "@/components/row-actions";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
+import { AdmitStudentDialog } from "@/features/students/components/admit-student-dialog";
 import { useStudents } from "@/features/students/hooks";
 import {
   STUDENT_STATUS_OPTIONS,
@@ -64,6 +66,7 @@ function SortHeader({
 function StudentsPage() {
   const navigate = useNavigate();
 
+  const [admitOpen, setAdmitOpen] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -227,12 +230,20 @@ function StudentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Students</h1>
-        <p className="text-muted-foreground text-sm">
-          Manage admitted and enrolled student records.
-        </p>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Students</h1>
+          <p className="text-muted-foreground text-sm">
+            Manage admitted and enrolled student records.
+          </p>
+        </div>
+        <Button onClick={() => setAdmitOpen(true)}>
+          <UserPlusIcon />
+          Admit student
+        </Button>
       </div>
+
+      <AdmitStudentDialog open={admitOpen} onOpenChange={setAdmitOpen} />
 
       {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">

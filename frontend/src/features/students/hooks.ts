@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  admitStudent,
   fetchMyEnrollments,
   fetchMyStudent,
   fetchStudent,
@@ -14,7 +15,11 @@ import {
   updateStudent,
   type StudentListParams,
 } from "./api";
-import type { EnrollmentStatus, StudentFormValues } from "./types";
+import type {
+  AdmitStudentValues,
+  EnrollmentStatus,
+  StudentFormValues,
+} from "./types";
 
 export const studentsQueryKey = ["admin", "students"] as const;
 export const myStudentQueryKey = ["me", "student"] as const;
@@ -44,6 +49,17 @@ export function useStudents(params: StudentListParams) {
     queryFn: () => fetchStudents(params),
     // Keep the previous page visible while the next one loads.
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useAdmitStudent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (values: AdmitStudentValues) => admitStudent(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: studentsQueryKey });
+    },
   });
 }
 

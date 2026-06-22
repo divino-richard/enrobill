@@ -57,6 +57,19 @@ export interface StudentFormValues {
   status: StudentStatus;
 }
 
+// Fields for admitting a walk-in student directly (creates their account too).
+export interface AdmitStudentValues {
+  email: string;
+  password: string;
+  passwordConfirmation: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  trackOrStrand: string;
+  yearLevel: string;
+  schoolYear: string;
+}
+
 export const STUDENT_STATUS_OPTIONS = [
   { value: "admitted", label: "Admitted" },
   { value: "enrolled", label: "Enrolled" },
