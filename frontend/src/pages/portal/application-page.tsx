@@ -26,8 +26,8 @@ function ApplicationPage() {
     (app) => app.id !== activeApplication?.id,
   );
 
-  // Applicants can only start an application while a term is open.
-  const enrollmentClosed = !isStudent && openTerm === null;
+  // Applicants can only start an application while admissions are open.
+  const admissionsClosed = !isStudent && openTerm === null;
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -35,7 +35,7 @@ function ApplicationPage() {
         hasActiveApplication={Boolean(activeApplication)}
         onNewApplication={startNewApplication}
         canCreate={!isStudent}
-        enrollmentClosed={enrollmentClosed}
+        admissionsClosed={admissionsClosed}
       />
 
       {isLoading ? (
@@ -55,7 +55,7 @@ function ApplicationPage() {
       ) : applications.length === 0 ? (
         <ApplicationsEmptyState
           onNewApplication={isStudent ? undefined : startNewApplication}
-          enrollmentClosed={enrollmentClosed}
+          admissionsClosed={admissionsClosed}
         />
       ) : (
         <>

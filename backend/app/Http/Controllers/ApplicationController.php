@@ -151,15 +151,16 @@ class ApplicationController extends Controller
     }
 
     /**
-     * The currently open enrollment term, or a validation error if none is open.
+     * The term currently accepting applications, or a validation error if
+     * admissions are closed.
      */
     private function openTermOrFail(): Term
     {
-        $term = Term::open();
+        $term = Term::admitting();
 
         if ($term === null) {
             throw ValidationException::withMessages([
-                'application' => 'Enrollment is currently closed. You can submit an application once a term is open.',
+                'application' => 'Admissions are currently closed. You can submit an application once admissions reopen.',
             ]);
         }
 

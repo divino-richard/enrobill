@@ -12,19 +12,19 @@ interface ApplicationsHeaderProps {
   onNewApplication?: () => void;
   // Applicants can start new applications; enrolled students view history only.
   canCreate?: boolean;
-  // No enrollment term is currently open, so new applications are blocked.
-  enrollmentClosed?: boolean;
+  // Admissions are currently closed, so new applications are blocked.
+  admissionsClosed?: boolean;
 }
 
 export function ApplicationsHeader({
   hasActiveApplication,
   onNewApplication,
   canCreate = true,
-  enrollmentClosed = false,
+  admissionsClosed = false,
 }: ApplicationsHeaderProps) {
-  const disabled = hasActiveApplication || enrollmentClosed;
-  const disabledReason = enrollmentClosed
-    ? "Enrollment is currently closed."
+  const disabled = hasActiveApplication || admissionsClosed;
+  const disabledReason = admissionsClosed
+    ? "Admissions are currently closed."
     : "You already have an application in progress.";
 
   const newButton = (

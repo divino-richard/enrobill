@@ -5,6 +5,8 @@ import {
   LockIcon,
   LockOpenIcon,
   PlusIcon,
+  PowerIcon,
+  PowerOffIcon,
   Trash2Icon,
   WalletIcon,
 } from "lucide-react";
@@ -57,9 +59,9 @@ import { formatDate } from "@/features/applications/utils";
 import {
   useCreateTerm,
   useDeleteTerm,
-  useSetTermOpen,
   useTerms,
   useUpdateTermPolicy,
+  useUpdateTermStatus,
 } from "@/features/terms/hooks";
 import {
   TERM_SEMESTER_OPTIONS,
@@ -433,18 +435,24 @@ function NewTermDialog({
   );
 }
 
+type StatusAction = {
+  term: Term;
+  kind: "active" | "admission";
+  next: boolean;
+};
+
 function TermsPage() {
   const { data, isLoading, isError, refetch } = useTerms();
   const terms = data ?? [];
-  const openTerm = terms.find((term) => term.isOpen);
+  const activeTerm = terms.find((term) => term.isActive);
 
-  const setOpen = useSetTermOpen();
+  const setStatus = useUpdateTermStatus();
   const remove = useDeleteTerm();
 
   const [newTermOpen, setNewTermOpen] = useState(false);
   const [policyTerm, setPolicyTerm] = useState<Term | null>(null);
   const [deleting, setDeleting] = useState<Term | null>(null);
-  const [toggling, setToggling] = useState<Term | null>(null);
+  const [statusAction, setStatusAction] = useState<StatusAction | null>(null);
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -457,14 +465,17 @@ function TermsPage() {
     }
   }
 
-  async function confirmToggle() {
-    if (!toggling) return;
+  async function confirmStatus() {
+    if (!statusAction) return;
+    const { term, kind, next } = statusAction;
+    const changes =
+      kind === "active" ? { isActive: next } : { admissionOpen: next };
     try {
-      await setOpen.mutateAsync({ id: toggling.id, isOpen: !toggling.isOpen });
+      await setStatus.mutateAsync({ id: term.id, ...changes });
     } catch {
       // no-op
     } finally {
-      setToggling(null);
+      setStatusAction(null);
     }
   }
 
@@ -476,7 +487,7 @@ function TermsPage() {
             Academic Terms
           </h1>
           <p className="text-muted-foreground text-sm">
-            Set the school year and semester, and open one for enrollment.
+            Set the active term, then open or close its enrollment window.
           </p>
         </div>
         <Button onClick={() => setNewTermOpen(true)}>
@@ -488,14 +499,18 @@ function TermsPage() {
       {!isLoading && !isError && (
         <div className="bg-muted/40 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm">
           <CalendarDaysIcon className="text-muted-foreground size-4 shrink-0" />
-          {openTerm ? (
+          {activeTerm ? (
             <span>
-              Enrollment is open for{" "}
-              <span className="font-medium">{termLabel(openTerm)}</span>.
+              <span className="font-medium">{termLabel(activeTerm)}</span> is the
+              active term — admissions are{" "}
+              <span className="font-medium">
+                {activeTerm.admissionOpen ? "open" : "closed"}
+              </span>
+              .
             </span>
           ) : (
             <span className="text-muted-foreground">
-              No term is currently open for enrollment.
+              No term is currently active.
             </span>
           )}
         </div>
@@ -551,25 +566,62 @@ function TermsPage() {
                     {policySummary(term)}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        term.isOpen
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          term.isActive
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                            : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
+                        )}
+                      >
+                        {term.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      {term.isActive && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            term.admissionOpen
+                              ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"
+                              : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
+                          )}
+                        >
+                          {term.admissionOpen
+                            ? "Admissions open"
+                            : "Admissions closed"}
+                        </Badge>
                       )}
-                    >
-                      {term.isOpen ? "Open" : "Closed"}
-                    </Badge>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActions>
                       <DropdownMenuItem
-                        disabled={setOpen.isPending}
-                        onClick={() => setToggling(term)}
+                        disabled={setStatus.isPending}
+                        onClick={() =>
+                          setStatusAction({
+                            term,
+                            kind: "active",
+                            next: !term.isActive,
+                          })
+                        }
                       >
-                        {term.isOpen ? <LockIcon /> : <LockOpenIcon />}
-                        {term.isOpen ? "Close enrollment" : "Open enrollment"}
+                        {term.isActive ? <PowerOffIcon /> : <PowerIcon />}
+                        {term.isActive ? "Deactivate term" : "Set as active"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={setStatus.isPending || !term.isActive}
+                        onClick={() =>
+                          setStatusAction({
+                            term,
+                            kind: "admission",
+                            next: !term.admissionOpen,
+                          })
+                        }
+                      >
+                        {term.admissionOpen ? <LockIcon /> : <LockOpenIcon />}
+                        {term.admissionOpen
+                          ? "Close admissions"
+                          : "Open admissions"}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setPolicyTerm(term)}>
                         <WalletIcon />
@@ -613,10 +665,10 @@ function TermsPage() {
               {deleting
                 ? `${termLabel(deleting)} will be removed. This can't be undone.`
                 : ""}
-              {deleting?.isOpen && (
+              {deleting?.isActive && (
                 <span className="text-destructive mt-2 flex items-center gap-1.5">
                   <CircleAlertIcon className="size-4" />
-                  This term is currently open for enrollment.
+                  This is currently the active term.
                 </span>
               )}
             </AlertDialogDescription>
@@ -639,55 +691,82 @@ function TermsPage() {
       </AlertDialog>
 
       <AlertDialog
-        open={toggling !== null}
+        open={statusAction !== null}
         onOpenChange={(open) => {
-          if (!open && !setOpen.isPending) setToggling(null);
+          if (!open && !setStatus.isPending) setStatusAction(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {toggling?.isOpen
-                ? "Close enrollment for this term?"
-                : "Open enrollment for this term?"}
+              {statusAction ? statusActionTitle(statusAction) : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {toggling
-                ? toggling.isOpen
-                  ? `${termLabel(toggling)} will be closed. New applications and bill generation will be blocked until a term is open again.`
-                  : `${termLabel(toggling)} will be opened. Applicants can submit applications and you can generate bills for this term.`
-                : ""}
-              {!toggling?.isOpen && openTerm && toggling && (
-                <span className="text-destructive mt-2 flex items-center gap-1.5">
-                  <CircleAlertIcon className="size-4" />
-                  {termLabel(openTerm)} is currently open. Make sure only one
-                  term should be open at a time.
-                </span>
-              )}
+              {statusAction ? statusActionBody(statusAction) : ""}
+              {statusAction?.kind === "active" &&
+                statusAction.next &&
+                activeTerm &&
+                activeTerm.id !== statusAction.term.id && (
+                  <span className="text-destructive mt-2 flex items-center gap-1.5">
+                    <CircleAlertIcon className="size-4" />
+                    {termLabel(activeTerm)} is currently active and will be
+                    deactivated.
+                  </span>
+                )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={setOpen.isPending}>
+            <AlertDialogCancel disabled={setStatus.isPending}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={setOpen.isPending}
+              disabled={setStatus.isPending}
               onClick={(event) => {
                 event.preventDefault();
-                void confirmToggle();
+                void confirmStatus();
               }}
             >
-              {setOpen.isPending
+              {setStatus.isPending
                 ? "Saving…"
-                : toggling?.isOpen
-                  ? "Close enrollment"
-                  : "Open enrollment"}
+                : statusAction
+                  ? statusActionConfirm(statusAction)
+                  : ""}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
+}
+
+function statusActionTitle(action: StatusAction): string {
+  if (action.kind === "active") {
+    return action.next
+      ? "Set this term as active?"
+      : "Deactivate this term?";
+  }
+  return action.next
+    ? "Open admissions for this term?"
+    : "Close admissions for this term?";
+}
+
+function statusActionBody(action: StatusAction): string {
+  const label = termLabel(action.term);
+  if (action.kind === "active") {
+    return action.next
+      ? `${label} will become the active term. Bills, the student portal and dashboards will operate on it.`
+      : `${label} will be deactivated. Bills, the portal and dashboards will have no active term, and its admissions will close, until you activate another.`;
+  }
+  return action.next
+    ? `Applicants will be able to submit applications for ${label}.`
+    : `New applications for ${label} will be blocked. Existing bills and the student portal are unaffected.`;
+}
+
+function statusActionConfirm(action: StatusAction): string {
+  if (action.kind === "active") {
+    return action.next ? "Set as active" : "Deactivate";
+  }
+  return action.next ? "Open admissions" : "Close admissions";
 }
 
 export default TermsPage;

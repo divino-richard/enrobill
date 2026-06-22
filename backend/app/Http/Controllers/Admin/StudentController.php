@@ -134,7 +134,7 @@ class StudentController extends Controller
             ])->save();
 
             // Open a pending enrollment for the current term, if one is open.
-            $term = Term::open();
+            $term = Term::active();
             if ($term !== null) {
                 $ensureEnrollment($student, $term);
             }

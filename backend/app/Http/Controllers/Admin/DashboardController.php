@@ -23,7 +23,7 @@ class DashboardController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $term = Term::open();
+        $term = Term::active();
 
         $data = [
             'role' => $user->role->value,

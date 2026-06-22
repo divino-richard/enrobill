@@ -10,6 +10,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TermController extends Controller
 {
@@ -60,7 +61,8 @@ class TermController extends Controller
             'semester' => $validated['semester'],
             'start_date' => $validated['startDate'],
             'end_date' => $validated['endDate'],
-            'is_open' => false,
+            'is_active' => false,
+            'admission_open' => false,
             ...$this->policyAttributes($validated),
         ]);
 
@@ -117,24 +119,43 @@ class TermController extends Controller
     }
 
     /**
-     * Open or close a term for enrollment. Opening one closes any other, so at
-     * most one term is open at a time.
+     * Toggle a term's active state and/or its admission window. Activating one
+     * deactivates any other (at most one active at a time). Deactivating a term
+     * also closes its admissions, and admissions can only be open on the active
+     * term.
      */
     public function update(Request $request, Term $term): TermResource
     {
         $validated = $request->validate([
-            'isOpen' => ['required', 'boolean'],
+            'isActive' => ['sometimes', 'boolean'],
+            'admissionOpen' => ['sometimes', 'boolean'],
         ]);
 
         DB::transaction(function () use ($term, $validated) {
-            if ($validated['isOpen']) {
-                Term::query()
-                    ->whereKeyNot($term->id)
-                    ->where('is_open', true)
-                    ->update(['is_open' => false]);
+            if (array_key_exists('isActive', $validated)) {
+                if ($validated['isActive']) {
+                    Term::query()
+                        ->whereKeyNot($term->id)
+                        ->where('is_active', true)
+                        ->update(['is_active' => false, 'admission_open' => false]);
+                    $term->is_active = true;
+                } else {
+                    // An inactive term can't keep admissions open.
+                    $term->is_active = false;
+                    $term->admission_open = false;
+                }
             }
 
-            $term->update(['is_open' => $validated['isOpen']]);
+            if (array_key_exists('admissionOpen', $validated)) {
+                if ($validated['admissionOpen'] && ! $term->is_active) {
+                    throw ValidationException::withMessages([
+                        'admissionOpen' => 'Activate the term before opening admissions.',
+                    ]);
+                }
+                $term->admission_open = $validated['admissionOpen'];
+            }
+
+            $term->save();
         });
 
         return new TermResource($term->fresh());

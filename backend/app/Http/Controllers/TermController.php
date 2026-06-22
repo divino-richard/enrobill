@@ -8,13 +8,13 @@ use Illuminate\Http\JsonResponse;
 class TermController extends Controller
 {
     /**
-     * The currently open enrollment term (school year + semester), or null when
-     * enrollment is closed. Readable by any authenticated user — applicants use
-     * it to know whether they may submit an application.
+     * The term currently accepting applications (school year + semester), or
+     * null when admissions are closed. Readable by any authenticated user —
+     * applicants use it to know whether they may submit an application.
      */
     public function open(): JsonResponse
     {
-        $term = Term::open();
+        $term = Term::admitting();
 
         return response()->json([
             'data' => $term ? [

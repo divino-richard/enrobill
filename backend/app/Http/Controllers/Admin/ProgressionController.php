@@ -27,7 +27,7 @@ class ProgressionController extends Controller
      */
     public function index(): JsonResponse
     {
-        $term = Term::open();
+        $term = Term::active();
 
         if ($term === null) {
             return response()->json([
@@ -93,7 +93,7 @@ class ProgressionController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $term = Term::open();
+        $term = Term::active();
         abort_if($term === null, 422, 'No term is currently open.');
 
         $ids = $this->validatedIds($request);
@@ -124,7 +124,7 @@ class ProgressionController extends Controller
      */
     public function retain(Request $request): JsonResponse
     {
-        $term = Term::open();
+        $term = Term::active();
         abort_if($term === null, 422, 'No term is currently open.');
 
         $ids = $this->validatedIds($request);
@@ -153,7 +153,7 @@ class ProgressionController extends Controller
      */
     public function graduate(Request $request): JsonResponse
     {
-        $term = Term::open();
+        $term = Term::active();
         abort_if($term === null, 422, 'No term is currently open.');
 
         $ids = $this->validatedIds($request);
@@ -189,7 +189,7 @@ class ProgressionController extends Controller
      */
     public function revert(Request $request): JsonResponse
     {
-        $term = Term::open();
+        $term = Term::active();
         abort_if($term === null, 422, 'No term is currently open.');
 
         $ids = $this->validatedIds($request);

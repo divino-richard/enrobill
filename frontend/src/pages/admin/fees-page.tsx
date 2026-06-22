@@ -64,7 +64,7 @@ function FeesPage() {
   const programLabel = useProgramLabel();
 
   const { data: terms } = useTerms();
-  const openTerm = (terms ?? []).find((term) => term.isOpen) ?? null;
+  const openTerm = (terms ?? []).find((term) => term.isActive) ?? null;
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);

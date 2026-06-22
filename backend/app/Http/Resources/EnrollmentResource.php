@@ -24,7 +24,7 @@ class EnrollmentResource extends JsonResource
             'yearLevel' => $this->year_level,
             'status' => $this->status,
             'enrolledAt' => $this->enrolled_at?->toIso8601String(),
-            'isCurrent' => (bool) $this->term?->is_open,
+            'isCurrent' => (bool) $this->term?->is_active,
         ];
     }
 }

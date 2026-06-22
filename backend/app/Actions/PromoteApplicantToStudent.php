@@ -77,7 +77,7 @@ class PromoteApplicantToStudent
      */
     private function ensureCurrentEnrollment(Student $student): void
     {
-        $term = Term::open();
+        $term = Term::active();
 
         if ($term !== null) {
             ($this->ensureEnrollment)($student, $term);

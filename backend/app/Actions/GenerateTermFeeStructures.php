@@ -18,7 +18,7 @@ class GenerateTermFeeStructures
      */
     public function __invoke(): int
     {
-        $term = Term::open();
+        $term = Term::active();
 
         if ($term === null) {
             throw ValidationException::withMessages([

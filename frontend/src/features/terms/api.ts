@@ -27,10 +27,12 @@ export async function createTerm(input: TermInput): Promise<Term> {
   return data.data;
 }
 
-export async function setTermOpen(id: number, isOpen: boolean): Promise<Term> {
-  const { data } = await api.put<Wrapped<Term>>(`/admin/terms/${id}`, {
-    isOpen,
-  });
+// Toggle a term's active state and/or its admission window.
+export async function updateTermStatus(
+  id: number,
+  changes: { isActive?: boolean; admissionOpen?: boolean },
+): Promise<Term> {
+  const { data } = await api.put<Wrapped<Term>>(`/admin/terms/${id}`, changes);
   return data.data;
 }
 

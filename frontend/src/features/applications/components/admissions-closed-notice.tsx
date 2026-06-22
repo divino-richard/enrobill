@@ -3,15 +3,15 @@ import { CalendarOffIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-interface EnrollmentClosedNoticeProps {
+interface AdmissionsClosedNoticeProps {
   description?: string;
 }
 
-// Shown when an applicant reaches the application form but no enrollment term is
-// open — access is blocked with an explanation instead of the form.
-export function EnrollmentClosedNotice({
+// Shown when an applicant reaches the application form but admissions are
+// closed — access is blocked with an explanation instead of the form.
+export function AdmissionsClosedNotice({
   description,
-}: EnrollmentClosedNoticeProps) {
+}: AdmissionsClosedNoticeProps) {
   const navigate = useNavigate();
 
   return (
@@ -21,10 +21,10 @@ export function EnrollmentClosedNotice({
           <CalendarOffIcon className="size-6" />
         </div>
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Enrollment is closed</h2>
+          <h2 className="text-lg font-semibold">Admissions are closed</h2>
           <p className="text-muted-foreground mx-auto max-w-sm text-sm">
             {description ??
-              "There's no open enrollment term right now. You can submit an application once enrollment reopens."}
+              "Admissions aren't open right now. You can submit an application once admissions reopen."}
           </p>
         </div>
         <Button onClick={() => navigate("/portal/application")}>

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'school_year', 'semester', 'start_date', 'end_date', 'is_open',
+    'school_year', 'semester', 'start_date', 'end_date', 'is_active', 'admission_open',
     'installments_enabled', 'downpayment_type', 'downpayment_value', 'installment_count',
 ])]
 class Term extends Model
@@ -21,18 +21,30 @@ class Term extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
-            'is_open' => 'boolean',
+            'is_active' => 'boolean',
+            'admission_open' => 'boolean',
             'installments_enabled' => 'boolean',
             'downpayment_value' => 'decimal:2',
         ];
     }
 
     /**
-     * The currently open enrollment term, if any.
+     * The term the system currently operates on (bills, portal, dashboard).
      */
-    public static function open(): ?self
+    public static function active(): ?self
     {
-        return static::query()->where('is_open', true)->first();
+        return static::query()->where('is_active', true)->first();
+    }
+
+    /**
+     * The active term, but only while it's accepting new applications.
+     */
+    public static function admitting(): ?self
+    {
+        return static::query()
+            ->where('is_active', true)
+            ->where('admission_open', true)
+            ->first();
     }
 
     /**

@@ -28,7 +28,7 @@ class BillController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $term = Term::open();
+        $term = Term::active();
         $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
         $perPage = min(max($request->integer('per_page', 15), 1), 100);
         $sortKey = $request->string('sort')->value();
@@ -92,7 +92,7 @@ class BillController extends Controller
      */
     public function showForStudent(Student $student): BillResource
     {
-        $term = Term::open();
+        $term = Term::active();
         abort_if($term === null, 404, 'No term is currently open.');
 
         $bill = $student->bills()

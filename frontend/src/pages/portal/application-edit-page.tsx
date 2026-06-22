@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { ApplicationForm } from "@/features/applications/components/application-form";
-import { EnrollmentClosedNotice } from "@/features/applications/components/enrollment-closed-notice";
+import { AdmissionsClosedNotice } from "@/features/applications/components/admissions-closed-notice";
 import {
   useApplication,
   useApplications,
@@ -60,10 +60,10 @@ function ApplicationEditPage() {
     );
   }
 
-  // Resubmitting is a fresh submission — only allowed while a term is open.
+  // Resubmitting is a fresh submission — only allowed while admissions are open.
   if (openTerm === null) {
     return (
-      <EnrollmentClosedNotice description="Enrollment is currently closed. You can resubmit this application once a term is open." />
+      <AdmissionsClosedNotice description="Admissions are currently closed. You can resubmit this application once admissions reopen." />
     );
   }
 

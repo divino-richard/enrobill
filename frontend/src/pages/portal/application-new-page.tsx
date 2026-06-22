@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { ApplicationForm } from "@/features/applications/components/application-form";
-import { EnrollmentClosedNotice } from "@/features/applications/components/enrollment-closed-notice";
+import { AdmissionsClosedNotice } from "@/features/applications/components/admissions-closed-notice";
 import { useOpenTerm } from "@/features/terms/hooks";
 import { useAuthStore } from "@/features/auth/store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,10 +22,10 @@ function ApplicationNewPage() {
     );
   }
 
-  // No open enrollment term — block the form and explain why, rather than
-  // dropping the applicant into a form they can't submit.
+  // Admissions closed — block the form and explain why, rather than dropping
+  // the applicant into a form they can't submit.
   if (!openTerm) {
-    return <EnrollmentClosedNotice />;
+    return <AdmissionsClosedNotice />;
   }
 
   return <ApplicationForm />;

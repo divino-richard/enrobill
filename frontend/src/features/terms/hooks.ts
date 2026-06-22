@@ -4,8 +4,8 @@ import {
   deleteTerm,
   fetchOpenTerm,
   fetchTerms,
-  setTermOpen,
   updateTermPolicy,
+  updateTermStatus,
 } from "./api";
 import type { InstallmentPolicyInput, TermInput } from "./types";
 
@@ -37,13 +37,21 @@ export function useCreateTerm() {
   });
 }
 
-export function useSetTermOpen() {
+export function useUpdateTermStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, isOpen }: { id: number; isOpen: boolean }) =>
-      setTermOpen(id, isOpen),
+    mutationFn: ({
+      id,
+      ...changes
+    }: {
+      id: number;
+      isActive?: boolean;
+      admissionOpen?: boolean;
+    }) => updateTermStatus(id, changes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: termsQueryKey });
+      // The active/admission change affects the applicant-facing open term too.
+      queryClient.invalidateQueries({ queryKey: openTermQueryKey });
     },
   });
 }

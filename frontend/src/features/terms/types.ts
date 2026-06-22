@@ -14,7 +14,8 @@ export interface Term {
   semester: TermSemester;
   startDate: string | null;
   endDate: string | null;
-  isOpen: boolean;
+  isActive: boolean;
+  admissionOpen: boolean;
   installmentsEnabled: boolean;
   downpaymentType: DownpaymentType | null;
   downpaymentValue: number | null;

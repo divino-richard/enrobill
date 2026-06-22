@@ -3,13 +3,13 @@ import { Button } from '@/components/ui/button'
 
 interface ApplicationsEmptyStateProps {
   onNewApplication?: () => void
-  // No enrollment term is open, so applications can't be started.
-  enrollmentClosed?: boolean
+  // Admissions are closed, so applications can't be started.
+  admissionsClosed?: boolean
 }
 
 export function ApplicationsEmptyState({
   onNewApplication,
-  enrollmentClosed = false,
+  admissionsClosed = false,
 }: ApplicationsEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16 text-center">
@@ -18,15 +18,15 @@ export function ApplicationsEmptyState({
       </div>
       <div className="space-y-1">
         <h3 className="font-semibold">
-          {enrollmentClosed ? "Enrollment is closed" : "No applications yet"}
+          {admissionsClosed ? "Admissions are closed" : "No applications yet"}
         </h3>
         <p className="text-muted-foreground mx-auto max-w-sm text-sm">
-          {enrollmentClosed
-            ? "There's no open enrollment term right now. Please check back once enrollment reopens."
-            : "Start your enrollment application to apply for admission. You can track its status here once submitted."}
+          {admissionsClosed
+            ? "Admissions aren't open right now. Please check back once admissions reopen."
+            : "Start your application to apply for admission. You can track its status here once submitted."}
         </p>
       </div>
-      {!enrollmentClosed && onNewApplication && (
+      {!admissionsClosed && onNewApplication && (
         <Button onClick={onNewApplication}>
           <PlusIcon />
           Start application

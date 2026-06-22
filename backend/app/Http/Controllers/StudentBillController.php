@@ -196,7 +196,7 @@ class StudentBillController extends Controller
         $student = $request->user()->student;
         abort_if($student === null, 404, 'No student record found.');
 
-        $term = Term::open();
+        $term = Term::active();
         abort_if($term === null, 404, 'No term is currently open.');
 
         $bill = $student->bills()
