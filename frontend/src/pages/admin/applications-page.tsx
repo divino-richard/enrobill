@@ -140,7 +140,7 @@ function AdminApplicationsPage() {
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground whitespace-nowrap">
-            {row.original.schoolYear} · {row.original.semester}
+            {row.original.schoolYear}
           </span>
         ),
       },

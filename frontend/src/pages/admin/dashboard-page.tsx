@@ -27,7 +27,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatTile } from "@/components/stat-tile";
 import { formatPeso } from "@/lib/money";
-import { semesterLabel } from "@/features/terms/types";
 import { useAuthStore } from "@/features/auth/store";
 import { useStaffDashboard } from "@/features/dashboard/hooks";
 
@@ -145,9 +144,7 @@ function DashboardPage() {
           </p>
         </div>
         <Badge variant="outline" className="w-fit">
-          {openTerm
-            ? `${semesterLabel(openTerm.semester)} · SY ${openTerm.schoolYear}`
-            : "No open term"}
+          {openTerm ? `SY ${openTerm.schoolYear}` : "No open term"}
         </Badge>
       </div>
 

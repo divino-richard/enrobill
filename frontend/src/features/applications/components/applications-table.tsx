@@ -40,7 +40,7 @@ export function ApplicationsTable({
             </TableCell>
             <TableCell>{application.program}</TableCell>
             <TableCell className="text-muted-foreground">
-              {application.schoolYear} · {application.semester}
+              {application.schoolYear}
             </TableCell>
             <TableCell>
               <ApplicationStatusBadge status={application.status} />

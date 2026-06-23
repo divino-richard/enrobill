@@ -126,9 +126,7 @@ function AdminApplicationDetailPage() {
                 </div>
                 <div>
                   <dt className="text-muted-foreground text-xs">School Year</dt>
-                  <dd className="font-medium">
-                    {application.schoolYear} · {application.semester}
-                  </dd>
+                  <dd className="font-medium">{application.schoolYear}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground text-xs">Submitted</dt>

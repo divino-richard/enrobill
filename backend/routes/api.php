@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
 use App\Http\Controllers\Admin\FeeController as AdminFeeController;
+use App\Http\Controllers\Admin\FreebieController as AdminFreebieController;
 use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
@@ -153,6 +154,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/school-years/{schoolYear}/installment-policy', [AdminSchoolYearController::class, 'updatePolicy']);
         Route::delete('/admin/school-years/{schoolYear}', [AdminSchoolYearController::class, 'destroy']);
 
+        // Per-school-year freebies/promos (e.g. the early-enrollment window).
+        Route::get('/admin/school-years/{schoolYear}/freebies', [AdminFreebieController::class, 'index']);
+        Route::put('/admin/school-years/{schoolYear}/freebies', [AdminFreebieController::class, 'upsert']);
+
         // Programs (tracks/strands).
         Route::get('/admin/programs', [AdminProgramController::class, 'index']);
         Route::post('/admin/programs', [AdminProgramController::class, 'store']);
@@ -183,8 +188,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/admin/discounts/{discount}', [AdminDiscountController::class, 'destroy']);
 
         // Enrollments hub — all enrollments; the cashier generates a bill for a
-        // pending one (applying voucher/discounts/freebie).
+        // pending one (applying voucher + eligible freebies).
         Route::get('/admin/enrollments', [AdminEnrollmentController::class, 'all']);
+        Route::get('/admin/enrollments/{enrollment}/freebies', [AdminBillController::class, 'eligibleFreebies']);
         Route::post('/admin/enrollments/{enrollment}/bill', [AdminBillController::class, 'generate']);
 
         // Billing — bills for the active school year.

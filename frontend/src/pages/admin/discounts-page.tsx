@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { SortHeader } from "@/components/data-table-sort-header";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -33,13 +32,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RowActions } from "@/components/row-actions";
 import { FieldLabel } from "@/components/form/field-label";
@@ -51,13 +43,8 @@ import {
   useUpdateDiscount,
 } from "@/features/discounts/hooks";
 import {
-  categoryLabel,
   discountValueLabel,
-  DISCOUNT_CATEGORY_OPTIONS,
-  DISCOUNT_TYPE_OPTIONS,
   type Discount,
-  type DiscountCategory,
-  type DiscountType,
 } from "@/features/discounts/types";
 
 function DiscountDialog({
@@ -73,29 +60,19 @@ function DiscountDialog({
   const update = useUpdateDiscount(editing?.id ?? 0);
   const mutation = editing ? update : create;
 
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<DiscountCategory>("discount");
-  const [type, setType] = useState<DiscountType>("fixed");
-  const [value, setValue] = useState("");
+  // Seeded from props on mount; the parent mounts this fresh per open.
+  const [name, setName] = useState(editing?.name ?? "");
+  const [value, setValue] = useState(editing ? String(editing.value) : "");
 
-  // Seed the form whenever the dialog opens.
-  function syncFromProps() {
-    setName(editing?.name ?? "");
-    setCategory(editing?.category ?? "discount");
-    setType(editing?.type ?? "fixed");
-    setValue(editing ? String(editing.value) : "");
-    mutation.reset();
-  }
+  const valid = name.trim() !== "" && value.trim() !== "";
 
   async function handleSave() {
-    // A full-coverage credit carries no value — it always zeroes the balance.
-    const numericValue = type === "full" ? 0 : Number(value);
-    if (!name.trim() || (type !== "full" && Number.isNaN(numericValue))) return;
+    const numericValue = Number(value);
+    if (!valid || Number.isNaN(numericValue)) return;
     try {
       await mutation.mutateAsync({
         name: name.trim(),
-        category,
-        type,
+        category: "voucher",
         value: numericValue,
         isActive: editing?.isActive ?? true,
       });
@@ -106,21 +83,13 @@ function DiscountDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) syncFromProps();
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {editing ? "Edit discount" : "New discount"}
-          </DialogTitle>
+          <DialogTitle>{editing ? "Edit voucher" : "New voucher"}</DialogTitle>
           <DialogDescription>
-            Define a reusable discount, scholarship or voucher you can apply to
-            student bills.
+            A voucher is a fixed peso credit (e.g. the ₱17,500 SHS voucher) the
+            cashier can apply to a student's bill.
           </DialogDescription>
         </DialogHeader>
 
@@ -132,70 +101,23 @@ function DiscountDialog({
             <Input
               id="name"
               value={name}
-              placeholder="e.g. DepEd ESC Voucher"
+              placeholder="e.g. SHS Voucher"
               onChange={(event) => setName(event.target.value)}
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="category" required>
-                Category
-              </FieldLabel>
-              <Select
-                value={category}
-                onValueChange={(next) => setCategory(next as DiscountCategory)}
-              >
-                <SelectTrigger id="category" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DISCOUNT_CATEGORY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="type" required>
-                Type
-              </FieldLabel>
-              <Select
-                value={type}
-                onValueChange={(next) => setType(next as DiscountType)}
-              >
-                <SelectTrigger id="type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DISCOUNT_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {type !== "full" && (
-              <div className="space-y-1.5">
-                <FieldLabel htmlFor="value" required>
-                  {type === "percentage" ? "Percent" : "Amount"}
-                </FieldLabel>
-                <Input
-                  id="value"
-                  type="number"
-                  min={0}
-                  max={type === "percentage" ? 100 : undefined}
-                  step="0.01"
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
-                />
-              </div>
-            )}
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="value" required>
+              Amount (₱)
+            </FieldLabel>
+            <Input
+              id="value"
+              type="number"
+              min={0}
+              step="0.01"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            />
           </div>
         </div>
 
@@ -213,15 +135,12 @@ function DiscountDialog({
           >
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!name.trim() || value === "" || mutation.isPending}
-          >
+          <Button onClick={handleSave} disabled={!valid || mutation.isPending}>
             {mutation.isPending
               ? "Saving…"
               : editing
                 ? "Save changes"
-                : "Create discount"}
+                : "Create voucher"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -229,14 +148,11 @@ function DiscountDialog({
   );
 }
 
-type CategoryFilter = DiscountCategory | "all";
-
 function DiscountsPage() {
   const remove = useDeleteDiscount();
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
-  const [category, setCategory] = useState<CategoryFilter>("all");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "name", desc: false },
   ]);
@@ -247,7 +163,7 @@ function DiscountsPage() {
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [debouncedSearch, category]);
+  }, [debouncedSearch]);
 
   const sortState = sorting[0];
   const query = useDiscounts({
@@ -255,7 +171,6 @@ function DiscountsPage() {
     perPage: pagination.pageSize,
     sort: sortState?.id,
     dir: sortState?.desc ? "desc" : "asc",
-    category: category === "all" ? undefined : category,
     search: debouncedSearch || undefined,
   });
 
@@ -294,15 +209,6 @@ function DiscountsPage() {
         header: ({ column }) => <SortHeader column={column} title="Name" />,
         cell: ({ row }) => (
           <span className="font-medium">{row.original.name}</span>
-        ),
-      },
-      {
-        accessorKey: "category",
-        header: ({ column }) => <SortHeader column={column} title="Category" />,
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            {categoryLabel(row.original.category)}
-          </span>
         ),
       },
       {
@@ -371,36 +277,28 @@ function DiscountsPage() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const filterPills: { value: CategoryFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    ...DISCOUNT_CATEGORY_OPTIONS.map((option) => ({
-      value: option.value as CategoryFilter,
-      label: option.label,
-    })),
-  ];
-
-  const hasFilters = Boolean(debouncedSearch) || category !== "all";
+  const hasFilters = Boolean(debouncedSearch);
 
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Discounts</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Vouchers</h1>
           <p className="text-muted-foreground text-sm">
-            Reusable discounts, scholarships and vouchers you can apply to
+            Reusable vouchers (a fixed peso credit) the cashier can apply to
             student bills.
           </p>
         </div>
         <Button onClick={openNew}>
           <PlusIcon />
-          New discount
+          New voucher
         </Button>
       </div>
 
       {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">
-            We couldn't load discounts. Please try again.
+            We couldn't load vouchers. Please try again.
           </p>
           <Button variant="outline" onClick={() => query.refetch()}>
             Try again
@@ -408,36 +306,14 @@ function DiscountsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-xs">
-              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search discounts…"
-                className="pl-9"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {filterPills.map((pill) => {
-                const active = category === pill.value;
-                return (
-                  <button
-                    key={pill.value}
-                    type="button"
-                    onClick={() => setCategory(pill.value)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                      active
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {pill.label}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="relative w-full sm:max-w-xs">
+            <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search vouchers…"
+              className="pl-9"
+            />
           </div>
 
           <DataTable
@@ -445,18 +321,20 @@ function DiscountsPage() {
             isLoading={query.isLoading}
             emptyMessage={
               hasFilters
-                ? "No discounts match your filters."
-                : "No discounts yet."
+                ? "No vouchers match your filters."
+                : "No vouchers yet."
             }
           />
         </div>
       )}
 
-      <DiscountDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        editing={editing}
-      />
+      {dialogOpen && (
+        <DiscountDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          editing={editing}
+        />
+      )}
 
       <AlertDialog
         open={deleting !== null}

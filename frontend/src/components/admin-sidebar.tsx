@@ -126,7 +126,7 @@ const navGroups: NavGroup[] = [
         ready: true,
       },
       {
-        title: "Discounts",
+        title: "Vouchers",
         url: "/admin/discounts",
         icon: TagIcon,
         ready: true,

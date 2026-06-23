@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\FreebieEligibility;
 use App\Actions\GenerateBillForEnrollment;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
+use App\Http\Resources\FreebieResource;
 use App\Models\Bill;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
@@ -69,20 +71,32 @@ class BillController extends Controller
     }
 
     /**
+     * The freebies (promos) a pending enrollment qualifies for — shown to the
+     * cashier once a voucher is selected at generation.
+     */
+    public function eligibleFreebies(Enrollment $enrollment, FreebieEligibility $eligibility): AnonymousResourceCollection
+    {
+        return FreebieResource::collection($eligibility->for($enrollment));
+    }
+
+    /**
      * Generate the bill for a pending enrollment, applying the cashier's selected
-     * catalog credits (discounts/voucher/freebie).
+     * voucher(s) and any eligible freebies.
      */
     public function generate(Request $request, Enrollment $enrollment, GenerateBillForEnrollment $generate): BillResource
     {
         $validated = $request->validate([
             'discountIds' => ['sometimes', 'array'],
             'discountIds.*' => ['integer', Rule::exists('discounts', 'id')],
+            'freebieIds' => ['sometimes', 'array'],
+            'freebieIds.*' => ['integer', Rule::exists('freebies', 'id')],
             'noDownpayment' => ['sometimes', 'boolean'],
         ]);
 
         $bill = $generate(
             $enrollment,
             array_map('intval', $validated['discountIds'] ?? []),
+            array_map('intval', $validated['freebieIds'] ?? []),
             (bool) ($validated['noDownpayment'] ?? false),
         );
 

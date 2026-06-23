@@ -19,7 +19,6 @@ import { useProgramLabel } from "@/features/programs/hooks";
 import { useMyEnrollments, useMyStudent } from "@/features/students/hooks";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { EnrollmentStatusBadge } from "@/features/students/components/enrollment-status-badge";
-import { semesterLabel } from "@/features/terms/types";
 import type { EnrollmentRecord } from "@/features/students/types";
 
 function Detail({ label, value }: { label: string; value: string }) {
@@ -32,9 +31,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 function termLabel(record: EnrollmentRecord): string {
-  const sem = record.semester ? semesterLabel(record.semester) : "";
-  const sy = record.schoolYear ? `SY ${record.schoolYear}` : "";
-  return [sem, sy].filter(Boolean).join(" · ") || "—";
+  return record.schoolYear ? `SY ${record.schoolYear}` : "—";
 }
 
 function EmptyTab({
@@ -97,7 +94,6 @@ function ProgramsPage() {
 
   const currentProgram = current?.program ?? student.trackOrStrand;
   const currentYearLevel = current?.yearLevel ?? student.yearLevel;
-  const currentSemester = current?.semester ?? null;
   const currentSchoolYear = current?.schoolYear ?? student.schoolYear;
 
   return (
@@ -105,7 +101,7 @@ function ProgramsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">My Program</h1>
         <p className="text-muted-foreground text-sm">
-          The program, level and semester you're enrolled in.
+          The program and level you're enrolled in.
         </p>
       </div>
 
@@ -114,7 +110,6 @@ function ProgramsPage() {
         <CardHeader>
           <CardDescription className="text-xs font-medium tracking-wide uppercase">
             {currentSchoolYear ? `SY ${currentSchoolYear}` : "Current term"}
-            {currentSemester ? ` · ${semesterLabel(currentSemester)}` : ""}
           </CardDescription>
           <CardTitle className="text-base">
             {programLabel(currentProgram)}
@@ -171,10 +166,6 @@ function ProgramsPage() {
                 <Detail
                   label="Year Level"
                   value={labelFor(YEAR_LEVEL_OPTIONS, currentYearLevel ?? "")}
-                />
-                <Detail
-                  label="Semester"
-                  value={currentSemester ? semesterLabel(currentSemester) : "—"}
                 />
                 <Detail label="School Year" value={currentSchoolYear ?? "—"} />
               </dl>

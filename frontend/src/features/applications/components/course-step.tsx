@@ -18,7 +18,6 @@ import {
 import type { ApplicationFormApi } from "../hooks/form";
 import { useProgramGroups } from "@/features/programs/hooks";
 import { useOpenTerm } from "@/features/terms/hooks";
-import { semesterLabel } from "@/features/terms/types";
 import { DECLARATION_AGREEMENT_TEXT, YEAR_LEVEL_OPTIONS } from "../types";
 
 function required(message: string) {
@@ -124,32 +123,6 @@ export function CourseStep({ form }: CourseStepProps) {
                     ))}
                   </SelectContent>
                 </Select>
-                <FieldInfo field={field} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field
-            name="semester"
-            validators={{ onChange: required("Semester is required") }}
-          >
-            {(field) => (
-              <div className="space-y-1.5">
-                <FieldLabel
-                  htmlFor={field.name}
-                  required
-                  hint="Set automatically by the current open enrollment term."
-                >
-                  Semester
-                </FieldLabel>
-                <Input
-                  id={field.name}
-                  value={
-                    field.state.value ? semesterLabel(field.state.value) : ""
-                  }
-                  disabled
-                  readOnly
-                />
                 <FieldInfo field={field} />
               </div>
             )}

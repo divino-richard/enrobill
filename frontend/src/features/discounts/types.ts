@@ -1,8 +1,6 @@
-export type DiscountCategory =
-  | "discount"
-  | "scholarship"
-  | "voucher"
-  | "freebie";
+// The catalog holds vouchers only now (freebies are eligibility-driven promos).
+export type DiscountCategory = "voucher";
+// Vouchers are fixed amounts; older records may still carry other types.
 export type DiscountType = "fixed" | "percentage" | "full";
 
 export interface Discount {
@@ -18,18 +16,7 @@ export interface Discount {
 export const DISCOUNT_CATEGORY_OPTIONS: {
   value: DiscountCategory;
   label: string;
-}[] = [
-  { value: "discount", label: "Discount" },
-  { value: "scholarship", label: "Scholarship" },
-  { value: "voucher", label: "Voucher" },
-  { value: "freebie", label: "Freebie" },
-];
-
-export const DISCOUNT_TYPE_OPTIONS: { value: DiscountType; label: string }[] = [
-  { value: "fixed", label: "Fixed amount (₱)" },
-  { value: "percentage", label: "Percentage (%)" },
-  { value: "full", label: "Full coverage (zero balance)" },
-];
+}[] = [{ value: "voucher", label: "Voucher" }];
 
 export function categoryLabel(category: string): string {
   return (

@@ -5,25 +5,33 @@ namespace App\Actions;
 use App\Models\Bill;
 use App\Models\Discount;
 use App\Models\Enrollment;
+use App\Models\Freebie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class GenerateBillForEnrollment
 {
-    public function __construct(private GenerateInstallmentSchedule $generateSchedule) {}
+    public function __construct(
+        private GenerateInstallmentSchedule $generateSchedule,
+        private FreebieEligibility $freebieEligibility,
+    ) {}
 
     /**
      * Generate the bill for a (pending) enrollment from its school year's fee
-     * schedule, applying the cashier's selected catalog credits — discounts,
-     * voucher and/or freebie. Fixed/percentage credits apply first, then any
-     * full-coverage (`full`) credit zeroes whatever is left. A voucher waives the
-     * downpayment (per the school's voucher rules). Idempotent — returns the
-     * existing bill if the enrollment already has one.
+     * schedule, applying the cashier's selected catalog credits (vouchers) and any
+     * eligible freebies. Vouchers apply first; a freebie then zeroes whatever is
+     * left. A voucher waives the downpayment (per the school's voucher rules).
+     * Idempotent — returns the existing bill if the enrollment already has one.
      *
-     * @param  list<int>  $discountIds  catalog discount ids, in apply order
+     * @param  list<int>  $discountIds  catalog discount (voucher) ids, in apply order
+     * @param  list<int>  $freebieIds  freebie (promo) ids to apply
      */
-    public function __invoke(Enrollment $enrollment, array $discountIds = [], bool $noDownpayment = false): Bill
-    {
+    public function __invoke(
+        Enrollment $enrollment,
+        array $discountIds = [],
+        array $freebieIds = [],
+        bool $noDownpayment = false,
+    ): Bill {
         $enrollment->loadMissing(['student', 'schoolYear']);
         $schoolYear = $enrollment->schoolYear;
         $student = $enrollment->student;
@@ -51,17 +59,37 @@ class GenerateBillForEnrollment
             ]);
         }
 
-        // The selected, active catalog credits — fixed/percentage first so a
-        // full-coverage credit lands on whatever balance remains.
+        // The selected, active catalog credits (vouchers), in the requested order.
         $discounts = Discount::query()
             ->whereIn('id', $discountIds)
             ->where('is_active', true)
             ->get()
             ->sortBy(fn (Discount $d) => array_search($d->id, $discountIds, true))
-            ->sortBy(fn (Discount $d) => $d->type === 'full' ? 1 : 0)
             ->values();
 
-        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $discounts, $noDownpayment) {
+        $hasVoucher = $discounts->contains(fn (Discount $d) => $d->category === 'voucher');
+
+        // Freebies only apply alongside a voucher, and only to students who qualify
+        // — "Promo + Voucher = Zero Tuition Balance" (docs/business.md).
+        $freebies = collect();
+        if ($freebieIds !== []) {
+            if (! $hasVoucher) {
+                throw ValidationException::withMessages([
+                    'freebieIds' => 'A freebie can only be applied to a student who also has a voucher.',
+                ]);
+            }
+
+            $eligibleIds = $this->freebieEligibility->for($enrollment)->pluck('id');
+            $freebies = Freebie::query()->whereIn('id', $freebieIds)->get();
+
+            if ($freebies->contains(fn (Freebie $f) => ! $eligibleIds->contains($f->id))) {
+                throw ValidationException::withMessages([
+                    'freebieIds' => 'A selected freebie does not apply to this student.',
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $discounts, $freebies, $hasVoucher, $noDownpayment) {
             $bill = $student->bills()->create([
                 'school_year_id' => $schoolYear->id,
                 'enrollment_id' => $enrollment->id,
@@ -74,7 +102,7 @@ class GenerateBillForEnrollment
                 $fees->map(fn ($fee) => ['name' => $fee->name, 'amount' => $fee->amount])->all(),
             );
 
-            $hasVoucher = false;
+            // Vouchers/catalog credits first.
             foreach ($discounts as $discount) {
                 $bill->load('adjustments'); // keep netTotal()/creditFor() current
                 $bill->adjustments()->create([
@@ -84,7 +112,18 @@ class GenerateBillForEnrollment
                     'value' => $discount->value,
                     'amount' => $bill->creditFor($discount),
                 ]);
-                $hasVoucher = $hasVoucher || $discount->category === 'voucher';
+            }
+
+            // Then freebies — each covers whatever balance remains (→ ₱0).
+            foreach ($freebies as $freebie) {
+                $bill->load('adjustments');
+                $bill->adjustments()->create([
+                    'discount_id' => null,
+                    'label' => $freebie->name,
+                    'type' => 'full',
+                    'value' => 0,
+                    'amount' => $bill->netTotal(),
+                ]);
             }
 
             // Voucher students pay no downpayment; honour an explicit waiver too.

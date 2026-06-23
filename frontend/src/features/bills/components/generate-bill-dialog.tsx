@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -14,11 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useAllDiscounts } from "@/features/discounts/hooks";
-import {
-  categoryLabel,
-  discountValueLabel,
-  type Discount,
-} from "@/features/discounts/types";
+import { discountValueLabel, type Discount } from "@/features/discounts/types";
+import { useEligibleFreebies } from "@/features/freebies/hooks";
 import { useGenerateBillForEnrollment } from "@/features/bills/hooks";
 
 // The minimal data the dialog needs about the enrollment being billed.
@@ -29,19 +25,16 @@ export interface GenerateBillTarget {
   noDownpayment: boolean;
 }
 
-// Mirror the backend credit math for a live preview: fixed/percentage resolve
-// against the gross (capped); any full-coverage credit zeroes the remainder.
+// Mirror the backend voucher math (Bill::creditFor): each credit caps at the
+// remaining balance.
 function previewNet(gross: number, selected: Discount[]): number {
-  const hasFull = selected.some((d) => d.type === "full");
-  if (hasFull) return 0;
-  const credits = selected.reduce((sum, d) => {
-    const credit =
-      d.type === "percentage"
-        ? Math.min((gross * d.value) / 100, gross)
-        : Math.min(d.value, gross);
-    return sum + credit;
-  }, 0);
-  return Math.max(Math.round((gross - credits) * 100) / 100, 0);
+  let remaining = gross;
+  for (const d of selected) {
+    const nominal =
+      d.type === "percentage" ? (gross * d.value) / 100 : d.value;
+    remaining = Math.round((remaining - Math.min(nominal, remaining)) * 100) / 100;
+  }
+  return Math.max(remaining, 0);
 }
 
 export function GenerateBillDialog({
@@ -54,28 +47,45 @@ export function GenerateBillDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { data: discounts, isLoading } = useAllDiscounts();
+  const freebiesQuery = useEligibleFreebies(enrollment?.enrollmentId);
   const generate = useGenerateBillForEnrollment();
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedFreebieIds, setSelectedFreebieIds] = useState<Set<number>>(
+    new Set(),
+  );
   const [waive, setWaive] = useState(enrollment?.noDownpayment ?? false);
 
-  const active = useMemo(
+  const vouchers = useMemo(
     () => (discounts ?? []).filter((d) => d.isActive),
     [discounts],
   );
   const selected = useMemo(
-    () => active.filter((d) => selectedIds.has(d.id)),
-    [active, selectedIds],
+    () => vouchers.filter((d) => selectedIds.has(d.id)),
+    [vouchers, selectedIds],
   );
+  const eligibleFreebies = freebiesQuery.data ?? [];
 
   const gross = enrollment?.feePreview ?? 0;
-  const net = previewNet(gross, selected);
-  const hasVoucher = selected.some((d) => d.category === "voucher");
-  // A voucher always waives the downpayment.
+  const hasVoucher = selected.length > 0;
+  const hasFreebie = selectedFreebieIds.size > 0;
+  // A freebie zeroes the whole remaining balance.
+  const net = hasFreebie ? 0 : previewNet(gross, selected);
   const effectiveWaive = waive || hasVoucher;
 
-  function toggle(id: number) {
+  function toggleVoucher(id: number) {
     setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      // Freebies require a voucher — drop them if no voucher remains.
+      if (next.size === 0) setSelectedFreebieIds(new Set());
+      return next;
+    });
+  }
+
+  function toggleFreebie(id: number) {
+    setSelectedFreebieIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -88,7 +98,11 @@ export function GenerateBillDialog({
     try {
       await generate.mutateAsync({
         enrollmentId: enrollment.enrollmentId,
-        input: { discountIds: [...selectedIds], noDownpayment: waive },
+        input: {
+          discountIds: [...selectedIds],
+          freebieIds: [...selectedFreebieIds],
+          noDownpayment: waive,
+        },
       });
       onOpenChange(false);
     } catch {
@@ -103,7 +117,7 @@ export function GenerateBillDialog({
           <DialogTitle>Generate bill</DialogTitle>
           <DialogDescription>
             {enrollment
-              ? `${enrollment.name} — apply any voucher, discounts or freebie, then generate the bill.`
+              ? `${enrollment.name} — apply a voucher and any eligible freebie, then generate the bill.`
               : ""}
           </DialogDescription>
         </DialogHeader>
@@ -114,32 +128,63 @@ export function GenerateBillDialog({
             <span className="font-medium">{formatPeso(gross)}</span>
           </div>
 
+          {/* Vouchers */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Credits</p>
+            <p className="text-sm font-medium">Voucher</p>
             {isLoading ? (
-              <Skeleton className="h-24 w-full rounded-md" />
-            ) : active.length === 0 ? (
+              <Skeleton className="h-20 w-full rounded-md" />
+            ) : vouchers.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                No discounts in the catalog. Add vouchers/discounts under
-                Discounts first.
+                No vouchers in the catalog. Add one under Vouchers first.
               </p>
             ) : (
-              <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border p-1">
-                {active.map((d) => (
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-1">
+                {vouchers.map((d) => (
                   <label
                     key={d.id}
                     className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5"
                   >
                     <Checkbox
                       checked={selectedIds.has(d.id)}
-                      onCheckedChange={() => toggle(d.id)}
+                      onCheckedChange={() => toggleVoucher(d.id)}
                     />
                     <span className="flex-1 text-sm">{d.name}</span>
-                    <Badge variant="outline" className="font-normal">
-                      {categoryLabel(d.category)}
-                    </Badge>
-                    <span className="text-muted-foreground w-28 text-right text-xs">
+                    <span className="text-muted-foreground text-xs">
                       {discountValueLabel(d)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Freebies — eligible promos, only with a voucher */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Freebies</p>
+            {!hasVoucher ? (
+              <p className="text-muted-foreground text-sm">
+                Select a voucher to see the freebies this student qualifies for.
+              </p>
+            ) : freebiesQuery.isLoading ? (
+              <Skeleton className="h-12 w-full rounded-md" />
+            ) : eligibleFreebies.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                This student isn't eligible for any freebies.
+              </p>
+            ) : (
+              <div className="space-y-1 rounded-lg border p-1">
+                {eligibleFreebies.map((f) => (
+                  <label
+                    key={f.id}
+                    className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5"
+                  >
+                    <Checkbox
+                      checked={selectedFreebieIds.has(f.id)}
+                      onCheckedChange={() => toggleFreebie(f.id)}
+                    />
+                    <span className="flex-1 text-sm">{f.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      Zero balance
                     </span>
                   </label>
                 ))}

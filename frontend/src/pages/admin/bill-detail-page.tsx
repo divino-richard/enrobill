@@ -44,7 +44,6 @@ import { FieldLabel } from "@/components/form/field-label";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
-import { semesterLabel } from "@/features/terms/types";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useAllDiscounts } from "@/features/discounts/hooks";
 import { discountValueLabel } from "@/features/discounts/types";
@@ -368,7 +367,7 @@ function BillDetailPage() {
 
   const termLabel = useMemo(() => {
     if (!bill?.schoolYear) return "—";
-    return `${semesterLabel(bill.semester ?? "")} · SY ${bill.schoolYear}`;
+    return `SY ${bill.schoolYear}`;
   }, [bill]);
 
   if (isLoading) {

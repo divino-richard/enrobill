@@ -2,12 +2,12 @@ import { useState } from "react";
 import {
   CalendarDaysIcon,
   CircleAlertIcon,
+  GiftIcon,
   LockIcon,
   LockOpenIcon,
   PlusIcon,
   PowerIcon,
   PowerOffIcon,
-  RefreshCwIcon,
   Trash2Icon,
   WalletIcon,
 } from "lucide-react";
@@ -63,12 +63,16 @@ import {
   useUpdateTermPolicy,
   useUpdateTermStatus,
 } from "@/features/terms/hooks";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  semesterLabel,
+  useSchoolYearFreebies,
+  useUpsertFreebie,
+} from "@/features/freebies/hooks";
+import type { Freebie } from "@/features/freebies/types";
+import {
   termLabel,
   type DownpaymentType,
   type Term,
-  type TermSemester,
 } from "@/features/terms/types";
 
 interface PolicyState {
@@ -231,6 +235,151 @@ function PolicyForm({ term, onDone }: { term: Term; onDone: () => void }) {
           disabled={!policyComplete(policy) || save.isPending}
         >
           {save.isPending ? "Saving…" : "Save policy"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+// --- Early-enrollment freebie config -------------------------------------
+
+function FreebieDialog({
+  term,
+  onOpenChange,
+}: {
+  term: Term | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={term !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Early-enrollment freebie</DialogTitle>
+          <DialogDescription>
+            {term
+              ? `Grade 11 students who enrol within this window for ${termLabel(term)} can have their balance zeroed when a voucher is applied.`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {term && (
+          <FreebieForm
+            key={term.id}
+            term={term}
+            onDone={() => onOpenChange(false)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FreebieForm({ term, onDone }: { term: Term; onDone: () => void }) {
+  const { data: freebies, isLoading } = useSchoolYearFreebies(term.id);
+  const existing = (freebies ?? []).find((f) => f.type === "early_enrollment");
+  const save = useUpsertFreebie(term.id);
+
+  if (isLoading) {
+    return <p className="text-muted-foreground py-6 text-sm">Loading…</p>;
+  }
+
+  return (
+    <FreebieFields
+      key={existing?.id ?? "new"}
+      term={term}
+      existing={existing ?? null}
+      save={save}
+      onDone={onDone}
+    />
+  );
+}
+
+function FreebieFields({
+  term,
+  existing,
+  save,
+  onDone,
+}: {
+  term: Term;
+  existing: Freebie | null;
+  save: ReturnType<typeof useUpsertFreebie>;
+  onDone: () => void;
+}) {
+  const [enabled, setEnabled] = useState(existing?.isActive ?? false);
+  const [startsOn, setStartsOn] = useState(
+    existing?.startsOn ?? term.startDate?.slice(0, 10) ?? "",
+  );
+  const [endsOn, setEndsOn] = useState(
+    existing?.endsOn ?? term.endDate?.slice(0, 10) ?? "",
+  );
+
+  async function handleSave() {
+    try {
+      await save.mutateAsync({
+        type: "early_enrollment",
+        name: existing?.name ?? "Early Enrollment Promo",
+        isActive: enabled,
+        startsOn: startsOn || null,
+        endsOn: endsOn || null,
+      });
+      onDone();
+    } catch {
+      // Surfaced via save.isError.
+    }
+  }
+
+  return (
+    <>
+      <div className="space-y-4">
+        <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+          <Checkbox
+            checked={enabled}
+            onCheckedChange={(checked) => setEnabled(checked === true)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-medium">Enable early-enrollment freebie</span>
+            <span className="text-muted-foreground block text-xs">
+              Offered to Grade 11 students enrolled within the window below.
+            </span>
+          </span>
+        </label>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <FieldLabel>Window start</FieldLabel>
+            <DatePicker
+              value={startsOn}
+              onChange={setStartsOn}
+              placeholder="Open-ended"
+              startMonth={TERM_DATE_START}
+              endMonth={TERM_DATE_END}
+              disabledDates={[]}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Window end</FieldLabel>
+            <DatePicker
+              value={endsOn}
+              onChange={setEndsOn}
+              placeholder="Open-ended"
+              startMonth={TERM_DATE_START}
+              endMonth={TERM_DATE_END}
+              disabledDates={[]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {save.isError && (
+        <p className="text-destructive text-sm">{getErrorMessage(save.error)}</p>
+      )}
+
+      <DialogFooter>
+        <Button variant="outline" onClick={onDone} disabled={save.isPending}>
+          Cancel
+        </Button>
+        <Button onClick={handleSave} disabled={save.isPending}>
+          {save.isPending ? "Saving…" : "Save freebie"}
         </Button>
       </DialogFooter>
     </>
@@ -414,6 +563,7 @@ function TermsPage() {
 
   const [newTermOpen, setNewTermOpen] = useState(false);
   const [policyTerm, setPolicyTerm] = useState<Term | null>(null);
+  const [freebieTerm, setFreebieTerm] = useState<Term | null>(null);
   const [deleting, setDeleting] = useState<Term | null>(null);
   const [statusAction, setStatusAction] = useState<StatusAction | null>(null);
 
@@ -442,10 +592,6 @@ function TermsPage() {
     }
   }
 
-  function switchSemester(term: Term, next: TermSemester) {
-    void setStatus.mutateAsync({ id: term.id, currentSemester: next });
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
@@ -469,8 +615,7 @@ function TermsPage() {
           {activeTerm ? (
             <span>
               <span className="font-medium">{termLabel(activeTerm)}</span> is the
-              active school year ({semesterLabel(activeTerm.currentSemester)}) —
-              admissions are{" "}
+              active school year — admissions are{" "}
               <span className="font-medium">
                 {activeTerm.admissionOpen ? "open" : "closed"}
               </span>
@@ -511,7 +656,6 @@ function TermsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>School Year</TableHead>
-                <TableHead>Current semester</TableHead>
                 <TableHead>Period</TableHead>
                 <TableHead>Payment plan</TableHead>
                 <TableHead>Status</TableHead>
@@ -524,7 +668,6 @@ function TermsPage() {
                   <TableCell className="font-medium">
                     {term.schoolYear}
                   </TableCell>
-                  <TableCell>{semesterLabel(term.currentSemester)}</TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">
                     {term.startDate && term.endDate
                       ? `${formatDate(term.startDate)} – ${formatDate(term.endDate)}`
@@ -593,25 +736,13 @@ function TermsPage() {
                           ? "Close admissions"
                           : "Open admissions"}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={setStatus.isPending}
-                        onClick={() =>
-                          switchSemester(
-                            term,
-                            term.currentSemester === "first"
-                              ? "second"
-                              : "first",
-                          )
-                        }
-                      >
-                        <RefreshCwIcon />
-                        {term.currentSemester === "first"
-                          ? "Advance to 2nd semester"
-                          : "Back to 1st semester"}
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setPolicyTerm(term)}>
                         <WalletIcon />
                         Installment policy
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setFreebieTerm(term)}>
+                        <GiftIcon />
+                        Early-enrollment freebie
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
@@ -630,6 +761,13 @@ function TermsPage() {
       )}
 
       <NewTermDialog open={newTermOpen} onOpenChange={setNewTermOpen} />
+
+      <FreebieDialog
+        term={freebieTerm}
+        onOpenChange={(open) => {
+          if (!open) setFreebieTerm(null);
+        }}
+      />
 
       <PolicyDialog
         term={policyTerm}

@@ -6,16 +6,17 @@ import {
   type ListParams,
   type PageMeta,
 } from "@/lib/pagination";
-import type { Discount, DiscountCategory, DiscountType } from "./types";
+import type { Discount, DiscountCategory } from "./types";
 
 interface Wrapped<T> {
   data: T;
 }
 
+// `type` is derived from the category on the server (voucher → fixed amount,
+// freebie → full coverage), so it isn't part of the form payload.
 export interface DiscountInput {
   name: string;
   category: DiscountCategory;
-  type: DiscountType;
   value: number;
   isActive: boolean;
 }

@@ -36,6 +36,7 @@ export async function fetchBills(params: BillListParams): Promise<BillsPage> {
 
 export interface GenerateBillInput {
   discountIds: number[];
+  freebieIds: number[];
   noDownpayment: boolean;
 }
 

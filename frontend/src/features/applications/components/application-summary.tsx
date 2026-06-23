@@ -6,7 +6,6 @@ import { useProgramLabel } from "@/features/programs/hooks";
 import {
   CIVIL_STATUS_OPTIONS,
   ENROLLMENT_TYPE_OPTIONS,
-  SEMESTER_OPTIONS,
   YEAR_LEVEL_OPTIONS,
   labelFor,
   type ApplicationFormValues,
@@ -190,7 +189,6 @@ export function ApplicationSummary({
         rows={[
           ["Track / Strand", programLabel(values.trackOrStrand)],
           ["Year level", labelFor(YEAR_LEVEL_OPTIONS, values.yearLevel)],
-          ["Semester", labelFor(SEMESTER_OPTIONS, values.semester)],
           ["School year", values.schoolYear || "—"],
         ]}
       />

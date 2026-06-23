@@ -110,16 +110,20 @@ class Bill extends Model
     }
 
     /**
-     * The peso credit a catalog discount would apply to this bill right now:
-     * fixed/percentage resolve against the gross charges (capped); a `full`
-     * (full-coverage) credit covers whatever balance is left — the current net,
-     * after any credits already applied — so the bill zeroes out.
+     * The peso credit a catalog discount applies to this bill right now. Resolved
+     * dynamically against the **remaining balance** so credits stack in order and
+     * never over-credit: a `full` credit covers whatever is left (→ ₱0); a fixed
+     * amount or percentage (of gross) is capped at what's still owed.
      */
     public function creditFor(Discount $discount): float
     {
-        return $discount->type === 'full'
-            ? $this->netTotal()
+        $remaining = $this->netTotal(); // balance after credits already applied
+
+        $nominal = $discount->type === 'full'
+            ? $remaining
             : $discount->resolveAmount((float) $this->total);
+
+        return round(min(max($nominal, 0), $remaining), 2);
     }
 
     /**

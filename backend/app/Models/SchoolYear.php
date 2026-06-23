@@ -74,4 +74,14 @@ class SchoolYear extends Model
     {
         return $this->hasMany(SchoolYearFee::class);
     }
+
+    /**
+     * The promos (freebies) configured for this school year.
+     *
+     * @return HasMany<Freebie, $this>
+     */
+    public function freebies(): HasMany
+    {
+        return $this->hasMany(Freebie::class);
+    }
 }

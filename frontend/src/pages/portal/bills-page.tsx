@@ -42,7 +42,6 @@ import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { formatDate } from "@/features/applications/utils";
-import { semesterLabel } from "@/features/terms/types";
 import { useActivePaymentChannels } from "@/features/payment-channels/hooks";
 import type { PaymentChannel } from "@/features/payment-channels/types";
 import { uploadPaymentProof } from "@/features/bills/api";
@@ -62,8 +61,7 @@ import {
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-const termTitle = (bill: Bill) =>
-  `${semesterLabel(bill.semester ?? "")} · SY ${bill.schoolYear}`;
+const termTitle = (bill: Bill) => `SY ${bill.schoolYear}`;
 
 function SummaryRow({
   label,

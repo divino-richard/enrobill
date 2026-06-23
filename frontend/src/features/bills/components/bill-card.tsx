@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPeso } from "@/lib/money";
-import { semesterLabel } from "@/features/terms/types";
 import { useStudentBill } from "../hooks";
 import { BILL_STATUS_META } from "../types";
 
@@ -46,7 +45,7 @@ export function BillCard({ studentId }: BillCardProps) {
         ) : bill ? (
           <div className="space-y-4">
             <p className="text-muted-foreground text-xs">
-              {semesterLabel(bill.semester ?? "")} · SY {bill.schoolYear}
+              SY {bill.schoolYear}
             </p>
 
             <dl className="space-y-2 text-sm">

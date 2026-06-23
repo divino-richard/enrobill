@@ -75,7 +75,7 @@ export function CurrentApplicationCard({
           <Field
             icon={CalendarDaysIcon}
             label="School Year"
-            value={`${application.schoolYear} · ${application.semester}`}
+            value={application.schoolYear}
           />
           <Field
             icon={ClockIcon}

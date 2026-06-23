@@ -24,7 +24,6 @@ import {
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useMyBill } from "@/features/bills/hooks";
 import { BILL_STATUS_META } from "@/features/bills/types";
-import { semesterLabel } from "@/features/terms/types";
 import { useMyStudent } from "../hooks";
 import { studentFullName } from "../types";
 import { StudentStatusBadge } from "./student-status-badge";
@@ -162,8 +161,7 @@ export function StudentDashboard() {
         <Card>
           <CardHeader>
             <CardDescription className="text-xs font-medium tracking-wide uppercase">
-              Current bill · {semesterLabel(bill.semester)} · SY{" "}
-              {bill.schoolYear}
+              Current bill · SY {bill.schoolYear}
             </CardDescription>
             <CardTitle className="text-base">
               {formatPeso(bill.balance)} balance

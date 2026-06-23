@@ -18,7 +18,6 @@ import { RowActions } from "@/components/row-actions";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
-import { semesterLabel } from "@/features/terms/types";
 import { getErrorMessage } from "@/lib/get-error-message";
 import {
   useStudentEnrollments,
@@ -41,9 +40,7 @@ const ACTIONS: {
 ];
 
 function termLabel(record: EnrollmentRecord): string {
-  const sem = record.semester ? semesterLabel(record.semester) : "";
-  const sy = record.schoolYear ? `SY ${record.schoolYear}` : "";
-  return [sem, sy].filter(Boolean).join(" · ") || "—";
+  return record.schoolYear ? `SY ${record.schoolYear}` : "—";
 }
 
 export function StudentEnrollmentsCard({ studentId }: { studentId: number }) {
