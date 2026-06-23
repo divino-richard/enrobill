@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   CalendarClockIcon,
   CheckCircle2Icon,
+  CheckIcon,
   ChevronRightIcon,
   ClockIcon,
+  CopyIcon,
   EyeIcon,
   ReceiptTextIcon,
   UploadIcon,
@@ -30,13 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { FieldLabel } from "@/components/form/field-label";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
@@ -261,6 +256,65 @@ function BillDetailDialog({
   );
 }
 
+// A labelled value with a one-tap copy button (account name / number).
+function AccountRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable — ignore.
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-sm">
+      <span className="text-muted-foreground shrink-0 text-xs">{label}</span>
+      <span className="ml-auto truncate font-medium tabular-nums">{value}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-6 shrink-0"
+        onClick={copy}
+        aria-label={`Copy ${label}`}
+      >
+        {copied ? (
+          <CheckIcon className="size-3.5" />
+        ) : (
+          <CopyIcon className="size-3.5" />
+        )}
+      </Button>
+    </div>
+  );
+}
+
+// A numbered section heading used to guide the student through the pay flow.
+function Step({
+  n,
+  title,
+  children,
+}: {
+  n: number;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="bg-primary/10 text-primary flex size-5 items-center justify-center rounded-full text-[11px] font-semibold">
+          {n}
+        </span>
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 // QR codes + the payment-submission form, in one focused dialog.
 function PayDialog({
   bill,
@@ -303,6 +357,9 @@ function PayDialog({
     amountNum >= bill.amountDue - 0.01 &&
     amountNum <= bill.balance + 0.01;
 
+  const selectedChannel = channels.find((c) => c.code === method) ?? null;
+  const isBank = selectedChannel?.code === "bank";
+
   async function handleSubmit() {
     setError(null);
     if (!method || !file || !amountValid) return;
@@ -339,25 +396,26 @@ function PayDialog({
         <UploadIcon />
         Pay now
       </Button>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Pay your bill</DialogTitle>
           <DialogDescription>
-            Pay the amount due via GCash or Maya, then upload your receipt for
+            Choose how to pay, settle the amount, then upload your receipt for
             review.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5 rounded-lg border px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <FieldLabel htmlFor="pay-amount" required>
-                Amount to pay
-              </FieldLabel>
-              <span className="text-muted-foreground text-xs">
-                Due now {formatPeso(bill.amountDue)} · balance{" "}
-                {formatPeso(bill.balance)}
-              </span>
+        <div className="space-y-5">
+          <Step n={1} title="Amount to pay">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border px-3 py-2">
+                <p className="text-muted-foreground text-xs">Due now</p>
+                <p className="font-semibold">{formatPeso(bill.amountDue)}</p>
+              </div>
+              <div className="rounded-lg border px-3 py-2">
+                <p className="text-muted-foreground text-xs">Balance</p>
+                <p className="font-semibold">{formatPeso(bill.balance)}</p>
+              </div>
             </div>
             <Input
               id="pay-amount"
@@ -368,106 +426,136 @@ function PayDialog({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <p className="text-muted-foreground text-xs">
-              Pay the amount due, or more to lower your future monthly payments.
-            </p>
-            {amount !== "" && !amountValid && (
+            {amount !== "" && !amountValid ? (
               <p className="text-destructive text-xs">
                 Enter between {formatPeso(bill.amountDue)} and{" "}
                 {formatPeso(bill.balance)}.
               </p>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                Pay the amount due, or more to lower your future monthly
+                payments.
+              </p>
             )}
-          </div>
+          </Step>
 
           {channels.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground rounded-lg border border-dashed px-4 py-6 text-center text-sm">
               Online payment isn't set up yet. Please pay at the cashier.
             </p>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {channels.map((channel) => (
-                  <div
-                    key={channel.id}
-                    className="space-y-1 rounded-lg border p-3 text-center"
-                  >
-                    <p className="text-sm font-medium">{channel.label}</p>
-                    {channel.qrUrl && (
-                      <img
-                        src={channel.qrUrl}
-                        alt={`${channel.label} QR`}
-                        className="mx-auto size-32 object-contain"
-                      />
-                    )}
-                    {channel.accountName && (
-                      <p className="text-muted-foreground text-xs">
-                        {channel.accountName}
-                        {channel.accountNumber
-                          ? ` · ${channel.accountNumber}`
-                          : ""}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <Step n={2} title="Pay with">
+                <div className="flex flex-wrap gap-1.5">
+                  {channels.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setMethod(c.code)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                        method === c.code
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <FieldLabel htmlFor="pay-method" required>
-                    Method
-                  </FieldLabel>
-                  <Select value={method} onValueChange={setMethod}>
-                    <SelectTrigger id="pay-method" className="w-full">
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {methods.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {selectedChannel && (
+                  <div className="bg-muted/30 space-y-3 rounded-lg border p-3">
+                    {selectedChannel.qrUrl && (
+                      <div className="flex flex-col items-center gap-1.5">
+                        <img
+                          src={selectedChannel.qrUrl}
+                          alt={`${selectedChannel.label} QR`}
+                          className="size-36 rounded-md border bg-white object-contain p-1.5"
+                        />
+                        <p className="text-muted-foreground text-xs">
+                          Scan with your {selectedChannel.label} app
+                        </p>
+                      </div>
+                    )}
+
+                    {(selectedChannel.accountName ||
+                      selectedChannel.accountNumber) && (
+                      <div className="space-y-1.5">
+                        {selectedChannel.accountName && (
+                          <AccountRow
+                            label={isBank ? "Bank" : "Account name"}
+                            value={selectedChannel.accountName}
+                          />
+                        )}
+                        {selectedChannel.accountNumber && (
+                          <AccountRow
+                            label={isBank ? "Account number" : "Number"}
+                            value={selectedChannel.accountNumber}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {!selectedChannel.qrUrl &&
+                      !selectedChannel.accountName &&
+                      !selectedChannel.accountNumber && (
+                        <p className="text-muted-foreground text-center text-sm">
+                          No payment details yet — please contact the cashier.
+                        </p>
+                      )}
+                  </div>
+                )}
+              </Step>
+
+              <Step n={3} title="Confirm your payment">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <FieldLabel htmlFor="pay-date" required>
+                        Date paid
+                      </FieldLabel>
+                      <Input
+                        id="pay-date"
+                        type="date"
+                        value={paidAt}
+                        onChange={(e) => setPaidAt(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <FieldLabel htmlFor="pay-ref">Reference no.</FieldLabel>
+                      <Input
+                        id="pay-ref"
+                        value={reference}
+                        onChange={(e) => setReference(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <FieldLabel htmlFor="pay-proof" required>
+                      Proof of payment
+                    </FieldLabel>
+                    <Input
+                      id="pay-proof"
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      A screenshot or photo of your receipt (PNG or JPG).
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <FieldLabel htmlFor="pay-note">Note (optional)</FieldLabel>
+                    <Textarea
+                      id="pay-note"
+                      rows={2}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <FieldLabel htmlFor="pay-date" required>
-                    Date paid
-                  </FieldLabel>
-                  <Input
-                    id="pay-date"
-                    type="date"
-                    value={paidAt}
-                    onChange={(e) => setPaidAt(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <FieldLabel htmlFor="pay-ref">Reference no.</FieldLabel>
-                  <Input
-                    id="pay-ref"
-                    value={reference}
-                    onChange={(e) => setReference(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <FieldLabel htmlFor="pay-proof" required>
-                    Proof of payment (screenshot)
-                  </FieldLabel>
-                  <Input
-                    id="pay-proof"
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <FieldLabel htmlFor="pay-note">Note</FieldLabel>
-                  <Textarea
-                    id="pay-note"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                </div>
-              </div>
+              </Step>
             </>
           )}
 

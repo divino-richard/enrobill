@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FieldLabel } from "@/components/form/field-label";
 import { getErrorMessage } from "@/lib/get-error-message";
 import {
@@ -61,28 +62,34 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
 
   const shownQr = preview ?? channel.qrUrl;
   const busy = update.isPending;
+  const isBank = channel.code === "bank";
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">{channel.label}</CardTitle>
         <CardDescription>
-          Account details and QR code students scan to pay.
+          {isBank
+            ? "Bank account details students transfer to. A QR is optional."
+            : "Account details and QR code students scan to pay."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 max-w-4xl">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <FieldLabel htmlFor={`name-${channel.id}`}>Account name</FieldLabel>
+            <FieldLabel htmlFor={`name-${channel.id}`}>
+              {isBank ? "Bank name" : "Account name"}
+            </FieldLabel>
             <Input
               id={`name-${channel.id}`}
               value={accountName}
+              placeholder={isBank ? "e.g. BPI" : undefined}
               onChange={(e) => setAccountName(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
             <FieldLabel htmlFor={`number-${channel.id}`}>
-              Account / mobile number
+              {isBank ? "Account number" : "Account / mobile number"}
             </FieldLabel>
             <Input
               id={`number-${channel.id}`}
@@ -107,7 +114,9 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
             )}
           </div>
           <div className="space-y-1.5">
-            <FieldLabel htmlFor={`qr-${channel.id}`}>QR image</FieldLabel>
+            <FieldLabel htmlFor={`qr-${channel.id}`}>
+              {isBank ? "QR image (optional)" : "QR image"}
+            </FieldLabel>
             <Input
               id={`qr-${channel.id}`}
               type="file"
@@ -154,14 +163,13 @@ function PaymentChannelsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Payment Methods</h1>
         <p className="text-muted-foreground text-sm">
-          Set the GCash and Maya account details and QR codes students use to pay
-          their bills.
+          Set the account details and QR codes students use to pay their bills.
         </p>
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Skeleton className="h-64 w-full rounded-xl" />
+        <div className="space-y-4">
+          <Skeleton className="h-9 w-72 rounded-md" />
           <Skeleton className="h-64 w-full rounded-xl" />
         </div>
       ) : isError ? (
@@ -173,12 +181,27 @@ function PaymentChannelsPage() {
             Try again
           </Button>
         </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {channels.map((channel) => (
-            <ChannelCard key={channel.id} channel={channel} />
-          ))}
+      ) : channels.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
+          <p className="text-muted-foreground text-sm">
+            No payment methods configured.
+          </p>
         </div>
+      ) : (
+        <Tabs defaultValue={channels[0]?.code}>
+          <TabsList>
+            {channels.map((channel) => (
+              <TabsTrigger key={channel.id} value={channel.code}>
+                {channel.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {channels.map((channel) => (
+            <TabsContent key={channel.id} value={channel.code}>
+              <ChannelCard channel={channel} />
+            </TabsContent>
+          ))}
+        </Tabs>
       )}
     </div>
   );

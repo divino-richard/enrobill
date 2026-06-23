@@ -2,7 +2,7 @@ export type BillStatus = "unpaid" | "partial" | "paid";
 
 export type InstallmentStatus = "unpaid" | "partial" | "paid" | "overdue";
 
-export type PaymentMethod = "cash" | "gcash" | "maya";
+export type PaymentMethod = "cash" | "gcash" | "maya" | "bank";
 
 export type PaymentStatus = "pending" | "verified" | "rejected";
 
@@ -17,6 +17,7 @@ export const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] =
     { value: "cash", label: "Cash" },
     { value: "gcash", label: "GCash" },
     { value: "maya", label: "Maya" },
+    { value: "bank", label: "Bank Transfer" },
   ];
 
 export function paymentMethodLabel(method: string): string {

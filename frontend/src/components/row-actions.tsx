@@ -24,7 +24,7 @@ export function RowActions({ children }: { children: ReactNode }) {
           <span className="sr-only">Open row actions</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent align="end" className="min-w-44 w-fit">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {children}

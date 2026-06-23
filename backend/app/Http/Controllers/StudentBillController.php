@@ -18,9 +18,9 @@ use Illuminate\Validation\ValidationException;
 class StudentBillController extends Controller
 {
     /**
-     * Channels a student can submit a self-service payment for (digital wallets).
+     * Channels a student can submit a self-service payment for (with proof).
      */
-    private const SUBMIT_METHODS = ['gcash', 'maya'];
+    private const SUBMIT_METHODS = ['gcash', 'maya', 'bank'];
 
     private const ALLOWED_TYPES = [
         'image/jpeg' => 'jpg',

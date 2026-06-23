@@ -331,14 +331,14 @@ function FeesPage() {
               value={effectiveId ? String(effectiveId) : ""}
               onValueChange={(v) => setSelectedId(Number(v))}
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="min-w-44 w-fit">
                 <SelectValue placeholder="Select year" />
               </SelectTrigger>
               <SelectContent>
                 {schoolYears.map((sy) => (
                   <SelectItem key={sy.id} value={String(sy.id)}>
                     SY {sy.schoolYear}
-                    {sy.isActive ? " (active)" : ""}
+                    {sy.isActive ? " - active" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class PaymentController extends Controller
 {
-    public const METHODS = ['cash', 'gcash', 'maya'];
+    public const METHODS = ['cash', 'gcash', 'maya', 'bank'];
 
     /**
      * Record a verified payment against a bill and recompute its balance and

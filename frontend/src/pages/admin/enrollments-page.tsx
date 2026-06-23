@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FieldLabel } from "@/components/form/field-label";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
@@ -241,17 +240,16 @@ function EnrollmentsPage() {
             </div>
             <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1.5">
-                <FieldLabel>School year</FieldLabel>
                 <Select value={schoolYearId} onValueChange={setSchoolYearId}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="min-44 w-fit">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All years</SelectItem>
+                    <SelectItem value="all">All academic years</SelectItem>
                     {schoolYears.map((sy) => (
                       <SelectItem key={sy.id} value={String(sy.id)}>
                         SY {sy.schoolYear}
-                        {sy.isActive ? " (active)" : ""}
+                        {sy.isActive ? " - active" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
