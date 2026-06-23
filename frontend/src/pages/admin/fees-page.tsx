@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,10 +50,12 @@ import {
   useUpdateFee,
 } from "@/features/fees/hooks";
 import {
+  FEE_CATEGORY_OPTIONS,
   FEE_TYPE_OPTIONS,
   FEE_YEAR_LEVEL_OPTIONS,
   feeTypeLabel,
   feeYearLevelLabel,
+  type FeeCategory,
   type FeeInput,
   type FeeType,
   type FeeYearLevel,
@@ -62,6 +64,7 @@ import {
 
 interface FeeFormState {
   yearLevel: FeeYearLevel;
+  category: FeeCategory;
   name: string;
   type: FeeType;
   amount: string;
@@ -69,6 +72,7 @@ interface FeeFormState {
 
 const EMPTY_FEE: FeeFormState = {
   yearLevel: "all",
+  category: "other",
   name: "",
   type: "default",
   amount: "",
@@ -93,6 +97,7 @@ function FeeDialog({
     editing
       ? {
           yearLevel: editing.yearLevel,
+          category: editing.category,
           name: editing.name,
           type: editing.type,
           amount: String(editing.amount),
@@ -106,6 +111,7 @@ function FeeDialog({
     if (!valid) return;
     const payload: FeeInput = {
       yearLevel: form.yearLevel,
+      category: form.category,
       name: form.name.trim(),
       type: form.type,
       amount: Number(form.amount),
@@ -131,6 +137,27 @@ function FeeDialog({
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <FieldLabel required>Category</FieldLabel>
+            <Select
+              value={form.category}
+              onValueChange={(v) =>
+                setForm((prev) => ({ ...prev, category: v as FeeCategory }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FEE_CATEGORY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-1.5">
             <FieldLabel required>Year level</FieldLabel>
             <Select
@@ -250,6 +277,22 @@ function FeesPage() {
     return { grade11, grade12 };
   }, [data]);
 
+  // Fees grouped by category (in schedule order) with a subtotal each, mirroring
+  // the official Schedule of Fees breakdown.
+  const groups = useMemo(() => {
+    const rows = data ?? [];
+    return FEE_CATEGORY_OPTIONS.map((cat) => {
+      const items = rows
+        .filter((f) => f.category === cat.value)
+        .sort((a, b) => a.sequence - b.sequence);
+      return {
+        ...cat,
+        items,
+        subtotal: items.reduce((sum, f) => sum + f.amount, 0),
+      };
+    }).filter((group) => group.items.length > 0);
+  }, [data]);
+
   function openAdd() {
     setEditing(null);
     setDialogOpen(true);
@@ -362,35 +405,61 @@ function FeesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fees.map((fee) => (
-                <TableRow key={fee.id}>
-                  <TableCell className="font-medium">{fee.name}</TableCell>
-                  <TableCell>{feeYearLevelLabel(fee.yearLevel)}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={fee.type === "add_on" ? "secondary" : "outline"}
+              {groups.map((group) => (
+                <Fragment key={group.value}>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableCell
+                      colSpan={5}
+                      className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
                     >
-                      {feeTypeLabel(fee.type)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatPeso(fee.amount)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <RowActions>
-                      <DropdownMenuItem onClick={() => openEdit(fee)}>
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onClick={() => setDeleting(fee)}
-                      >
-                        <Trash2Icon />
-                        Delete
-                      </DropdownMenuItem>
-                    </RowActions>
-                  </TableCell>
-                </TableRow>
+                      {group.label}
+                    </TableCell>
+                  </TableRow>
+                  {group.items.map((fee) => (
+                    <TableRow key={fee.id}>
+                      <TableCell className="font-medium">{fee.name}</TableCell>
+                      <TableCell>{feeYearLevelLabel(fee.yearLevel)}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            fee.type === "add_on" ? "secondary" : "outline"
+                          }
+                        >
+                          {feeTypeLabel(fee.type)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatPeso(fee.amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActions>
+                          <DropdownMenuItem onClick={() => openEdit(fee)}>
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => setDeleting(fee)}
+                          >
+                            <Trash2Icon />
+                            Delete
+                          </DropdownMenuItem>
+                        </RowActions>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
+                      colSpan={3}
+                      className="text-muted-foreground text-right text-sm"
+                    >
+                      {group.label} subtotal
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatPeso(group.subtotal)}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </Fragment>
               ))}
             </TableBody>
           </Table>

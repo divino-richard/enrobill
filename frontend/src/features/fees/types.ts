@@ -2,11 +2,14 @@ export type FeeYearLevel = "all" | "grade_11" | "grade_12";
 
 export type FeeType = "default" | "add_on";
 
+export type FeeCategory = "tuition" | "miscellaneous" | "other";
+
 // A single fee item in a school year's global fee schedule.
 export interface SchoolYearFee {
   id: number;
   schoolYearId: number;
   yearLevel: FeeYearLevel;
+  category: FeeCategory;
   name: string;
   type: FeeType;
   amount: number;
@@ -17,6 +20,7 @@ export interface SchoolYearFee {
 export interface FeeInput {
   schoolYearId?: number; // required on create, ignored on update
   yearLevel: FeeYearLevel;
+  category: FeeCategory;
   name: string;
   type: FeeType;
   amount: number;
@@ -34,6 +38,13 @@ export const FEE_TYPE_OPTIONS = [
   { value: "add_on", label: "Add-on" },
 ] as const;
 
+// Sections of the official Schedule of Fees, in display order.
+export const FEE_CATEGORY_OPTIONS = [
+  { value: "tuition", label: "Tuition" },
+  { value: "miscellaneous", label: "Miscellaneous Fees" },
+  { value: "other", label: "Other Fees" },
+] as const;
+
 export function feeYearLevelLabel(value: string): string {
   return (
     FEE_YEAR_LEVEL_OPTIONS.find((option) => option.value === value)?.label ??
@@ -44,5 +55,11 @@ export function feeYearLevelLabel(value: string): string {
 export function feeTypeLabel(value: string): string {
   return (
     FEE_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value
+  );
+}
+
+export function feeCategoryLabel(value: string): string {
+  return (
+    FEE_CATEGORY_OPTIONS.find((option) => option.value === value)?.label ?? value
   );
 }

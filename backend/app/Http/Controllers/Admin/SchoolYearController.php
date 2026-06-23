@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\SeedFeeScheduleFromTemplate;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SchoolYearResource;
 use App\Models\SchoolYear;
@@ -25,9 +26,10 @@ class SchoolYearController extends Controller
     }
 
     /**
-     * Create a new school year (one row per year).
+     * Create a new school year (one row per year) and seed its fee schedule from
+     * the default template so the admin can immediately review/adjust it.
      */
-    public function store(Request $request): SchoolYearResource
+    public function store(Request $request, SeedFeeScheduleFromTemplate $seedFees): SchoolYearResource
     {
         $validated = $request->validate([
             'schoolYear' => [
@@ -52,15 +54,21 @@ class SchoolYearController extends Controller
             'endDate.after_or_equal' => 'The end date must be on or after the start date.',
         ]);
 
-        $schoolYear = SchoolYear::create([
-            'school_year' => $validated['schoolYear'],
-            'current_semester' => 'first',
-            'start_date' => $validated['startDate'],
-            'end_date' => $validated['endDate'],
-            'is_active' => false,
-            'admission_open' => false,
-            ...$this->policyAttributes($validated),
-        ]);
+        $schoolYear = DB::transaction(function () use ($validated, $seedFees) {
+            $schoolYear = SchoolYear::create([
+                'school_year' => $validated['schoolYear'],
+                'current_semester' => 'first',
+                'start_date' => $validated['startDate'],
+                'end_date' => $validated['endDate'],
+                'is_active' => false,
+                'admission_open' => false,
+                ...$this->policyAttributes($validated),
+            ]);
+
+            $seedFees($schoolYear);
+
+            return $schoolYear;
+        });
 
         return new SchoolYearResource($schoolYear);
     }

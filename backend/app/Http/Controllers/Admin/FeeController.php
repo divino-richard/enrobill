@@ -40,6 +40,7 @@ class FeeController extends Controller
         $fee = SchoolYearFee::create([
             'school_year_id' => $validated['schoolYearId'],
             'year_level' => $validated['yearLevel'],
+            'category' => $validated['category'],
             'name' => $validated['name'],
             'type' => $validated['type'],
             'amount' => $validated['amount'],
@@ -58,6 +59,7 @@ class FeeController extends Controller
 
         $fee->update([
             'year_level' => $validated['yearLevel'],
+            'category' => $validated['category'],
             'name' => $validated['name'],
             'type' => $validated['type'],
             'amount' => $validated['amount'],
@@ -102,6 +104,7 @@ class FeeController extends Controller
             $target->fees()->createMany(
                 $source->fees->map(fn (SchoolYearFee $fee) => [
                     'year_level' => $fee->year_level,
+                    'category' => $fee->category,
                     'name' => $fee->name,
                     'type' => $fee->type,
                     'amount' => $fee->amount,
@@ -138,6 +141,7 @@ class FeeController extends Controller
                 ? ['schoolYearId' => ['required', 'integer', Rule::exists('school_years', 'id')]]
                 : []),
             'yearLevel' => ['required', Rule::in(SchoolYearFee::YEAR_LEVELS)],
+            'category' => ['required', Rule::in(SchoolYearFee::CATEGORIES)],
             'name' => ['required', 'string', 'max:100'],
             'type' => ['required', Rule::in(SchoolYearFee::TYPES)],
             'amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],

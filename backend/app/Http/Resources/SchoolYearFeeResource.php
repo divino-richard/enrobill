@@ -20,6 +20,7 @@ class SchoolYearFeeResource extends JsonResource
             'id' => $this->id,
             'schoolYearId' => $this->school_year_id,
             'yearLevel' => $this->year_level,
+            'category' => $this->category,
             'name' => $this->name,
             'type' => $this->type,
             'amount' => (float) $this->amount,
