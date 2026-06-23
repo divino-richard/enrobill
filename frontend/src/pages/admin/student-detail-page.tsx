@@ -23,7 +23,7 @@ function StudentDetailPage() {
   const { data: student, isLoading, isError, refetch } = useStudent(Number(id));
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto space-y-6">
       <Button
         variant="ghost"
         size="sm"

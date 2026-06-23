@@ -134,7 +134,9 @@ export function ApplicationForm({
     return (
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-          <CheckCircle2Icon className="size-12 text-emerald-600 dark:text-emerald-500" />
+          <div className="bg-primary-foreground p-3 rounded-lg">
+            <CheckCircle2Icon className="size-8 text-primary" />
+          </div>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">
               {isEdit ? "Application resubmitted" : "Application submitted"}
@@ -159,7 +161,7 @@ export function ApplicationForm({
   const progress = ((currentStep + 1) / WIZARD_STEPS.length) * 100;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="mx-auto space-y-4">
       <Button
         variant="ghost"
         size="sm"

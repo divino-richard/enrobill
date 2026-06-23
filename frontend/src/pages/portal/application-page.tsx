@@ -30,7 +30,7 @@ function ApplicationPage() {
   const admissionsClosed = !isStudent && openTerm === null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="mx-auto space-y-8">
       <ApplicationsHeader
         hasActiveApplication={Boolean(activeApplication)}
         onNewApplication={startNewApplication}

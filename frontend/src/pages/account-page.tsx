@@ -52,7 +52,7 @@ function ProfileForm({ profile }: { profile: AccountProfile }) {
         <CardTitle className="text-base">Profile</CardTitle>
         <CardDescription>Update your personal details.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-w-4xl">
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -103,7 +103,7 @@ function ProfileForm({ profile }: { profile: AccountProfile }) {
             <Input id="email" value={profile.email} disabled readOnly />
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-start">
             <Button
               type="submit"
               disabled={update.isPending || !firstName.trim() || !lastName.trim()}
@@ -137,7 +137,7 @@ function PasswordForm() {
           Use at least 8 characters with an uppercase letter and a number.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-w-4xl">
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -193,7 +193,7 @@ function PasswordForm() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-start">
             <Button
               type="submit"
               disabled={
@@ -216,7 +216,7 @@ function AccountPage() {
   const { data: profile, isLoading, isError, refetch } = useAccount();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
         <p className="text-muted-foreground text-sm">

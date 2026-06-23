@@ -27,7 +27,7 @@ export function ApplicantOverview() {
   const latest = current ?? applications[0];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Welcome{user ? `, ${user.name}` : ""}

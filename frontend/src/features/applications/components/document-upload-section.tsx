@@ -81,7 +81,7 @@ function DocumentRow({
     <div
       className={cn(
         "rounded-lg border p-3 transition-colors",
-        uploaded && "border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20",
+        uploaded && "border-primary bg-primary-foreground dark:bg-emerald-950/20",
       )}
     >
       <div className="flex items-center justify-between gap-3">
@@ -90,7 +90,7 @@ function DocumentRow({
             className={cn(
               "flex size-9 shrink-0 items-center justify-center rounded-md",
               uploaded
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                ? "bg-primary text-white"
                 : "bg-muted text-muted-foreground",
             )}
           >
@@ -213,7 +213,7 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
               <div
                 className={cn(
                   "flex items-center gap-2 text-xs font-medium",
-                  met ? "text-emerald-600 dark:text-emerald-500" : "text-muted-foreground",
+                  met ? "text-primary dark:text-emerald-500" : "text-muted-foreground",
                 )}
               >
                 {met && <CheckCircle2 className="size-4" />}

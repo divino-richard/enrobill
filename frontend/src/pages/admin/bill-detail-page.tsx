@@ -397,7 +397,8 @@ function BillDetailPage() {
   const payments = bill.payments ?? [];
   // A bill with no verified/pending payments can be voided (returns the student
   // to the pending queue so the cashier can re-generate it).
-  const canVoid = payments.every((payment) => payment.status === "rejected");
+  // const canVoid = payments.every((payment) => payment.status === "rejected");
+  const canVoid = false;
 
   async function handleVoid() {
     try {
