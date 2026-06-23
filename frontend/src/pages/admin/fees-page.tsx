@@ -5,6 +5,7 @@ import {
   LibraryIcon,
   PencilIcon,
   PlusIcon,
+  ReceiptTextIcon,
   Trash2Icon,
   type LucideIcon,
 } from "lucide-react";
@@ -13,7 +14,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/stat-tile";
-import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -362,18 +362,18 @@ function FeesPage() {
           <StatTile
             label="Grade 11 / student"
             value={formatPeso(totals.grade11)}
-            accent="text-violet-600 dark:text-violet-400"
+            icon={GraduationCapIcon}
           />
           <StatTile
             label="Grade 12 / student"
             value={formatPeso(totals.grade12)}
-            accent="text-sky-600 dark:text-sky-400"
+            icon={GraduationCapIcon}
           />
           <StatTile
             label="Fee items"
             value={fees.length}
             hint={`across ${groups.length} ${groups.length === 1 ? "section" : "sections"}`}
-            accent="text-amber-600 dark:text-amber-400"
+            icon={ReceiptTextIcon}
           />
         </div>
       )}
@@ -420,12 +420,7 @@ function FeesPage() {
               <Card key={group.value} className="gap-0 overflow-hidden py-0">
                 <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-foreground text-primary",
-                        meta.icon,
-                      )}
-                    >
+                    <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
                       <Icon className="size-4.5" />
                     </div>
                     <div>

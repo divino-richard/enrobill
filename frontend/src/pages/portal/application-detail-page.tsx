@@ -99,6 +99,17 @@ function ApplicationDetailPage() {
                 {APPLICATION_STATUS_META[application.status].description}
               </p>
 
+              {application.status === "rejected" && application.decisionNote && (
+                <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-3">
+                  <p className="text-destructive text-xs font-medium tracking-wide uppercase">
+                    Note from the registrar
+                  </p>
+                  <p className="mt-1 text-sm whitespace-pre-line">
+                    {application.decisionNote}
+                  </p>
+                </div>
+              )}
+
               <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
                 <div>
                   <dt className="text-muted-foreground text-xs">School Year</dt>

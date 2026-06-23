@@ -15,6 +15,7 @@ export interface Application {
   schoolYear: string;
   semester: string;
   status: ApplicationStatus;
+  decisionNote: string | null;
   submittedAt: string | null;
   updatedAt: string;
 }

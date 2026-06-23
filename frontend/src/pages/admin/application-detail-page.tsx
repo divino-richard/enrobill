@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, CheckIcon, XIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,16 +50,22 @@ function AdminApplicationDetailPage() {
     "accept" | "reject" | null
   >(null);
   const [noDownpayment, setNoDownpayment] = useState(false);
+  const [note, setNote] = useState("");
 
   function openDecision(decision: "accept" | "reject") {
     setNoDownpayment(false);
+    setNote("");
     setPendingDecision(decision);
   }
 
   async function confirmDecision() {
     if (!pendingDecision) return;
     try {
-      await decide.mutateAsync({ decision: pendingDecision, noDownpayment });
+      await decide.mutateAsync({
+        decision: pendingDecision,
+        noDownpayment,
+        note: note.trim() || null,
+      });
     } catch {
       // Surfaced below via decide.isError.
     } finally {
@@ -161,9 +168,22 @@ function AdminApplicationDetailPage() {
                   </Button>
                 </div>
               ) : (
-                <p className="text-muted-foreground border-t pt-4 text-sm">
-                  This application has already been decided.
-                </p>
+                <div className="space-y-3 border-t pt-4">
+                  <p className="text-muted-foreground text-sm">
+                    This application has already been decided.
+                  </p>
+                  {application.status === "rejected" &&
+                    application.decisionNote && (
+                      <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-3">
+                        <p className="text-destructive text-xs font-medium tracking-wide uppercase">
+                          Rejection note
+                        </p>
+                        <p className="mt-1 text-sm whitespace-pre-line">
+                          {application.decisionNote}
+                        </p>
+                      </div>
+                    )}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -206,7 +226,7 @@ function AdminApplicationDetailPage() {
                 <AlertDialogDescription>
                   {isReject
                     ? "The application will be marked as rejected and the applicant will be notified by email. They can edit and resubmit it."
-                    : "The application will be marked as accepted, the student's bill for the active school year is generated, and the applicant is notified by email."}
+                    : "The application will be marked as accepted and the applicant becomes a student with a pending enrollment, notified by email. The cashier generates their bill afterwards."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {!isReject && (
@@ -227,6 +247,29 @@ function AdminApplicationDetailPage() {
                     </span>
                   </span>
                 </label>
+              )}
+              {isReject && (
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="reject-note"
+                    className="text-sm font-medium"
+                  >
+                    Note to the applicant{" "}
+                    <span className="text-muted-foreground font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <Textarea
+                    id="reject-note"
+                    rows={3}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="Reason for rejection or what to fix before resubmitting…"
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    Shown to the applicant and included in their email.
+                  </p>
+                </div>
               )}
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={decide.isPending}>

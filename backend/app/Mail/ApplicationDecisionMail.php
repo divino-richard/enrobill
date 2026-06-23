@@ -44,6 +44,7 @@ class ApplicationDecisionMail extends Mailable
                 'decision' => $this->decision,
                 'reference' => $this->application->reference,
                 'schoolYear' => $this->application->school_year,
+                'note' => $this->application->decision_note,
                 'applicationsUrl' => $this->applicationsUrl,
             ],
         );

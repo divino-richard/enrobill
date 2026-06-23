@@ -34,6 +34,13 @@
             and unfortunately it was <strong>not approved</strong> at this time.
         </p>
 
+        @if (!empty($note))
+            <p style="margin:0 0 4px;color:#6b7280;font-size:13px;">Note from the registrar:</p>
+            <blockquote style="margin:0 0 16px;padding:10px 14px;background:#fef2f2;border-left:3px solid #b91c1c;color:#7f1d1d;">
+                {{ $note }}
+            </blockquote>
+        @endif
+
         <p>
             You can review the details and, if applicable, edit and resubmit your
             application from your applications page.

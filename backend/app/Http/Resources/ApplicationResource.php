@@ -55,6 +55,7 @@ class ApplicationResource extends JsonResource
             'schoolYear' => $this->school_year ?? '—',
             'semester' => self::SEMESTER_LABELS[$this->semester] ?? ($this->semester ?? '—'),
             'status' => $this->status,
+            'decisionNote' => $this->decision_note,
             'submittedAt' => $this->submitted_at?->toIso8601String(),
             'updatedAt' => $this->updated_at?->toIso8601String(),
             // Present for admin listings (when the applicant is eager-loaded).

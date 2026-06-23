@@ -57,11 +57,15 @@ export async function fetchAdminApplication(
 export async function decideApplication(
   id: number,
   decision: "accept" | "reject",
-  noDownpayment = false,
+  options: { noDownpayment?: boolean; note?: string | null } = {},
 ): Promise<AdminApplicationDetail> {
+  const body =
+    decision === "accept"
+      ? { noDownpayment: options.noDownpayment ?? false }
+      : { note: options.note ?? null };
   const { data } = await api.post<Wrapped<AdminApplicationDetail>>(
     `/admin/applications/${id}/${decision}`,
-    decision === "accept" ? { noDownpayment } : undefined,
+    body,
   );
   return data.data;
 }

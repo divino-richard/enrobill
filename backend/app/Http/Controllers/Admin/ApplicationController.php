@@ -93,11 +93,16 @@ class ApplicationController extends Controller
     }
 
     /**
-     * Reject an application and notify the applicant.
+     * Reject an application, with an optional note (reason) shown to the applicant,
+     * and notify them.
      */
-    public function reject(Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
+    public function reject(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
     {
-        return $this->decide($application, 'rejected', $sendEmail);
+        $note = $request->validate([
+            'note' => ['nullable', 'string', 'max:1000'],
+        ])['note'] ?? null;
+
+        return $this->decide($application, 'rejected', $sendEmail, note: $note);
     }
 
     /**
@@ -105,7 +110,7 @@ class ApplicationController extends Controller
      *
      * @param  'accepted'|'rejected'  $status
      */
-    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, bool $noDownpayment = false): ApplicationResource
+    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, bool $noDownpayment = false, ?string $note = null): ApplicationResource
     {
         abort_unless(
             in_array($application->status, self::DECIDABLE_STATUSES, true),
@@ -113,8 +118,11 @@ class ApplicationController extends Controller
             'This application has already been decided and cannot be changed.',
         );
 
-        DB::transaction(function () use ($application, $status, $noDownpayment) {
-            $application->update(['status' => $status]);
+        DB::transaction(function () use ($application, $status, $noDownpayment, $note) {
+            $application->update([
+                'status' => $status,
+                'decision_note' => $note,
+            ]);
 
             // Once accepted, promote the applicant to a student (role flip +
             // canonical student record) and generate their bill. Their existing
