@@ -1,19 +1,19 @@
-import { Fragment, useMemo, useState } from "react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useMemo, useState } from "react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  CoinsIcon,
+  GraduationCapIcon,
+  LibraryIcon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+  type LucideIcon,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { RowActions } from "@/components/row-actions";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatTile } from "@/components/stat-tile";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +53,6 @@ import {
   FEE_CATEGORY_OPTIONS,
   FEE_TYPE_OPTIONS,
   FEE_YEAR_LEVEL_OPTIONS,
-  feeTypeLabel,
   feeYearLevelLabel,
   type FeeCategory,
   type FeeInput,
@@ -76,6 +75,13 @@ const EMPTY_FEE: FeeFormState = {
   name: "",
   type: "default",
   amount: "",
+};
+
+// Per-category presentation (icon + colour chip) for the breakdown cards.
+const CATEGORY_META: Record<string, { icon: LucideIcon }> = {
+  tuition: { icon: GraduationCapIcon },
+  miscellaneous: { icon: LibraryIcon },
+  other: { icon: CoinsIcon },
 };
 
 function FeeDialog({
@@ -351,16 +357,24 @@ function FeesPage() {
         </div>
       </div>
 
-      {effectiveId !== null && !isLoading && !isError && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border px-4 py-3">
-            <p className="text-muted-foreground text-xs">Grade 11 total</p>
-            <p className="text-lg font-semibold">{formatPeso(totals.grade11)}</p>
-          </div>
-          <div className="rounded-lg border px-4 py-3">
-            <p className="text-muted-foreground text-xs">Grade 12 total</p>
-            <p className="text-lg font-semibold">{formatPeso(totals.grade12)}</p>
-          </div>
+      {effectiveId !== null && !isLoading && !isError && fees.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <StatTile
+            label="Grade 11 / student"
+            value={formatPeso(totals.grade11)}
+            accent="text-violet-600 dark:text-violet-400"
+          />
+          <StatTile
+            label="Grade 12 / student"
+            value={formatPeso(totals.grade12)}
+            accent="text-sky-600 dark:text-sky-400"
+          />
+          <StatTile
+            label="Fee items"
+            value={fees.length}
+            hint={`across ${groups.length} ${groups.length === 1 ? "section" : "sections"}`}
+            accent="text-amber-600 dark:text-amber-400"
+          />
         </div>
       )}
 
@@ -372,9 +386,14 @@ function FeesPage() {
           </p>
         </div>
       ) : isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-11 w-full rounded-md" />
-          <Skeleton className="h-11 w-full rounded-md" />
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+          </div>
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
@@ -393,76 +412,94 @@ function FeesPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fee</TableHead>
-                <TableHead>Year level</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-right" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.map((group) => (
-                <Fragment key={group.value}>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableCell
-                      colSpan={5}
-                      className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
+        <div className="space-y-4">
+          {groups.map((group) => {
+            const meta = CATEGORY_META[group.value] ?? CATEGORY_META.other;
+            const Icon = meta.icon;
+            return (
+              <Card key={group.value} className="gap-0 overflow-hidden py-0">
+                <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-foreground text-primary",
+                        meta.icon,
+                      )}
                     >
-                      {group.label}
-                    </TableCell>
-                  </TableRow>
-                  {group.items.map((fee) => (
-                    <TableRow key={fee.id}>
-                      <TableCell className="font-medium">{fee.name}</TableCell>
-                      <TableCell>{feeYearLevelLabel(fee.yearLevel)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            fee.type === "add_on" ? "secondary" : "outline"
-                          }
-                        >
-                          {feeTypeLabel(fee.type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatPeso(fee.amount)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <RowActions>
-                          <DropdownMenuItem onClick={() => openEdit(fee)}>
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => setDeleting(fee)}
-                          >
-                            <Trash2Icon />
-                            Delete
-                          </DropdownMenuItem>
-                        </RowActions>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell
-                      colSpan={3}
-                      className="text-muted-foreground text-right text-sm"
-                    >
-                      {group.label} subtotal
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
+                      <Icon className="size-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold">{group.label}</h3>
+                      <p className="text-muted-foreground text-xs">
+                        {group.items.length}{" "}
+                        {group.items.length === 1 ? "item" : "items"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground text-[11px] tracking-wide uppercase">
+                      Subtotal
+                    </p>
+                    <p className="text-sm font-semibold tabular-nums">
                       {formatPeso(group.subtotal)}
-                    </TableCell>
-                    <TableCell />
-                  </TableRow>
-                </Fragment>
-              ))}
-            </TableBody>
-          </Table>
+                    </p>
+                  </div>
+                </div>
+                <ul className="divide-y">
+                  {group.items.map((fee) => {
+                    const tag = [
+                      fee.yearLevel !== "all"
+                        ? feeYearLevelLabel(fee.yearLevel)
+                        : null,
+                      fee.type === "add_on" ? "Add-on" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <li
+                        key={fee.id}
+                        className="hover:bg-muted/40 group flex items-center gap-3 px-4 py-2.5 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {fee.name}
+                          </p>
+                          {tag && (
+                            <p className="text-muted-foreground text-xs">
+                              {tag}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums">
+                          {formatPeso(fee.amount)}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            onClick={() => openEdit(fee)}
+                            aria-label={`Edit ${fee.name}`}
+                          >
+                            <PencilIcon className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive size-7"
+                            onClick={() => setDeleting(fee)}
+                            aria-label={`Delete ${fee.name}`}
+                          >
+                            <Trash2Icon className="size-3.5" />
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            );
+          })}
         </div>
       )}
 
