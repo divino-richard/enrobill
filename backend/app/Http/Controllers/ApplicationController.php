@@ -21,6 +21,18 @@ class ApplicationController extends Controller
     private const ACTIVE_STATUSES = ['draft', 'submitted', 'under_review', 'returned'];
 
     /**
+     * Document types an applicant must always upload — never substitutable with
+     * a promissory note. Mirrors REQUIRED_DOCUMENT_TYPES on the SPA.
+     */
+    private const REQUIRED_DOCUMENT_TYPES = ['good_moral', 'report_card_tor', 'diploma'];
+
+    /**
+     * Supporting document types. Any the applicant doesn't upload must be
+     * covered by a promissory note. Mirrors OPTIONAL_DOCUMENT_TYPES on the SPA.
+     */
+    private const OPTIONAL_DOCUMENT_TYPES = ['psa_birth_certificate', 'certificate_of_enrollment'];
+
+    /**
      * The authenticated applicant's applications, newest first.
      */
     public function index(Request $request): AnonymousResourceCollection
@@ -182,14 +194,38 @@ class ApplicationController extends Controller
             'semester' => ['required', 'string'],
             'schoolYear' => ['required', 'string'],
             'agreementAccepted' => ['accepted'],
-            'documents' => ['array', 'min:3'],
+            'documents' => ['array'],
             'documents.*.type' => ['required', 'string'],
             'documents.*.key' => ['required', 'string'],
             'documents.*.fileName' => ['required', 'string'],
+            'documentPromissoryNote' => ['nullable', 'string', 'max:1000'],
+            'documentPromissoryDate' => ['nullable', 'date', 'after_or_equal:today'],
         ], [
             'agreementAccepted.accepted' => 'You must agree to the declaration before submitting.',
-            'documents.min' => 'Please upload at least 3 verification documents.',
         ]);
+
+        $uploadedTypes = collect($request->input('documents', []))->pluck('type')->all();
+
+        // Every required document must be uploaded — no promissory note can
+        // substitute for these.
+        if (array_diff(self::REQUIRED_DOCUMENT_TYPES, $uploadedTypes) !== []) {
+            throw ValidationException::withMessages([
+                'documents' => 'Please upload all required documents to continue.',
+            ]);
+        }
+
+        // Any supporting document the applicant didn't upload must be covered by
+        // a promissory note with an estimated date to comply.
+        if (array_diff(self::OPTIONAL_DOCUMENT_TYPES, $uploadedTypes) !== []) {
+            $note = trim((string) $request->input('documentPromissoryNote', ''));
+            $date = $request->input('documentPromissoryDate');
+
+            if ($note === '' || ! $date) {
+                throw ValidationException::withMessages([
+                    'documentPromissoryNote' => 'Write a promissory note with an estimated date to comply for the supporting documents you didn\'t upload.',
+                ]);
+            }
+        }
     }
 
     /**
@@ -217,6 +253,11 @@ class ApplicationController extends Controller
      */
     private function mapAttributes(Request $request): array
     {
+        // The promissory note only covers supporting documents — drop it once
+        // every supporting document has been uploaded.
+        $uploadedTypes = collect($request->input('documents', []))->pluck('type')->all();
+        $hasAllOptional = array_diff(self::OPTIONAL_DOCUMENT_TYPES, $uploadedTypes) === [];
+
         return [
             'enrollment_type' => $request->input('enrollmentType'),
             'surname' => $request->input('surname'),
@@ -251,6 +292,8 @@ class ApplicationController extends Controller
             'prev_school_year_graduated' => $request->input('prevSchoolYearGraduated'),
             'prev_school_gpa' => $request->input('prevSchoolGpa'),
             'prev_school_type' => $request->input('prevSchoolType'),
+            'document_promissory_note' => $hasAllOptional ? null : ($request->input('documentPromissoryNote') ?: null),
+            'document_promissory_date' => $hasAllOptional ? null : ($request->input('documentPromissoryDate') ?: null),
             'track_or_strand' => $request->input('trackOrStrand'),
             'year_level' => $request->input('yearLevel'),
             'semester' => $request->input('semester'),

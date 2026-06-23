@@ -180,6 +180,25 @@ export function ApplicationSummary({
             ))}
           </ul>
         )}
+
+        {values.documentPromissoryNote && (
+          <div className="border-primary/30 bg-primary/5 rounded-lg border p-3">
+            <p className="text-primary text-xs font-medium tracking-wide uppercase">
+              Promissory note
+            </p>
+            <p className="mt-1 text-sm whitespace-pre-line">
+              {values.documentPromissoryNote}
+            </p>
+            {values.documentPromissoryDate && (
+              <p className="text-muted-foreground mt-2 text-xs">
+                Estimated date to comply:{" "}
+                <span className="text-foreground font-medium">
+                  {formatBirthDate(values.documentPromissoryDate)}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="border-t" />

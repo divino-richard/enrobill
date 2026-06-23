@@ -109,7 +109,7 @@ export const STEP_EXTRA_VALIDATED_FIELDS: Record<
   number,
   (keyof ApplicationFormValues)[]
 > = {
-  2: ["documents"],
+  2: ["documents", "documentPromissoryNote", "documentPromissoryDate"],
   3: ["agreementAccepted"],
 };
 

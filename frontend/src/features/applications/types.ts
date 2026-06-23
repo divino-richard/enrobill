@@ -93,6 +93,10 @@ export interface ApplicationFormValues {
   prevSchoolType: string;
   // Previous-school verification documents uploaded to S3.
   documents: UploadedDocument[];
+  // Promissory note used when the applicant can't yet provide every required
+  // document — a written commitment plus the estimated date to comply.
+  documentPromissoryNote: string;
+  documentPromissoryDate: string; // 'yyyy-MM-dd'
   // Course & Strand Selection
   trackOrStrand: string;
   yearLevel: string;

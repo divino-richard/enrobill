@@ -37,6 +37,8 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
   prevSchoolGpa: "",
   prevSchoolType: "",
   documents: [],
+  documentPromissoryNote: "",
+  documentPromissoryDate: "",
   trackOrStrand: "",
   yearLevel: "",
   semester: "",
@@ -52,7 +54,7 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
 // leave and come back without losing work. Bump the version suffix whenever the
 // field structure changes, so drafts saved against an older shape are ignored
 // rather than restored into a mismatched form.
-const DRAFT_STORAGE_KEY = "enrobill:application-draft:v1";
+const DRAFT_STORAGE_KEY = "enrobill:application-draft:v2";
 
 // How long to wait after the last change before writing to storage.
 const DRAFT_SAVE_DEBOUNCE_MS = 500;

@@ -8,6 +8,8 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/form/date-picker";
 import { FieldInfo } from "@/components/form/field-info";
 import { cn } from "@/lib/utils";
 import { FormSection } from "./form-section";
@@ -18,10 +20,14 @@ import {
   ACCEPTED_DOCUMENT_MIME_TYPES,
   APPLICATION_DOCUMENT_TYPES,
   MAX_DOCUMENT_BYTES,
-  MIN_REQUIRED_DOCUMENTS,
+  REQUIRED_DOCUMENT_TYPES,
+  missingOptionalDocuments,
+  missingRequiredDocuments,
   type ApplicationDocumentType,
   type UploadedDocument,
 } from "../documents";
+import { Label } from "@/components/ui/label";
+import { FieldLabel } from "@/components/form/field-label";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -32,6 +38,7 @@ function formatBytes(bytes: number): string {
 interface DocumentRowProps {
   type: ApplicationDocumentType;
   label: string;
+  isRequired: boolean;
   uploaded: UploadedDocument | undefined;
   onUploaded: (doc: UploadedDocument) => void;
   onRemove: () => void;
@@ -40,6 +47,7 @@ interface DocumentRowProps {
 function DocumentRow({
   type,
   label,
+  isRequired,
   uploaded,
   onUploaded,
   onRemove,
@@ -81,7 +89,7 @@ function DocumentRow({
     <div
       className={cn(
         "rounded-lg border p-3 transition-colors",
-        uploaded && "border-primary bg-primary-foreground dark:bg-emerald-950/20",
+        uploaded && "border-primary/40",
       )}
     >
       <div className="flex items-center justify-between gap-3">
@@ -90,7 +98,7 @@ function DocumentRow({
             className={cn(
               "flex size-9 shrink-0 items-center justify-center rounded-md",
               uploaded
-                ? "bg-primary text-white"
+                ? "bg-primary-foreground text-primary"
                 : "bg-muted text-muted-foreground",
             )}
           >
@@ -101,7 +109,19 @@ function DocumentRow({
             )}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{label}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-medium">{label}</p>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                  isRequired
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {isRequired ? "Required" : "Optional"}
+              </span>
+            </div>
             {uploaded ? (
               <p className="text-muted-foreground truncate text-xs">
                 {uploaded.fileName} · {formatBytes(uploaded.size)}
@@ -119,12 +139,11 @@ function DocumentRow({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
+              size="icon-sm"
               className="text-muted-foreground hover:text-destructive"
               onClick={onRemove}
             >
               <X className="size-4" />
-              Remove
             </Button>
           ) : (
             <Button
@@ -181,30 +200,46 @@ interface DocumentUploadSectionProps {
 }
 
 export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
+  const requiredCount = REQUIRED_DOCUMENT_TYPES.length;
+  // Required documents first, so applicants see what's mandatory up top.
+  const orderedTypes = [...APPLICATION_DOCUMENT_TYPES].sort(
+    (a, b) => Number(b.isRequired) - Number(a.isRequired),
+  );
+
   return (
     <FormSection
       title="Previous School Verification"
       icon={ShieldCheck}
-      description={`Upload at least ${MIN_REQUIRED_DOCUMENTS} of the following documents to verify your records.`}
+      description="Upload all required documents to verify your records. For any supporting document you can't provide, fill out a promissory note with your estimated date to comply."
     >
       <form.Field
         name="documents"
         validators={{
           onChange: ({ value }: { value: UploadedDocument[] }) =>
-            value.length >= MIN_REQUIRED_DOCUMENTS
+            missingRequiredDocuments(value).length === 0
               ? undefined
-              : `Please upload at least ${MIN_REQUIRED_DOCUMENTS} documents (${value.length}/${MIN_REQUIRED_DOCUMENTS} uploaded).`,
+              : "Please upload all required documents to continue.",
         }}
       >
         {(field) => {
           const docs = field.state.value;
-          const met = docs.length >= MIN_REQUIRED_DOCUMENTS;
+          const missing = missingRequiredDocuments(docs);
+          const uploadedRequired = requiredCount - missing.length;
+          const allRequiredMet = missing.length === 0;
+          // The promissory note covers the supporting documents — show it
+          // whenever one of them hasn't been uploaded.
+          const needsPromissory = missingOptionalDocuments(docs).length > 0;
 
-          const setDoc = (doc: UploadedDocument) =>
-            field.handleChange([
-              ...docs.filter((d) => d.type !== doc.type),
-              doc,
-            ]);
+          const setDoc = (doc: UploadedDocument) => {
+            const next = [...docs.filter((d) => d.type !== doc.type), doc];
+            field.handleChange(next);
+            // Clear a now-unnecessary promissory note once every supporting
+            // document has been uploaded.
+            if (missingOptionalDocuments(next).length === 0) {
+              form.setFieldValue("documentPromissoryNote", "");
+              form.setFieldValue("documentPromissoryDate", "");
+            }
+          };
           const removeDoc = (type: ApplicationDocumentType) =>
             field.handleChange(docs.filter((d) => d.type !== type));
 
@@ -213,22 +248,26 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
               <div
                 className={cn(
                   "flex items-center gap-2 text-xs font-medium",
-                  met ? "text-primary dark:text-emerald-500" : "text-muted-foreground",
+                  allRequiredMet
+                    ? "text-primary dark:text-emerald-500"
+                    : "text-muted-foreground",
                 )}
               >
-                {met && <CheckCircle2 className="size-4" />}
+                {allRequiredMet && <CheckCircle2 className="size-4" />}
                 <span>
-                  {docs.length} of {MIN_REQUIRED_DOCUMENTS} required documents
-                  uploaded
+                  {allRequiredMet
+                    ? "All required documents uploaded"
+                    : `${uploadedRequired} of ${requiredCount} required documents uploaded`}
                 </span>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                {APPLICATION_DOCUMENT_TYPES.map((option) => (
+                {orderedTypes.map((option) => (
                   <DocumentRow
                     key={option.value}
                     type={option.value}
                     label={option.label}
+                    isRequired={option.isRequired}
                     uploaded={docs.find((d) => d.type === option.value)}
                     onUploaded={setDoc}
                     onRemove={() => removeDoc(option.value)}
@@ -237,10 +276,115 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
               </div>
 
               <FieldInfo field={field} />
+
+              {needsPromissory && <PromissoryNote form={form} />}
             </div>
           );
         }}
       </form.Field>
     </FormSection>
+  );
+}
+
+// Whether the applicant still owes a supporting (optional) document — drives
+// whether the promissory note and its fields are required to advance.
+function needsPromissoryNote(form: ApplicationFormApi): boolean {
+  return missingOptionalDocuments(form.state.values.documents).length > 0;
+}
+
+// Covers the supporting documents the applicant hasn't uploaded: a written
+// commitment plus an estimated date to comply. Both are required to advance
+// while a supporting document is missing, so an incomplete note can't slip
+// through. The panel is only rendered when a supporting document is still owed.
+function PromissoryNote({ form }: { form: ApplicationFormApi }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const twoYearsAhead = new Date(
+    today.getFullYear() + 2,
+    today.getMonth(),
+    today.getDate(),
+  );
+
+  return (
+    <div className="space-y-3 rounded-lg border p-3.5">
+      <div>
+        <p className="text-sm font-medium">
+          Haven't uploaded all supporting documents?
+        </p>
+        <p className="text-muted-foreground text-xs">
+          Write a promissory note committing to submit the supporting documents
+          you didn't upload, and give your estimated date to comply.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <form.Field
+          name="documentPromissoryNote"
+          validators={{
+            onChange: ({ value }: { value: string }) =>
+              !needsPromissoryNote(form) || value.trim()
+                ? undefined
+                : "Write a promissory note committing to submit the supporting documents.",
+          }}
+        >
+          {(field) => (
+            <div className="space-y-1.5">
+              <FieldLabel
+                htmlFor={field.name}
+                required
+              >
+                Promissory note
+              </FieldLabel>
+              <Textarea
+                id={field.name}
+                rows={3}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="I promise to submit the remaining required documents by the date below…"
+              />
+              <FieldInfo field={field} />
+            </div>
+          )}
+        </form.Field>
+
+        <form.Field
+          name="documentPromissoryDate"
+          validators={{
+            onChange: ({ value }: { value: string }) => {
+              if (!needsPromissoryNote(form)) return undefined;
+              if (!value) return "Select your estimated date to comply.";
+              const parsed = new Date(`${value}T00:00:00`);
+              if (Number.isNaN(parsed.getTime())) return "Enter a valid date.";
+              return parsed < today
+                ? "The estimated date to comply must be today or later."
+                : undefined;
+            },
+          }}
+        >
+          {(field) => (
+            <div className="space-y-1.5 max-w-sm">
+              <FieldLabel
+                htmlFor={field.name}
+                required
+              >
+                Estimated date to comply
+              </FieldLabel>
+              <DatePicker
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                placeholder="Select estimated date"
+                startMonth={today}
+                endMonth={twoYearsAhead}
+                disabledDates={{ before: today }}
+                onChange={(value) => field.handleChange(value)}
+              />
+              <FieldInfo field={field} />
+            </div>
+          )}
+        </form.Field>
+      </div>
+    </div>
   );
 }

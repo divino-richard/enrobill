@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'guardian_address', 'guardian_occupation',
     'prev_school_name', 'prev_school_grade_level', 'prev_school_address',
     'prev_school_year_graduated', 'prev_school_gpa', 'prev_school_type',
+    'document_promissory_note', 'document_promissory_date',
     'track_or_strand', 'year_level', 'semester', 'school_year',
     'declaration_student_name', 'declaration_guardian_name', 'date_signed',
     'agreement_accepted', 'submitted_at',
@@ -33,6 +34,7 @@ class Application extends Model
     {
         return [
             'date_of_birth' => 'date',
+            'document_promissory_date' => 'date',
             'age' => 'integer',
             'agreement_accepted' => 'boolean',
             'date_signed' => 'datetime',

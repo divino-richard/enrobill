@@ -120,6 +120,8 @@ class ApplicationResource extends JsonResource
                     'contentType' => $document->content_type,
                 ])->all()
                 : [],
+            'documentPromissoryNote' => $this->document_promissory_note ?? '',
+            'documentPromissoryDate' => $this->document_promissory_date?->format('Y-m-d') ?? '',
             'trackOrStrand' => $this->track_or_strand ?? '',
             'yearLevel' => $this->year_level ?? '',
             'semester' => $this->semester ?? '',
