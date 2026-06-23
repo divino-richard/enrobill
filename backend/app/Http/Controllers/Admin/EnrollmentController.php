@@ -17,6 +17,57 @@ class EnrollmentController extends Controller
      */
     public const STATUSES = ['pending', 'enrolled', 'dropped', 'completed', 'withdrawn'];
 
+    private const SORTABLE = [
+        'status' => 'status',
+        'createdAt' => 'created_at',
+    ];
+
+    /**
+     * All enrollments — paginated, searchable by student, filterable by status and
+     * school year, sortable. A read-only overview across the school. Restricted to
+     * admins by route middleware.
+     */
+    public function all(Request $request): AnonymousResourceCollection
+    {
+        $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+        $sortKey = $request->string('sort')->value();
+
+        $query = Enrollment::query()
+            ->with(['student', 'schoolYear.fees', 'bill'])
+            ->when(
+                in_array($request->string('status')->value(), self::STATUSES, true),
+                fn ($q) => $q->where('status', $request->string('status')->value()),
+            )
+            ->when(
+                $request->filled('school_year_id'),
+                fn ($q) => $q->where('school_year_id', $request->integer('school_year_id')),
+            )
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $needle = '%'.$request->string('search')->value().'%';
+                $q->whereHas('student', function ($s) use ($needle) {
+                    $s->where('first_name', 'like', $needle)
+                        ->orWhere('last_name', 'like', $needle)
+                        ->orWhere('student_number', 'like', $needle);
+                });
+            });
+
+        if ($sortKey === 'student') {
+            $query->orderBy(
+                Student::select('last_name')->whereColumn('students.id', 'enrollments.student_id'),
+                $direction,
+            );
+        } elseif (isset(self::SORTABLE[$sortKey])) {
+            $query->orderBy(self::SORTABLE[$sortKey], $direction);
+        } else {
+            $query->latest();
+        }
+
+        $query->orderBy('id', $direction);
+
+        return EnrollmentResource::collection($query->paginate($perPage)->withQueryString());
+    }
+
     /**
      * A student's enrollments across every term, newest first.
      */

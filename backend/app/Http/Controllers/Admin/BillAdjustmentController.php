@@ -42,8 +42,9 @@ class BillAdjustmentController extends Controller
             'label' => $discount->name,
             'type' => $discount->type,
             'value' => $discount->value,
-            // Resolve against gross charges, capped so credits never exceed them.
-            'amount' => $discount->resolveAmount((float) $bill->total),
+            // Fixed/percentage resolve against gross (capped); a full-coverage
+            // credit covers whatever balance is left.
+            'amount' => $bill->creditFor($discount),
         ]);
 
         $this->syncInstallmentPlan($bill->fresh(), $generate);

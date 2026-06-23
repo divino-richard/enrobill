@@ -7,7 +7,6 @@ use App\Actions\SendApplicationDecisionEmail;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
-use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -114,12 +113,6 @@ class ApplicationController extends Controller
             'This application has already been decided and cannot be changed.',
         );
 
-        // Acceptance bills the student immediately, so the active school year must
-        // already have a fee schedule — otherwise we'd enroll without a bill.
-        if ($status === 'accepted') {
-            $this->assertActiveYearHasFees();
-        }
-
         DB::transaction(function () use ($application, $status, $noDownpayment) {
             $application->update(['status' => $status]);
 
@@ -135,21 +128,5 @@ class ApplicationController extends Controller
         $sendEmail($application, $status);
 
         return new ApplicationResource($application->load(['user', 'documents']));
-    }
-
-    /**
-     * Guard immediate billing on acceptance: there must be an active school year
-     * with a fee schedule so the accepted student is billed right away.
-     */
-    private function assertActiveYearHasFees(): void
-    {
-        $schoolYear = SchoolYear::active();
-
-        abort_if($schoolYear === null, 422, 'No school year is currently active.');
-        abort_if(
-            $schoolYear->fees()->count() === 0,
-            422,
-            "Set up fees for SY {$schoolYear->school_year} before accepting applications.",
-        );
     }
 }

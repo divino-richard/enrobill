@@ -110,6 +110,19 @@ class Bill extends Model
     }
 
     /**
+     * The peso credit a catalog discount would apply to this bill right now:
+     * fixed/percentage resolve against the gross charges (capped); a `full`
+     * (full-coverage) credit covers whatever balance is left — the current net,
+     * after any credits already applied — so the bill zeroes out.
+     */
+    public function creditFor(Discount $discount): float
+    {
+        return $discount->type === 'full'
+            ? $this->netTotal()
+            : $discount->resolveAmount((float) $this->total);
+    }
+
+    /**
      * The amount a student should pay now: the next unpaid installment's remaining
      * balance, based on verified payments only. Zero when nothing is owed.
      */
@@ -157,6 +170,7 @@ class Bill extends Model
         $net = $this->netTotal();
 
         $status = match (true) {
+            $net <= 0 => 'paid',   // fully covered by credits (e.g. a freebie)
             $paid <= 0 => 'unpaid',
             $paid >= $net => 'paid',
             default => 'partial',
@@ -258,6 +272,11 @@ class Bill extends Model
      */
     public function enrollmentDownpaymentMet(): bool
     {
+        // Nothing left to pay (e.g. a freebie zeroed the balance) — already met.
+        if ($this->netTotal() <= 0) {
+            return true;
+        }
+
         if ($this->enrollment?->no_downpayment) {
             return true;
         }

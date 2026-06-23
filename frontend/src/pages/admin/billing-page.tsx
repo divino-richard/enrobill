@@ -180,8 +180,8 @@ function BillingPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="text-muted-foreground text-sm">
-          Bills for the active school year. A bill is created automatically when a
-          student is accepted, admitted, promoted or retained.
+          Bills for the active school year. Generate new bills from the
+          Enrollments page.
         </p>
       </div>
 
@@ -231,7 +231,7 @@ function BillingPage() {
             emptyMessage={
               hasFilters
                 ? "No bills match your filters."
-                : "No bills for the active school year yet. Accept, admit or promote students to create them."
+                : "No bills yet. Generate bills from the Enrollments page."
             }
           />
         </div>

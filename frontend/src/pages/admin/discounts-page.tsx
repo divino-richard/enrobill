@@ -88,8 +88,9 @@ function DiscountDialog({
   }
 
   async function handleSave() {
-    const numericValue = Number(value);
-    if (!name.trim() || Number.isNaN(numericValue)) return;
+    // A full-coverage credit carries no value — it always zeroes the balance.
+    const numericValue = type === "full" ? 0 : Number(value);
+    if (!name.trim() || (type !== "full" && Number.isNaN(numericValue))) return;
     try {
       await mutation.mutateAsync({
         name: name.trim(),
@@ -179,20 +180,22 @@ function DiscountDialog({
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="value" required>
-                {type === "percentage" ? "Percent" : "Amount"}
-              </FieldLabel>
-              <Input
-                id="value"
-                type="number"
-                min={0}
-                max={type === "percentage" ? 100 : undefined}
-                step="0.01"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-              />
-            </div>
+            {type !== "full" && (
+              <div className="space-y-1.5">
+                <FieldLabel htmlFor="value" required>
+                  {type === "percentage" ? "Percent" : "Amount"}
+                </FieldLabel>
+                <Input
+                  id="value"
+                  type="number"
+                  min={0}
+                  max={type === "percentage" ? 100 : undefined}
+                  step="0.01"
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                />
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,7 +1,18 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +55,7 @@ import {
   useRejectPayment,
   useRemoveAdjustment,
   useVerifyPayment,
+  useVoidBill,
   useVoidPayment,
 } from "@/features/bills/hooks";
 import {
@@ -344,12 +356,14 @@ function RecordPaymentDialog({ bill }: { bill: Bill }) {
 
 function BillDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const billId = Number(id);
   const { data: bill, isLoading, isError, refetch } = useBill(billId);
   const removeAdjustment = useRemoveAdjustment(billId);
   const voidPayment = useVoidPayment(billId);
   const verifyPayment = useVerifyPayment(billId);
   const rejectPayment = useRejectPayment(billId);
+  const voidBill = useVoidBill();
   const programLabel = useProgramLabel();
 
   const termLabel = useMemo(() => {
@@ -382,6 +396,18 @@ function BillDetailPage() {
   const adjustments = bill.adjustments ?? [];
   const installments = bill.installments ?? [];
   const payments = bill.payments ?? [];
+  // A bill with no verified/pending payments can be voided (returns the student
+  // to the pending queue so the cashier can re-generate it).
+  const canVoid = payments.every((payment) => payment.status === "rejected");
+
+  async function handleVoid() {
+    try {
+      await voidBill.mutateAsync(billId);
+      navigate("/admin/billing");
+    } catch {
+      // Surfaced via voidBill.isError.
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -405,12 +431,52 @@ function BillDetailPage() {
               {termLabel}
             </p>
           </div>
-          <Badge
-            variant="outline"
-            className={BILL_STATUS_META[bill.status].className}
-          >
-            {BILL_STATUS_META[bill.status].label}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={BILL_STATUS_META[bill.status].className}
+            >
+              {BILL_STATUS_META[bill.status].label}
+            </Badge>
+            {canVoid && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={voidBill.isPending}
+                  >
+                    <Trash2Icon />
+                    Void bill
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Void this bill?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The bill, its credits and installment plan will be deleted
+                      and {bill.student?.name ?? "the student"} returns to the
+                      pending queue so you can re-generate it. Only possible while
+                      no payment has been made.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={voidBill.isPending}>
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void handleVoid();
+                      }}
+                    >
+                      {voidBill.isPending ? "Voiding…" : "Void bill"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </div>
       </div>
 

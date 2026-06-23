@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   BanknoteIcon,
   BarChart3Icon,
+  BookUserIcon,
   CalendarRangeIcon,
   CircleFadingArrowUp,
   ClipboardListIcon,
@@ -112,6 +113,12 @@ const navGroups: NavGroup[] = [
     label: "Finance",
     roles: ["admin", "cashier"],
     items: [
+      {
+        title: "Enrollments",
+        url: "/admin/enrollments",
+        icon: BookUserIcon,
+        ready: true,
+      },
       {
         title: "Fees",
         url: "/admin/fees",

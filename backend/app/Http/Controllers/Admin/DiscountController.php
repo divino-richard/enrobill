@@ -12,9 +12,9 @@ use Illuminate\Validation\Rule;
 
 class DiscountController extends Controller
 {
-    private const CATEGORIES = ['discount', 'scholarship', 'voucher'];
+    private const CATEGORIES = ['discount', 'scholarship', 'voucher', 'freebie'];
 
-    private const TYPES = ['fixed', 'percentage'];
+    private const TYPES = ['fixed', 'percentage', 'full'];
 
     private const SORTABLE = [
         'name' => 'name',
@@ -86,6 +86,10 @@ class DiscountController extends Controller
      */
     private function validateDiscount(Request $request, ?Discount $discount = null): array
     {
+        // A `full` (full-coverage) credit carries no value — it always covers
+        // whatever balance is left at apply time.
+        $isFull = $request->input('type') === 'full';
+
         $validated = $request->validate([
             'name' => [
                 'required', 'string', 'max:100',
@@ -94,7 +98,7 @@ class DiscountController extends Controller
             'category' => ['required', Rule::in(self::CATEGORIES)],
             'type' => ['required', Rule::in(self::TYPES)],
             'value' => [
-                'required', 'numeric', 'min:0',
+                $isFull ? 'nullable' : 'required', 'numeric', 'min:0',
                 // A percentage can't exceed 100; a fixed amount is capped by column size.
                 $request->input('type') === 'percentage' ? 'max:100' : 'max:99999999.99',
             ],
@@ -105,7 +109,7 @@ class DiscountController extends Controller
             'name' => $validated['name'],
             'category' => $validated['category'],
             'type' => $validated['type'],
-            'value' => $validated['value'],
+            'value' => $isFull ? 0 : $validated['value'],
             'is_active' => $validated['isActive'] ?? true,
         ];
     }

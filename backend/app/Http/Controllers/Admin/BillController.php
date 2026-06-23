@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\GenerateBillForEnrollment;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
+use App\Models\Enrollment;
 use App\Models\SchoolYear;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 class BillController extends Controller
 {
@@ -62,6 +66,43 @@ class BillController extends Controller
         $query->orderBy('id', $direction);
 
         return BillResource::collection($query->paginate($perPage)->withQueryString());
+    }
+
+    /**
+     * Generate the bill for a pending enrollment, applying the cashier's selected
+     * catalog credits (discounts/voucher/freebie).
+     */
+    public function generate(Request $request, Enrollment $enrollment, GenerateBillForEnrollment $generate): BillResource
+    {
+        $validated = $request->validate([
+            'discountIds' => ['sometimes', 'array'],
+            'discountIds.*' => ['integer', Rule::exists('discounts', 'id')],
+            'noDownpayment' => ['sometimes', 'boolean'],
+        ]);
+
+        $bill = $generate(
+            $enrollment,
+            array_map('intval', $validated['discountIds'] ?? []),
+            (bool) ($validated['noDownpayment'] ?? false),
+        );
+
+        return new BillResource(
+            $bill->load(['student', 'schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
+        );
+    }
+
+    /**
+     * Void (delete) a bill that has no payments, returning its enrollment to the
+     * pending queue so the cashier can re-generate it. Deleting cascades the bill's
+     * items, credits, installments and (rejected-only) payments.
+     */
+    public function destroy(Bill $bill): Response
+    {
+        abort_unless($bill->isVoidable(), 422, 'This bill has payments and cannot be voided.');
+
+        $bill->delete();
+
+        return response()->noContent();
     }
 
     /**

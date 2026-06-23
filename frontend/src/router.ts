@@ -15,6 +15,7 @@ import AdminApplicationsPage from './pages/admin/applications-page'
 import AdminApplicationDetailPage from './pages/admin/application-detail-page'
 import AdminStudentsPage from './pages/admin/students-page'
 import AdminStudentDetailPage from './pages/admin/student-detail-page'
+import AdminEnrollmentsPage from './pages/admin/enrollments-page'
 import AdminProgressionPage from './pages/admin/progression-page'
 import AdminUsersPage from './pages/admin/users-page'
 import AdminUserDetailPage from './pages/admin/user-detail-page'
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
           { path: 'account', Component: AccountPage },
           { path: 'fees', Component: AdminFeesPage },
           { path: 'discounts', Component: AdminDiscountsPage },
+          { path: 'enrollments', Component: AdminEnrollmentsPage },
           { path: 'billing', Component: AdminBillingPage },
           { path: 'billing/:id', Component: AdminBillDetailPage },
           { path: 'payment-methods', Component: AdminPaymentChannelsPage },

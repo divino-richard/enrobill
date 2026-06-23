@@ -34,6 +34,28 @@ export async function fetchBills(params: BillListParams): Promise<BillsPage> {
   return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
+export interface GenerateBillInput {
+  discountIds: number[];
+  noDownpayment: boolean;
+}
+
+// Generate a bill for a pending enrollment, applying the chosen credits.
+export async function generateBillForEnrollment(
+  enrollmentId: number,
+  input: GenerateBillInput,
+): Promise<Bill> {
+  const { data } = await api.post<Wrapped<Bill>>(
+    `/admin/enrollments/${enrollmentId}/bill`,
+    input,
+  );
+  return data.data;
+}
+
+// Void (delete) an unpaid bill, returning the student to the pending queue.
+export async function voidBill(billId: number): Promise<void> {
+  await api.delete(`/admin/bills/${billId}`);
+}
+
 // A single student's bill for the open term (404 if not billed yet).
 export async function fetchStudentBill(studentId: number): Promise<Bill> {
   const { data } = await api.get<Wrapped<Bill>>(

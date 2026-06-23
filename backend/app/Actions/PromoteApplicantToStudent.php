@@ -10,14 +10,15 @@ use Illuminate\Support\Str;
 
 class PromoteApplicantToStudent
 {
-    public function __construct(private GenerateBillForStudent $generateBill) {}
+    public function __construct(private EnsureEnrollment $ensureEnrollment) {}
 
     /**
      * Promote the applicant behind an accepted application: flip their role to
      * student and create their canonical student record from the application
-     * snapshot. Generates their bill for the active school year immediately so it
-     * shows the moment they're accepted. Idempotent — a user already promoted is
-     * left untouched. `$noDownpayment` waives the downpayment (private-school grad).
+     * snapshot. Opens a pending enrollment for the active school year — the bill
+     * is generated separately by the cashier. Idempotent — a user already promoted
+     * is left untouched. `$noDownpayment` records the downpayment-waiver hint
+     * (private-school grad) for the cashier to honour at bill generation.
      */
     public function __invoke(Application $application, bool $noDownpayment = false): ?Student
     {
@@ -33,7 +34,7 @@ class PromoteApplicantToStudent
 
         // One student record per user.
         if ($user->student()->exists()) {
-            $this->ensureCurrentBill($user->student, $noDownpayment);
+            $this->ensureCurrentEnrollment($user->student, $noDownpayment);
 
             return $user->student;
         }
@@ -68,21 +69,22 @@ class PromoteApplicantToStudent
             'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
         ])->save();
 
-        $this->ensureCurrentBill($student, $noDownpayment);
+        $this->ensureCurrentEnrollment($student, $noDownpayment);
 
         return $student;
     }
 
     /**
-     * Open the student's enrollment for the active school year and generate their
-     * bill (when fees are defined) so their program and balance show immediately.
+     * Open the student's pending enrollment for the active school year, recording
+     * the downpayment-waiver hint. No bill is created here — the cashier generates
+     * it later (applying any voucher/discounts/freebie).
      */
-    private function ensureCurrentBill(Student $student, bool $noDownpayment): void
+    private function ensureCurrentEnrollment(Student $student, bool $noDownpayment): void
     {
         $schoolYear = SchoolYear::active();
 
         if ($schoolYear !== null) {
-            ($this->generateBill)($student, $schoolYear, noDownpayment: $noDownpayment);
+            ($this->ensureEnrollment)($student, $schoolYear, noDownpayment: $noDownpayment);
         }
     }
 }

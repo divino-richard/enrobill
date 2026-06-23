@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\GenerateBillForStudent;
+use App\Actions\EnsureEnrollment;
 use App\Http\Controllers\Controller;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
@@ -15,14 +15,14 @@ use Illuminate\Support\Facades\DB;
 
 class ProgressionController extends Controller
 {
-    public function __construct(private GenerateBillForStudent $generateBill) {}
+    public function __construct(private EnsureEnrollment $ensureEnrollment) {}
 
     /**
      * Year-end queues for the active school year:
      *  - candidates: continuing students below the top grade awaiting a decision.
      *  - graduates:  finishing top-grade students awaiting a decision.
-     *  - revertible: students already decided (promoted/retained) whose bill has
-     *                no payments yet, so the decision can still be undone.
+     *  - revertible: students already decided (promoted/retained) but not yet
+     *                billed, so the decision can still be undone.
      */
     public function index(): JsonResponse
     {
@@ -86,15 +86,14 @@ class ProgressionController extends Controller
     }
 
     /**
-     * Promote the selected students: advance a grade, enroll them for the new
-     * school year at the new grade, and bill them immediately. Re-checks
-     * eligibility per student. Returns how many were promoted.
+     * Promote the selected students: advance a grade and open a pending enrollment
+     * for the new school year at the new grade. The cashier generates the bill
+     * later. Re-checks eligibility per student. Returns how many were promoted.
      */
     public function store(Request $request): JsonResponse
     {
         $schoolYear = SchoolYear::active();
         abort_if($schoolYear === null, 422, 'No school year is currently active.');
-        $this->assertFeesDefined($schoolYear);
 
         $ids = $this->validatedIds($request);
 
@@ -107,7 +106,7 @@ class ProgressionController extends Controller
             $done = 0;
             foreach ($students as $student) {
                 $student->update(['year_level' => $this->nextLevel($student->year_level)]);
-                ($this->generateBill)($student, $schoolYear, request()->user()?->id);
+                ($this->ensureEnrollment)($student, $schoolYear, request()->user()?->id);
                 $done++;
             }
 
@@ -118,15 +117,15 @@ class ProgressionController extends Controller
     }
 
     /**
-     * Retain the selected students: keep their current grade, enroll them for the
-     * new school year (a junior repeating, or a finisher repeating the top grade)
-     * and bill them immediately. Re-checks eligibility. Returns how many retained.
+     * Retain the selected students: keep their current grade and open a pending
+     * enrollment for the new school year (a junior repeating, or a finisher
+     * repeating the top grade). The cashier generates the bill later. Re-checks
+     * eligibility. Returns how many retained.
      */
     public function retain(Request $request): JsonResponse
     {
         $schoolYear = SchoolYear::active();
         abort_if($schoolYear === null, 422, 'No school year is currently active.');
-        $this->assertFeesDefined($schoolYear);
 
         $ids = $this->validatedIds($request);
 
@@ -137,7 +136,7 @@ class ProgressionController extends Controller
         $count = DB::transaction(function () use ($students, $schoolYear) {
             $done = 0;
             foreach ($students as $student) {
-                ($this->generateBill)($student, $schoolYear, request()->user()?->id);
+                ($this->ensureEnrollment)($student, $schoolYear, request()->user()?->id);
                 $done++;
             }
 
@@ -184,10 +183,10 @@ class ProgressionController extends Controller
     }
 
     /**
-     * Undo a promotion/retention for the selected students: void the active school
-     * year's bill (only while it has no payments) and delete the enrollment, then
-     * restore the grade of their latest prior enrollment. Re-checks eligibility.
-     * Returns how many reverted.
+     * Undo a promotion/retention for the selected students: delete the pending,
+     * not-yet-billed enrollment for the active school year and restore the grade of
+     * their latest prior enrollment. Re-checks eligibility. Returns how many were
+     * reverted.
      */
     public function revert(Request $request): JsonResponse
     {
@@ -204,14 +203,10 @@ class ProgressionController extends Controller
             foreach ($students as $student) {
                 $prior = $this->priorLevel($student, $schoolYear->school_year);
 
-                // Deleting the bill cascades its items, installments, adjustments
-                // and (rejected-only) payments; then drop the enrollment.
-                $enrollment = $student->enrollments()
+                $student->enrollments()
                     ->where('school_year_id', $schoolYear->id)
-                    ->first();
-
-                $enrollment?->bill()->delete();
-                $enrollment?->delete();
+                    ->whereDoesntHave('bill')
+                    ->delete();
 
                 if ($prior !== null) {
                     $student->update(['year_level' => $prior]);
@@ -223,19 +218,6 @@ class ProgressionController extends Controller
         });
 
         return response()->json(['data' => ['reverted' => $count]]);
-    }
-
-    /**
-     * Guard immediate billing: a school year must have a fee schedule before any
-     * student can be enrolled into it, so every enrollment results in a bill.
-     */
-    private function assertFeesDefined(SchoolYear $schoolYear): void
-    {
-        abort_if(
-            $schoolYear->fees()->count() === 0,
-            422,
-            "Set up fees for SY {$schoolYear->school_year} before promoting or retaining students.",
-        );
     }
 
     /**
@@ -269,10 +251,9 @@ class ProgressionController extends Controller
 
     /**
      * Continuing students whose year-end decision (promote/retain) can still be
-     * undone: they were already enrolled, were given a new enrollment + bill for
-     * this school year, that bill has no payments yet, and they have a prior-year
-     * enrollment to restore. Newly accepted/admitted students are excluded — they
-     * aren't continuing (status 'admitted') and have no prior grade to revert to.
+     * undone: they were already enrolled, have a pending **not-yet-billed**
+     * enrollment for this school year, and have a prior-year enrollment to restore.
+     * Newly accepted/admitted first-timers are excluded (no prior grade).
      *
      * @return Collection<int, Student>
      */
@@ -280,16 +261,13 @@ class ProgressionController extends Controller
     {
         return Student::query()
             ->where('status', 'enrolled')
-            // The active-year enrollment is unpaid (voidable bill, no payments).
+            // A decided-but-unbilled enrollment for this year.
             ->whereHas('enrollments', function ($query) use ($schoolYear) {
                 $query->whereHas('schoolYear', fn ($sy) => $sy->where('school_year', $schoolYear))
-                    ->whereHas('bill', function ($bill) {
-                        $bill->where('amount_paid', '<=', 0)
-                            ->whereDoesntHave('payments', fn ($p) => $p->whereIn('status', ['verified', 'pending']));
-                    });
+                    ->whereDoesntHave('bill');
             })
-            // …and they have a prior-year enrollment — i.e. this was a year-end
-            // decision on a continuing student, not a first-time admission.
+            // …and a prior-year enrollment — i.e. a continuing student, not a
+            // first-time admission.
             ->whereHas('enrollments', function ($query) use ($schoolYear) {
                 $query->whereHas('schoolYear', fn ($sy) => $sy->where('school_year', '!=', $schoolYear));
             })

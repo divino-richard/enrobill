@@ -137,7 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // A student's bill for the open term.
         Route::get('/admin/students/{student}/bill', [AdminBillController::class, 'showForStudent']);
 
-        // A student's per-term enrollments + status management.
+        // A student's per-term enrollment history + status management.
         Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
         Route::put('/admin/enrollments/{enrollment}', [AdminEnrollmentController::class, 'update']);
 
@@ -182,10 +182,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/discounts/{discount}', [AdminDiscountController::class, 'update']);
         Route::delete('/admin/discounts/{discount}', [AdminDiscountController::class, 'destroy']);
 
-        // Billing — bills for the active school year (created when a student is
-        // accepted, admitted, promoted or retained).
+        // Enrollments hub — all enrollments; the cashier generates a bill for a
+        // pending one (applying voucher/discounts/freebie).
+        Route::get('/admin/enrollments', [AdminEnrollmentController::class, 'all']);
+        Route::post('/admin/enrollments/{enrollment}/bill', [AdminBillController::class, 'generate']);
+
+        // Billing — bills for the active school year.
         Route::get('/admin/bills', [AdminBillController::class, 'index']);
         Route::get('/admin/bills/{bill}', [AdminBillController::class, 'show']);
+        Route::delete('/admin/bills/{bill}', [AdminBillController::class, 'destroy']);
 
         // Apply or remove a catalog discount on a bill.
         Route::post('/admin/bills/{bill}/adjustments', [AdminBillAdjustmentController::class, 'store']);

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\GenerateBillForStudent;
+use App\Actions\EnsureEnrollment;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
@@ -70,11 +70,11 @@ class StudentController extends Controller
 
     /**
      * Admit a walk-in student directly (for applicants who didn't apply online).
-     * Creates their login account and student record, opens a pending enrollment
-     * for the active school year, and generates their bill (when fees exist) so it
-     * shows immediately. Further details can be edited afterwards.
+     * Creates their login account and student record and opens a pending enrollment
+     * for the active school year. The bill is generated later by the cashier (with
+     * any voucher/discounts). Further details can be edited afterwards.
      */
-    public function store(Request $request, GenerateBillForStudent $generateBill): StudentResource
+    public function store(Request $request, EnsureEnrollment $ensureEnrollment): StudentResource
     {
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -100,17 +100,12 @@ class StudentController extends Controller
             'email.unique' => 'An account with this email already exists.',
         ]);
 
-        // Admitting bills the student immediately, so the active school year must
-        // already have a fee schedule — otherwise we'd enroll without a bill.
+        // A walk-in is admitted into the active school year as a pending
+        // enrollment; the cashier generates the bill afterwards.
         $schoolYear = SchoolYear::active();
         abort_if($schoolYear === null, 422, 'No school year is currently active.');
-        abort_if(
-            $schoolYear->fees()->count() === 0,
-            422,
-            "Set up fees for SY {$schoolYear->school_year} before admitting students.",
-        );
 
-        $student = DB::transaction(function () use ($validated, $generateBill, $request, $schoolYear) {
+        $student = DB::transaction(function () use ($validated, $ensureEnrollment, $request, $schoolYear) {
             $fullName = Str::squish(
                 "{$validated['firstName']} ".($validated['middleName'] ?? '')." {$validated['lastName']}"
             );
@@ -144,8 +139,8 @@ class StudentController extends Controller
                 'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
             ])->save();
 
-            // Open a pending enrollment + generate the bill for the active year.
-            $generateBill(
+            // Open a pending enrollment for the active year (no bill yet).
+            $ensureEnrollment(
                 $student,
                 $schoolYear,
                 $request->user()?->id,

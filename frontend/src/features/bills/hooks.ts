@@ -11,13 +11,16 @@ import {
   fetchStudentBill,
   fetchMyBill,
   fetchMyBills,
+  generateBillForEnrollment,
   recordPayment,
   rejectPayment,
   removeAdjustment,
   submitMyPayment,
   verifyPayment,
+  voidBill,
   voidPayment,
   type BillListParams,
+  type GenerateBillInput,
   type PaymentInput,
   type SubmitPaymentInput,
 } from "./api";
@@ -30,6 +33,38 @@ export function useBills(params: BillListParams) {
     queryKey: [...billsQueryKey, "list", params],
     queryFn: () => fetchBills(params),
     placeholderData: keepPreviousData,
+  });
+}
+
+// Refresh the bills list, the enrollments hub, and per-student bill cards.
+function useBillingMutationCallbacks() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: billsQueryKey });
+    queryClient.invalidateQueries({ queryKey: ["admin", "enrollments"] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
+  };
+}
+
+export function useGenerateBillForEnrollment() {
+  const onSuccess = useBillingMutationCallbacks();
+  return useMutation({
+    mutationFn: ({
+      enrollmentId,
+      input,
+    }: {
+      enrollmentId: number;
+      input: GenerateBillInput;
+    }) => generateBillForEnrollment(enrollmentId, input),
+    onSuccess,
+  });
+}
+
+export function useVoidBill() {
+  const onSuccess = useBillingMutationCallbacks();
+  return useMutation({
+    mutationFn: (billId: number) => voidBill(billId),
+    onSuccess,
   });
 }
 
