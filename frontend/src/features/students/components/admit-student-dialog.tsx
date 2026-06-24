@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { FieldLabel } from "@/components/form/field-label";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
@@ -43,7 +42,6 @@ const EMPTY: AdmitStudentValues = {
   trackOrStrand: "",
   yearLevel: "",
   schoolYear: "",
-  noDownpayment: false,
 };
 
 export function AdmitStudentDialog({
@@ -264,23 +262,6 @@ function AdmitForm({
             />
           </div>
         </div>
-
-        <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
-          <Checkbox
-            checked={values.noDownpayment}
-            onCheckedChange={(checked) =>
-              set("noDownpayment", checked === true)
-            }
-            className="mt-0.5"
-          />
-          <span>
-            <span className="font-medium">Waive downpayment</span>
-            <span className="text-muted-foreground block text-xs">
-              For private-school graduates — they enroll without paying a
-              downpayment; the balance is spread across monthly installments.
-            </span>
-          </span>
-        </label>
       </div>
 
       <DialogFooter>

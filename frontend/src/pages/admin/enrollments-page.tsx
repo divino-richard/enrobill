@@ -178,7 +178,6 @@ function EnrollmentsPage() {
                   enrollmentId: row.original.id,
                   name: row.original.student?.name ?? "Student",
                   feePreview: row.original.feePreview ?? 0,
-                  noDownpayment: row.original.noDownpayment,
                 })
               }
             >

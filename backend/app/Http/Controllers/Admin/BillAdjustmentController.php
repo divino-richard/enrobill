@@ -47,6 +47,7 @@ class BillAdjustmentController extends Controller
             'amount' => $bill->creditFor($discount),
         ]);
 
+        $this->syncDownpaymentWaiver($bill);
         $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
 
@@ -61,10 +62,30 @@ class BillAdjustmentController extends Controller
         abort_if($adjustment->bill_id !== $bill->id, 404);
 
         $adjustment->delete();
+        $this->syncDownpaymentWaiver($bill);
         $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
 
         return $this->billResource($bill);
+    }
+
+    /**
+     * Keep the enrollment's downpayment waiver in sync with the bill's vouchers:
+     * a voucher waives the downpayment, removing the last one reinstates it. The
+     * installment schedule is rebuilt afterwards against the updated flag.
+     */
+    private function syncDownpaymentWaiver(Bill $bill): void
+    {
+        $enrollment = $bill->enrollment;
+
+        if ($enrollment === null) {
+            return;
+        }
+
+        $waive = $bill->hasVoucher();
+        if ((bool) $enrollment->no_downpayment !== $waive) {
+            $enrollment->update(['no_downpayment' => $waive]);
+        }
     }
 
     /**

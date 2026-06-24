@@ -90,6 +90,17 @@ class Bill extends Model
     }
 
     /**
+     * Whether a voucher (catalog credit) is applied to this bill. A voucher
+     * waives the downpayment; freebies (with no linked discount) don't count.
+     */
+    public function hasVoucher(): bool
+    {
+        return $this->adjustments()
+            ->whereHas('discount', fn ($query) => $query->where('category', 'voucher'))
+            ->exists();
+    }
+
+    /**
      * Total credits (discounts/scholarships/vouchers) applied to this bill.
      */
     public function discountTotal(): float

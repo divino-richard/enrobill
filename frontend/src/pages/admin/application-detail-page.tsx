@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, CheckIcon, XIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -49,11 +48,9 @@ function AdminApplicationDetailPage() {
   const [pendingDecision, setPendingDecision] = useState<
     "accept" | "reject" | null
   >(null);
-  const [noDownpayment, setNoDownpayment] = useState(false);
   const [note, setNote] = useState("");
 
   function openDecision(decision: "accept" | "reject") {
-    setNoDownpayment(false);
     setNote("");
     setPendingDecision(decision);
   }
@@ -63,7 +60,6 @@ function AdminApplicationDetailPage() {
     try {
       await decide.mutateAsync({
         decision: pendingDecision,
-        noDownpayment,
         note: note.trim() || null,
       });
     } catch {
@@ -229,25 +225,6 @@ function AdminApplicationDetailPage() {
                     : "The application will be marked as accepted and the applicant becomes a student with a pending enrollment, notified by email. The cashier generates their bill afterwards."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              {!isReject && (
-                <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
-                  <Checkbox
-                    checked={noDownpayment}
-                    onCheckedChange={(checked) =>
-                      setNoDownpayment(checked === true)
-                    }
-                    className="mt-0.5"
-                  />
-                  <span>
-                    <span className="font-medium">Waive downpayment</span>
-                    <span className="text-muted-foreground block text-xs">
-                      For private-school graduates — they enroll without a
-                      downpayment; the balance is spread across monthly
-                      installments.
-                    </span>
-                  </span>
-                </label>
-              )}
               {isReject && (
                 <div className="space-y-1.5">
                   <label

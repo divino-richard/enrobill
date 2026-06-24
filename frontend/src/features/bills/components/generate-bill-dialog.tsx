@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { GiftIcon, InfoIcon, LockIcon, TicketPercentIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -10,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useAllDiscounts } from "@/features/discounts/hooks";
@@ -22,7 +24,6 @@ export interface GenerateBillTarget {
   enrollmentId: number;
   name: string;
   feePreview: number;
-  noDownpayment: boolean;
 }
 
 // Mirror the backend voucher math (Bill::creditFor): each credit caps at the
@@ -35,6 +36,55 @@ function previewNet(gross: number, selected: Discount[]): number {
     remaining = Math.round((remaining - Math.min(nominal, remaining)) * 100) / 100;
   }
   return Math.max(remaining, 0);
+}
+
+// A single selectable voucher/freebie row.
+function OptionRow({
+  checked,
+  onToggle,
+  title,
+  meta,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  title: string;
+  meta: string;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors",
+        checked ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+      )}
+    >
+      <Checkbox checked={checked} onCheckedChange={onToggle} />
+      <span className="flex-1 font-medium">{title}</span>
+      <span
+        className={cn(
+          "text-xs font-medium",
+          checked ? "text-primary" : "text-muted-foreground",
+        )}
+      >
+        {meta}
+      </span>
+    </label>
+  );
+}
+
+// A muted, dashed placeholder for empty/locked option sections.
+function EmptyHint({
+  icon: Icon,
+  children,
+}: {
+  icon: typeof InfoIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="text-muted-foreground flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs">
+      <Icon className="size-4 shrink-0" />
+      <span>{children}</span>
+    </div>
+  );
 }
 
 export function GenerateBillDialog({
@@ -54,7 +104,6 @@ export function GenerateBillDialog({
   const [selectedFreebieIds, setSelectedFreebieIds] = useState<Set<number>>(
     new Set(),
   );
-  const [waive, setWaive] = useState(enrollment?.noDownpayment ?? false);
 
   const vouchers = useMemo(
     () => (discounts ?? []).filter((d) => d.isActive),
@@ -69,9 +118,10 @@ export function GenerateBillDialog({
   const gross = enrollment?.feePreview ?? 0;
   const hasVoucher = selected.length > 0;
   const hasFreebie = selectedFreebieIds.size > 0;
+  const netAfterVouchers = previewNet(gross, selected);
+  const voucherDiscount = Math.round((gross - netAfterVouchers) * 100) / 100;
   // A freebie zeroes the whole remaining balance.
-  const net = hasFreebie ? 0 : previewNet(gross, selected);
-  const effectiveWaive = waive || hasVoucher;
+  const net = hasFreebie ? 0 : netAfterVouchers;
 
   function toggleVoucher(id: number) {
     setSelectedIds((prev) => {
@@ -101,7 +151,6 @@ export function GenerateBillDialog({
         input: {
           discountIds: [...selectedIds],
           freebieIds: [...selectedFreebieIds],
-          noDownpayment: waive,
         },
       });
       onOpenChange(false);
@@ -117,42 +166,34 @@ export function GenerateBillDialog({
           <DialogTitle>Generate bill</DialogTitle>
           <DialogDescription>
             {enrollment
-              ? `${enrollment.name} — apply a voucher and any eligible freebie, then generate the bill.`
+              ? `Apply a voucher and any eligible freebie for ${enrollment.name}, then generate the bill.`
               : ""}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border px-4 py-3 text-sm">
-            <span className="text-muted-foreground">Fees</span>
-            <span className="font-medium">{formatPeso(gross)}</span>
-          </div>
-
+        <div className="space-y-5">
           {/* Vouchers */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Voucher</p>
+            <div className="flex items-center gap-2">
+              <TicketPercentIcon className="text-muted-foreground size-4" />
+              <p className="text-sm font-medium">Voucher</p>
+            </div>
             {isLoading ? (
-              <Skeleton className="h-20 w-full rounded-md" />
+              <Skeleton className="h-14 w-full rounded-lg" />
             ) : vouchers.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <EmptyHint icon={InfoIcon}>
                 No vouchers in the catalog. Add one under Vouchers first.
-              </p>
+              </EmptyHint>
             ) : (
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-1">
+              <div className="max-h-44 space-y-2 overflow-y-auto pr-0.5">
                 {vouchers.map((d) => (
-                  <label
+                  <OptionRow
                     key={d.id}
-                    className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5"
-                  >
-                    <Checkbox
-                      checked={selectedIds.has(d.id)}
-                      onCheckedChange={() => toggleVoucher(d.id)}
-                    />
-                    <span className="flex-1 text-sm">{d.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {discountValueLabel(d)}
-                    </span>
-                  </label>
+                    checked={selectedIds.has(d.id)}
+                    onToggle={() => toggleVoucher(d.id)}
+                    title={d.name}
+                    meta={discountValueLabel(d)}
+                  />
                 ))}
               </div>
             )}
@@ -160,60 +201,79 @@ export function GenerateBillDialog({
 
           {/* Freebies — eligible promos, only with a voucher */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Freebies</p>
+            <div className="flex items-center gap-2">
+              <GiftIcon className="text-muted-foreground size-4" />
+              <p className="text-sm font-medium">Freebies</p>
+            </div>
             {!hasVoucher ? (
-              <p className="text-muted-foreground text-sm">
+              <EmptyHint icon={LockIcon}>
                 Select a voucher to see the freebies this student qualifies for.
-              </p>
+              </EmptyHint>
             ) : freebiesQuery.isLoading ? (
-              <Skeleton className="h-12 w-full rounded-md" />
+              <Skeleton className="h-14 w-full rounded-lg" />
             ) : eligibleFreebies.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <EmptyHint icon={InfoIcon}>
                 This student isn't eligible for any freebies.
-              </p>
+              </EmptyHint>
             ) : (
-              <div className="space-y-1 rounded-lg border p-1">
+              <div className="space-y-2">
                 {eligibleFreebies.map((f) => (
-                  <label
+                  <OptionRow
                     key={f.id}
-                    className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5"
-                  >
-                    <Checkbox
-                      checked={selectedFreebieIds.has(f.id)}
-                      onCheckedChange={() => toggleFreebie(f.id)}
-                    />
-                    <span className="flex-1 text-sm">{f.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      Zero balance
-                    </span>
-                  </label>
+                    checked={selectedFreebieIds.has(f.id)}
+                    onToggle={() => toggleFreebie(f.id)}
+                    title={f.name}
+                    meta="Zero balance"
+                  />
                 ))}
               </div>
             )}
           </div>
 
-          <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
-            <Checkbox
-              checked={effectiveWaive}
-              disabled={hasVoucher}
-              onCheckedChange={(checked) => setWaive(checked === true)}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="font-medium">Waive downpayment</span>
-              <span className="text-muted-foreground block text-xs">
-                {hasVoucher
-                  ? "A voucher automatically waives the downpayment."
-                  : "No downpayment; the balance is spread across monthly installments."}
+          {/* Summary */}
+          <div className="bg-muted/40 space-y-2.5 rounded-lg border p-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Fees</span>
+              <span className="font-medium tabular-nums">
+                {formatPeso(gross)}
               </span>
-            </span>
-          </label>
-
-          <div className="bg-muted/40 flex items-center justify-between rounded-lg px-4 py-3">
-            <span className="text-sm font-medium">Net payable</span>
-            <span className="text-lg font-semibold">
-              {net <= 0 ? "₱0 — fully covered" : formatPeso(net)}
-            </span>
+            </div>
+            {voucherDiscount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Voucher discount</span>
+                <span className="text-primary font-medium tabular-nums">
+                  −{formatPeso(voucherDiscount)}
+                </span>
+              </div>
+            )}
+            {hasFreebie && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Freebie</span>
+                <span className="text-primary font-medium">Full coverage</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t pt-2.5">
+              <span className="text-sm font-medium">Net payable</span>
+              {net <= 0 ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-lg font-semibold tabular-nums">₱0</span>
+                  <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
+                    Fully covered
+                  </span>
+                </span>
+              ) : (
+                <span className="text-lg font-semibold tabular-nums">
+                  {formatPeso(net)}
+                </span>
+              )}
+            </div>
+            {hasVoucher && (
+              <p className="text-muted-foreground flex items-start gap-1.5 border-t pt-2.5 text-xs">
+                <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
+                A voucher waives the downpayment — the balance is spread across
+                monthly installments.
+              </p>
+            )}
           </div>
 
           {generate.isError && (

@@ -68,7 +68,6 @@ export interface AdmitStudentValues {
   trackOrStrand: string;
   yearLevel: string;
   schoolYear: string;
-  noDownpayment: boolean;
 }
 
 export const STUDENT_STATUS_OPTIONS = [

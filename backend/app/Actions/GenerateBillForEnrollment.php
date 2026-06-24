@@ -20,8 +20,9 @@ class GenerateBillForEnrollment
      * Generate the bill for a (pending) enrollment from its school year's fee
      * schedule, applying the cashier's selected catalog credits (vouchers) and any
      * eligible freebies. Vouchers apply first; a freebie then zeroes whatever is
-     * left. A voucher waives the downpayment (per the school's voucher rules).
-     * Idempotent — returns the existing bill if the enrollment already has one.
+     * left. A voucher — and only a voucher — waives the downpayment (per the
+     * school's voucher rules). Idempotent — returns the existing bill if the
+     * enrollment already has one.
      *
      * @param  list<int>  $discountIds  catalog discount (voucher) ids, in apply order
      * @param  list<int>  $freebieIds  freebie (promo) ids to apply
@@ -30,7 +31,6 @@ class GenerateBillForEnrollment
         Enrollment $enrollment,
         array $discountIds = [],
         array $freebieIds = [],
-        bool $noDownpayment = false,
     ): Bill {
         $enrollment->loadMissing(['student', 'schoolYear']);
         $schoolYear = $enrollment->schoolYear;
@@ -89,7 +89,7 @@ class GenerateBillForEnrollment
             }
         }
 
-        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $discounts, $freebies, $hasVoucher, $noDownpayment) {
+        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $discounts, $freebies, $hasVoucher) {
             $bill = $student->bills()->create([
                 'school_year_id' => $schoolYear->id,
                 'enrollment_id' => $enrollment->id,
@@ -126,11 +126,10 @@ class GenerateBillForEnrollment
                 ]);
             }
 
-            // Voucher students pay no downpayment; honour an explicit waiver too.
-            // Authoritative at generation, so re-generating clears a stale flag.
-            $waive = $noDownpayment || $hasVoucher;
-            if ((bool) $enrollment->no_downpayment !== $waive) {
-                $enrollment->update(['no_downpayment' => $waive]);
+            // Only a voucher waives the downpayment. Authoritative at generation,
+            // so re-generating clears a stale flag.
+            if ((bool) $enrollment->no_downpayment !== $hasVoucher) {
+                $enrollment->update(['no_downpayment' => $hasVoucher]);
             }
 
             $bill->setRelation('enrollment', $enrollment->fresh());

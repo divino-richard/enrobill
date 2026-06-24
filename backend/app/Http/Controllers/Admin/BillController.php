@@ -90,14 +90,12 @@ class BillController extends Controller
             'discountIds.*' => ['integer', Rule::exists('discounts', 'id')],
             'freebieIds' => ['sometimes', 'array'],
             'freebieIds.*' => ['integer', Rule::exists('freebies', 'id')],
-            'noDownpayment' => ['sometimes', 'boolean'],
         ]);
 
         $bill = $generate(
             $enrollment,
             array_map('intval', $validated['discountIds'] ?? []),
             array_map('intval', $validated['freebieIds'] ?? []),
-            (bool) ($validated['noDownpayment'] ?? false),
         );
 
         return new BillResource(

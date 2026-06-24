@@ -17,10 +17,10 @@ class PromoteApplicantToStudent
      * student and create their canonical student record from the application
      * snapshot. Opens a pending enrollment for the active school year — the bill
      * is generated separately by the cashier. Idempotent — a user already promoted
-     * is left untouched. `$noDownpayment` records the downpayment-waiver hint
-     * (private-school grad) for the cashier to honour at bill generation.
+     * is left untouched. The downpayment waiver is decided later, at bill
+     * generation, by whether the cashier applies a voucher.
      */
-    public function __invoke(Application $application, bool $noDownpayment = false): ?Student
+    public function __invoke(Application $application): ?Student
     {
         $user = $application->user;
 
@@ -34,7 +34,7 @@ class PromoteApplicantToStudent
 
         // One student record per user.
         if ($user->student()->exists()) {
-            $this->ensureCurrentEnrollment($user->student, $noDownpayment);
+            $this->ensureCurrentEnrollment($user->student);
 
             return $user->student;
         }
@@ -69,22 +69,22 @@ class PromoteApplicantToStudent
             'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
         ])->save();
 
-        $this->ensureCurrentEnrollment($student, $noDownpayment);
+        $this->ensureCurrentEnrollment($student);
 
         return $student;
     }
 
     /**
-     * Open the student's pending enrollment for the active school year, recording
-     * the downpayment-waiver hint. No bill is created here — the cashier generates
-     * it later (applying any voucher/discounts/freebie).
+     * Open the student's pending enrollment for the active school year. No bill is
+     * created here — the cashier generates it later (applying any voucher, which
+     * is what waives the downpayment).
      */
-    private function ensureCurrentEnrollment(Student $student, bool $noDownpayment): void
+    private function ensureCurrentEnrollment(Student $student): void
     {
         $schoolYear = SchoolYear::active();
 
         if ($schoolYear !== null) {
-            ($this->ensureEnrollment)($student, $schoolYear, noDownpayment: $noDownpayment);
+            ($this->ensureEnrollment)($student, $schoolYear);
         }
     }
 }

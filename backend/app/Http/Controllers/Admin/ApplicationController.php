@@ -80,16 +80,12 @@ class ApplicationController extends Controller
     }
 
     /**
-     * Accept an application and notify the applicant. `noDownpayment` waives the
-     * downpayment for this student (e.g. a private-school graduate).
+     * Accept an application and notify the applicant. The downpayment waiver is
+     * decided later, at bill generation, by whether a voucher is applied.
      */
-    public function accept(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
+    public function accept(Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
     {
-        $noDownpayment = (bool) $request->validate([
-            'noDownpayment' => ['sometimes', 'boolean'],
-        ])['noDownpayment'] ?? false;
-
-        return $this->decide($application, 'accepted', $sendEmail, $noDownpayment);
+        return $this->decide($application, 'accepted', $sendEmail);
     }
 
     /**
@@ -110,7 +106,7 @@ class ApplicationController extends Controller
      *
      * @param  'accepted'|'rejected'  $status
      */
-    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, bool $noDownpayment = false, ?string $note = null): ApplicationResource
+    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, ?string $note = null): ApplicationResource
     {
         abort_unless(
             in_array($application->status, self::DECIDABLE_STATUSES, true),
@@ -118,17 +114,17 @@ class ApplicationController extends Controller
             'This application has already been decided and cannot be changed.',
         );
 
-        DB::transaction(function () use ($application, $status, $noDownpayment, $note) {
+        DB::transaction(function () use ($application, $status, $note) {
             $application->update([
                 'status' => $status,
                 'decision_note' => $note,
             ]);
 
             // Once accepted, promote the applicant to a student (role flip +
-            // canonical student record) and generate their bill. Their existing
-            // token stays valid — the role is read live from the database.
+            // canonical student record) and open their pending enrollment. Their
+            // existing token stays valid — the role is read live from the database.
             if ($status === 'accepted') {
-                app(PromoteApplicantToStudent::class)($application, $noDownpayment);
+                app(PromoteApplicantToStudent::class)($application);
             }
         });
 

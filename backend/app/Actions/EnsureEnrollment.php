@@ -17,14 +17,14 @@ class EnsureEnrollment
         Student $student,
         SchoolYear $schoolYear,
         ?int $createdBy = null,
-        bool $noDownpayment = false,
     ): Enrollment {
+        // The downpayment waiver isn't set here — it's derived at bill generation
+        // from whether a voucher is applied.
         return Enrollment::firstOrCreate(
             ['student_id' => $student->id, 'school_year_id' => $schoolYear->id],
             [
                 'track' => $student->track_or_strand,
                 'year_level' => $student->year_level,
-                'no_downpayment' => $noDownpayment,
                 'status' => 'pending',
                 'created_by' => $createdBy,
             ],

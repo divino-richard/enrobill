@@ -92,7 +92,6 @@ class StudentController extends Controller
             'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
             'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
             'schoolYear' => ['required', 'string', 'max:20'],
-            'noDownpayment' => ['sometimes', 'boolean'],
         ], [
             'password.min' => 'Password must be at least 8 characters.',
             'password.regex' => 'Password must include an uppercase letter and a number.',
@@ -140,12 +139,7 @@ class StudentController extends Controller
             ])->save();
 
             // Open a pending enrollment for the active year (no bill yet).
-            $ensureEnrollment(
-                $student,
-                $schoolYear,
-                $request->user()?->id,
-                (bool) ($validated['noDownpayment'] ?? false),
-            );
+            $ensureEnrollment($student, $schoolYear, $request->user()?->id);
 
             return $student;
         });

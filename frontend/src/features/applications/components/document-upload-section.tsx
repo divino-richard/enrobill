@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   FileText,
   Loader2,
+  ScrollText,
   ShieldCheck,
   UploadCloud,
   X,
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/form/date-picker";
 import { FieldInfo } from "@/components/form/field-info";
+import { FieldLabel } from "@/components/form/field-label";
 import { cn } from "@/lib/utils";
 import { FormSection } from "./form-section";
 import type { ApplicationFormApi } from "../hooks/form";
@@ -20,14 +22,11 @@ import {
   ACCEPTED_DOCUMENT_MIME_TYPES,
   APPLICATION_DOCUMENT_TYPES,
   MAX_DOCUMENT_BYTES,
-  REQUIRED_DOCUMENT_TYPES,
   missingOptionalDocuments,
   missingRequiredDocuments,
   type ApplicationDocumentType,
   type UploadedDocument,
 } from "../documents";
-import { Label } from "@/components/ui/label";
-import { FieldLabel } from "@/components/form/field-label";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -38,7 +37,6 @@ function formatBytes(bytes: number): string {
 interface DocumentRowProps {
   type: ApplicationDocumentType;
   label: string;
-  isRequired: boolean;
   uploaded: UploadedDocument | undefined;
   onUploaded: (doc: UploadedDocument) => void;
   onRemove: () => void;
@@ -47,7 +45,6 @@ interface DocumentRowProps {
 function DocumentRow({
   type,
   label,
-  isRequired,
   uploaded,
   onUploaded,
   onRemove,
@@ -89,7 +86,7 @@ function DocumentRow({
     <div
       className={cn(
         "rounded-lg border p-3 transition-colors",
-        uploaded && "border-primary/40",
+        uploaded ? "border-primary/40 bg-primary/5" : "border-dashed",
       )}
     >
       <div className="flex items-center justify-between gap-3">
@@ -98,7 +95,7 @@ function DocumentRow({
             className={cn(
               "flex size-9 shrink-0 items-center justify-center rounded-md",
               uploaded
-                ? "bg-primary-foreground text-primary"
+                ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground",
             )}
           >
@@ -109,26 +106,14 @@ function DocumentRow({
             )}
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate text-sm font-medium">{label}</p>
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                  isRequired
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {isRequired ? "Required" : "Optional"}
-              </span>
-            </div>
+            <p className="truncate text-sm font-medium">{label}</p>
             {uploaded ? (
               <p className="text-muted-foreground truncate text-xs">
                 {uploaded.fileName} · {formatBytes(uploaded.size)}
               </p>
             ) : (
               <p className="text-muted-foreground text-xs">
-                JPG, PNG, or PDF — max 10 MB
+                JPG, PNG or PDF · max 10 MB
               </p>
             )}
           </div>
@@ -142,6 +127,7 @@ function DocumentRow({
               size="icon-sm"
               className="text-muted-foreground hover:text-destructive"
               onClick={onRemove}
+              aria-label={`Remove ${label}`}
             >
               <X className="size-4" />
             </Button>
@@ -200,11 +186,8 @@ interface DocumentUploadSectionProps {
 }
 
 export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
-  const requiredCount = REQUIRED_DOCUMENT_TYPES.length;
-  // Required documents first, so applicants see what's mandatory up top.
-  const orderedTypes = [...APPLICATION_DOCUMENT_TYPES].sort(
-    (a, b) => Number(b.isRequired) - Number(a.isRequired),
-  );
+  const requiredTypes = APPLICATION_DOCUMENT_TYPES.filter((d) => d.isRequired);
+  const optionalTypes = APPLICATION_DOCUMENT_TYPES.filter((d) => !d.isRequired);
 
   return (
     <FormSection
@@ -223,12 +206,17 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
       >
         {(field) => {
           const docs = field.state.value;
-          const missing = missingRequiredDocuments(docs);
-          const uploadedRequired = requiredCount - missing.length;
-          const allRequiredMet = missing.length === 0;
+          const uploadedRequired = requiredTypes.length -
+            missingRequiredDocuments(docs).length;
+          const allRequiredMet = uploadedRequired === requiredTypes.length;
+          const uploadedOptional = optionalTypes.length -
+            missingOptionalDocuments(docs).length;
           // The promissory note covers the supporting documents — show it
           // whenever one of them hasn't been uploaded.
-          const needsPromissory = missingOptionalDocuments(docs).length > 0;
+          const needsPromissory = uploadedOptional < optionalTypes.length;
+
+          const docFor = (type: ApplicationDocumentType) =>
+            docs.find((d) => d.type === type);
 
           const setDoc = (doc: UploadedDocument) => {
             const next = [...docs.filter((d) => d.type !== doc.type), doc];
@@ -244,40 +232,90 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
             field.handleChange(docs.filter((d) => d.type !== type));
 
           return (
-            <div className="space-y-3">
-              <div
-                className={cn(
-                  "flex items-center gap-2 text-xs font-medium",
-                  allRequiredMet
-                    ? "text-primary dark:text-emerald-500"
-                    : "text-muted-foreground",
-                )}
-              >
-                {allRequiredMet && <CheckCircle2 className="size-4" />}
-                <span>
-                  {allRequiredMet
-                    ? "All required documents uploaded"
-                    : `${uploadedRequired} of ${requiredCount} required documents uploaded`}
-                </span>
-              </div>
+            <div className="space-y-6">
+              {/* Required documents — all mandatory to continue. */}
+              <div className="space-y-3">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Required documents</p>
+                    <p className="text-muted-foreground text-xs">
+                      All of these are needed to continue.
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                      allRequiredMet
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {allRequiredMet ? (
+                      <>
+                        <CheckCircle2 className="size-3.5" />
+                        Complete
+                      </>
+                    ) : (
+                      `${uploadedRequired}/${requiredTypes.length}`
+                    )}
+                  </span>
+                </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {orderedTypes.map((option) => (
-                  <DocumentRow
-                    key={option.value}
-                    type={option.value}
-                    label={option.label}
-                    isRequired={option.isRequired}
-                    uploaded={docs.find((d) => d.type === option.value)}
-                    onUploaded={setDoc}
-                    onRemove={() => removeDoc(option.value)}
+                <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+                  <div
+                    className="bg-primary h-full rounded-full transition-all"
+                    style={{
+                      width: `${(uploadedRequired / requiredTypes.length) * 100}%`,
+                    }}
                   />
-                ))}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {requiredTypes.map((option) => (
+                    <DocumentRow
+                      key={option.value}
+                      type={option.value}
+                      label={option.label}
+                      uploaded={docFor(option.value)}
+                      onUploaded={setDoc}
+                      onRemove={() => removeDoc(option.value)}
+                    />
+                  ))}
+                </div>
+
+                <FieldInfo field={field} />
               </div>
 
-              <FieldInfo field={field} />
+              {/* Supporting documents — upload, or promise via the note below. */}
+              <div className="space-y-3">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Supporting documents</p>
+                    <p className="text-muted-foreground text-xs">
+                      Upload what you have. For anything missing, add a
+                      promissory note below.
+                    </p>
+                  </div>
+                  <span className="text-muted-foreground bg-muted shrink-0 rounded-full px-2 py-0.5 text-xs font-medium">
+                    {uploadedOptional}/{optionalTypes.length}
+                  </span>
+                </div>
 
-              {needsPromissory && <PromissoryNote form={form} />}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {optionalTypes.map((option) => (
+                    <DocumentRow
+                      key={option.value}
+                      type={option.value}
+                      label={option.label}
+                      uploaded={docFor(option.value)}
+                      onUploaded={setDoc}
+                      onRemove={() => removeDoc(option.value)}
+                    />
+                  ))}
+                </div>
+
+                {needsPromissory && <PromissoryNote form={form} />}
+              </div>
             </div>
           );
         }}
@@ -306,15 +344,18 @@ function PromissoryNote({ form }: { form: ApplicationFormApi }) {
   );
 
   return (
-    <div className="space-y-3 rounded-lg border p-3.5">
-      <div>
-        <p className="text-sm font-medium">
-          Haven't uploaded all supporting documents?
-        </p>
-        <p className="text-muted-foreground text-xs">
-          Write a promissory note committing to submit the supporting documents
-          you didn't upload, and give your estimated date to comply.
-        </p>
+    <div className="border-primary/30 bg-primary/5 space-y-4 rounded-lg border p-4">
+      <div className="flex items-start gap-3">
+        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-md">
+          <ScrollText className="size-4.5" />
+        </span>
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium">Promissory note</p>
+          <p className="text-muted-foreground text-xs">
+            Commit to submitting the supporting documents you didn't upload, and
+            give your estimated date to comply.
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -329,11 +370,8 @@ function PromissoryNote({ form }: { form: ApplicationFormApi }) {
         >
           {(field) => (
             <div className="space-y-1.5">
-              <FieldLabel
-                htmlFor={field.name}
-                required
-              >
-                Promissory note
+              <FieldLabel htmlFor={field.name} required>
+                Your written commitment
               </FieldLabel>
               <Textarea
                 id={field.name}
@@ -341,7 +379,8 @@ function PromissoryNote({ form }: { form: ApplicationFormApi }) {
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
-                placeholder="I promise to submit the remaining required documents by the date below…"
+                placeholder="I promise to submit the remaining documents by the date indicated…"
+                className="bg-background"
               />
               <FieldInfo field={field} />
             </div>
@@ -363,11 +402,8 @@ function PromissoryNote({ form }: { form: ApplicationFormApi }) {
           }}
         >
           {(field) => (
-            <div className="space-y-1.5 max-w-sm">
-              <FieldLabel
-                htmlFor={field.name}
-                required
-              >
+            <div className="space-y-1.5">
+              <FieldLabel htmlFor={field.name} required>
                 Estimated date to comply
               </FieldLabel>
               <DatePicker

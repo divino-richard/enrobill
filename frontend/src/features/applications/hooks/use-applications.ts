@@ -51,13 +51,11 @@ export function useDecideApplication(id: number) {
   return useMutation({
     mutationFn: ({
       decision,
-      noDownpayment,
       note,
     }: {
       decision: "accept" | "reject";
-      noDownpayment?: boolean;
       note?: string | null;
-    }) => decideApplication(id, decision, { noDownpayment, note }),
+    }) => decideApplication(id, decision, { note }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
     },
