@@ -73,6 +73,7 @@ class ApplicationController extends Controller
             $application = $user->applications()->create([
                 // Temporary unique value; replaced with the readable reference
                 // once the auto-incremented id exists.
+                'enrollment_type' => 'senior_high',
                 'reference' => Str::uuid()->toString(),
                 'status' => 'submitted',
                 'submitted_at' => now(),
@@ -184,7 +185,6 @@ class ApplicationController extends Controller
     private function validateApplication(Request $request): void
     {
         $request->validate([
-            'enrollmentType' => ['required', 'in:senior_high,college'],
             'surname' => ['required', 'string', 'max:100'],
             'givenName' => ['required', 'string', 'max:100'],
             'dateOfBirth' => ['required', 'date'],
@@ -259,7 +259,6 @@ class ApplicationController extends Controller
         $hasAllOptional = array_diff(self::OPTIONAL_DOCUMENT_TYPES, $uploadedTypes) === [];
 
         return [
-            'enrollment_type' => $request->input('enrollmentType'),
             'surname' => $request->input('surname'),
             'given_name' => $request->input('givenName'),
             'middle_name' => $request->input('middleName'),

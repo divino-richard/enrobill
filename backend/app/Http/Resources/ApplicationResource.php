@@ -77,7 +77,6 @@ class ApplicationResource extends JsonResource
     private function formValues(): array
     {
         return [
-            'enrollmentType' => $this->enrollment_type ?? '',
             'surname' => $this->surname ?? '',
             'givenName' => $this->given_name ?? '',
             'middleName' => $this->middle_name ?? '',

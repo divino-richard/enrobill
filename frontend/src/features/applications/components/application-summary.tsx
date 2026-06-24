@@ -5,7 +5,6 @@ import { useAddress } from "../hooks/address";
 import { useProgramLabel } from "@/features/programs/hooks";
 import {
   CIVIL_STATUS_OPTIONS,
-  ENROLLMENT_TYPE_OPTIONS,
   YEAR_LEVEL_OPTIONS,
   labelFor,
   type ApplicationFormValues,
@@ -73,7 +72,6 @@ export function ApplicationSummary({
       <SummarySection
         title="Enrollment Information"
         rows={[
-          ["Type", labelFor(ENROLLMENT_TYPE_OPTIONS, values.enrollmentType)],
           [
             "Date of Enrollment",
             enrollmentDate ? format(enrollmentDate, "PPP 'at' p") : "—",

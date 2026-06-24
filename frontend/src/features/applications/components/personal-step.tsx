@@ -16,12 +16,7 @@ import { FieldLabel } from "@/components/form/field-label";
 import { FormSection } from "./form-section";
 import { calculateAge } from "@/features/applications/utils";
 import type { ApplicationFormApi } from "../hooks/form";
-import {
-  CIVIL_STATUS_OPTIONS,
-  ENROLLMENT_TYPE_OPTIONS,
-  type EnrollmentType,
-  type Gender,
-} from "../types";
+import { CIVIL_STATUS_OPTIONS, type Gender } from "../types";
 import { useStore } from "@tanstack/react-store";
 import { AddressCombobox } from "./address-combobox";
 import { useAddress } from "../hooks/address";
@@ -56,40 +51,6 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
     <div className="space-y-8">
       <FormSection title="Enrollment Information" icon={ClipboardListIcon}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <form.Field
-            name="enrollmentType"
-            validators={{ onChange: required("Please select a type") }}
-          >
-            {(field) => (
-              <div className="space-y-1.5">
-                <FieldLabel
-                  htmlFor={field.name}
-                  required
-                  hint="Enrollment is currently open for Senior High School only."
-                >
-                  Type
-                </FieldLabel>
-                <Select
-                  value={field.state.value}
-                  onValueChange={(v) => field.handleChange(v as EnrollmentType)}
-                  disabled
-                >
-                  <SelectTrigger id={field.name} className="w-full">
-                    <SelectValue placeholder="Senior High School / College" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ENROLLMENT_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldInfo field={field} />
-              </div>
-            )}
-          </form.Field>
-
           <div className="space-y-1.5">
             <FieldLabel
               htmlFor="enrollment-date"

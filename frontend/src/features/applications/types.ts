@@ -50,14 +50,11 @@ export const ACTIVE_STATUSES: ApplicationStatus[] = [
   "returned",
 ];
 
-export type EnrollmentType = "" | "senior_high" | "college";
 export type Gender = "" | "male" | "female";
 
 // Whole-application form values. Step 1 fields are implemented now; later steps
 // (contact/guardian, academic/documents, course/strand) will add their fields.
 export interface ApplicationFormValues {
-  // Enrollment Information
-  enrollmentType: EnrollmentType;
   // Personal Information
   surname: string;
   givenName: string;
@@ -117,11 +114,6 @@ export type TextFieldKey = {
     ? K
     : never;
 }[keyof ApplicationFormValues];
-
-export const ENROLLMENT_TYPE_OPTIONS = [
-  { value: "senior_high", label: "Senior High School" },
-  { value: "college", label: "College" },
-] as const;
 
 export const CIVIL_STATUS_OPTIONS = [
   { value: "single", label: "Single" },

@@ -60,7 +60,6 @@ export const REVIEW_STEP = WIZARD_STEPS.length - 1;
 // placeholders for now, so they have nothing to validate yet.
 export const STEP_FIELDS: Record<number, TextFieldKey[]> = {
   0: [
-    "enrollmentType",
     "surname",
     "givenName",
     "dateOfBirth",
