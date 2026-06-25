@@ -31,7 +31,7 @@ class DatabaseSeeder extends Seeder
                 [
                     'name' => $user['name'],
                     'role' => $user['role'],
-                    'password' => Hash::make('password'),
+                    'password' => Hash::make('Password@143'),
                     // Seeded accounts are pre-verified so they can sign in.
                     'email_verified_at' => now(),
                 ],

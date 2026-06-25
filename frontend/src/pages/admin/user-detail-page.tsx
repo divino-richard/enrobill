@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeftIcon, CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,111 +9,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FieldLabel } from "@/components/form/field-label";
-import { getErrorMessage } from "@/lib/get-error-message";
-import { useAuthStore } from "@/features/auth/store";
 import { UserRoleBadge } from "@/features/users/components/user-role-badge";
-import { useUpdateUserRole, useUser } from "@/features/users/hooks";
-import {
-  USER_ROLE_OPTIONS,
-  type User,
-  type UserRole,
-} from "@/features/users/types";
+import { useUser } from "@/features/users/hooks";
 import { formatDate } from "@/features/applications/utils";
-
-function UserRoleForm({ user, isSelf }: { user: User; isSelf: boolean }) {
-  const [role, setRole] = useState<UserRole>(user.role);
-  const update = useUpdateUserRole(user.id);
-  const [saved, setSaved] = useState(false);
-
-  const dirty = role !== user.role;
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setSaved(false);
-    try {
-      await update.mutateAsync(role);
-      setSaved(true);
-    } catch {
-      // Surfaced below via update.isError.
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="max-w-xs space-y-1.5">
-        <FieldLabel htmlFor="role" required>
-          Role
-        </FieldLabel>
-        <Select
-          value={role}
-          onValueChange={(value) => {
-            setSaved(false);
-            setRole(value as UserRole);
-          }}
-          disabled={isSelf}
-        >
-          <SelectTrigger id="role" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {USER_ROLE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {isSelf && (
-          <p className="text-muted-foreground text-xs">
-            You can't change your own role.
-          </p>
-        )}
-      </div>
-
-      {update.isError && (
-        <div
-          role="alert"
-          className="border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-3 rounded-lg border px-4 py-3"
-        >
-          <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
-          <p className="text-sm">{getErrorMessage(update.error)}</p>
-        </div>
-      )}
-
-      <div className="flex items-center justify-end gap-3 border-t pt-4">
-        {saved && !dirty && (
-          <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
-            <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-500" />
-            Saved
-          </span>
-        )}
-        <Button type="submit" disabled={!dirty || isSelf || update.isPending}>
-          {update.isPending ? "Saving…" : "Save role"}
-        </Button>
-      </div>
-    </form>
-  );
-}
 
 function UserDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const userId = Number(id);
   const { data: user, isLoading, isError, refetch } = useUser(userId);
-  const currentUser = useAuthStore((state) => state.user);
-  const isSelf = currentUser?.id === userId;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto space-y-6">
       <Button
         variant="ghost"
         size="sm"
@@ -166,18 +73,6 @@ function UserDetailPage() {
                   <dd className="font-medium">{formatDate(user.createdAt)}</dd>
                 </div>
               </dl>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Manage role</CardTitle>
-              <CardDescription>
-                Change what this user can access across the system.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UserRoleForm user={user} isSelf={isSelf} />
             </CardContent>
           </Card>
         </>

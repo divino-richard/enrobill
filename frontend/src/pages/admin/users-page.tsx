@@ -14,8 +14,8 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   ChevronsUpDownIcon,
+  Eye,
   SearchIcon,
-  SquarePenIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,8 +146,8 @@ function UsersPage() {
             <DropdownMenuItem
               onClick={() => navigate(`/admin/users/${row.original.id}`)}
             >
-              <SquarePenIcon />
-              Manage
+              <Eye />
+              View
             </DropdownMenuItem>
           </RowActions>
         ),

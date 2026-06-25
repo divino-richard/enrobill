@@ -82,7 +82,7 @@ interface PolicyState {
 }
 
 const EMPTY_POLICY: PolicyState = {
-  type: "percentage",
+  type: "fixed",
   value: "",
   count: "",
 };
@@ -198,7 +198,7 @@ function PolicyDialog({
 function PolicyForm({ term, onDone }: { term: Term; onDone: () => void }) {
   const save = useUpdateTermPolicy(term.id);
   const [policy, setPolicy] = useState<PolicyState>({
-    type: term.downpaymentType ?? "percentage",
+    type: term.downpaymentType ?? "fixed",
     value: term.downpaymentValue != null ? String(term.downpaymentValue) : "",
     count: term.installmentCount != null ? String(term.installmentCount) : "",
   });
