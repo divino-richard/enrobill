@@ -610,10 +610,23 @@ function TermsPage() {
       </div>
 
       {!isLoading && !isError && (
-        <div className="bg-muted/40 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm">
-          <CalendarDaysIcon className="text-muted-foreground size-4 shrink-0" />
+        <div 
+          className={cn(
+            "text-primary flex items-center gap-2 rounded-lg border px-4 py-3 text-sm",
+            activeTerm?.admissionOpen ? "bg-primary-foreground border-primary/50" : "bg-muted border-muted-foreground/20"
+          )}>
+          <CalendarDaysIcon 
+            className={cn(
+              "size-4 shrink-0",
+              activeTerm?.admissionOpen ? "text-primary" : "text-muted-foreground"
+            )}
+          />
           {activeTerm ? (
-            <span>
+            <span 
+              className={cn(
+                activeTerm?.admissionOpen ? "text-primary" : "text-muted-foreground"
+              )}
+            >
               <span className="font-medium">{termLabel(activeTerm)}</span> is the
               active school year — admissions are{" "}
               <span className="font-medium">
