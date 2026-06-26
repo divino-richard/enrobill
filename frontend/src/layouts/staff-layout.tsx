@@ -18,7 +18,7 @@ export function StaffLayout() {
           <Separator orientation="vertical" className="mr-2 h-6 my-auto" />
           <span className="text-sm font-medium">Admin Console</span>
         </header>
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           <Outlet />
         </main>
       </SidebarInset>

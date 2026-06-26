@@ -20,29 +20,47 @@ class BillController extends Controller
 {
     private const STATUSES = ['unpaid', 'partial', 'paid'];
 
+    private const TRACKING_STATES = ['with_balance', 'due_now', 'pending_payment'];
+
     private const SORTABLE = [
         'status' => 'status',
         'createdAt' => 'created_at',
     ];
 
     /**
-     * Bills for the active school year — paginated, searchable by student,
-     * filterable by status, and sortable. Restricted to admins/cashiers by route
-     * middleware.
+     * All bills — paginated, searchable by student, filterable by status,
+     * school year and tracking state, and sortable. Restricted to admins/cashiers
+     * by route middleware.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $schoolYear = SchoolYear::active();
         $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
         $perPage = min(max($request->integer('per_page', 15), 1), 100);
         $sortKey = $request->string('sort')->value();
+        $requestedTrackingState = $request->string('tracking_state')->value();
+        $trackingState = in_array($requestedTrackingState, self::TRACKING_STATES, true)
+            ? $requestedTrackingState
+            : null;
 
         $query = Bill::query()
-            ->when($schoolYear !== null, fn ($q) => $q->where('school_year_id', $schoolYear->id))
-            ->when($schoolYear === null, fn ($q) => $q->whereRaw('1 = 0'))
+            ->when(
+                $request->filled('school_year_id'),
+                fn ($q) => $q->where('school_year_id', $request->integer('school_year_id')),
+            )
             ->when(
                 in_array($request->string('status')->value(), self::STATUSES, true),
                 fn ($q) => $q->where('status', $request->string('status')->value()),
+            )
+            ->when($trackingState === 'with_balance', fn ($q) => $q->where('status', '!=', 'paid'))
+            ->when(
+                $trackingState === 'due_now',
+                fn ($q) => $q
+                    ->where('status', '!=', 'paid')
+                    ->whereHas('installments', fn ($i) => $i->whereDate('due_date', '<=', now()->toDateString())),
+            )
+            ->when(
+                $trackingState === 'pending_payment',
+                fn ($q) => $q->whereHas('payments', fn ($p) => $p->where('status', 'pending')),
             )
             ->when($request->filled('search'), function ($q) use ($request) {
                 $needle = '%'.$request->string('search')->value().'%';
@@ -52,7 +70,7 @@ class BillController extends Controller
                         ->orWhere('student_number', 'like', $needle);
                 });
             })
-            ->with(['student', 'schoolYear', 'items', 'adjustments']);
+            ->with(['student', 'schoolYear', 'items', 'adjustments', 'installments']);
 
         if ($sortKey === 'student') {
             $query->orderBy(

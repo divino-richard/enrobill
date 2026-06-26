@@ -1,5 +1,10 @@
 export type BillStatus = "unpaid" | "partial" | "paid";
 
+export type BillTrackingState =
+  | "with_balance"
+  | "due_now"
+  | "pending_payment";
+
 export type InstallmentStatus = "unpaid" | "partial" | "paid" | "overdue";
 
 export type PaymentMethod = "cash" | "gcash" | "maya" | "bank";

@@ -8,26 +8,38 @@ import {
   type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ReceiptTextIcon, SearchIcon } from "lucide-react";
+import { ReceiptTextIcon, SearchIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { SortHeader } from "@/components/data-table-sort-header";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { RowActions } from "@/components/row-actions";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
+import { formatDate } from "@/features/applications/utils";
 import { useProgramLabel } from "@/features/programs/hooks";
+import { useTerms } from "@/features/terms/hooks";
+import { semesterLabel } from "@/features/terms/types";
 import { useBills } from "@/features/bills/hooks";
 import {
   BILL_STATUS_META,
   type Bill,
   type BillStatus,
+  type BillTrackingState,
 } from "@/features/bills/types";
 
 type StatusFilter = BillStatus | "all";
+type TrackingFilter = BillTrackingState | "all";
 
 const STATUS_PILLS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -36,13 +48,24 @@ const STATUS_PILLS: { value: StatusFilter; label: string }[] = [
   { value: "paid", label: "Paid" },
 ];
 
+const TRACKING_FILTERS: { value: TrackingFilter; label: string }[] = [
+  { value: "all", label: "All payment states" },
+  { value: "with_balance", label: "Balance remaining" },
+  { value: "due_now", label: "Due now / overdue" },
+  { value: "pending_payment", label: "Pending payment" },
+];
+
 function BillingPage() {
   const navigate = useNavigate();
   const programLabel = useProgramLabel();
+  const { data: terms } = useTerms();
+  const schoolYears = terms ?? [];
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [schoolYearId, setSchoolYearId] = useState<string>("all");
+  const [trackingState, setTrackingState] = useState<TrackingFilter>("all");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "createdAt", desc: true },
   ]);
@@ -53,7 +76,7 @@ function BillingPage() {
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [debouncedSearch, status]);
+  }, [debouncedSearch, status, schoolYearId, trackingState]);
 
   const sortState = sorting[0];
   const query = useBills({
@@ -62,12 +85,21 @@ function BillingPage() {
     sort: sortState?.id,
     dir: sortState?.desc ? "desc" : "asc",
     status: status === "all" ? undefined : status,
+    schoolYearId: schoolYearId === "all" ? undefined : Number(schoolYearId),
+    trackingState: trackingState === "all" ? undefined : trackingState,
     search: debouncedSearch || undefined,
   });
 
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
     setSorting(updater);
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatus("all");
+    setSchoolYearId("all");
+    setTrackingState("all");
   };
 
   const columns = useMemo<ColumnDef<Bill>[]>(
@@ -102,9 +134,27 @@ function BillingPage() {
         ),
       },
       {
+        id: "schoolYear",
+        header: "School year",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex flex-col whitespace-nowrap">
+            <span>
+              {row.original.schoolYear ? `SY ${row.original.schoolYear}` : "—"}
+            </span>
+            {row.original.semester && (
+              <span className="text-muted-foreground text-xs">
+                {semesterLabel(row.original.semester)}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
         id: "netTotal",
         header: "Net total",
         enableSorting: false,
+        meta: { className: "text-right" },
         cell: ({ row }) => (
           <span className="whitespace-nowrap">
             {formatPeso(row.original.netTotal)}
@@ -117,12 +167,37 @@ function BillingPage() {
         ),
       },
       {
+        id: "amountPaid",
+        header: "Paid",
+        enableSorting: false,
+        meta: { className: "text-right" },
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {formatPeso(row.original.amountPaid)}
+          </span>
+        ),
+      },
+      {
         id: "balance",
         header: "Balance",
         enableSorting: false,
+        meta: { className: "text-right" },
         cell: ({ row }) => (
           <span className="font-medium whitespace-nowrap">
             {formatPeso(row.original.balance)}
+          </span>
+        ),
+      },
+      {
+        id: "amountDue",
+        header: "Due now",
+        enableSorting: false,
+        meta: { className: "text-right" },
+        cell: ({ row }) => (
+          <span className="font-medium whitespace-nowrap">
+            {row.original.amountDue > 0
+              ? formatPeso(row.original.amountDue)
+              : "—"}
           </span>
         ),
       },
@@ -136,6 +211,15 @@ function BillingPage() {
           >
             {BILL_STATUS_META[row.original.status].label}
           </Badge>
+        ),
+      },
+      {
+        accessorKey: "createdAt",
+        header: ({ column }) => <SortHeader column={column} title="Generated" />,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground whitespace-nowrap">
+            {formatDate(row.original.createdAt)}
+          </span>
         ),
       },
       {
@@ -173,15 +257,19 @@ function BillingPage() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const hasFilters = Boolean(debouncedSearch) || status !== "all";
+  const hasFilters =
+    Boolean(search.trim()) ||
+    status !== "all" ||
+    schoolYearId !== "all" ||
+    trackingState !== "all";
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="text-muted-foreground text-sm">
-          Bills for the active school year. Generate new bills from the
-          Enrollments page.
+          Every bill across school years. Generate new bills from the
+          Enrollments page, then track balances and submitted payments here.
         </p>
       </div>
 
@@ -196,7 +284,7 @@ function BillingPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="relative w-full sm:max-w-xs">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
@@ -206,22 +294,64 @@ function BillingPage() {
                 className="pl-9"
               />
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {STATUS_PILLS.map((pill) => (
-                <button
-                  key={pill.value}
-                  type="button"
-                  onClick={() => setStatus(pill.value)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                    status === pill.value
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {pill.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={schoolYearId} onValueChange={setSchoolYearId}>
+                <SelectTrigger className="min-w-44 w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All academic years</SelectItem>
+                  {schoolYears.map((sy) => (
+                    <SelectItem key={sy.id} value={String(sy.id)}>
+                      SY {sy.schoolYear}
+                      {sy.isActive ? " - active" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={trackingState}
+                onValueChange={(value) =>
+                  setTrackingState(value as TrackingFilter)
+                }
+              >
+                <SelectTrigger className="min-w-48 w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRACKING_FILTERS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="flex flex-wrap gap-1.5">
+                {STATUS_PILLS.map((pill) => (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    onClick={() => setStatus(pill.value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      status === pill.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
+
+              {hasFilters && (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  <XIcon />
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
 

@@ -193,7 +193,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/enrollments/{enrollment}/freebies', [AdminBillController::class, 'eligibleFreebies']);
         Route::post('/admin/enrollments/{enrollment}/bill', [AdminBillController::class, 'generate']);
 
-        // Billing — bills for the active school year.
+        // Billing — bills across school years.
         Route::get('/admin/bills', [AdminBillController::class, 'index']);
         Route::get('/admin/bills/{bill}', [AdminBillController::class, 'show']);
         Route::delete('/admin/bills/{bill}', [AdminBillController::class, 'destroy']);

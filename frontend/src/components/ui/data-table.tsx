@@ -53,9 +53,9 @@ export function DataTable<TData>({
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
+    <div className="min-w-0 max-w-full space-y-4">
+      <div className="min-w-0 max-w-full overflow-x-auto rounded-lg border">
+        <Table className="min-w-max">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

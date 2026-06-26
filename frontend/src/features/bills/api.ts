@@ -7,7 +7,7 @@ import {
   type ListParams,
   type PageMeta,
 } from "@/lib/pagination";
-import type { Bill, PaymentMethod } from "./types";
+import type { Bill, BillTrackingState, PaymentMethod } from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -19,17 +19,25 @@ interface PresignResponse {
   headers: Record<string, string | string[]>;
 }
 
-export type BillListParams = ListParams;
+export interface BillListParams extends ListParams {
+  schoolYearId?: number;
+  trackingState?: BillTrackingState;
+}
 
 export interface BillsPage {
   rows: Bill[];
   meta: PageMeta;
 }
 
-// Paginated / searchable / sortable bills for the open term (admin).
+// Paginated / searchable / sortable bills across school years (admin).
 export async function fetchBills(params: BillListParams): Promise<BillsPage> {
+  const { schoolYearId, trackingState, ...rest } = params;
   const { data } = await api.get<LaravelPaginated<Bill>>("/admin/bills", {
-    params: listParamsToQuery(params),
+    params: {
+      ...listParamsToQuery(rest),
+      ...(schoolYearId ? { school_year_id: schoolYearId } : {}),
+      ...(trackingState ? { tracking_state: trackingState } : {}),
+    },
   });
   return { rows: data.data, meta: toPageMeta(data.meta) };
 }
