@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CheckCircle2Icon, UploadIcon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FieldLabel } from "@/components/form/field-label";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { useAuthStore } from "@/features/auth/store";
 import {
   useAdminPaymentChannels,
   useUpdatePaymentChannel,
@@ -21,7 +23,13 @@ import {
 import { uploadPaymentChannelQr } from "@/features/payment-channels/api";
 import type { PaymentChannel } from "@/features/payment-channels/types";
 
-function ChannelCard({ channel }: { channel: PaymentChannel }) {
+function ChannelCard({
+  channel,
+  readOnly,
+}: {
+  channel: PaymentChannel;
+  readOnly: boolean;
+}) {
   const update = useUpdatePaymentChannel(channel.id);
   const [accountName, setAccountName] = useState(channel.accountName ?? "");
   const [accountNumber, setAccountNumber] = useState(
@@ -40,6 +48,7 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
   }
 
   async function handleSave() {
+    if (readOnly) return;
     setSaved(false);
     setUploadError(null);
     try {
@@ -84,6 +93,7 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
               id={`name-${channel.id}`}
               value={accountName}
               placeholder={isBank ? "e.g. BPI" : undefined}
+              disabled={readOnly || busy}
               onChange={(e) => setAccountName(e.target.value)}
             />
           </div>
@@ -94,6 +104,7 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
             <Input
               id={`number-${channel.id}`}
               value={accountNumber}
+              disabled={readOnly || busy}
               onChange={(e) => setAccountNumber(e.target.value)}
             />
           </div>
@@ -121,6 +132,7 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
               id={`qr-${channel.id}`}
               type="file"
               accept="image/png,image/jpeg"
+              disabled={readOnly || busy}
               onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
             />
             <p className="text-muted-foreground text-xs">PNG or JPG, up to 5 MB.</p>
@@ -130,6 +142,7 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={isActive}
+            disabled={readOnly || busy}
             onCheckedChange={(checked) => setIsActive(checked === true)}
           />
           Active (shown to students)
@@ -138,10 +151,17 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
         {uploadError && <p className="text-destructive text-sm">{uploadError}</p>}
 
         <div className="flex items-center gap-3">
-          <Button onClick={handleSave} disabled={busy}>
-            <UploadIcon />
-            {busy ? "Saving…" : "Save"}
-          </Button>
+          {readOnly ? (
+            <p className="text-muted-foreground text-sm">
+              Cashiers manage these payment method details. Admin access is
+              read-only.
+            </p>
+          ) : (
+            <Button onClick={handleSave} disabled={busy}>
+              <UploadIcon />
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          )}
           {saved && (
             <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400">
               <CheckCircle2Icon className="size-4" />
@@ -155,6 +175,8 @@ function ChannelCard({ channel }: { channel: PaymentChannel }) {
 }
 
 function PaymentChannelsPage() {
+  const role = useAuthStore((state) => state.user?.role);
+  const isReadOnly = role === "admin";
   const { data, isLoading, isError, refetch } = useAdminPaymentChannels();
   const channels = data ?? [];
 
@@ -166,6 +188,16 @@ function PaymentChannelsPage() {
           Set the account details and QR codes students use to pay their bills.
         </p>
       </div>
+
+      {isReadOnly && (
+        <Alert className="border-border/70 bg-muted/30">
+          <AlertTitle>Read-only for admins</AlertTitle>
+          <AlertDescription>
+            Cashiers manage payment method details and QR uploads. Admins can
+            review the configured channels here.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {isLoading ? (
         <div className="space-y-4">
@@ -198,7 +230,7 @@ function PaymentChannelsPage() {
           </TabsList>
           {channels.map((channel) => (
             <TabsContent key={channel.id} value={channel.code}>
-              <ChannelCard channel={channel} />
+              <ChannelCard channel={channel} readOnly={isReadOnly} />
             </TabsContent>
           ))}
         </Tabs>

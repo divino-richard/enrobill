@@ -63,7 +63,7 @@ export interface BillAdjustment {
   id: number;
   discountId: number | null;
   label: string;
-  type: "fixed" | "percentage";
+  type: "fixed" | "percentage" | "full";
   value: number;
   amount: number;
 }

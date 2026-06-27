@@ -24,6 +24,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { labelFor, YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
+import { useAuthStore } from "@/features/auth/store";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useTerms } from "@/features/terms/hooks";
 import { useEnrollments } from "@/features/enrollments/hooks";
@@ -46,6 +47,8 @@ const STATUS_PILLS: { value: StatusFilter; label: string }[] = [
 ];
 
 function EnrollmentsPage() {
+  const role = useAuthStore((state) => state.user?.role);
+  const isCashier = role === "cashier";
   const programLabel = useProgramLabel();
   const { data: terms } = useTerms();
   const schoolYears = terms ?? [];
@@ -168,7 +171,9 @@ function EnrollmentsPage() {
         meta: { className: "text-right" },
         cell: ({ row }) => {
           const canBill =
-            row.original.status === "pending" && row.original.hasBill === false;
+            isCashier &&
+            row.original.status === "pending" &&
+            row.original.hasBill === false;
           if (!canBill) return null;
           return (
             <Button
@@ -188,7 +193,7 @@ function EnrollmentsPage() {
         },
       },
     ],
-    [programLabel],
+    [isCashier, programLabel],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -217,6 +222,12 @@ function EnrollmentsPage() {
           Every enrollment across school years. Generate a bill for pending
           enrollments — applying the student's voucher, discounts or freebie.
         </p>
+        {!isCashier && (
+          <p className="text-muted-foreground mt-2 text-sm">
+            Bill generation is cashier-only. Admins can review enrollments here
+            without generating bills.
+          </p>
+        )}
       </div>
 
       {query.isError ? (

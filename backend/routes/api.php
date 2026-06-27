@@ -191,7 +191,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // pending one (applying voucher + eligible freebies).
         Route::get('/admin/enrollments', [AdminEnrollmentController::class, 'all']);
         Route::get('/admin/enrollments/{enrollment}/freebies', [AdminBillController::class, 'eligibleFreebies']);
-        Route::post('/admin/enrollments/{enrollment}/bill', [AdminBillController::class, 'generate']);
 
         // Billing — bills across school years.
         Route::get('/admin/bills', [AdminBillController::class, 'index']);
@@ -202,15 +201,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/bills/{bill}/adjustments', [AdminBillAdjustmentController::class, 'store']);
         Route::delete('/admin/bills/{bill}/adjustments/{adjustment}', [AdminBillAdjustmentController::class, 'destroy']);
 
-        // Record, verify, reject or void payments against a bill.
-        Route::post('/admin/bills/{bill}/payments', [AdminPaymentController::class, 'store']);
-        Route::post('/admin/bills/{bill}/payments/{payment}/verify', [AdminPaymentController::class, 'verify']);
-        Route::post('/admin/bills/{bill}/payments/{payment}/reject', [AdminPaymentController::class, 'reject']);
-        Route::delete('/admin/bills/{bill}/payments/{payment}', [AdminPaymentController::class, 'destroy']);
-
-        // Payment channels (GCash / Maya QR codes).
+        // Payment channels can be reviewed by both staff roles.
         Route::get('/admin/payment-channels', [AdminPaymentChannelController::class, 'index']);
-        Route::put('/admin/payment-channels/{paymentChannel}', [AdminPaymentChannelController::class, 'update']);
-        Route::post('/admin/payment-channels/{paymentChannel}/presign', [AdminPaymentChannelController::class, 'presign']);
+
+        // Cashier-only payment operations; admins are read-only here.
+        Route::middleware('role:cashier')->group(function () {
+            // Generate bills for pending enrollments.
+            Route::post('/admin/enrollments/{enrollment}/bill', [AdminBillController::class, 'generate']);
+
+            // Record, verify, reject or void payments against a bill.
+            Route::post('/admin/bills/{bill}/payments', [AdminPaymentController::class, 'store']);
+            Route::post('/admin/bills/{bill}/payments/{payment}/verify', [AdminPaymentController::class, 'verify']);
+            Route::post('/admin/bills/{bill}/payments/{payment}/reject', [AdminPaymentController::class, 'reject']);
+            Route::delete('/admin/bills/{bill}/payments/{payment}', [AdminPaymentController::class, 'destroy']);
+
+            // Payment channel maintenance (GCash / Maya / Bank Transfer).
+            Route::put('/admin/payment-channels/{paymentChannel}', [AdminPaymentChannelController::class, 'update']);
+            Route::post('/admin/payment-channels/{paymentChannel}/presign', [AdminPaymentChannelController::class, 'presign']);
+        });
     });
 });

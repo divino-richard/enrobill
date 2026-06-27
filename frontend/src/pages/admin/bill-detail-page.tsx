@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -44,15 +45,12 @@ import { FieldLabel } from "@/components/form/field-label";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { useAuthStore } from "@/features/auth/store";
 import { useProgramLabel } from "@/features/programs/hooks";
-import { useAllDiscounts } from "@/features/discounts/hooks";
-import { discountValueLabel } from "@/features/discounts/types";
 import {
-  useApplyAdjustment,
   useBill,
   useRecordPayment,
   useRejectPayment,
-  useRemoveAdjustment,
   useVerifyPayment,
   useVoidBill,
   useVoidPayment,
@@ -104,106 +102,6 @@ function SummaryRow({
         {value}
       </span>
     </div>
-  );
-}
-
-function ApplyDiscountDialog({ bill }: { bill: Bill }) {
-  const [open, setOpen] = useState(false);
-  const [discountId, setDiscountId] = useState("");
-  const { data: discounts } = useAllDiscounts();
-  const apply = useApplyAdjustment(bill.id);
-
-  const applied = new Set((bill.adjustments ?? []).map((a) => a.discountId));
-  const available = (discounts ?? []).filter(
-    (d) => d.isActive && !applied.has(d.id),
-  );
-
-  async function handleApply() {
-    if (!discountId) return;
-    try {
-      await apply.mutateAsync(Number(discountId));
-      setDiscountId("");
-      setOpen(false);
-    } catch {
-      // Surfaced via apply.isError.
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          setDiscountId("");
-          apply.reset();
-        }
-        setOpen(next);
-      }}
-    >
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <PlusIcon />
-        Apply discount
-      </Button>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Apply a discount</DialogTitle>
-          <DialogDescription>
-            Pick a discount, scholarship or voucher from the catalog to credit
-            this bill.
-          </DialogDescription>
-        </DialogHeader>
-
-        {available.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No more active discounts available to apply.{" "}
-            <Link to="/admin/discounts" className="underline">
-              Manage the catalog
-            </Link>
-            .
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="discount" required>
-              Discount
-            </FieldLabel>
-            <Select value={discountId} onValueChange={setDiscountId}>
-              <SelectTrigger id="discount" className="w-full">
-                <SelectValue placeholder="Select discount" />
-              </SelectTrigger>
-              <SelectContent>
-                {available.map((d) => (
-                  <SelectItem key={d.id} value={String(d.id)}>
-                    {d.name} ({discountValueLabel(d)})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {apply.isError && (
-          <p className="text-destructive text-sm">
-            {getErrorMessage(apply.error)}
-          </p>
-        )}
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={apply.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleApply}
-            disabled={!discountId || apply.isPending}
-          >
-            {apply.isPending ? "Applying…" : "Apply"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -358,12 +256,13 @@ function BillDetailPage() {
   const navigate = useNavigate();
   const billId = Number(id);
   const { data: bill, isLoading, isError, refetch } = useBill(billId);
-  const removeAdjustment = useRemoveAdjustment(billId);
   const voidPayment = useVoidPayment(billId);
   const verifyPayment = useVerifyPayment(billId);
   const rejectPayment = useRejectPayment(billId);
   const voidBill = useVoidBill();
   const programLabel = useProgramLabel();
+  const role = useAuthStore((state) => state.user?.role);
+  const isPaymentReadOnly = role === "admin";
 
   const termLabel = useMemo(() => {
     if (!bill?.schoolYear) return "—";
@@ -524,18 +423,15 @@ function BillDetailPage() {
           {/* Discounts */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Discounts</CardTitle>
+              <CardTitle className="text-base">Applied vouchers</CardTitle>
               <CardDescription>
-                Credits applied to this bill from the catalog.
+                Read-only credits captured when this bill was generated.
               </CardDescription>
-              <CardAction>
-                <ApplyDiscountDialog bill={bill} />
-              </CardAction>
             </CardHeader>
             <CardContent>
               {adjustments.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
-                  No discounts applied.
+                  No vouchers or promos were applied.
                 </p>
               ) : (
                 <ul className="divide-y">
@@ -543,31 +439,22 @@ function BillDetailPage() {
                     <li
                       key={adjustment.id}
                       className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
-                    >
+                      >
                       <div>
                         <p className="text-sm font-medium">{adjustment.label}</p>
                         <p className="text-muted-foreground text-xs">
                           {adjustment.type === "percentage"
                             ? `${adjustment.value}%`
-                            : "Fixed"}
+                            : adjustment.type === "full"
+                              ? "Full coverage"
+                              : "Fixed"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Badge variant="outline">Applied</Badge>
                         <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
                           − {formatPeso(adjustment.amount)}
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive size-8"
-                          disabled={removeAdjustment.isPending}
-                          onClick={() =>
-                            removeAdjustment.mutate(adjustment.id)
-                          }
-                        >
-                          <Trash2Icon className="size-4" />
-                          <span className="sr-only">Remove discount</span>
-                        </Button>
                       </div>
                     </li>
                   ))}
@@ -633,10 +520,23 @@ function BillDetailPage() {
               <CardTitle className="text-base">Payments</CardTitle>
               <CardDescription>Recorded payments for this bill.</CardDescription>
               <CardAction>
-                <RecordPaymentDialog bill={bill} />
+                {isPaymentReadOnly ? (
+                  <Badge variant="outline">Cashier only</Badge>
+                ) : (
+                  <RecordPaymentDialog bill={bill} />
+                )}
               </CardAction>
             </CardHeader>
             <CardContent>
+              {isPaymentReadOnly && (
+                <Alert className="mb-4 border-border/70 bg-muted/30">
+                  <AlertTitle>Read-only for admins</AlertTitle>
+                  <AlertDescription>
+                    Admins can review payment records here, but only cashiers can
+                    record, verify, reject, or void payments.
+                  </AlertDescription>
+                </Alert>
+              )}
               {payments.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
                   No payments recorded yet.
@@ -681,7 +581,7 @@ function BillDetailPage() {
                         >
                           {PAYMENT_STATUS_META[payment.status].label}
                         </Badge>
-                        {payment.status === "pending" && (
+                        {!isPaymentReadOnly && payment.status === "pending" && (
                           <>
                             <Button
                               size="sm"
@@ -702,7 +602,7 @@ function BillDetailPage() {
                             </Button>
                           </>
                         )}
-                        {payment.status !== "pending" && (
+                        {!isPaymentReadOnly && payment.status !== "pending" && (
                           <Button
                             variant="ghost"
                             size="icon"

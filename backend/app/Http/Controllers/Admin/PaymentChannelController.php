@@ -25,7 +25,7 @@ class PaymentChannelController extends Controller
     private const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
     /**
-     * All payment channels. Restricted to admins by route middleware.
+     * All payment channels, visible to admins and cashiers.
      */
     public function index(): AnonymousResourceCollection
     {
@@ -35,6 +35,8 @@ class PaymentChannelController extends Controller
     }
 
     /**
+     * Cashier-only: update account details, QR image and active state.
+     *
      * Update a channel's account details, QR image and active state.
      */
     public function update(Request $request, PaymentChannel $paymentChannel): PaymentChannelResource
@@ -58,7 +60,7 @@ class PaymentChannelController extends Controller
     }
 
     /**
-     * Pre-signed S3 URL for uploading a channel's QR image straight to the bucket.
+     * Cashier-only pre-signed S3 URL for uploading a channel QR to the bucket.
      */
     public function presign(Request $request, PaymentChannel $paymentChannel): JsonResponse
     {

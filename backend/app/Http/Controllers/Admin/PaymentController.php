@@ -16,7 +16,7 @@ class PaymentController extends Controller
 
     /**
      * Record a verified payment against a bill and recompute its balance and
-     * status. (Admin-recorded payments — e.g. cash at the cashier — are trusted
+     * status. (Cashier-recorded payments — e.g. cash at the window — are trusted
      * and count immediately.)
      */
     public function store(Request $request, Bill $bill): BillResource
