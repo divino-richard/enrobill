@@ -16,7 +16,6 @@ import AdminApplicationDetailPage from './pages/admin/application-detail-page'
 import AdminStudentsPage from './pages/admin/students-page'
 import AdminStudentDetailPage from './pages/admin/student-detail-page'
 import AdminEnrollmentsPage from './pages/admin/enrollments-page'
-import AdminProgressionPage from './pages/admin/progression-page'
 import AdminUsersPage from './pages/admin/users-page'
 import AdminUserDetailPage from './pages/admin/user-detail-page'
 import AdminTermsPage from './pages/admin/terms-page'
@@ -76,7 +75,6 @@ export const router = createBrowserRouter([
               },
               { path: 'students', Component: AdminStudentsPage },
               { path: 'students/:id', Component: AdminStudentDetailPage },
-              { path: 'progression', Component: AdminProgressionPage },
               { path: 'users', Component: AdminUsersPage },
               { path: 'users/:id', Component: AdminUserDetailPage },
               { path: 'terms', Component: AdminTermsPage },
