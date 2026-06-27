@@ -63,7 +63,12 @@ const navGroups: NavGroup[] = [
         end: true,
         ready: true,
       },
-      { title: "Reports", icon: BarChart3Icon },
+      {
+        title: "Reports",
+        url: "/admin/reports",
+        icon: BarChart3Icon,
+        ready: true,
+      },
     ],
   },
   {

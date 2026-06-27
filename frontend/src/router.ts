@@ -11,6 +11,7 @@ import NotFound from './pages/NotFound'
 import LoginPage from './pages/login-page'
 import RegisterPage from './pages/register-page'
 import DashboardPage from './pages/admin/dashboard-page'
+import AdminReportsPage from './pages/admin/reports-page'
 import AdminApplicationsPage from './pages/admin/applications-page'
 import AdminApplicationDetailPage from './pages/admin/application-detail-page'
 import AdminStudentsPage from './pages/admin/students-page'
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
         children: [
           // Shared with cashiers: dashboard + accounting screens.
           { index: true, Component: DashboardPage },
+          { path: 'reports', Component: AdminReportsPage },
           { path: 'account', Component: AccountPage },
           { path: 'fees', Component: AdminFeesPage },
           { path: 'discounts', Component: AdminDiscountsPage },
