@@ -30,6 +30,7 @@ import AccountPage from './pages/account-page'
 import PortalHomePage from './pages/portal/home-page'
 import PortalBillsPage from './pages/portal/bills-page'
 import PortalProgramsPage from './pages/portal/programs-page'
+import PortalNotificationsPage from './pages/portal/notifications-page'
 import ApplicationPage from './pages/portal/application-page'
 import ApplicationNewPage from './pages/portal/application-new-page'
 import ApplicationDetailPage from './pages/portal/application-detail-page'
@@ -98,6 +99,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, Component: PortalHomePage },
           { path: 'account', Component: AccountPage },
+          { path: 'notifications', Component: PortalNotificationsPage },
           { path: 'bills', Component: PortalBillsPage },
           { path: 'programs', Component: PortalProgramsPage },
           { path: 'application', Component: ApplicationPage },
