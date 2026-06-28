@@ -405,16 +405,6 @@ function EnrollmentsPage() {
             <div className="text-muted-foreground text-xs">
               {labelFor(YEAR_LEVEL_OPTIONS, row.original.yearLevel ?? "") || "No year level"}
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted-foreground">
-                {row.original.schoolYear ? `SY ${row.original.schoolYear}` : "No school year"}
-              </span>
-              {row.original.isCurrent && (
-                <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                  Active
-                </Badge>
-              )}
-            </div>
           </div>
         ),
       },
