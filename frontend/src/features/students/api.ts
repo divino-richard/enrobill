@@ -7,7 +7,6 @@ import {
   type PageMeta,
 } from "@/lib/pagination";
 import type {
-  AdmitStudentValues,
   EnrollmentRecord,
   EnrollmentStatus,
   Student,
@@ -53,24 +52,6 @@ export async function fetchMyEnrollments(): Promise<EnrollmentRecord[]> {
   const { data } = await api.get<Wrapped<EnrollmentRecord[]>>(
     "/me/enrollments",
   );
-  return data.data;
-}
-
-// Admit a walk-in student directly — creates their account + student record.
-export async function admitStudent(
-  values: AdmitStudentValues,
-): Promise<Student> {
-  const { data } = await api.post<Wrapped<Student>>("/admin/students", {
-    email: values.email,
-    password: values.password,
-    password_confirmation: values.passwordConfirmation,
-    firstName: values.firstName,
-    middleName: values.middleName || null,
-    lastName: values.lastName,
-    trackOrStrand: values.trackOrStrand,
-    yearLevel: values.yearLevel,
-    schoolYear: values.schoolYear,
-  });
   return data.data;
 }
 

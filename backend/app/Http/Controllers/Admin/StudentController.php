@@ -2,17 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\EnsureEnrollment;
-use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
 use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class StudentController extends Controller
@@ -66,85 +61,6 @@ class StudentController extends Controller
             ->withQueryString();
 
         return StudentResource::collection($students);
-    }
-
-    /**
-     * Admit a walk-in student directly (for applicants who didn't apply online).
-     * Creates their login account and student record and opens a pending enrollment
-     * for the active school year. The bill is generated later by the cashier (with
-     * any voucher/discounts). Further details can be edited afterwards.
-     */
-    public function store(Request $request, EnsureEnrollment $ensureEnrollment): StudentResource
-    {
-        $validated = $request->validate([
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => [
-                'required',
-                'confirmed',
-                'string',
-                'min:8',
-                'regex:/[A-Z]/',
-                'regex:/\d/',
-            ],
-            'firstName' => ['required', 'string', 'max:100'],
-            'middleName' => ['nullable', 'string', 'max:100'],
-            'lastName' => ['required', 'string', 'max:100'],
-            'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
-            'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
-            'schoolYear' => ['required', 'string', 'max:20'],
-        ], [
-            'password.min' => 'Password must be at least 8 characters.',
-            'password.regex' => 'Password must include an uppercase letter and a number.',
-            'password.confirmed' => 'Password and confirmation do not match.',
-            'email.unique' => 'An account with this email already exists.',
-        ]);
-
-        // A walk-in is admitted into the active school year as a pending
-        // enrollment; the cashier generates the bill afterwards.
-        $schoolYear = SchoolYear::active();
-        abort_if($schoolYear === null, 422, 'No school year is currently active.');
-
-        $student = DB::transaction(function () use ($validated, $ensureEnrollment, $request, $schoolYear) {
-            $fullName = Str::squish(
-                "{$validated['firstName']} ".($validated['middleName'] ?? '')." {$validated['lastName']}"
-            );
-
-            // Admin-created accounts are trusted — verified immediately so the
-            // student can sign in right away.
-            $user = User::create([
-                'name' => $fullName,
-                'first_name' => $validated['firstName'],
-                'middle_name' => $validated['middleName'] ?? null,
-                'last_name' => $validated['lastName'],
-                'email' => $validated['email'],
-                'password' => $validated['password'],
-                'role' => Role::Student,
-                'email_verified_at' => now(),
-            ]);
-
-            $student = $user->student()->create([
-                'student_number' => Str::uuid()->toString(),
-                'status' => 'admitted',
-                'first_name' => $validated['firstName'],
-                'middle_name' => $validated['middleName'] ?? null,
-                'last_name' => $validated['lastName'],
-                'email' => $validated['email'],
-                'track_or_strand' => $validated['trackOrStrand'],
-                'year_level' => $validated['yearLevel'],
-                'school_year' => $validated['schoolYear'],
-            ]);
-
-            $student->forceFill([
-                'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
-            ])->save();
-
-            // Open a pending enrollment for the active year (no bill yet).
-            $ensureEnrollment($student, $schoolYear, $request->user()?->id);
-
-            return $student;
-        });
-
-        return new StudentResource($student->fresh());
     }
 
     /**

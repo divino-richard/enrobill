@@ -134,7 +134,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Student records.
         Route::get('/admin/students', [AdminStudentController::class, 'index']);
-        Route::post('/admin/students', [AdminStudentController::class, 'store']);
         Route::get('/admin/students/{student}', [AdminStudentController::class, 'show']);
         Route::put('/admin/students/{student}', [AdminStudentController::class, 'update']);
 

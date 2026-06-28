@@ -21,7 +21,6 @@ import {
   SearchIcon,
   SquarePenIcon,
   Undo2Icon,
-  UserPlusIcon,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -46,7 +45,6 @@ import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
-import { AdmitStudentDialog } from "@/features/students/components/admit-student-dialog";
 import { useStudents } from "@/features/students/hooks";
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import {
@@ -134,7 +132,6 @@ function StudentsPage() {
   const graduate = useGraduateStudents();
   const revert = useRevertStudents();
 
-  const [admitOpen, setAdmitOpen] = useState(false);
   const [progressionAction, setProgressionAction] =
     useState<PendingProgressionAction | null>(null);
   const [search, setSearch] = useState("");
@@ -454,13 +451,8 @@ function StudentsPage() {
             progression.
           </p>
         </div>
-        <Button onClick={() => setAdmitOpen(true)}>
-          <UserPlusIcon />
-          Admit student
-        </Button>
       </div>
 
-      <AdmitStudentDialog open={admitOpen} onOpenChange={setAdmitOpen} />
       <AlertDialog
         open={progressionAction !== null}
         onOpenChange={(open) => {
