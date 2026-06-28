@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeftIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, DownloadIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +64,7 @@ import {
   type Bill,
   type PaymentMethod,
 } from "@/features/bills/types";
+import { printBillReceipt } from "@/features/bills/receipt";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -337,6 +338,23 @@ function BillDetailPage() {
             >
               {BILL_STATUS_META[bill.status].label}
             </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bill.amountPaid <= 0}
+              onClick={() =>
+                printBillReceipt(bill, {
+                  name: bill.student?.name ?? `Bill #${bill.id}`,
+                  studentNumber: bill.student?.studentNumber,
+                  program: bill.student
+                    ? programLabel(bill.student.track, bill.student.yearLevel)
+                    : null,
+                })
+              }
+            >
+              <DownloadIcon />
+              Download receipt
+            </Button>
             {canVoid && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>

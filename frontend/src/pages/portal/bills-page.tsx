@@ -6,6 +6,7 @@ import {
   ChevronRightIcon,
   ClockIcon,
   CopyIcon,
+  DownloadIcon,
   EyeIcon,
   ReceiptTextIcon,
   UploadIcon,
@@ -40,11 +41,13 @@ import { formatDate } from "@/features/applications/utils";
 import { useActivePaymentChannels } from "@/features/payment-channels/hooks";
 import type { PaymentChannel } from "@/features/payment-channels/types";
 import { uploadPaymentProof } from "@/features/bills/api";
+import { printBillReceipt, type ReceiptParty } from "@/features/bills/receipt";
 import {
   useMyBill,
   useMyBills,
   useSubmitMyPayment,
 } from "@/features/bills/hooks";
+import { useAuthStore } from "@/features/auth/store";
 import {
   BILL_STATUS_META,
   INSTALLMENT_STATUS_META,
@@ -131,13 +134,25 @@ function StatTile({
   );
 }
 
+// Derive the receipt's "billed to" party from the bill (preferring its embedded
+// student) and the signed-in user as a fallback for the student portal.
+function billReceiptParty(bill: Bill, fallbackName: string): ReceiptParty {
+  return {
+    name: bill.student?.name ?? fallbackName,
+    studentNumber: bill.student?.studentNumber ?? null,
+    program: null,
+  };
+}
+
 // Read-only full breakdown of a bill (used for both the current bill and past
 // bills).
 function BillDetailDialog({
   bill,
+  party,
   onOpenChange,
 }: {
   bill: Bill | null;
+  party: ReceiptParty | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const installments = bill?.installments ?? [];
@@ -250,6 +265,18 @@ function BillDetailDialog({
               )}
             </div>
           </div>
+        )}
+        {bill && party && (
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={bill.amountPaid <= 0}
+              onClick={() => printBillReceipt(bill, party)}
+            >
+              <DownloadIcon />
+              Download receipt
+            </Button>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>
@@ -647,6 +674,7 @@ function BillsPage() {
   const { data: channels } = useActivePaymentChannels();
   const payChannels = channels ?? [];
   const [detailBill, setDetailBill] = useState<Bill | null>(null);
+  const userName = useAuthStore((state) => state.user?.name) ?? "Student";
 
   if (isLoading) {
     return (
@@ -784,6 +812,20 @@ function BillsPage() {
                 <EyeIcon />
                 View details
               </Button>
+              {currentBill.amountPaid > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    printBillReceipt(
+                      currentBill,
+                      billReceiptParty(currentBill, userName),
+                    )
+                  }
+                >
+                  <DownloadIcon />
+                  Receipt
+                </Button>
+              )}
               <PayDialog
                 bill={currentBill}
                 channels={payChannels}
@@ -816,6 +858,7 @@ function BillsPage() {
 
       <BillDetailDialog
         bill={detailBill}
+        party={detailBill ? billReceiptParty(detailBill, userName) : null}
         onOpenChange={(open) => {
           if (!open) setDetailBill(null);
         }}
