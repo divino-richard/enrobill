@@ -43,9 +43,10 @@ const GENDER_OPTIONS = [
 
 interface StudentEditFormProps {
   student: Student;
+  onSaved?: () => void;
 }
 
-export function StudentEditForm({ student }: StudentEditFormProps) {
+export function StudentEditForm({ student, onSaved }: StudentEditFormProps) {
   const initial = useMemo(() => studentToFormValues(student), [student]);
   const [values, setValues] = useState<StudentFormValues>(initial);
   const update = useUpdateStudent(student.id);
@@ -74,6 +75,7 @@ export function StudentEditForm({ student }: StudentEditFormProps) {
     try {
       await update.mutateAsync(values);
       setSaved(true);
+      onSaved?.();
     } catch {
       // Surfaced below via update.isError.
     }
