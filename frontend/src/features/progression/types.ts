@@ -1,36 +1,47 @@
-// A continuing student eligible to be advanced a grade.
-export interface PromoteCandidate {
+// A pointer to a school year.
+export interface YearRef {
   id: number;
+  schoolYear: string;
+}
+
+// The year-end decisions an admin can record for a student.
+export type ProgressionDecisionKind = "promote" | "retain" | "graduate";
+
+// An enrolled student in the ending year still awaiting a year-end decision.
+export interface CloseoutStudent {
+  studentId: number;
   studentNumber: string;
   name: string;
   track: string | null;
-  currentYearLevel: string | null;
+  yearLevel: string | null;
+  // The grade this student would advance to if promoted.
   nextYearLevel: string | null;
+  isTopGrade: boolean;
 }
 
-// A student whose decision can still be undone (billed, but no payments yet).
-export interface RevertCandidate {
+// A decision already recorded for the ending year.
+export interface CloseoutDecision {
   id: number;
+  studentId: number;
   studentNumber: string;
   name: string;
   track: string | null;
-  currentYearLevel: string | null;
-  previousYearLevel: string | null;
-}
-
-// A finishing top-grade student ready to graduate.
-export interface GraduateCandidate {
-  id: number;
-  studentNumber: string;
-  name: string;
-  track: string | null;
-  currentYearLevel: string | null;
+  decision: ProgressionDecisionKind;
+  fromYearLevel: string | null;
+  toYearLevel: string | null;
+  // Whether the promote/retain decision has been enrolled into the next year.
+  materialized: boolean;
+  // False once a materialized next-year enrollment has been billed.
+  revertable: boolean;
 }
 
 export interface ProgressionInfo {
-  // The open term whose school year progression targets, or null if none open.
-  openTerm: { schoolYear: string; semester: string } | null;
-  candidates: PromoteCandidate[];
-  revertible: RevertCandidate[];
-  graduates: GraduateCandidate[];
+  // The active (ending) school year the close-out targets, or null if none.
+  activeYear: YearRef | null;
+  // The next school year promote/retain decisions enroll into, if it exists yet.
+  nextYear: YearRef | null;
+  // Whether the active year's progression window is open.
+  progressionOpen: boolean;
+  pending: CloseoutStudent[];
+  decided: CloseoutDecision[];
 }

@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  decideProgression,
   fetchProgression,
-  graduateStudents,
-  promoteStudents,
-  retainStudents,
-  revertStudents,
+  materializeProgression,
+  revertProgression,
 } from "./api";
+import type { ProgressionDecisionKind } from "./types";
 
 export const progressionQueryKey = ["admin", "progression"] as const;
+const studentsQueryKey = ["admin", "students"] as const;
 
 export function useProgression() {
   return useQuery({
@@ -16,51 +17,45 @@ export function useProgression() {
   });
 }
 
-export function usePromoteStudents() {
+// Year-end decisions and materialization both change student standing and the
+// close-out queues, so they invalidate progression and the students list.
+function useCloseoutInvalidation() {
   const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: progressionQueryKey });
+    queryClient.invalidateQueries({ queryKey: studentsQueryKey });
+  };
+}
+
+export function useDecideProgression() {
+  const invalidate = useCloseoutInvalidation();
 
   return useMutation({
-    mutationFn: (studentIds: number[]) => promoteStudents(studentIds),
-    onSuccess: () => {
-      // Promoted students drop off the eligible list; their records changed too.
-      queryClient.invalidateQueries({ queryKey: progressionQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
-    },
+    mutationFn: ({
+      studentIds,
+      decision,
+    }: {
+      studentIds: number[];
+      decision: ProgressionDecisionKind;
+    }) => decideProgression(studentIds, decision),
+    onSuccess: invalidate,
   });
 }
 
-export function useRetainStudents() {
-  const queryClient = useQueryClient();
+export function useMaterializeProgression() {
+  const invalidate = useCloseoutInvalidation();
 
   return useMutation({
-    mutationFn: (studentIds: number[]) => retainStudents(studentIds),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: progressionQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
-    },
+    mutationFn: () => materializeProgression(),
+    onSuccess: invalidate,
   });
 }
 
-export function useRevertStudents() {
-  const queryClient = useQueryClient();
+export function useRevertProgression() {
+  const invalidate = useCloseoutInvalidation();
 
   return useMutation({
-    mutationFn: (studentIds: number[]) => revertStudents(studentIds),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: progressionQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
-    },
-  });
-}
-
-export function useGraduateStudents() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (studentIds: number[]) => graduateStudents(studentIds),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: progressionQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
-    },
+    mutationFn: (decisionIds: number[]) => revertProgression(decisionIds),
+    onSuccess: invalidate,
   });
 }

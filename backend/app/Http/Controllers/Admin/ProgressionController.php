@@ -2,293 +2,154 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\EnsureEnrollment;
+use App\Actions\YearEndCloseout;
 use App\Http\Controllers\Controller;
-use App\Models\Enrollment;
+use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
 use App\Models\Student;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ProgressionController extends Controller
 {
-    public function __construct(private EnsureEnrollment $ensureEnrollment) {}
+    public function __construct(private YearEndCloseout $closeout) {}
 
     /**
-     * Year-end queues for the active school year:
-     *  - candidates: continuing students below the top grade awaiting a decision.
-     *  - graduates:  finishing top-grade students awaiting a decision.
-     *  - revertible: students already decided (promoted/retained) but not yet
-     *                billed, so the decision can still be undone.
+     * The year-end close-out for the active (ending) school year: students still
+     * awaiting a decision, and the decisions already recorded. Empty unless the
+     * active year's progression window is open.
      */
     public function index(): JsonResponse
     {
-        $schoolYear = SchoolYear::active();
+        $active = SchoolYear::active();
 
-        if ($schoolYear === null) {
+        if ($active === null || ! $active->isProgressionOpen()) {
             return response()->json([
-                'data' => ['openTerm' => null, 'candidates' => [], 'graduates' => [], 'revertible' => []],
+                'data' => [
+                    'activeYear' => $active ? $this->yearRef($active) : null,
+                    'nextYear' => null,
+                    'progressionOpen' => false,
+                    'pending' => [],
+                    'decided' => [],
+                ],
             ]);
         }
 
-        $sy = $schoolYear->school_year;
+        $top = $this->topLevel();
 
-        $candidates = $this->pending($sy)
-            ->where('year_level', '!=', $this->topLevel())
-            ->get()
+        $pending = $this->closeout->pendingStudents($active)
             ->map(fn (Student $student) => [
-                'id' => $student->id,
+                'studentId' => $student->id,
                 'studentNumber' => $student->student_number,
                 'name' => trim($student->first_name.' '.$student->last_name),
                 'track' => $student->track_or_strand,
-                'currentYearLevel' => $student->year_level,
+                'yearLevel' => $student->year_level,
                 'nextYearLevel' => $this->nextLevel($student->year_level),
+                'isTopGrade' => $student->year_level === $top,
             ])
             ->values();
 
-        $graduates = $this->pending($sy)
-            ->where('year_level', $this->topLevel())
-            ->get()
-            ->map(fn (Student $student) => [
-                'id' => $student->id,
-                'studentNumber' => $student->student_number,
-                'name' => trim($student->first_name.' '.$student->last_name),
-                'track' => $student->track_or_strand,
-                'currentYearLevel' => $student->year_level,
-            ])
+        $decided = $this->closeout->decisions($active)
+            ->map(function (ProgressionDecision $decision) {
+                $billed = $decision->toEnrollment && $decision->toEnrollment->bill;
+
+                return [
+                    'id' => $decision->id,
+                    'studentId' => $decision->student_id,
+                    'studentNumber' => $decision->student?->student_number,
+                    'name' => trim(($decision->student?->first_name ?? '').' '.($decision->student?->last_name ?? '')),
+                    'track' => $decision->student?->track_or_strand,
+                    'decision' => $decision->decision,
+                    'fromYearLevel' => $decision->from_year_level,
+                    'toYearLevel' => $decision->to_year_level,
+                    'materialized' => $decision->materialized_at !== null,
+                    // A materialized, already-billed enrollment can't be undone here.
+                    'revertable' => ! $billed,
+                ];
+            })
             ->values();
 
-        $revertible = $this->revertible($sy)
-            ->map(fn (Student $student) => [
-                'id' => $student->id,
-                'studentNumber' => $student->student_number,
-                'name' => trim($student->first_name.' '.$student->last_name),
-                'track' => $student->track_or_strand,
-                'currentYearLevel' => $student->year_level,
-                'previousYearLevel' => $this->priorLevel($student, $sy),
-            ])
-            ->values();
+        $next = $this->closeout->nextYear($active);
 
         return response()->json([
             'data' => [
-                'openTerm' => [
-                    'schoolYear' => $schoolYear->school_year,
-                    'semester' => $schoolYear->current_semester,
-                ],
-                'candidates' => $candidates,
-                'graduates' => $graduates,
-                'revertible' => $revertible,
+                'activeYear' => $this->yearRef($active),
+                'nextYear' => $next ? $this->yearRef($next) : null,
+                'progressionOpen' => true,
+                'pending' => $pending,
+                'decided' => $decided,
             ],
         ]);
     }
 
     /**
-     * Promote the selected students: advance a grade and open a pending enrollment
-     * for the new school year at the new grade. The cashier generates the bill
-     * later. Re-checks eligibility per student. Returns how many were promoted.
+     * Record a decision (promote / retain / graduate) for the selected students.
      */
-    public function store(Request $request): JsonResponse
+    public function decide(Request $request): JsonResponse
     {
-        $schoolYear = SchoolYear::active();
-        abort_if($schoolYear === null, 422, 'No school year is currently active.');
+        $active = $this->openYearOrAbort();
 
-        $ids = $this->validatedIds($request);
+        $validated = $request->validate([
+            'studentIds' => ['required', 'array', 'min:1'],
+            'studentIds.*' => ['integer'],
+            'decision' => ['required', Rule::in(ProgressionDecision::DECISIONS)],
+        ]);
 
-        $students = $this->pending($schoolYear->school_year)
-            ->where('year_level', '!=', $this->topLevel())
-            ->whereIn('id', $ids)
-            ->get();
+        $count = $this->closeout->decide(
+            $active,
+            $validated['studentIds'],
+            $validated['decision'],
+            $request->user()?->id,
+        );
 
-        $count = DB::transaction(function () use ($students, $schoolYear) {
-            $done = 0;
-            foreach ($students as $student) {
-                $student->update(['year_level' => $this->nextLevel($student->year_level)]);
-                ($this->ensureEnrollment)($student, $schoolYear, request()->user()?->id);
-                $done++;
-            }
-
-            return $done;
-        });
-
-        return response()->json(['data' => ['promoted' => $count]]);
+        return response()->json(['data' => ['decided' => $count]]);
     }
 
     /**
-     * Retain the selected students: keep their current grade and open a pending
-     * enrollment for the new school year (a junior repeating, or a finisher
-     * repeating the top grade). The cashier generates the bill later. Re-checks
-     * eligibility. Returns how many retained.
+     * Enroll every promote/retain decision into the next school year.
      */
-    public function retain(Request $request): JsonResponse
+    public function materialize(Request $request): JsonResponse
     {
-        $schoolYear = SchoolYear::active();
-        abort_if($schoolYear === null, 422, 'No school year is currently active.');
+        $active = $this->openYearOrAbort();
 
-        $ids = $this->validatedIds($request);
+        $count = $this->closeout->materialize($active, $request->user()?->id);
 
-        $students = $this->pending($schoolYear->school_year)
-            ->whereIn('id', $ids)
-            ->get();
-
-        $count = DB::transaction(function () use ($students, $schoolYear) {
-            $done = 0;
-            foreach ($students as $student) {
-                ($this->ensureEnrollment)($student, $schoolYear, request()->user()?->id);
-                $done++;
-            }
-
-            return $done;
-        });
-
-        return response()->json(['data' => ['retained' => $count]]);
+        return response()->json(['data' => ['materialized' => $count]]);
     }
 
     /**
-     * Graduate the selected finishing students. Marks their latest enrollment
-     * completed and mirrors it onto the student's status. Re-checks eligibility.
-     * Returns how many were graduated.
-     */
-    public function graduate(Request $request): JsonResponse
-    {
-        $schoolYear = SchoolYear::active();
-        abort_if($schoolYear === null, 422, 'No school year is currently active.');
-
-        $ids = $this->validatedIds($request);
-
-        $students = $this->pending($schoolYear->school_year)
-            ->where('year_level', $this->topLevel())
-            ->whereIn('id', $ids)
-            ->with(['enrollments.schoolYear'])
-            ->get();
-
-        $count = DB::transaction(function () use ($students) {
-            $done = 0;
-            foreach ($students as $student) {
-                $latest = $student->enrollments
-                    ->sortByDesc(fn (Enrollment $e) => $e->schoolYear?->school_year ?? '')
-                    ->first();
-
-                $latest?->update(['status' => 'completed']);
-                $student->syncStatusFromLatestEnrollment();
-                $done++;
-            }
-
-            return $done;
-        });
-
-        return response()->json(['data' => ['graduated' => $count]]);
-    }
-
-    /**
-     * Undo a promotion/retention for the selected students: delete the pending,
-     * not-yet-billed enrollment for the active school year and restore the grade of
-     * their latest prior enrollment. Re-checks eligibility. Returns how many were
-     * reverted.
+     * Undo the selected decisions, reversing their effects.
      */
     public function revert(Request $request): JsonResponse
     {
-        $schoolYear = SchoolYear::active();
-        abort_if($schoolYear === null, 422, 'No school year is currently active.');
+        $active = $this->openYearOrAbort();
 
-        $ids = $this->validatedIds($request);
+        $validated = $request->validate([
+            'decisionIds' => ['required', 'array', 'min:1'],
+            'decisionIds.*' => ['integer'],
+        ]);
 
-        $students = $this->revertible($schoolYear->school_year)
-            ->whereIn('id', $ids);
-
-        $count = DB::transaction(function () use ($students, $schoolYear) {
-            $done = 0;
-            foreach ($students as $student) {
-                $prior = $this->priorLevel($student, $schoolYear->school_year);
-
-                $student->enrollments()
-                    ->where('school_year_id', $schoolYear->id)
-                    ->whereDoesntHave('bill')
-                    ->delete();
-
-                if ($prior !== null) {
-                    $student->update(['year_level' => $prior]);
-                }
-                $done++;
-            }
-
-            return $done;
-        });
+        $count = $this->closeout->revert($active, $validated['decisionIds']);
 
         return response()->json(['data' => ['reverted' => $count]]);
     }
 
-    /**
-     * @return array<int, int>
-     */
-    private function validatedIds(Request $request): array
+    private function openYearOrAbort(): SchoolYear
     {
-        return $request->validate([
-            'studentIds' => ['required', 'array', 'min:1'],
-            'studentIds.*' => ['integer'],
-        ])['studentIds'];
+        $active = SchoolYear::active();
+        abort_if($active === null, 422, 'No school year is currently active.');
+        abort_unless($active->isProgressionOpen(), 422, 'Progression is not open for the active school year.');
+
+        return $active;
     }
 
     /**
-     * Continuing (enrolled) students still awaiting a year-end decision: they
-     * have no enrollment yet for the given school year.
-     *
-     * @return Builder<Student>
+     * @return array<string, mixed>
      */
-    private function pending(string $schoolYear): Builder
+    private function yearRef(SchoolYear $year): array
     {
-        return Student::query()
-            ->where('status', 'enrolled')
-            ->whereNotNull('year_level')
-            ->whereDoesntHave('enrollments', function ($query) use ($schoolYear) {
-                $query->whereHas('schoolYear', fn ($sy) => $sy->where('school_year', $schoolYear));
-            })
-            ->orderBy('last_name')
-            ->orderBy('first_name');
-    }
-
-    /**
-     * Continuing students whose year-end decision (promote/retain) can still be
-     * undone: they were already enrolled, have a pending **not-yet-billed**
-     * enrollment for this school year, and have a prior-year enrollment to restore.
-     * Newly accepted/admitted first-timers are excluded (no prior grade).
-     *
-     * @return Collection<int, Student>
-     */
-    private function revertible(string $schoolYear): Collection
-    {
-        return Student::query()
-            ->where('status', 'enrolled')
-            // A decided-but-unbilled enrollment for this year.
-            ->whereHas('enrollments', function ($query) use ($schoolYear) {
-                $query->whereHas('schoolYear', fn ($sy) => $sy->where('school_year', $schoolYear))
-                    ->whereDoesntHave('bill');
-            })
-            // …and a prior-year enrollment — i.e. a continuing student, not a
-            // first-time admission.
-            ->whereHas('enrollments', function ($query) use ($schoolYear) {
-                $query->whereHas('schoolYear', fn ($sy) => $sy->where('school_year', '!=', $schoolYear));
-            })
-            ->with(['enrollments.schoolYear'])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
-    }
-
-    /**
-     * The grade of the student's latest enrollment outside the given school year
-     * — the grade they'd return to if the year's decision is undone.
-     */
-    private function priorLevel(Student $student, string $excludeSchoolYear): ?string
-    {
-        $latest = $student->enrollments
-            ->filter(fn (Enrollment $e) => $e->schoolYear?->school_year !== $excludeSchoolYear)
-            ->sortByDesc(fn (Enrollment $e) => $e->schoolYear?->school_year ?? '')
-            ->first();
-
-        return $latest?->year_level;
+        return ['id' => $year->id, 'schoolYear' => $year->school_year];
     }
 
     private function topLevel(): string
@@ -298,9 +159,6 @@ class ProgressionController extends Controller
         return end($levels);
     }
 
-    /**
-     * The grade after the given one, or the same grade if already at the top.
-     */
     private function nextLevel(?string $current): ?string
     {
         $levels = SchoolYear::YEAR_LEVELS;

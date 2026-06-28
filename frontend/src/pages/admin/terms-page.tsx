@@ -3,6 +3,7 @@ import {
   CalendarDaysIcon,
   CircleAlertIcon,
   GiftIcon,
+  GraduationCapIcon,
   LockIcon,
   LockOpenIcon,
   PlusIcon,
@@ -549,8 +550,9 @@ function NewTermDialog({
 
 type StatusAction = {
   term: Term;
-  kind: "active" | "admission";
-  next: boolean;
+  kind: "active" | "admission" | "progression";
+  // For progression, null clears the override so it follows the schedule.
+  next: boolean | null;
 };
 
 function TermsPage() {
@@ -589,7 +591,11 @@ function TermsPage() {
     if (!statusAction) return;
     const { term, kind, next } = statusAction;
     const changes =
-      kind === "active" ? { isActive: next } : { admissionOpen: next };
+      kind === "active"
+        ? { isActive: next === true }
+        : kind === "admission"
+          ? { admissionOpen: next === true }
+          : { progressionOpen: next };
     try {
       await setStatus.mutateAsync({ id: term.id, ...changes });
     } catch {
@@ -722,6 +728,28 @@ function TermsPage() {
                             : "Admissions closed"}
                         </Badge>
                       )}
+                      {term.isActive && term.progressionOpen && (
+                        <Badge
+                          variant="outline"
+                          className="border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300"
+                        >
+                          Progression on
+                          {term.progressionOverride === null
+                            ? " · auto"
+                            : " · manual"}
+                        </Badge>
+                      )}
+                      {term.isActive &&
+                        !term.progressionOpen &&
+                        term.progressionOverride === false &&
+                        term.progressionAuto && (
+                          <Badge
+                            variant="outline"
+                            className="border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                          >
+                            Progression held
+                          </Badge>
+                        )}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -756,6 +784,36 @@ function TermsPage() {
                           ? "Close admissions"
                           : "Open admissions"}
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={setStatus.isPending || !term.isActive}
+                        onClick={() =>
+                          setStatusAction({
+                            term,
+                            kind: "progression",
+                            next: !term.progressionOpen,
+                          })
+                        }
+                      >
+                        <GraduationCapIcon />
+                        {term.progressionOpen
+                          ? "Disable progression"
+                          : "Enable progression"}
+                      </DropdownMenuItem>
+                      {term.isActive && term.progressionOverride !== null && (
+                        <DropdownMenuItem
+                          disabled={setStatus.isPending}
+                          onClick={() =>
+                            setStatusAction({
+                              term,
+                              kind: "progression",
+                              next: null,
+                            })
+                          }
+                        >
+                          <CalendarDaysIcon />
+                          Follow end-date schedule
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => setPolicyTerm(term)}>
                         <WalletIcon />
                         Installment policy
@@ -905,6 +963,14 @@ function statusActionTitle(action: StatusAction): string {
       ? "Set this school year as active?"
       : "Deactivate this school year?";
   }
+  if (action.kind === "progression") {
+    if (action.next === null) {
+      return "Follow the end-date schedule for progression?";
+    }
+    return action.next
+      ? "Enable progression for this school year?"
+      : "Disable progression for this school year?";
+  }
   return action.next
     ? "Open admissions for this school year?"
     : "Close admissions for this school year?";
@@ -915,7 +981,15 @@ function statusActionBody(action: StatusAction): string {
   if (action.kind === "active") {
     return action.next
       ? `${label} will become the active school year. Bills, the student portal and dashboards will operate on it.`
-      : `${label} will be deactivated. Bills, the portal and dashboards will have no active school year, and its admissions will close, until you activate another.`;
+      : `${label} will be deactivated. Bills, the portal and dashboards will have no active school year, and its admissions and progression will close, until you activate another.`;
+  }
+  if (action.kind === "progression") {
+    if (action.next === null) {
+      return `Progression for ${label} will follow its end date — opening automatically once the year has ended, with no manual override.`;
+    }
+    return action.next
+      ? `Year-end promotion, retention and graduation actions for ${label} become available on the Students page now, regardless of its end date.`
+      : `Year-end progression actions for ${label} will be hidden on the Students page, even if its end date has passed. Decisions already made are unaffected.`;
   }
   return action.next
     ? `Applicants will be able to submit applications for ${label}.`
@@ -925,6 +999,12 @@ function statusActionBody(action: StatusAction): string {
 function statusActionConfirm(action: StatusAction): string {
   if (action.kind === "active") {
     return action.next ? "Set as active" : "Deactivate";
+  }
+  if (action.kind === "progression") {
+    if (action.next === null) {
+      return "Follow schedule";
+    }
+    return action.next ? "Enable progression" : "Disable progression";
   }
   return action.next ? "Open admissions" : "Close admissions";
 }

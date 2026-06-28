@@ -9,6 +9,7 @@ import {
   MoveUpIcon,
   RotateCcwIcon,
   Undo2Icon,
+  UsersIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,148 +41,90 @@ import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { getErrorMessage } from "@/lib/get-error-message";
 import {
-  useGraduateStudents,
-  usePromoteStudents,
+  useDecideProgression,
+  useMaterializeProgression,
   useProgression,
-  useRetainStudents,
-  useRevertStudents,
+  useRevertProgression,
 } from "@/features/progression/hooks";
+import type {
+  CloseoutDecision,
+  CloseoutStudent,
+  ProgressionDecisionKind,
+} from "@/features/progression/types";
 
 const PAGE_SIZE = 8;
 
-type Variant = "promote" | "graduate";
-
-// A normalized row for the selectable lists below.
-interface GradeRow {
-  id: number;
-  studentNumber: string;
-  name: string;
-  track: string | null;
-  fromLevel: string | null;
-  toLevel: string | null;
-}
-
-// A bulk action available on a list (e.g. Promote, Retain).
-interface RowAction {
-  verb: string;
-  icon: typeof MoveUpIcon;
-  buttonVariant: "default" | "outline";
-  describe: (count: number, schoolYear: string) => string;
-  isPending: boolean;
-  onApply: (ids: number[]) => void;
-}
-
-// Outcome-column presentation per list type.
-const VARIANT_META: Record<
-  Variant,
-  { header: string; toBadgeClass: string; toLabel: (level: string) => string }
+const DECISION_META: Record<
+  ProgressionDecisionKind,
+  { label: string; className: string }
 > = {
   promote: {
-    header: "Advancement",
-    toBadgeClass:
+    label: "Promoted",
+    className:
       "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
-    toLabel: (level) => labelFor(YEAR_LEVEL_OPTIONS, level),
+  },
+  retain: {
+    label: "Retained",
+    className:
+      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
   },
   graduate: {
-    header: "Outcome",
-    toBadgeClass:
+    label: "Graduated",
+    className:
       "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300",
-    toLabel: () => "Graduated",
   },
 };
 
+// A bulk decision available on a list (Promote, Retain, Graduate).
+interface DecisionAction {
+  verb: string;
+  kind: ProgressionDecisionKind;
+  icon: typeof MoveUpIcon;
+  buttonVariant: "default" | "outline";
+  describe: (count: number) => string;
+}
+
 function ProgressionPage() {
   const { data, isLoading, isError, refetch } = useProgression();
-  const promote = usePromoteStudents();
-  const retain = useRetainStudents();
-  const graduate = useGraduateStudents();
-  const revert = useRevertStudents();
+  const decide = useDecideProgression();
+  const materialize = useMaterializeProgression();
+  const revert = useRevertProgression();
 
-  const candidates: GradeRow[] = (data?.candidates ?? []).map((c) => ({
-    id: c.id,
-    studentNumber: c.studentNumber,
-    name: c.name,
-    track: c.track,
-    fromLevel: c.currentYearLevel,
-    toLevel: c.nextYearLevel,
-  }));
+  const pending = data?.pending ?? [];
+  const decided = data?.decided ?? [];
+  const toPromote = pending.filter((s) => !s.isTopGrade);
+  const toGraduate = pending.filter((s) => s.isTopGrade);
+  const unmaterialized = decided.filter(
+    (d) => d.decision !== "graduate" && !d.materialized,
+  );
 
-  const graduates: GradeRow[] = (data?.graduates ?? []).map((c) => ({
-    id: c.id,
-    studentNumber: c.studentNumber,
-    name: c.name,
-    track: c.track,
-    fromLevel: c.currentYearLevel,
-    toLevel: null,
-  }));
-
-  const revertible: GradeRow[] = (data?.revertible ?? []).map((c) => ({
-    id: c.id,
-    studentNumber: c.studentNumber,
-    name: c.name,
-    track: c.track,
-    fromLevel: c.currentYearLevel,
-    toLevel: c.previousYearLevel,
-  }));
-
-  const promoteAction: RowAction = {
-    verb: "Promote",
-    icon: MoveUpIcon,
-    buttonVariant: "default",
-    isPending: promote.isPending,
-    onApply: (ids) => promote.mutate(ids),
-    describe: (n, sy) =>
-      `${n} student${n === 1 ? "" : "s"} will be advanced to the next grade, enrolled for SY ${sy} and billed immediately at the new grade's fees.`,
-  };
-  const retainAction: RowAction = {
-    verb: "Retain",
-    icon: RotateCcwIcon,
-    buttonVariant: "outline",
-    isPending: retain.isPending,
-    onApply: (ids) => retain.mutate(ids),
-    describe: (n, sy) =>
-      `${n} student${n === 1 ? "" : "s"} will repeat their current grade, be enrolled for SY ${sy} and billed immediately.`,
-  };
-  const graduateAction: RowAction = {
-    verb: "Graduate",
-    icon: GraduationCapIcon,
-    buttonVariant: "default",
-    isPending: graduate.isPending,
-    onApply: (ids) => graduate.mutate(ids),
-    describe: (n) =>
-      `${n} student${n === 1 ? "" : "s"} will be marked as graduated and will no longer be billed.`,
-  };
+  const applyDecision = (kind: ProgressionDecisionKind, ids: number[]) =>
+    decide.mutate({ studentIds: ids, decision: kind });
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Progression</h1>
         <p className="text-muted-foreground text-sm">
-          Year-end processing: give every continuing student an outcome —
-          promote, retain or graduate. Each decision enrolls and bills the
-          student immediately for the new school year.
+          Year-end close-out: give every continuing student an outcome —
+          promote, retain or graduate. Promoted and retained students are then
+          enrolled into the next school year.
         </p>
       </div>
 
-      {promote.isSuccess && (
-        <ResultAlert verb="Promoted" count={promote.data} />
+      {decide.isSuccess && <ResultAlert verb="Recorded" count={decide.data} />}
+      {decide.isError && (
+        <ErrorAlert title="Couldn't save decision" error={decide.error} />
       )}
-      {promote.isError && (
-        <ErrorAlert title="Promotion failed" error={promote.error} />
+      {materialize.isSuccess && (
+        <ResultAlert verb="Enrolled" count={materialize.data} />
       )}
-      {retain.isSuccess && <ResultAlert verb="Retained" count={retain.data} />}
-      {retain.isError && (
-        <ErrorAlert title="Retention failed" error={retain.error} />
-      )}
-      {graduate.isSuccess && (
-        <ResultAlert verb="Graduated" count={graduate.data} />
-      )}
-      {graduate.isError && (
-        <ErrorAlert title="Graduation failed" error={graduate.error} />
+      {materialize.isError && (
+        <ErrorAlert title="Couldn't enroll students" error={materialize.error} />
       )}
       {revert.isSuccess && <ResultAlert verb="Reverted" count={revert.data} />}
       {revert.isError && (
-        <ErrorAlert title="Revert failed" error={revert.error} />
+        <ErrorAlert title="Couldn't undo decision" error={revert.error} />
       )}
 
       {isLoading ? (
@@ -198,93 +141,170 @@ function ProgressionPage() {
             Try again
           </Button>
         </div>
-      ) : data.openTerm === null ? (
+      ) : !data.progressionOpen ? (
         <EmptyState
-          title="No open term"
-          message="Open an academic term for the new school year to begin progression."
+          title="Progression isn't open"
+          message={
+            data.activeYear
+              ? `Open the progression window for SY ${data.activeYear.schoolYear} on the Academic Years page, or wait until its end date.`
+              : "No school year is active. Activate one to run year-end progression."
+          }
         />
       ) : (
-        <div className="space-y-8">
-          <Tabs defaultValue="grade11">
+        <div className="space-y-6">
+          {unmaterialized.length > 0 &&
+            (data.nextYear ? (
+              <Alert className="border-primary/40 bg-primary-foreground text-primary">
+                <UsersIcon className="size-4 shrink-0" />
+                <AlertTitle>Ready to enroll</AlertTitle>
+                <AlertDescription className="text-primary/90 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    {unmaterialized.length}{" "}
+                    {unmaterialized.length === 1 ? "student" : "students"}{" "}
+                    promoted or retained for SY {data.activeYear?.schoolYear} can
+                    be enrolled into SY {data.nextYear.schoolYear}.
+                  </span>
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    disabled={materialize.isPending}
+                    onClick={() => materialize.mutate()}
+                  >
+                    <UsersIcon />
+                    {materialize.isPending
+                      ? "Enrolling…"
+                      : `Enroll into SY ${data.nextYear.schoolYear}`}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <CircleAlertIcon className="size-4 shrink-0" />
+                <AlertTitle>Next school year needed</AlertTitle>
+                <AlertDescription className="text-amber-800/90 dark:text-amber-200/90">
+                  {unmaterialized.length}{" "}
+                  {unmaterialized.length === 1 ? "student is" : "students are"}{" "}
+                  promoted or retained but can't be enrolled yet. Create the next
+                  school year on the Academic Years page, then enroll them here.
+                </AlertDescription>
+              </Alert>
+            ))}
+
+          <Tabs defaultValue="promote">
             <TabsList>
-              <TabsTrigger value="grade11">
+              <TabsTrigger value="promote">
                 <MoveUpIcon />
                 Promotion
-                <CountBadge value={candidates.length} />
+                <CountBadge value={toPromote.length} />
               </TabsTrigger>
-              <TabsTrigger value="grade12">
+              <TabsTrigger value="graduate">
                 <GraduationCapIcon />
-                Graduate
-                <CountBadge value={graduates.length} />
+                Graduation
+                <CountBadge value={toGraduate.length} />
               </TabsTrigger>
-              <TabsTrigger value="undo">
+              <TabsTrigger value="decided">
                 <Undo2Icon />
-                Recently decided
-                <CountBadge value={revertible.length} />
+                Decided
+                <CountBadge value={decided.length} />
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="grade11" className="space-y-3">
+            <TabsContent value="promote" className="space-y-3">
               <p className="text-muted-foreground text-sm">
-                Grade 11 students awaiting a decision for SY{" "}
-                {data.openTerm.schoolYear}. Promote them to Grade 12, or retain
-                those repeating.
+                Continuing students awaiting a decision for SY{" "}
+                {data.activeYear?.schoolYear}. Promote them to the next grade, or
+                retain those repeating.
               </p>
-              {candidates.length === 0 ? (
+              {toPromote.length === 0 ? (
                 <EmptyState
                   title="No students to promote"
-                  message="Every Grade 11 student has been decided for this school year."
+                  message="Every continuing student below the top grade has been decided."
                   compact
                 />
               ) : (
-                <GradeChangeList
-                  key={`promote-${candidates.map((c) => c.id).join(",")}`}
-                  rows={candidates}
-                  schoolYear={data.openTerm.schoolYear}
+                <DecisionList
+                  key={`promote-${toPromote.map((s) => s.studentId).join(",")}`}
+                  students={toPromote}
                   variant="promote"
-                  actions={[promoteAction, retainAction]}
+                  pending={decide.isPending}
+                  onApply={applyDecision}
+                  actions={[
+                    {
+                      verb: "Promote",
+                      kind: "promote",
+                      icon: MoveUpIcon,
+                      buttonVariant: "default",
+                      describe: (n) =>
+                        `${n} student${n === 1 ? "" : "s"} will advance to the next grade. They're enrolled into the next school year when you confirm enrollment.`,
+                    },
+                    {
+                      verb: "Retain",
+                      kind: "retain",
+                      icon: RotateCcwIcon,
+                      buttonVariant: "outline",
+                      describe: (n) =>
+                        `${n} student${n === 1 ? "" : "s"} will repeat their current grade, enrolled into the next school year when you confirm enrollment.`,
+                    },
+                  ]}
                 />
               )}
             </TabsContent>
 
-            <TabsContent value="grade12" className="space-y-3">
+            <TabsContent value="graduate" className="space-y-3">
               <p className="text-muted-foreground text-sm">
-                Grade 12 finishers awaiting a decision for SY{" "}
-                {data.openTerm.schoolYear}. Graduate the passers, or retain
-                those repeating Grade 12.
+                Top-grade finishers for SY {data.activeYear?.schoolYear}.
+                Graduate the passers, or retain those repeating.
               </p>
-              {graduates.length === 0 ? (
+              {toGraduate.length === 0 ? (
                 <EmptyState
                   title="No finishers to graduate"
-                  message="Every Grade 12 finisher has been decided."
+                  message="Every top-grade finisher has been decided."
                   compact
                 />
               ) : (
-                <GradeChangeList
-                  key={`graduate-${graduates.map((c) => c.id).join(",")}`}
-                  rows={graduates}
-                  schoolYear={data.openTerm.schoolYear}
+                <DecisionList
+                  key={`graduate-${toGraduate.map((s) => s.studentId).join(",")}`}
+                  students={toGraduate}
                   variant="graduate"
-                  actions={[graduateAction, retainAction]}
+                  pending={decide.isPending}
+                  onApply={applyDecision}
+                  actions={[
+                    {
+                      verb: "Graduate",
+                      kind: "graduate",
+                      icon: GraduationCapIcon,
+                      buttonVariant: "default",
+                      describe: (n) =>
+                        `${n} student${n === 1 ? "" : "s"} will be marked as graduated. No next-year enrollment is created.`,
+                    },
+                    {
+                      verb: "Retain",
+                      kind: "retain",
+                      icon: RotateCcwIcon,
+                      buttonVariant: "outline",
+                      describe: (n) =>
+                        `${n} student${n === 1 ? "" : "s"} will repeat the top grade, enrolled into the next school year when you confirm enrollment.`,
+                    },
+                  ]}
                 />
               )}
             </TabsContent>
 
-            <TabsContent value="undo" className="space-y-3">
+            <TabsContent value="decided" className="space-y-3">
               <p className="text-muted-foreground text-sm">
-                Students promoted or retained for SY {data.openTerm.schoolYear}{" "}
-                with no payment yet. Undo to void their bill, remove the
-                enrollment and restore their grade.
+                Decisions recorded for SY {data.activeYear?.schoolYear}. Undo
+                reverses a decision; once a promoted or retained student's next
+                year bill is paid, it can no longer be undone here.
               </p>
-              {revertible.length === 0 ? (
+              {decided.length === 0 ? (
                 <EmptyState
-                  title="Nothing to undo"
-                  message="No decisions can be undone — every billed student has either paid or has no prior grade to revert to."
+                  title="No decisions yet"
+                  message="Decisions you record appear here, where they can be undone."
                   compact
                 />
               ) : (
-                <UndoList
-                  rows={revertible}
+                <DecidedList
+                  rows={decided}
                   isPending={revert.isPending}
                   onUndo={(id) => revert.mutate([id])}
                 />
@@ -312,7 +332,7 @@ function ResultAlert({ verb, count }: { verb: string; count: number }) {
   return (
     <Alert className="border-primary bg-primary-foreground text-primary">
       <CheckCircle2Icon className="size-4 shrink-0" />
-      <AlertTitle>{verb} students</AlertTitle>
+      <AlertTitle>{verb}</AlertTitle>
       <AlertDescription>
         {count > 0
           ? `${verb} ${count} ${count === 1 ? "student" : "students"}.`
@@ -361,14 +381,14 @@ function EmptyState({
   );
 }
 
-// Students decided this school year whose bill has no payments yet — each can be
-// undone, which voids the bill, removes the enrollment and restores their grade.
-function UndoList({
+// The decided list: every recorded outcome for the ending year, each undoable
+// until a materialized next-year enrollment has been billed and paid.
+function DecidedList({
   rows,
   isPending,
   onUndo,
 }: {
-  rows: GradeRow[];
+  rows: CloseoutDecision[];
   isPending: boolean;
   onUndo: (id: number) => void;
 }) {
@@ -381,103 +401,130 @@ function UndoList({
           <TableRow>
             <TableHead>Student</TableHead>
             <TableHead>Program</TableHead>
-            <TableHead>Reverts to</TableHead>
+            <TableHead>Outcome</TableHead>
+            <TableHead>Enrollment</TableHead>
             <TableHead className="text-right">Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell>
-                <div className="flex flex-col">
-                  <span className="font-medium">{r.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {r.studentNumber}
+          {rows.map((r) => {
+            const meta = DECISION_META[r.decision];
+            return (
+              <TableRow key={r.id}>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{r.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {r.studentNumber}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {programLabel(r.track)}
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className="font-normal">
+                      {labelFor(YEAR_LEVEL_OPTIONS, r.fromYearLevel ?? "")}
+                    </Badge>
+                    <ArrowRightIcon className="text-muted-foreground size-3.5" />
+                    <Badge
+                      variant="outline"
+                      className={cn("font-normal", meta.className)}
+                    >
+                      {r.decision === "graduate"
+                        ? "Graduated"
+                        : labelFor(YEAR_LEVEL_OPTIONS, r.toYearLevel ?? "")}
+                    </Badge>
                   </span>
-                </div>
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {programLabel(r.track)}
-              </TableCell>
-              <TableCell>
-                <span className="flex items-center gap-1.5">
-                  <Badge variant="secondary" className="font-normal">
-                    {labelFor(YEAR_LEVEL_OPTIONS, r.fromLevel ?? "")}
-                  </Badge>
-                  <ArrowRightIcon className="text-muted-foreground size-3.5" />
-                  <Badge
-                    variant="outline"
-                    className="border-amber-200 bg-amber-50 font-normal text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
-                  >
-                    {labelFor(YEAR_LEVEL_OPTIONS, r.toLevel ?? "")}
-                  </Badge>
-                </span>
-              </TableCell>
-              <TableCell className="text-right">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={isPending}>
-                      <Undo2Icon />
-                      Undo
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Undo {r.name}'s decision?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Their bill for the new school year will be deleted,
-                        their enrollment removed, and their grade restored to{" "}
-                        {labelFor(YEAR_LEVEL_OPTIONS, r.toLevel ?? "")}. This is
-                        only possible while no payment has been made.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => onUndo(r.id)}>
-                        Undo
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </TableCell>
-            </TableRow>
-          ))}
+                </TableCell>
+                <TableCell>
+                  {r.decision === "graduate" ? (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "font-normal",
+                        r.materialized
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {r.materialized ? "Enrolled" : "Pending enrollment"}
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  {r.revertable ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={isPending}>
+                          <Undo2Icon />
+                          Undo
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            Undo {r.name}'s decision?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {r.decision === "graduate"
+                              ? "Their graduation is reversed and they return to enrolled standing."
+                              : "Their grade is restored and any next-year enrollment created for them is removed. Only possible while no payment has been made."}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => onUndo(r.id)}>
+                            Undo
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">
+                      Billed — locked
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
   );
 }
 
-function GradeChangeList({
-  rows,
-  schoolYear,
+function DecisionList({
+  students,
   variant,
+  pending,
   actions,
+  onApply,
 }: {
-  rows: GradeRow[];
-  schoolYear: string;
-  variant: Variant;
-  actions: RowAction[];
+  students: CloseoutStudent[];
+  variant: "promote" | "graduate";
+  pending: boolean;
+  actions: DecisionAction[];
+  onApply: (kind: ProgressionDecisionKind, ids: number[]) => void;
 }) {
   const programLabel = useProgramLabel();
   // Default to all rows selected (across every page).
   const [selected, setSelected] = useState<Set<number>>(
-    () => new Set(rows.map((r) => r.id)),
+    () => new Set(students.map((s) => s.studentId)),
   );
   const [page, setPage] = useState(0);
 
-  const meta = VARIANT_META[variant];
-  const anyPending = actions.some((a) => a.isPending);
-
-  const allSelected = selected.size === rows.length;
+  const allSelected = selected.size === students.length;
   const someSelected = selected.size > 0 && !allSelected;
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(students.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
   const start = safePage * PAGE_SIZE;
-  const pageRows = rows.slice(start, start + PAGE_SIZE);
+  const pageRows = students.slice(start, start + PAGE_SIZE);
 
   const toggle = (id: number) =>
     setSelected((prev) => {
@@ -488,7 +535,9 @@ function GradeChangeList({
     });
 
   const toggleAll = () =>
-    setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
+    setSelected(
+      allSelected ? new Set() : new Set(students.map((s) => s.studentId)),
+    );
 
   return (
     <div className="space-y-4">
@@ -507,41 +556,48 @@ function GradeChangeList({
               </TableHead>
               <TableHead>Student</TableHead>
               <TableHead>Program</TableHead>
-              <TableHead>{meta.header}</TableHead>
+              <TableHead>{variant === "promote" ? "Advancement" : "Outcome"}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageRows.map((r) => (
-              <TableRow key={r.id}>
+            {pageRows.map((s) => (
+              <TableRow key={s.studentId}>
                 <TableCell>
                   <Checkbox
-                    checked={selected.has(r.id)}
-                    onCheckedChange={() => toggle(r.id)}
-                    aria-label={`Select ${r.name}`}
+                    checked={selected.has(s.studentId)}
+                    onCheckedChange={() => toggle(s.studentId)}
+                    aria-label={`Select ${s.name}`}
                   />
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-medium">{r.name}</span>
+                    <span className="font-medium">{s.name}</span>
                     <span className="text-muted-foreground text-xs">
-                      {r.studentNumber}
+                      {s.studentNumber}
                     </span>
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {programLabel(r.track)}
+                  {programLabel(s.track)}
                 </TableCell>
                 <TableCell>
                   <span className="flex items-center gap-1.5">
                     <Badge variant="secondary" className="font-normal">
-                      {labelFor(YEAR_LEVEL_OPTIONS, r.fromLevel ?? "")}
+                      {labelFor(YEAR_LEVEL_OPTIONS, s.yearLevel ?? "")}
                     </Badge>
                     <ArrowRightIcon className="text-muted-foreground size-3.5" />
                     <Badge
                       variant="outline"
-                      className={cn("font-normal", meta.toBadgeClass)}
+                      className={cn(
+                        "font-normal",
+                        variant === "promote"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300",
+                      )}
                     >
-                      {meta.toLabel(r.toLevel ?? "")}
+                      {variant === "promote"
+                        ? labelFor(YEAR_LEVEL_OPTIONS, s.nextYearLevel ?? "")
+                        : "Graduated"}
                     </Badge>
                   </span>
                 </TableCell>
@@ -553,7 +609,7 @@ function GradeChangeList({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-muted-foreground text-sm">
-          {selected.size} of {rows.length} selected
+          {selected.size} of {students.length} selected
         </p>
         <div className="flex items-center gap-2">
           {totalPages > 1 && (
@@ -590,12 +646,10 @@ function GradeChangeList({
                 <AlertDialogTrigger asChild>
                   <Button
                     variant={action.buttonVariant}
-                    disabled={selected.size === 0 || anyPending}
+                    disabled={selected.size === 0 || pending}
                   >
                     <ActionIcon />
-                    {action.isPending
-                      ? "Working…"
-                      : `${action.verb} ${selected.size}`}
+                    {`${action.verb} ${selected.size}`}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -604,13 +658,13 @@ function GradeChangeList({
                       {action.verb} selected students?
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                      {action.describe(selected.size, schoolYear)}
+                      {action.describe(selected.size)}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={() => action.onApply([...selected])}
+                      onClick={() => onApply(action.kind, [...selected])}
                     >
                       {action.verb}
                     </AlertDialogAction>

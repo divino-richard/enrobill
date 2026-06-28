@@ -64,6 +64,16 @@ class Student extends Model
     }
 
     /**
+     * The year-end progression decisions recorded for this student.
+     *
+     * @return HasMany<ProgressionDecision, $this>
+     */
+    public function progressionDecisions(): HasMany
+    {
+        return $this->hasMany(ProgressionDecision::class);
+    }
+
+    /**
      * Keep the student's global status as a convenience mirror of their latest
      * enrollment (the open term if billed, else the most recent). Statuses that
      * aren't enrollment-driven (graduated/inactive) are left untouched.

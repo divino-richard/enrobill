@@ -47,12 +47,15 @@ export function useUpdateTermStatus() {
       id: number;
       isActive?: boolean;
       admissionOpen?: boolean;
+      progressionOpen?: boolean | null;
       currentSemester?: string;
     }) => updateTermStatus(id, changes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: termsQueryKey });
       // The active/admission change affects the applicant-facing open term too.
       queryClient.invalidateQueries({ queryKey: openTermQueryKey });
+      // Toggling progression opens/closes the year-end queues on the Students page.
+      queryClient.invalidateQueries({ queryKey: ["admin", "progression"] });
     },
   });
 }

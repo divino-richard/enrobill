@@ -27,12 +27,15 @@ export async function createTerm(input: TermInput): Promise<Term> {
   return data.data;
 }
 
-// Toggle a school year's active state, admission window, or current semester.
+// Toggle a school year's active state, admission window, progression window, or
+// current semester.
 export async function updateTermStatus(
   id: number,
   changes: {
     isActive?: boolean;
     admissionOpen?: boolean;
+    // null clears the override (follow the schedule); true/false force it.
+    progressionOpen?: boolean | null;
     currentSemester?: string;
   },
 ): Promise<Term> {

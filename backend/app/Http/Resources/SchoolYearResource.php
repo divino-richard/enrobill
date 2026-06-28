@@ -24,6 +24,12 @@ class SchoolYearResource extends JsonResource
             'endDate' => $this->end_date?->format('Y-m-d'),
             'isActive' => (bool) $this->is_active,
             'admissionOpen' => (bool) $this->admission_open,
+            // Effective progression state (schedule + override + active).
+            'progressionOpen' => $this->isProgressionOpen(),
+            // Raw manual override: null = follow schedule, true/false = forced.
+            'progressionOverride' => $this->progression_open,
+            // Whether the end-date schedule alone would open it.
+            'progressionAuto' => $this->autoProgressionOpen(),
             'downpaymentType' => $this->downpayment_type,
             'downpaymentValue' => $this->downpayment_value !== null ? (float) $this->downpayment_value : null,
             'installmentCount' => $this->installment_count,

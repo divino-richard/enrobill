@@ -144,11 +144,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
         Route::put('/admin/enrollments/{enrollment}', [AdminEnrollmentController::class, 'update']);
 
-        // Year-end progression decisions (read endpoint is shared below).
-        Route::post('/admin/progression', [AdminProgressionController::class, 'store']);
-        Route::post('/admin/progression/retain', [AdminProgressionController::class, 'retain']);
+        // Year-end close-out decisions (read endpoint is shared below).
+        Route::post('/admin/progression/decide', [AdminProgressionController::class, 'decide']);
+        Route::post('/admin/progression/materialize', [AdminProgressionController::class, 'materialize']);
         Route::post('/admin/progression/revert', [AdminProgressionController::class, 'revert']);
-        Route::post('/admin/progression/graduate', [AdminProgressionController::class, 'graduate']);
 
         // School years — managing periods (read endpoint is shared below).
         Route::post('/admin/school-years', [AdminSchoolYearController::class, 'store']);

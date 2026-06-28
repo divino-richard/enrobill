@@ -119,16 +119,19 @@ class SchoolYearController extends Controller
     }
 
     /**
-     * Toggle a school year's active state and/or its admission window, and advance
-     * its current-semester pointer. Activating one deactivates any other (at most
-     * one active at a time). Deactivating also closes admissions; admissions can
-     * only be open on the active year.
+     * Toggle a school year's active state, its admission window and/or its
+     * progression window, and advance its current-semester pointer. Activating one
+     * deactivates any other (at most one active at a time). Deactivating also closes
+     * admissions and progression; both can only be open on the active year.
      */
     public function update(Request $request, SchoolYear $schoolYear): SchoolYearResource
     {
         $validated = $request->validate([
             'isActive' => ['sometimes', 'boolean'],
             'admissionOpen' => ['sometimes', 'boolean'],
+            // Nullable: null clears the override (follow the end-date schedule),
+            // true/false force the window open/closed.
+            'progressionOpen' => ['sometimes', 'nullable', 'boolean'],
             'currentSemester' => ['sometimes', Rule::in(self::SEMESTERS)],
         ]);
 
@@ -138,12 +141,14 @@ class SchoolYearController extends Controller
                     SchoolYear::query()
                         ->whereKeyNot($schoolYear->id)
                         ->where('is_active', true)
-                        ->update(['is_active' => false, 'admission_open' => false]);
+                        ->update(['is_active' => false, 'admission_open' => false, 'progression_open' => null]);
                     $schoolYear->is_active = true;
                 } else {
-                    // An inactive year can't keep admissions open.
+                    // An inactive year can't admit, and its progression override is
+                    // cleared so it returns to the schedule when reactivated.
                     $schoolYear->is_active = false;
                     $schoolYear->admission_open = false;
+                    $schoolYear->progression_open = null;
                 }
             }
 
@@ -154,6 +159,17 @@ class SchoolYearController extends Controller
                     ]);
                 }
                 $schoolYear->admission_open = $validated['admissionOpen'];
+            }
+
+            if (array_key_exists('progressionOpen', $validated)) {
+                // Forcing it open only makes sense on the active year; clearing the
+                // override (null) or forcing it closed is always allowed.
+                if ($validated['progressionOpen'] === true && ! $schoolYear->is_active) {
+                    throw ValidationException::withMessages([
+                        'progressionOpen' => 'Activate the school year before enabling progression.',
+                    ]);
+                }
+                $schoolYear->progression_open = $validated['progressionOpen'];
             }
 
             if (array_key_exists('currentSemester', $validated)) {

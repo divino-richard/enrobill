@@ -18,6 +18,12 @@ export interface Term {
   endDate: string | null;
   isActive: boolean;
   admissionOpen: boolean;
+  // Effective progression state (end-date schedule + manual override + active).
+  progressionOpen: boolean;
+  // Raw manual override: null = follow the schedule, true/false = forced.
+  progressionOverride: boolean | null;
+  // Whether the end-date schedule alone would open progression.
+  progressionAuto: boolean;
   downpaymentType: DownpaymentType;
   downpaymentValue: number;
   installmentCount: number;

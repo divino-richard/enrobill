@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'school_year', 'current_semester', 'start_date', 'end_date', 'is_active', 'admission_open',
-    'downpayment_type', 'downpayment_value', 'installment_count',
+    'progression_open', 'downpayment_type', 'downpayment_value', 'installment_count',
 ])]
 class SchoolYear extends Model
 {
@@ -26,6 +26,7 @@ class SchoolYear extends Model
             'end_date' => 'date',
             'is_active' => 'boolean',
             'admission_open' => 'boolean',
+            'progression_open' => 'boolean',
             'downpayment_value' => 'decimal:2',
         ];
     }
@@ -47,6 +48,30 @@ class SchoolYear extends Model
             ->where('is_active', true)
             ->where('admission_open', true)
             ->first();
+    }
+
+    /**
+     * Whether the schedule alone would open progression: the year has reached or
+     * passed its end date. Independent of the manual override and active state.
+     */
+    public function autoProgressionOpen(): bool
+    {
+        return $this->end_date !== null
+            && now()->startOfDay()->greaterThanOrEqualTo($this->end_date);
+    }
+
+    /**
+     * The effective progression state. Progression only ever runs on the active
+     * year. From there the manual override wins when set (true/false); otherwise
+     * it follows the end-date schedule.
+     */
+    public function isProgressionOpen(): bool
+    {
+        if (! $this->is_active) {
+            return false;
+        }
+
+        return $this->progression_open ?? $this->autoProgressionOpen();
     }
 
     /**

@@ -1,49 +1,45 @@
 import api from "@/lib/api";
-import type { ProgressionInfo } from "./types";
+import type { ProgressionDecisionKind, ProgressionInfo } from "./types";
 
 interface Wrapped<T> {
   data: T;
 }
 
-// Year-end queues + the target school year (admin only).
+// The year-end close-out for the active school year (admin only).
 export async function fetchProgression(): Promise<ProgressionInfo> {
   const { data } = await api.get<Wrapped<ProgressionInfo>>("/admin/progression");
   return data.data;
 }
 
-// Advance the selected students to the next grade. Returns how many promoted.
-export async function promoteStudents(studentIds: number[]): Promise<number> {
-  const { data } = await api.post<Wrapped<{ promoted: number }>>(
-    "/admin/progression",
-    { studentIds },
+// Record a decision for the selected students. Returns how many were decided.
+export async function decideProgression(
+  studentIds: number[],
+  decision: ProgressionDecisionKind,
+): Promise<number> {
+  const { data } = await api.post<Wrapped<{ decided: number }>>(
+    "/admin/progression/decide",
+    { studentIds, decision },
   );
-  return data.data.promoted;
+  return data.data.decided;
 }
 
-// Retain the selected students at their current grade. Returns how many were
-// retained.
-export async function retainStudents(studentIds: number[]): Promise<number> {
-  const { data } = await api.post<Wrapped<{ retained: number }>>(
-    "/admin/progression/retain",
-    { studentIds },
+// Enroll all promote/retain decisions into the next school year. Returns how
+// many were materialized.
+export async function materializeProgression(): Promise<number> {
+  const { data } = await api.post<Wrapped<{ materialized: number }>>(
+    "/admin/progression/materialize",
+    {},
   );
-  return data.data.retained;
+  return data.data.materialized;
 }
 
-// Undo the decision for the selected students. Returns how many were reverted.
-export async function revertStudents(studentIds: number[]): Promise<number> {
+// Undo the selected decisions. Returns how many were reverted.
+export async function revertProgression(
+  decisionIds: number[],
+): Promise<number> {
   const { data } = await api.post<Wrapped<{ reverted: number }>>(
     "/admin/progression/revert",
-    { studentIds },
+    { decisionIds },
   );
   return data.data.reverted;
-}
-
-// Graduate the selected finishing students. Returns how many were graduated.
-export async function graduateStudents(studentIds: number[]): Promise<number> {
-  const { data } = await api.post<Wrapped<{ graduated: number }>>(
-    "/admin/progression/graduate",
-    { studentIds },
-  );
-  return data.data.graduated;
 }
