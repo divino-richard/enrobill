@@ -60,3 +60,16 @@ export async function fetchDocumentViewUrl(
   );
   return data;
 }
+
+// Stream a document's raw bytes through the API (same-origin, authenticated) so
+// the SPA can download or print it without the S3 bucket allowing CORS reads.
+export async function fetchDocumentBlob(
+  applicationId: number,
+  documentId: number,
+): Promise<Blob> {
+  const { data } = await api.get<Blob>(
+    `/applications/${applicationId}/documents/${documentId}/download`,
+    { responseType: "blob" },
+  );
+  return data;
+}

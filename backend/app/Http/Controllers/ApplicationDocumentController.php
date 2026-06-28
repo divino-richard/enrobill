@@ -99,4 +99,29 @@ class ApplicationDocumentController extends Controller
             'contentType' => $document->content_type,
         ]);
     }
+
+    /**
+     * Stream a document's bytes back through the API. Unlike the pre-signed view
+     * URL (which the browser can only embed, not read), this same-origin route
+     * lets the SPA fetch the raw file for client-side download and print without
+     * the S3 bucket needing browser CORS for GET reads.
+     */
+    public function download(Request $request, Application $application, ApplicationDocument $document)
+    {
+        $user = $request->user();
+        // The owning applicant, or any admin reviewing the application.
+        abort_unless(
+            $application->user_id === $user->id || $user->role === Role::Admin,
+            404,
+        );
+        abort_unless($document->application_id === $application->id, 404);
+
+        $disk = Storage::disk('s3');
+        abort_unless($disk->exists($document->s3_key), 404);
+
+        return response($disk->get($document->s3_key), 200, [
+            'Content-Type' => $document->content_type ?? 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="'.addslashes($document->file_name).'"',
+        ]);
+    }
 }
