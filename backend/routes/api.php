@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
 use App\Http\Controllers\Admin\ProgressionController as AdminProgressionController;
 use App\Http\Controllers\Admin\SchoolYearController as AdminSchoolYearController;
+use App\Http\Controllers\Admin\SectionController as AdminSectionController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
@@ -143,6 +144,15 @@ Route::middleware('auth:sanctum')->group(function () {
         // A student's per-term enrollment history + status management.
         Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
         Route::put('/admin/enrollments/{enrollment}', [AdminEnrollmentController::class, 'update']);
+        // Place / move an enrollment within a class section.
+        Route::put('/admin/enrollments/{enrollment}/section', [AdminSectionController::class, 'assign']);
+
+        // Class sections — managed catalog + rosters.
+        Route::get('/admin/sections/unsectioned', [AdminSectionController::class, 'unsectioned']);
+        Route::get('/admin/sections', [AdminSectionController::class, 'index']);
+        Route::post('/admin/sections', [AdminSectionController::class, 'store']);
+        Route::put('/admin/sections/{section}', [AdminSectionController::class, 'update']);
+        Route::delete('/admin/sections/{section}', [AdminSectionController::class, 'destroy']);
 
         // Year-end close-out decisions (read endpoint is shared below).
         Route::post('/admin/progression/decide', [AdminProgressionController::class, 'decide']);

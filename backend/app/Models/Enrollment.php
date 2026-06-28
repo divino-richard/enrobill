@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
-    'student_id', 'school_year_id', 'track', 'year_level', 'no_downpayment', 'status', 'enrolled_at', 'created_by',
+    'student_id', 'school_year_id', 'section_id', 'track', 'year_level', 'no_downpayment', 'status', 'enrolled_at', 'created_by',
 ])]
 class Enrollment extends Model
 {
@@ -37,6 +37,16 @@ class Enrollment extends Model
     public function schoolYear(): BelongsTo
     {
         return $this->belongsTo(SchoolYear::class);
+    }
+
+    /**
+     * The section this enrollment is placed in, if any.
+     *
+     * @return BelongsTo<Section, $this>
+     */
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Section::class);
     }
 
     /**

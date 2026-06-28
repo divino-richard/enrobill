@@ -337,6 +337,8 @@ class Bill extends Model
 
         if ($enrollment !== null) {
             $enrollment->markEnrolled();
+            // Auto-place the now-enrolled student into a matching section.
+            app(\App\Actions\AssignSectionOnEnroll::class)($enrollment->fresh());
             $this->student?->syncStatusFromLatestEnrollment();
 
             return;
