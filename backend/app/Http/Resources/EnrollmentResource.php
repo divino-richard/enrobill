@@ -2,9 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Bill;
 use App\Models\Enrollment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 
 /**
  * @mixin Enrollment
@@ -16,6 +18,8 @@ class EnrollmentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $openBills = $this->openBills();
+
         return [
             'id' => $this->id,
             'schoolYear' => $this->schoolYear?->school_year,
@@ -41,6 +45,11 @@ class EnrollmentResource extends JsonResource
                     )
                     : null,
             ),
+            'openBillCount' => $this->studentBillsLoaded() ? $openBills->count() : null,
+            'openBillTotal' => $this->studentBillsLoaded()
+                ? round((float) $openBills->sum('balance'), 2)
+                : null,
+            'openBills' => $this->studentBillsLoaded() ? $openBills->all() : null,
             'student' => $this->whenLoaded('student', fn () => [
                 'id' => $this->student?->id,
                 'name' => trim(($this->student?->first_name ?? '').' '.($this->student?->last_name ?? '')),
@@ -49,5 +58,39 @@ class EnrollmentResource extends JsonResource
                 'yearLevel' => $this->student?->year_level,
             ]),
         ];
+    }
+
+    private function studentBillsLoaded(): bool
+    {
+        return $this->relationLoaded('student')
+            && $this->student !== null
+            && $this->student->relationLoaded('bills');
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function openBills(): Collection
+    {
+        if (! $this->studentBillsLoaded()) {
+            return collect();
+        }
+
+        return $this->student->bills
+            ->filter(fn (Bill $bill) => $bill->status !== 'paid')
+            ->sortByDesc(fn (Bill $bill) => $bill->schoolYear?->school_year ?? '')
+            ->values()
+            ->map(fn (Bill $bill) => [
+                'id' => $bill->id,
+                'schoolYear' => $bill->schoolYear?->school_year,
+                'status' => $bill->status,
+                'balance' => $this->billBalance($bill),
+                'isCurrent' => (bool) $bill->schoolYear?->is_active,
+            ]);
+    }
+
+    private function billBalance(Bill $bill): float
+    {
+        return round(max($bill->netTotal() - (float) $bill->amount_paid, 0), 2);
     }
 }

@@ -171,6 +171,25 @@ class SchoolYearController extends Controller
      */
     public function destroy(SchoolYear $schoolYear): Response
     {
+        $hasEnrollments = $schoolYear->enrollments()->exists();
+        $hasBills = $schoolYear->bills()->exists();
+
+        if ($hasEnrollments || $hasBills) {
+            $dependencies = collect([
+                $hasEnrollments ? 'enrollments' : null,
+                $hasBills ? 'bills' : null,
+            ])->filter()->values();
+
+            throw ValidationException::withMessages([
+                'schoolYear' => sprintf(
+                    'This school year already has %s and cannot be deleted.',
+                    $dependencies->count() === 2
+                        ? 'enrollments and bills'
+                        : $dependencies->first(),
+                ),
+            ]);
+        }
+
         $schoolYear->delete();
 
         return response()->noContent();

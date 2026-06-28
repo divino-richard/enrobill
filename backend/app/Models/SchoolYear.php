@@ -66,6 +66,16 @@ class SchoolYear extends Model
     }
 
     /**
+     * The bills generated for this school year.
+     *
+     * @return HasMany<Bill, $this>
+     */
+    public function bills(): HasMany
+    {
+        return $this->hasMany(Bill::class);
+    }
+
+    /**
      * The global fee schedule for this school year.
      *
      * @return HasMany<SchoolYearFee, $this>

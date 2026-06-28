@@ -25,7 +25,7 @@ class EnrollmentController extends Controller
     /**
      * All enrollments — paginated, searchable by student, filterable by status and
      * school year, sortable. A read-only overview across the school. Restricted to
-     * admins by route middleware.
+     * admins/cashiers by route middleware.
      */
     public function all(Request $request): AnonymousResourceCollection
     {
@@ -34,7 +34,17 @@ class EnrollmentController extends Controller
         $sortKey = $request->string('sort')->value();
 
         $query = Enrollment::query()
-            ->with(['student', 'schoolYear.fees', 'bill'])
+            ->with([
+                'student' => fn ($student) => $student->with([
+                    'bills' => fn ($bill) => $bill
+                        ->where('status', '!=', 'paid')
+                        ->with(['schoolYear', 'adjustments'])
+                        ->orderByDesc('school_year_id')
+                        ->orderByDesc('id'),
+                ]),
+                'schoolYear.fees',
+                'bill',
+            ])
             ->when(
                 in_array($request->string('status')->value(), self::STATUSES, true),
                 fn ($q) => $q->where('status', $request->string('status')->value()),

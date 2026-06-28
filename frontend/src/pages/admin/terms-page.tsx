@@ -565,16 +565,23 @@ function TermsPage() {
   const [policyTerm, setPolicyTerm] = useState<Term | null>(null);
   const [freebieTerm, setFreebieTerm] = useState<Term | null>(null);
   const [deleting, setDeleting] = useState<Term | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [statusAction, setStatusAction] = useState<StatusAction | null>(null);
 
   async function confirmDelete() {
     if (!deleting) return;
+    setDeleteError(null);
+
     try {
       await remove.mutateAsync(deleting.id);
-    } catch {
-      // no-op
-    } finally {
       setDeleting(null);
+    } catch (error) {
+      setDeleteError(
+        getErrorMessage(
+          error,
+          "We couldn't delete this school year. Please try again.",
+        ),
+      );
     }
   }
 
@@ -759,7 +766,10 @@ function TermsPage() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
-                        onClick={() => setDeleting(term)}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting(term);
+                        }}
                       >
                         <Trash2Icon />
                         Delete
@@ -792,7 +802,10 @@ function TermsPage() {
       <AlertDialog
         open={deleting !== null}
         onOpenChange={(open) => {
-          if (!open && !remove.isPending) setDeleting(null);
+          if (!open && !remove.isPending) {
+            setDeleting(null);
+            setDeleteError(null);
+          }
         }}
       >
         <AlertDialogContent>
@@ -802,10 +815,20 @@ function TermsPage() {
               {deleting
                 ? `${termLabel(deleting)} will be removed. This can't be undone.`
                 : ""}
+              <span className="mt-2 block">
+                School years with existing enrollments or bills can't be
+                deleted.
+              </span>
               {deleting?.isActive && (
                 <span className="text-destructive mt-2 flex items-center gap-1.5">
                   <CircleAlertIcon className="size-4" />
                   This is currently the active school year.
+                </span>
+              )}
+              {deleteError && (
+                <span className="text-destructive mt-2 flex items-center gap-1.5">
+                  <CircleAlertIcon className="size-4" />
+                  {deleteError}
                 </span>
               )}
             </AlertDialogDescription>

@@ -5,12 +5,22 @@ export type EnrollmentStatus =
   | "completed"
   | "withdrawn";
 
+export type EnrollmentBillStatus = "unpaid" | "partial" | "paid";
+
 export interface EnrollmentStudent {
   id: number | null;
   name: string;
   studentNumber: string | null;
   track: string | null;
   yearLevel: string | null;
+}
+
+export interface EnrollmentOpenBill {
+  id: number;
+  schoolYear: string | null;
+  status: EnrollmentBillStatus;
+  balance: number;
+  isCurrent: boolean;
 }
 
 // An enrollment row in the global (read-only) list.
@@ -26,6 +36,9 @@ export interface Enrollment {
   isCurrent: boolean;
   hasBill: boolean | null;
   feePreview: number | null;
+  openBillCount?: number | null;
+  openBillTotal?: number | null;
+  openBills?: EnrollmentOpenBill[] | null;
   student: EnrollmentStudent | null;
 }
 
