@@ -41,10 +41,10 @@ const APPLICANT_NAV: NavItem[] = [
 
 const STUDENT_NAV: NavItem[] = [
   { title: "Dashboard", url: "/portal", icon: LayoutDashboardIcon, end: true },
-  { title: "Notifications", url: "/portal/notifications", icon: BellIcon },
   { title: "My Program", url: "/portal/programs", icon: GraduationCapIcon },
   { title: "My Bills", url: "/portal/bills", icon: ReceiptTextIcon },
   { title: "Admission", url: "/portal/application", icon: FileTextIcon },
+  { title: "Notifications", url: "/portal/notifications", icon: BellIcon },
 ];
 
 export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {

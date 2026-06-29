@@ -1,8 +1,12 @@
+import { format } from "date-fns";
 import {
   CalendarClockIcon,
   GraduationCapIcon,
   HistoryIcon,
+  InfoIcon,
+  MapPinIcon,
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardAction,
@@ -14,6 +18,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useMyEnrollments, useMyStudent } from "@/features/students/hooks";
@@ -21,17 +33,93 @@ import { StudentStatusBadge } from "@/features/students/components/student-statu
 import { EnrollmentStatusBadge } from "@/features/students/components/enrollment-status-badge";
 import type { EnrollmentRecord } from "@/features/students/types";
 
+// --- Dummy class schedule (UI preview until timetables are wired in) ---------
+// Senior high school timetable: subjects with day/time, room and teacher.
+interface ScheduleEntry {
+  subject: string;
+  day: string;
+  time: string;
+  room: string;
+  teacher: string;
+}
+
+const DUMMY_SECTION = "HUMSS 11-A";
+const DUMMY_SCHEDULE: ScheduleEntry[] = [
+  {
+    subject: "Oral Communication",
+    day: "Mon · Wed · Fri",
+    time: "8:00 – 9:00 AM",
+    room: "Room 201",
+    teacher: "Ms. Reyes",
+  },
+  {
+    subject: "General Mathematics",
+    day: "Mon · Wed · Fri",
+    time: "9:00 – 10:00 AM",
+    room: "Room 201",
+    teacher: "Mr. Santos",
+  },
+  {
+    subject: "Komunikasyon sa Akademikong Filipino",
+    day: "Mon · Wed · Fri",
+    time: "10:00 – 11:00 AM",
+    room: "Room 201",
+    teacher: "Ms. Bautista",
+  },
+  {
+    subject: "Earth and Life Science",
+    day: "Tue · Thu",
+    time: "8:00 – 9:30 AM",
+    room: "Science Lab 1",
+    teacher: "Ms. Cruz",
+  },
+  {
+    subject: "Understanding Culture, Society & Politics",
+    day: "Tue · Thu",
+    time: "9:30 – 11:00 AM",
+    room: "Room 203",
+    teacher: "Mr. Dela Peña",
+  },
+  {
+    subject: "Personal Development",
+    day: "Tue · Thu",
+    time: "1:00 – 2:30 PM",
+    room: "Room 205",
+    teacher: "Ms. Garcia",
+  },
+  {
+    subject: "Introduction to the Philosophy of the Human Person",
+    day: "Mon · Wed",
+    time: "1:00 – 2:30 PM",
+    room: "Room 207",
+    teacher: "Mr. Aquino",
+  },
+  {
+    subject: "Physical Education and Health",
+    day: "Fri",
+    time: "1:00 – 3:00 PM",
+    room: "Gymnasium",
+    teacher: "Mr. Lim",
+  },
+];
+
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-0.5">
       <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="text-sm font-medium">{value}</dd>
+      <dd className="text-sm font-medium">{value || "—"}</dd>
     </div>
   );
 }
 
 function termLabel(record: EnrollmentRecord): string {
   return record.schoolYear ? `SY ${record.schoolYear}` : "—";
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value.length <= 10 ? `${value}T00:00:00` : value);
+  return Number.isNaN(date.getTime()) ? "—" : format(date, "PP");
 }
 
 function EmptyTab({
@@ -65,10 +153,10 @@ function ProgramsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-44 rounded-md" />
-        <Skeleton className="h-32 w-full rounded-md" />
-        <Skeleton className="h-48 w-full rounded-md" />
+      <div className="space-y-6">
+        <Skeleton className="h-9 w-44 rounded-md" />
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -98,20 +186,21 @@ function ProgramsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">My Program</h1>
-        <p className="text-muted-foreground text-sm">
-          The program and level you're enrolled in.
+        <p className="text-muted-foreground mt-2 text-sm">
+          The program, level and class schedule you're enrolled in.
         </p>
       </div>
 
-      {/* Headline — always visible so the current term is clear at a glance. */}
+      {/* Headline — current term */}
       <Card>
         <CardHeader>
           <CardDescription className="text-xs font-medium tracking-wide uppercase">
             {currentSchoolYear ? `SY ${currentSchoolYear}` : "Current term"}
           </CardDescription>
-          <CardTitle className="text-base">
+          <CardTitle className="text-lg">
             {programLabel(currentProgram)}
           </CardTitle>
           <CardDescription>
@@ -152,15 +241,15 @@ function ProgramsPage() {
         </TabsList>
 
         <TabsContent value="overview">
-          <Card>
-            <CardHeader>
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
               <CardTitle className="text-base">Enrollment details</CardTitle>
               <CardDescription>
                 Your record for the current term.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <dl className="grid grid-cols-2 gap-5 sm:grid-cols-3">
                 <Detail label="Student No." value={student.studentNumber} />
                 <Detail label="Program" value={programLabel(currentProgram)} />
                 <Detail
@@ -168,14 +257,75 @@ function ProgramsPage() {
                   value={labelFor(YEAR_LEVEL_OPTIONS, currentYearLevel ?? "")}
                 />
                 <Detail label="School Year" value={currentSchoolYear ?? "—"} />
+                <Detail
+                  label="Enrolled On"
+                  value={formatDate(current?.enrolledAt ?? null)}
+                />
               </dl>
             </CardContent>
           </Card>
         </TabsContent>
 
+        <TabsContent value="schedule" className="space-y-6">
+          <Alert className="border-primary/15 bg-primary/5">
+            <InfoIcon className="size-4" />
+            <AlertTitle>Sample schedule</AlertTitle>
+            <AlertDescription>
+              This timetable uses placeholder data for preview. Your real class
+              schedule will appear here once it's published by the registrar.
+            </AlertDescription>
+          </Alert>
+
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
+              <CardTitle className="text-base">Class schedule</CardTitle>
+              <CardDescription>
+                {DUMMY_SCHEDULE.length} subjects · {DUMMY_SECTION}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Subject</TableHead>
+                    <TableHead>Day</TableHead>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Room</TableHead>
+                    <TableHead className="pr-6">Teacher</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {DUMMY_SCHEDULE.map((entry) => (
+                    <TableRow key={entry.subject}>
+                      <TableCell className="pl-6 font-medium whitespace-normal">
+                        {entry.subject}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {entry.day}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {entry.time}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
+                          <MapPinIcon className="size-3.5" />
+                          {entry.room}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground pr-6">
+                        {entry.teacher}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="history">
-          <Card>
-            <CardHeader>
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
               <CardTitle className="text-base">Enrollment history</CardTitle>
               <CardDescription>
                 Your program and level across past terms.
@@ -213,22 +363,6 @@ function ProgramsPage() {
                   ))}
                 </ul>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="schedule">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Class schedule</CardTitle>
-              <CardDescription>Your subjects and timetable.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EmptyTab
-                icon={CalendarClockIcon}
-                title="Schedules coming soon"
-                message="Your class schedule will be available here once it's published."
-              />
             </CardContent>
           </Card>
         </TabsContent>
