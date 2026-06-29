@@ -50,7 +50,7 @@ export function StudentDashboard() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 mx-auto max-w-7xl">
         <Skeleton className="h-9 w-64" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -67,7 +67,7 @@ export function StudentDashboard() {
 
   if (isError || !student) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 mx-auto max-w-7xl">
         <h1 className="text-2xl font-semibold tracking-tight">
           Welcome{user ? `, ${user.name}` : ""}
         </h1>
@@ -155,7 +155,7 @@ export function StudentDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto max-w-7xl">
       {/* Header */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>

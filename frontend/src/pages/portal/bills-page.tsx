@@ -120,7 +120,8 @@ function BillsTable({
             <TableHead className={cn(head, "text-right")}>Net total</TableHead>
             <TableHead className={cn(head, "text-right")}>Paid</TableHead>
             <TableHead className={cn(head, "text-right")}>Balance</TableHead>
-            <TableHead className={cn(head, "pr-6 text-right")}>Status</TableHead>
+            <TableHead className={cn(head, "text-center")}>Status</TableHead>
+            <TableHead className={cn(head, "text-center")}></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -159,7 +160,7 @@ function BillsTable({
                 <TableCell className="py-2.5 text-right font-medium tabular-nums">
                   {formatPeso(bill.balance)}
                 </TableCell>
-                <TableCell className="py-2.5 pr-6 text-right">
+                <TableCell className="py-2.5 text-center">
                   <span className="inline-flex items-center gap-2">
                     <Badge
                       variant="outline"
@@ -167,8 +168,10 @@ function BillsTable({
                     >
                       {meta.label}
                     </Badge>
-                    <ChevronRightIcon className="text-muted-foreground size-4" />
                   </span>
+                </TableCell>
+                <TableCell>
+                  <ChevronRightIcon className="text-muted-foreground size-4" />
                 </TableCell>
               </TableRow>
             );
@@ -234,7 +237,7 @@ function BillsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto max-w-7xl">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">My Bills</h1>
         <p className="text-muted-foreground mt-2 text-sm">

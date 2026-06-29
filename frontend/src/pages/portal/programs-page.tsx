@@ -153,7 +153,7 @@ function ProgramsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 mx-auto max-w-7xl">
         <Skeleton className="h-9 w-44 rounded-md" />
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-64 w-full rounded-xl" />
@@ -185,7 +185,7 @@ function ProgramsPage() {
   const currentSchoolYear = current?.schoolYear ?? student.schoolYear;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto max-w-7xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">My Program</h1>
@@ -217,7 +217,7 @@ function ProgramsPage() {
       </Card>
 
       <Tabs defaultValue="overview">
-        <TabsList>
+        <TabsList className="h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="overview">
             <GraduationCapIcon />
             Overview

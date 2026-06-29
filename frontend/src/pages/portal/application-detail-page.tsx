@@ -51,7 +51,7 @@ function ApplicationDetailPage() {
   const resubmitBlocked = hasOtherActive || hasAccepted;
 
   return (
-    <div className="mx-auto space-y-6">
+    <div className="space-y-6 mx-auto max-w-7xl">
       <Button
         variant="ghost"
         size="sm"

@@ -216,7 +216,7 @@ function AccountPage() {
   const { data: profile, isLoading, isError, refetch } = useAccount();
 
   return (
-    <div className="mx-auto space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
         <p className="text-muted-foreground text-sm">

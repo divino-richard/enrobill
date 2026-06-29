@@ -184,7 +184,7 @@ function NotificationsPage() {
   const spotlight = NOTIFICATIONS.find((item) => item.actionRequired) ?? NOTIFICATIONS[0];
 
   return (
-    <div className="mx-auto space-y-6">
+    <div className="space-y-6 mx-auto max-w-7xl">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
