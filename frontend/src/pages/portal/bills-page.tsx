@@ -1,667 +1,214 @@
-import { useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  CalendarClockIcon,
-  CheckCircle2Icon,
-  CheckIcon,
   ChevronRightIcon,
-  ClockIcon,
-  CopyIcon,
-  DownloadIcon,
-  EyeIcon,
+  HistoryIcon,
   ReceiptTextIcon,
-  UploadIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { FieldLabel } from "@/components/form/field-label";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
-import { getErrorMessage } from "@/lib/get-error-message";
-import { formatDate } from "@/features/applications/utils";
-import { useActivePaymentChannels } from "@/features/payment-channels/hooks";
-import type { PaymentChannel } from "@/features/payment-channels/types";
-import { uploadPaymentProof } from "@/features/bills/api";
-import { printBillReceipt, type ReceiptParty } from "@/features/bills/receipt";
-import {
-  useMyBill,
-  useMyBills,
-  useSubmitMyPayment,
-} from "@/features/bills/hooks";
-import { useAuthStore } from "@/features/auth/store";
-import {
-  BILL_STATUS_META,
-  INSTALLMENT_STATUS_META,
-  PAYMENT_STATUS_META,
-  paymentMethodLabel,
-  type Bill,
-  type PaymentMethod,
-} from "@/features/bills/types";
+import { EmptyState } from "@/features/bills/components/bill-ledger";
+import { useMyBill, useMyBills } from "@/features/bills/hooks";
+import { BILL_STATUS_META, type Bill } from "@/features/bills/types";
+import { termTitle } from "@/features/bills/utils";
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
-const termTitle = (bill: Bill) => `SY ${bill.schoolYear}`;
-
-function SummaryRow({
-  label,
-  value,
-  emphasize,
-  muted,
-}: {
-  label: string;
-  value: string;
-  emphasize?: boolean;
-  muted?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex justify-between gap-4",
-        emphasize ? "text-base" : "text-sm",
-      )}
-    >
-      <span
-        className={cn(
-          emphasize ? "font-semibold" : "text-muted-foreground",
-          muted && "text-emerald-600 dark:text-emerald-400",
-        )}
-      >
-        {label}
-      </span>
-      <span
-        className={cn(
-          emphasize ? "font-semibold" : "font-medium",
-          muted && "text-emerald-600 dark:text-emerald-400",
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// A KPI tile for the current-bill overview.
-function StatTile({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-xl border p-3",
-        accent && "border-primary/20 bg-primary/5",
-      )}
-    >
-      <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-1 text-xl font-bold tracking-tight tabular-nums",
-          accent && "text-primary",
-        )}
-      >
-        {value}
-      </p>
-      {hint && <p className="text-muted-foreground mt-0.5 text-xs">{hint}</p>}
-    </div>
-  );
-}
-
-// Derive the receipt's "billed to" party from the bill (preferring its embedded
-// student) and the signed-in user as a fallback for the student portal.
-function billReceiptParty(bill: Bill, fallbackName: string): ReceiptParty {
-  return {
-    name: bill.student?.name ?? fallbackName,
-    studentNumber: bill.student?.studentNumber ?? null,
-    program: null,
-  };
-}
-
-// Read-only full breakdown of a bill (used for both the current bill and past
-// bills).
-function BillDetailDialog({
-  bill,
-  party,
-  onOpenChange,
-}: {
-  bill: Bill | null;
-  party: ReceiptParty | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const installments = bill?.installments ?? [];
-  const payments = bill?.payments ?? [];
-
-  return (
-    <Dialog open={bill !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{bill ? termTitle(bill) : "Bill"}</DialogTitle>
-          <DialogDescription>Full breakdown of this bill.</DialogDescription>
-        </DialogHeader>
-        {bill && (
-          <div className="space-y-5">
-            <div>
-              <dl className="space-y-2">
-                {bill.items.map((item) => (
-                  <SummaryRow
-                    key={item.id}
-                    label={item.name}
-                    value={formatPeso(item.amount)}
-                  />
-                ))}
-              </dl>
-              <div className="mt-2 space-y-2 border-t pt-3">
-                <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
-                {bill.discountTotal > 0 && (
-                  <SummaryRow
-                    label="Discounts"
-                    value={`− ${formatPeso(bill.discountTotal)}`}
-                    muted
-                  />
-                )}
-                <SummaryRow
-                  label="Net total"
-                  value={formatPeso(bill.netTotal)}
-                  emphasize
-                />
-                <SummaryRow label="Paid" value={formatPeso(bill.amountPaid)} />
-                <SummaryRow
-                  label="Balance"
-                  value={formatPeso(bill.balance)}
-                  emphasize
-                />
-              </div>
-            </div>
-
-            {installments.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Payment schedule</p>
-                <ul className="divide-y rounded-lg border px-3">
-                  {installments.map((installment) => (
-                    <li
-                      key={installment.id}
-                      className="flex items-center justify-between gap-4 py-2 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium">{installment.label}</p>
-                        <p className="text-muted-foreground text-xs">
-                          Due {formatDate(installment.dueDate)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium">
-                          {formatPeso(installment.amount)}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "w-20 justify-center",
-                            INSTALLMENT_STATUS_META[installment.status].className,
-                          )}
-                        >
-                          {INSTALLMENT_STATUS_META[installment.status].label}
-                        </Badge>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Payments</p>
-              {payments.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No payments yet.</p>
-              ) : (
-                <ul className="divide-y rounded-lg border px-3">
-                  {payments.map((payment) => (
-                    <li
-                      key={payment.id}
-                      className="flex items-center justify-between gap-4 py-2 text-sm"
-                    >
-                      <span>
-                        {formatPeso(payment.amount)}
-                        <span className="text-muted-foreground ml-2 text-xs">
-                          {paymentMethodLabel(payment.method)} ·{" "}
-                          {formatDate(payment.paidAt)}
-                        </span>
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={PAYMENT_STATUS_META[payment.status].className}
-                      >
-                        {PAYMENT_STATUS_META[payment.status].label}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        )}
-        {bill && party && (
-          <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={bill.amountPaid <= 0}
-              onClick={() => printBillReceipt(bill, party)}
-            >
-              <DownloadIcon />
-              Download receipt
-            </Button>
-          </DialogFooter>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// A labelled value with a one-tap copy button (account name / number).
-function AccountRow({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard unavailable — ignore.
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-sm">
-      <span className="text-muted-foreground shrink-0 text-xs">{label}</span>
-      <span className="ml-auto truncate font-medium tabular-nums">{value}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="size-6 shrink-0"
-        onClick={copy}
-        aria-label={`Copy ${label}`}
-      >
-        {copied ? (
-          <CheckIcon className="size-3.5" />
-        ) : (
-          <CopyIcon className="size-3.5" />
-        )}
-      </Button>
-    </div>
-  );
-}
-
-// A numbered section heading used to guide the student through the pay flow.
-function Step({
-  n,
-  title,
-  children,
-}: {
-  n: number;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="space-y-2">
-      <div className="flex items-center gap-2">
-        <span className="bg-primary/10 text-primary flex size-5 items-center justify-center rounded-full text-[11px] font-semibold">
-          {n}
-        </span>
-        <h3 className="text-sm font-semibold">{title}</h3>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-// QR codes + the payment-submission form, in one focused dialog.
-function PayDialog({
-  bill,
-  channels,
-  disabled,
-}: {
-  bill: Bill;
-  channels: PaymentChannel[];
-  disabled?: boolean;
-}) {
-  const methods = channels.map((c) => ({ value: c.code, label: c.label }));
-  const submit = useSubmitMyPayment();
-
-  const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState(String(bill.amountDue));
-  const [method, setMethod] = useState("");
-  const [reference, setReference] = useState("");
-  const [paidAt, setPaidAt] = useState(todayIso());
-  const [note, setNote] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  function reset() {
-    setAmount(String(bill.amountDue));
-    setMethod(methods[0]?.value ?? "");
-    setReference("");
-    setPaidAt(todayIso());
-    setNote("");
-    setFile(null);
-    setError(null);
-    submit.reset();
-  }
-
-  const amountNum = Number(amount);
-  // Pay at least the amount due now (next installment / downpayment), up to the
-  // full balance. Paying more lowers the remaining monthly installments.
-  const amountValid =
-    amount !== "" &&
-    amountNum >= bill.amountDue - 0.01 &&
-    amountNum <= bill.balance + 0.01;
-
-  const selectedChannel = channels.find((c) => c.code === method) ?? null;
-  const isBank = selectedChannel?.code === "bank";
-
-  async function handleSubmit() {
-    setError(null);
-    if (!method || !file || !amountValid) return;
-    try {
-      setUploading(true);
-      const proofKey = await uploadPaymentProof(file);
-      setUploading(false);
-      await submit.mutateAsync({
-        amount: amountNum,
-        method: method as PaymentMethod,
-        reference: reference.trim() || null,
-        proofKey,
-        paidAt,
-        note: note.trim() || null,
-      });
-      setOpen(false);
-    } catch (err) {
-      setUploading(false);
-      setError(getErrorMessage(err));
-    }
-  }
-
-  const busy = uploading || submit.isPending;
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) reset();
-        setOpen(next);
-      }}
-    >
-      <Button onClick={() => setOpen(true)} disabled={disabled}>
-        <UploadIcon />
-        Pay now
-      </Button>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Pay your bill</DialogTitle>
-          <DialogDescription>
-            Choose how to pay, settle the amount, then upload your receipt for
-            review.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-5">
-          <Step n={1} title="Amount to pay">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg border px-3 py-2">
-                <p className="text-muted-foreground text-xs">Due now</p>
-                <p className="font-semibold">{formatPeso(bill.amountDue)}</p>
-              </div>
-              <div className="rounded-lg border px-3 py-2">
-                <p className="text-muted-foreground text-xs">Balance</p>
-                <p className="font-semibold">{formatPeso(bill.balance)}</p>
-              </div>
-            </div>
-            <Input
-              id="pay-amount"
-              type="number"
-              min={bill.amountDue}
-              max={bill.balance}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            {amount !== "" && !amountValid ? (
-              <p className="text-destructive text-xs">
-                Enter between {formatPeso(bill.amountDue)} and{" "}
-                {formatPeso(bill.balance)}.
-              </p>
-            ) : (
-              <p className="text-muted-foreground text-xs">
-                Pay the amount due, or more to lower your future monthly
-                payments.
-              </p>
-            )}
-          </Step>
-
-          {channels.length === 0 ? (
-            <p className="text-muted-foreground rounded-lg border border-dashed px-4 py-6 text-center text-sm">
-              Online payment isn't set up yet. Please pay at the cashier.
-            </p>
-          ) : (
-            <>
-              <Step n={2} title="Pay with">
-                <div className="flex flex-wrap gap-1.5">
-                  {channels.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setMethod(c.code)}
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                        method === c.code
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:bg-muted",
-                      )}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-
-                {selectedChannel && (
-                  <div className="bg-muted/30 space-y-3 rounded-lg border p-3">
-                    {selectedChannel.qrUrl && (
-                      <div className="flex flex-col items-center gap-1.5">
-                        <img
-                          src={selectedChannel.qrUrl}
-                          alt={`${selectedChannel.label} QR`}
-                          className="size-36 rounded-md border bg-white object-contain p-1.5"
-                        />
-                        <p className="text-muted-foreground text-xs">
-                          Scan with your {selectedChannel.label} app
-                        </p>
-                      </div>
-                    )}
-
-                    {(selectedChannel.accountName ||
-                      selectedChannel.accountNumber) && (
-                      <div className="space-y-1.5">
-                        {selectedChannel.accountName && (
-                          <AccountRow
-                            label={isBank ? "Bank" : "Account name"}
-                            value={selectedChannel.accountName}
-                          />
-                        )}
-                        {selectedChannel.accountNumber && (
-                          <AccountRow
-                            label={isBank ? "Account number" : "Number"}
-                            value={selectedChannel.accountNumber}
-                          />
-                        )}
-                      </div>
-                    )}
-
-                    {!selectedChannel.qrUrl &&
-                      !selectedChannel.accountName &&
-                      !selectedChannel.accountNumber && (
-                        <p className="text-muted-foreground text-center text-sm">
-                          No payment details yet — please contact the cashier.
-                        </p>
-                      )}
-                  </div>
-                )}
-              </Step>
-
-              <Step n={3} title="Confirm your payment">
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <FieldLabel htmlFor="pay-date" required>
-                        Date paid
-                      </FieldLabel>
-                      <Input
-                        id="pay-date"
-                        type="date"
-                        value={paidAt}
-                        onChange={(e) => setPaidAt(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <FieldLabel htmlFor="pay-ref">Reference no.</FieldLabel>
-                      <Input
-                        id="pay-ref"
-                        value={reference}
-                        onChange={(e) => setReference(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <FieldLabel htmlFor="pay-proof" required>
-                      Proof of payment
-                    </FieldLabel>
-                    <Input
-                      id="pay-proof"
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                    />
-                    <p className="text-muted-foreground text-xs">
-                      A screenshot or photo of your receipt (PNG or JPG).
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <FieldLabel htmlFor="pay-note">Note (optional)</FieldLabel>
-                    <Textarea
-                      id="pay-note"
-                      rows={2}
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </Step>
-            </>
-          )}
-
-          {error && <p className="text-destructive text-sm">{error}</p>}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              !method || !file || !amountValid || channels.length === 0 || busy
-            }
-          >
-            {uploading
-              ? "Uploading…"
-              : submit.isPending
-                ? "Submitting…"
-                : "Submit for review"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function HistoryCard({
+function BillsMobileList({
   bills,
+  currentId,
   onView,
 }: {
   bills: Bill[];
+  currentId?: number;
   onView: (bill: Bill) => void;
 }) {
   return (
-    <Card className="h-fit">
-      <CardHeader>
-        <CardTitle className="text-base">Bill history</CardTitle>
-        <CardDescription>Past and settled bills.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {bills.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No previous bills yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {bills.map((past) => (
-              <li key={past.id}>
-                <button
-                  type="button"
-                  onClick={() => onView(past)}
-                  className="hover:bg-muted/60 flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+    <div className="divide-y md:hidden">
+      {bills.map((bill) => {
+        const meta = BILL_STATUS_META[bill.status];
+        return (
+          <button
+            key={bill.id}
+            type="button"
+            onClick={() => onView(bill)}
+            className="hover:bg-muted/30 flex w-full flex-col gap-4 px-4 py-4 text-left transition-colors"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">{termTitle(bill)}</p>
+                  {bill.id === currentId && (
+                    <Badge variant="secondary" className="font-normal">
+                      Current
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  {bill.semester ?? "Term bill"}
+                </p>
+              </div>
+              <ChevronRightIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="space-y-1">
+                <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                  Balance
+                </p>
+                <p className="font-semibold tabular-nums">
+                  {formatPeso(bill.balance)}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                  Paid
+                </p>
+                <p className="tabular-nums">{formatPeso(bill.amountPaid)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                  Status
+                </p>
+                <Badge
+                  variant="outline"
+                  className={cn("justify-center", meta.className)}
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-full">
-                      <ReceiptTextIcon className="size-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {termTitle(past)}
-                      </p>
-                      <p className="text-muted-foreground text-xs">
-                        Balance {formatPeso(past.balance)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  {meta.label}
+                </Badge>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BillsTable({
+  bills,
+  currentId,
+  onView,
+}: {
+  bills: Bill[];
+  currentId?: number;
+  onView: (bill: Bill) => void;
+}) {
+  const head =
+    "text-muted-foreground h-9 text-[11px] font-medium tracking-wide uppercase";
+
+  return (
+    <div className="hidden md:block">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className={cn(head, "pl-6")}>Term</TableHead>
+            <TableHead className={cn(head, "text-right")}>Net total</TableHead>
+            <TableHead className={cn(head, "text-right")}>Paid</TableHead>
+            <TableHead className={cn(head, "text-right")}>Balance</TableHead>
+            <TableHead className={cn(head, "pr-6 text-right")}>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {bills.map((bill) => {
+            const meta = BILL_STATUS_META[bill.status];
+            return (
+              <TableRow
+                key={bill.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onView(bill)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onView(bill);
+                  }
+                }}
+                className="cursor-pointer"
+              >
+                <TableCell className="py-2.5 pl-6 font-medium">
+                  <span className="inline-flex items-center gap-2">
+                    {termTitle(bill)}
+                    {bill.id === currentId && (
+                      <Badge variant="secondary" className="font-normal">
+                        Current
+                      </Badge>
+                    )}
+                  </span>
+                </TableCell>
+                <TableCell className="text-muted-foreground py-2.5 text-right tabular-nums">
+                  {formatPeso(bill.netTotal)}
+                </TableCell>
+                <TableCell className="text-muted-foreground py-2.5 text-right tabular-nums">
+                  {formatPeso(bill.amountPaid)}
+                </TableCell>
+                <TableCell className="py-2.5 text-right font-medium tabular-nums">
+                  {formatPeso(bill.balance)}
+                </TableCell>
+                <TableCell className="py-2.5 pr-6 text-right">
+                  <span className="inline-flex items-center gap-2">
                     <Badge
                       variant="outline"
-                      className={BILL_STATUS_META[past.status].className}
+                      className={cn("w-28 justify-center", meta.className)}
                     >
-                      {BILL_STATUS_META[past.status].label}
+                      {meta.label}
                     </Badge>
                     <ChevronRightIcon className="text-muted-foreground size-4" />
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
+                  </span>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function BillsListCard({
+  bills,
+  currentId,
+  onView,
+}: {
+  bills: Bill[];
+  currentId?: number;
+  onView: (bill: Bill) => void;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b bg-muted/20">
+        <CardTitle className="text-base">My bills</CardTitle>
+        <CardDescription>
+          Open any bill to review the breakdown, payment schedule, and payment
+          actions.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className={cn(bills.length > 0 && "p-0")}>
+        {bills.length === 0 ? (
+          <EmptyState
+            icon={HistoryIcon}
+            title="No bills yet"
+            message="Your bills will be listed here as terms are billed."
+          />
+        ) : (
+          <>
+            <BillsMobileList bills={bills} currentId={currentId} onView={onView} />
+            <BillsTable bills={bills} currentId={currentId} onView={onView} />
+          </>
         )}
       </CardContent>
     </Card>
@@ -669,200 +216,50 @@ function HistoryCard({
 }
 
 function BillsPage() {
-  const { data: bill, isLoading } = useMyBill();
-  const { data: allBills } = useMyBills();
-  const { data: channels } = useActivePaymentChannels();
-  const payChannels = channels ?? [];
-  const [detailBill, setDetailBill] = useState<Bill | null>(null);
-  const userName = useAuthStore((state) => state.user?.name) ?? "Student";
+  const navigate = useNavigate();
+  const { data: currentBill } = useMyBill();
+  const { data: allBills, isLoading } = useMyBills();
+
+  const bills = allBills ?? [];
+  const openBill = (bill: Bill) => navigate(`/portal/bills/${bill.id}`);
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-40 rounded-md" />
-        <Skeleton className="h-56 w-full rounded-md" />
-      </div>
-    );
-  }
-
-  // The open-term bill counts as "current" only while it still needs paying.
-  // Once it's fully settled it drops down into history (no duplicate card).
-  const currentBill = bill && bill.balance > 0 ? bill : null;
-  const settledBill = bill && bill.balance <= 0 ? bill : null;
-  const history = (allBills ?? []).filter((b) => b.id !== currentBill?.id);
-
-  if (!currentBill && history.length === 0) {
-    return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">My Bills</h1>
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
-            <ReceiptTextIcon className="size-6" />
-          </div>
-          <div className="space-y-1">
-            <p className="font-medium">No bills yet</p>
-            <p className="text-muted-foreground mx-auto max-w-sm text-sm">
-              Your bill for the current term hasn't been issued yet. Please check
-              back later.
-            </p>
-          </div>
-        </div>
+        <Skeleton className="h-9 w-40 rounded-md" />
+        <Skeleton className="h-9 w-72 rounded-md" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
-
-  const paidPct =
-    currentBill && currentBill.netTotal > 0
-      ? Math.min(
-          100,
-          Math.round((currentBill.amountPaid / currentBill.netTotal) * 100),
-        )
-      : 0;
-  const pendingPayments = (currentBill?.payments ?? []).filter(
-    (p) => p.status === "pending",
-  );
-  const pendingTotal = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
-  const hasPending = pendingPayments.length > 0;
-  const nextInstallment =
-    (currentBill?.installments ?? []).find((i) => i.status !== "paid") ?? null;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">My Bills</h1>
-        <p className="text-muted-foreground text-sm">
-          Your current bill and payment history.
+        <p className="text-muted-foreground mt-2 text-sm">
+          Select a bill to view the full breakdown, pay the current term, and
+          download receipts.
         </p>
       </div>
 
-      {currentBill ? (
-        <div className="grid items-start gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-base">Current bill</CardTitle>
-              <CardDescription>{termTitle(currentBill)}</CardDescription>
-              <CardAction>
-                <Badge
-                  variant="outline"
-                  className={BILL_STATUS_META[currentBill.status].className}
-                >
-                  {BILL_STATUS_META[currentBill.status].label}
-                </Badge>
-              </CardAction>
-            </CardHeader>
-
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <StatTile
-                  label="Amount due now"
-                  value={formatPeso(currentBill.amountDue)}
-                  accent
-                />
-                <StatTile
-                  label="Total balance"
-                  value={formatPeso(currentBill.balance)}
-                />
-                <StatTile
-                  label="Paid"
-                  value={formatPeso(currentBill.amountPaid)}
-                  hint={`${paidPct}% of ${formatPeso(currentBill.netTotal)}`}
-                />
-              </div>
-
-              <div
-                className="bg-muted h-2 w-full overflow-hidden rounded-full"
-                role="progressbar"
-                aria-valuenow={paidPct}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div
-                  className="bg-primary h-full rounded-full transition-all"
-                  style={{ width: `${paidPct}%` }}
-                />
-              </div>
-
-              {nextInstallment?.dueDate && (
-                <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <CalendarClockIcon className="size-4" />
-                    Next payment
-                  </span>
-                  <span className="font-medium">
-                    {formatPeso(nextInstallment.amount)} · due{" "}
-                    {formatDate(nextInstallment.dueDate)}
-                  </span>
-                </div>
-              )}
-
-              {hasPending && (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  <ClockIcon className="size-4 shrink-0" />
-                  {formatPeso(pendingTotal)} awaiting verification — you can
-                  submit another payment once it's reviewed.
-                </div>
-              )}
-            </CardContent>
-
-            <CardFooter className="gap-2 border-t">
-              <Button
-                variant="outline"
-                onClick={() => setDetailBill(currentBill)}
-              >
-                <EyeIcon />
-                View details
-              </Button>
-              {currentBill.amountPaid > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    printBillReceipt(
-                      currentBill,
-                      billReceiptParty(currentBill, userName),
-                    )
-                  }
-                >
-                  <DownloadIcon />
-                  Receipt
-                </Button>
-              )}
-              <PayDialog
-                bill={currentBill}
-                channels={payChannels}
-                disabled={hasPending}
-              />
-            </CardFooter>
-          </Card>
-
-          <HistoryCard bills={history} onView={setDetailBill} />
-        </div>
+      {bills.length === 0 ? (
+        <Card>
+          <CardContent>
+            <EmptyState
+              icon={ReceiptTextIcon}
+              title="No bills yet"
+              message="Your bill for the current term hasn't been issued yet. Please check back later."
+            />
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-6">
-          {settledBill && (
-            <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-              <CheckCircle2Icon className="size-5 shrink-0" />
-              <div>
-                <p className="text-sm font-medium">
-                  You're all paid up for {termTitle(settledBill)}
-                </p>
-                <p className="text-xs">
-                  Your current bill is fully settled — find it in your history
-                  below.
-                </p>
-              </div>
-            </div>
-          )}
-          <HistoryCard bills={history} onView={setDetailBill} />
-        </div>
+        <BillsListCard
+          bills={bills}
+          currentId={currentBill?.id}
+          onView={openBill}
+        />
       )}
-
-      <BillDetailDialog
-        bill={detailBill}
-        party={detailBill ? billReceiptParty(detailBill, userName) : null}
-        onOpenChange={(open) => {
-          if (!open) setDetailBill(null);
-        }}
-      />
     </div>
   );
 }

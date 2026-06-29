@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['bill_id', 'name', 'amount'])]
+#[Fillable(['bill_id', 'name', 'category', 'amount'])]
 class BillItem extends Model
 {
     /**

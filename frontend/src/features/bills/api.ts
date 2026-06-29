@@ -161,7 +161,8 @@ export async function uploadPaymentProof(file: File): Promise<string> {
 }
 
 export interface SubmitPaymentInput {
-  // At least the amount due now (next installment), at most the balance.
+  // Greater than 0; if something is due now, at least that amount, up to the
+  // full remaining balance.
   amount: number;
   method: PaymentMethod;
   reference?: string | null;

@@ -56,6 +56,7 @@ export const PAYMENT_STATUS_META: Record<
 export interface BillItem {
   id?: number;
   name: string;
+  category: string;
   amount: number;
 }
 

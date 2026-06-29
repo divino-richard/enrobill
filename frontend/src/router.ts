@@ -32,6 +32,7 @@ import AdminPaymentChannelsPage from './pages/admin/payment-channels-page'
 import AccountPage from './pages/account-page'
 import PortalHomePage from './pages/portal/home-page'
 import PortalBillsPage from './pages/portal/bills-page'
+import PortalBillDetailPage from './pages/portal/bill-detail-page'
 import PortalProgramsPage from './pages/portal/programs-page'
 import PortalNotificationsPage from './pages/portal/notifications-page'
 import ApplicationPage from './pages/portal/application-page'
@@ -107,6 +108,7 @@ export const router = createBrowserRouter([
           { path: 'account', Component: AccountPage },
           { path: 'notifications', Component: PortalNotificationsPage },
           { path: 'bills', Component: PortalBillsPage },
+          { path: 'bills/:id', Component: PortalBillDetailPage },
           { path: 'programs', Component: PortalProgramsPage },
           { path: 'application', Component: ApplicationPage },
           { path: 'application/new', Component: ApplicationNewPage },

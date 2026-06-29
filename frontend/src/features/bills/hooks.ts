@@ -175,7 +175,14 @@ export function useSubmitMyPayment() {
     mutationFn: (input: SubmitPaymentInput) => submitMyPayment(input),
     onSuccess: (bill) => {
       queryClient.setQueryData(myBillQueryKey, bill);
+      queryClient.setQueryData<Bill[] | undefined>(myBillsQueryKey, (current) => {
+        if (!current) return current;
+        const index = current.findIndex((item) => item.id === bill.id);
+        if (index === -1) return [bill, ...current];
+        const next = [...current];
+        next[index] = bill;
+        return next;
+      });
     },
   });
 }
-

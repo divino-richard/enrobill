@@ -99,7 +99,11 @@ class GenerateBillForEnrollment
             ]);
 
             $bill->items()->createMany(
-                $fees->map(fn ($fee) => ['name' => $fee->name, 'amount' => $fee->amount])->all(),
+                $fees->map(fn ($fee) => [
+                    'name' => $fee->name,
+                    'category' => $fee->category,
+                    'amount' => $fee->amount,
+                ])->all(),
             );
 
             // Vouchers/catalog credits first.

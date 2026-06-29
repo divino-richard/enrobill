@@ -141,6 +141,14 @@ class StudentBillController extends Controller
 
         $amount = round((float) $validated['amount'], 2);
 
+        if ($amount <= 0) {
+            throw ValidationException::withMessages([
+                'amount' => $due > 0
+                    ? "Please pay at least the amount due of {$due}."
+                    : 'Please enter an amount greater than 0.',
+            ]);
+        }
+
         if ($amount < $due - 0.01) {
             throw ValidationException::withMessages([
                 'amount' => "Please pay at least the amount due of {$due}.",

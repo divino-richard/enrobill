@@ -51,6 +51,7 @@ class BillResource extends JsonResource
             'items' => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'name' => $item->name,
+                'category' => $item->category,
                 'amount' => (float) $item->amount,
             ])->values(),
             'adjustments' => $this->whenLoaded('adjustments', fn () => $this->adjustments->map(fn ($adjustment) => [
