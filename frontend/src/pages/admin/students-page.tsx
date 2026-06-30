@@ -17,6 +17,7 @@ import {
   GraduationCapIcon,
   SearchIcon,
   SquarePenIcon,
+  XIcon,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -24,20 +25,34 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RowActions } from "@/components/row-actions";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { useStudents } from "@/features/students/hooks";
 import { useProgression } from "@/features/progression/hooks";
+import { useProgramGroups } from "@/features/programs/hooks";
+import { useTerms } from "@/features/terms/hooks";
 import {
   STUDENT_STATUS_OPTIONS,
   studentFullName,
   type Student,
   type StudentStatus,
 } from "@/features/students/types";
+import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 import { formatDate } from "@/features/applications/utils";
 
 type StatusFilter = StudentStatus | "all";
+type SchoolYearFilter = string | "all";
+type YearLevelFilter = string | "all";
+type TrackFilter = string | "all";
 
 function SortHeader({
   column,
@@ -68,9 +83,14 @@ function SortHeader({
 function StudentsPage() {
   const navigate = useNavigate();
   const progression = useProgression();
+  const { data: terms } = useTerms();
+  const programGroups = useProgramGroups();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [schoolYear, setSchoolYear] = useState<SchoolYearFilter>("all");
+  const [yearLevel, setYearLevel] = useState<YearLevelFilter>("all");
+  const [trackOrStrand, setTrackOrStrand] = useState<TrackFilter>("all");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "studentNumber", desc: false },
   ]);
@@ -82,7 +102,7 @@ function StudentsPage() {
   // Any change to the filters returns to the first page.
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [debouncedSearch, status]);
+  }, [debouncedSearch, status, schoolYear, yearLevel, trackOrStrand]);
 
   const sortState = sorting[0];
   const query = useStudents({
@@ -91,6 +111,9 @@ function StudentsPage() {
     sort: sortState?.id,
     dir: sortState?.desc ? "desc" : "asc",
     status: status === "all" ? undefined : status,
+    schoolYear: schoolYear === "all" ? undefined : schoolYear,
+    yearLevel: yearLevel === "all" ? undefined : yearLevel,
+    programCode: trackOrStrand === "all" ? undefined : trackOrStrand,
     search: debouncedSearch || undefined,
   });
 
@@ -122,6 +145,9 @@ function StudentsPage() {
       },
       {
         id: "name",
+        // accessorFn is required for TanStack to mark the column sortable, even
+        // though ordering is done server-side (manualSorting).
+        accessorFn: (row) => studentFullName(row),
         header: ({ column }) => <SortHeader column={column} title="Name" />,
         cell: ({ row }) => (
           <div className="flex flex-col">
@@ -226,15 +252,20 @@ function StudentsPage() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const filterPills: { value: StatusFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    ...STUDENT_STATUS_OPTIONS.map((option) => ({
-      value: option.value as StatusFilter,
-      label: option.label,
-    })),
-  ];
+  const hasFilters =
+    Boolean(debouncedSearch) ||
+    status !== "all" ||
+    schoolYear !== "all" ||
+    yearLevel !== "all" ||
+    trackOrStrand !== "all";
 
-  const hasFilters = Boolean(debouncedSearch) || status !== "all";
+  const clearFilters = () => {
+    setSearch("");
+    setStatus("all");
+    setSchoolYear("all");
+    setYearLevel("all");
+    setTrackOrStrand("all");
+  };
 
   return (
     <div className="space-y-6">
@@ -283,8 +314,8 @@ function StudentsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-xs">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
+            <div className="relative w-full">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 value={search}
@@ -293,26 +324,88 @@ function StudentsPage() {
                 className="pl-9"
               />
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {filterPills.map((pill) => {
-                const active = status === pill.value;
-                return (
-                  <button
-                    key={pill.value}
-                    type="button"
-                    onClick={() => setStatus(pill.value)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                      active
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {pill.label}
-                  </button>
-                );
-              })}
-            </div>
+
+            <Select
+              value={status}
+              onValueChange={(value) => setStatus(value as StatusFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {STUDENT_STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={schoolYear}
+              onValueChange={(value) => setSchoolYear(value as SchoolYearFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All school years" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All school years</SelectItem>
+                {(terms ?? []).map((term) => (
+                  <SelectItem key={term.id} value={term.schoolYear}>
+                    {`SY ${term.schoolYear}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={yearLevel}
+              onValueChange={(value) => setYearLevel(value as YearLevelFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All year levels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All year levels</SelectItem>
+                {YEAR_LEVEL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={trackOrStrand}
+              onValueChange={(value) => setTrackOrStrand(value as TrackFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All tracks / strands" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All tracks / strands</SelectItem>
+                {programGroups.map((group) => (
+                  <SelectGroup key={group.label}>
+                    <SelectLabel>{group.label}</SelectLabel>
+                    {group.options.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              onClick={clearFilters}
+              disabled={!hasFilters}
+            >
+              <XIcon />
+              Clear
+            </Button>
           </div>
 
           <DataTable

@@ -149,6 +149,9 @@ function AdminApplicationsPage() {
       },
       {
         id: "applicantName",
+        // accessorFn is required for TanStack to mark the column sortable, even
+        // though ordering is done server-side (manualSorting).
+        accessorFn: (row) => row.applicant.name,
         header: ({ column }) => <SortHeader column={column} title="Applicant" />,
         cell: ({ row }) => (
           <div className="flex items-center gap-3">

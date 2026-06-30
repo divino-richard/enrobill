@@ -23,7 +23,7 @@ class StudentController extends Controller
      */
     private const SORTABLE = [
         'studentNumber' => 'student_number',
-        'name' => 'last_name',
+        'name' => 'first_name',
         'schoolYear' => 'school_year',
         'status' => 'status',
         'createdAt' => 'created_at',
@@ -35,7 +35,7 @@ class StudentController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $sort = self::SORTABLE[$request->string('sort')->value()] ?? 'last_name';
+        $sort = self::SORTABLE[$request->string('sort')->value()] ?? 'first_name';
         $direction = $request->string('dir')->lower()->value() === 'desc' ? 'desc' : 'asc';
         $perPage = min(max($request->integer('per_page', 15), 1), 100);
 
@@ -43,6 +43,18 @@ class StudentController extends Controller
             ->when(
                 in_array($request->string('status')->value(), self::STATUSES, true),
                 fn ($query) => $query->where('status', $request->string('status')->value()),
+            )
+            ->when(
+                $request->filled('school_year'),
+                fn ($query) => $query->where('school_year', $request->string('school_year')->value()),
+            )
+            ->when(
+                in_array($request->string('year_level')->value(), SchoolYear::YEAR_LEVELS, true),
+                fn ($query) => $query->where('year_level', $request->string('year_level')->value()),
+            )
+            ->when(
+                $request->filled('program_code'),
+                fn ($query) => $query->where('track_or_strand', $request->string('program_code')->value()),
             )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search')->value().'%';
@@ -55,7 +67,7 @@ class StudentController extends Controller
             })
             ->orderBy($sort, $direction)
             // Stable secondary order so equal values don't shuffle between pages.
-            ->when($sort === 'last_name', fn ($query) => $query->orderBy('first_name', $direction))
+            ->when($sort === 'first_name', fn ($query) => $query->orderBy('last_name', $direction))
             ->orderBy('id', $direction)
             ->paginate($perPage)
             ->withQueryString();
