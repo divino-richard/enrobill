@@ -28,6 +28,8 @@ class ApplicationController extends Controller
      */
     private const SORTABLE = [
         'reference' => 'reference',
+        'applicantName' => 'surname',
+        'yearLevel' => 'year_level',
         'schoolYear' => 'school_year',
         'status' => 'status',
         'submittedAt' => 'submitted_at',
@@ -49,6 +51,18 @@ class ApplicationController extends Controller
                 in_array($request->string('status')->value(), self::STATUSES, true),
                 fn ($query) => $query->where('status', $request->string('status')->value()),
             )
+            ->when(
+                $request->filled('school_year'),
+                fn ($query) => $query->where('school_year', $request->string('school_year')->value()),
+            )
+            ->when(
+                in_array($request->string('year_level')->value(), \App\Models\SchoolYear::YEAR_LEVELS, true),
+                fn ($query) => $query->where('year_level', $request->string('year_level')->value()),
+            )
+            ->when(
+                $request->filled('program_code'),
+                fn ($query) => $query->where('track_or_strand', $request->string('program_code')->value()),
+            )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search')->value().'%';
                 $query->where(function ($sub) use ($term) {
@@ -56,6 +70,8 @@ class ApplicationController extends Controller
                         ->orWhere('surname', 'like', $term)
                         ->orWhere('given_name', 'like', $term)
                         ->orWhere('email_address', 'like', $term)
+                        ->orWhere('school_year', 'like', $term)
+                        ->orWhere('track_or_strand', 'like', $term)
                         ->orWhereHas('user', function ($user) use ($term) {
                             $user->where('name', 'like', $term)
                                 ->orWhere('email', 'like', $term);
@@ -63,6 +79,10 @@ class ApplicationController extends Controller
                 });
             })
             ->orderBy($sort, $direction)
+            ->when(
+                $sort === 'surname',
+                fn ($query) => $query->orderBy('given_name', $direction),
+            )
             ->orderBy('id', $direction)
             ->paginate($perPage)
             ->withQueryString();

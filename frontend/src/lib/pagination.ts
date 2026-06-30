@@ -15,6 +15,9 @@ export interface ListParams {
   sort?: string;
   dir?: "asc" | "desc";
   status?: string;
+  schoolYear?: string;
+  yearLevel?: string;
+  programCode?: string;
   role?: string;
   search?: string;
   category?: string;
@@ -56,6 +59,9 @@ export function listParamsToQuery(params: ListParams) {
     sort: params.sort,
     dir: params.dir,
     status: params.status,
+    school_year: params.schoolYear,
+    year_level: params.yearLevel,
+    program_code: params.programCode,
     role: params.role,
     search: params.search,
     category: params.category,

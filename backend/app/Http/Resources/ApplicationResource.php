@@ -47,6 +47,8 @@ class ApplicationResource extends JsonResource
             'id' => $this->id,
             'reference' => $this->reference,
             'program' => self::programLabel($this->track_or_strand),
+            'programCode' => $this->track_or_strand ?? '',
+            'yearLevel' => $this->year_level ?? '',
             'schoolYear' => $this->school_year ?? '—',
             'status' => $this->status,
             'decisionNote' => $this->decision_note,

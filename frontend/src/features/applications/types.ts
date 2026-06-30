@@ -12,6 +12,8 @@ export interface Application {
   id: number;
   reference: string;
   program: string;
+  programCode: string;
+  yearLevel: string;
   schoolYear: string;
   status: ApplicationStatus;
   decisionNote: string | null;
