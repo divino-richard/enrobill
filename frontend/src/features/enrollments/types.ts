@@ -27,7 +27,6 @@ export interface EnrollmentOpenBill {
 export interface Enrollment {
   id: number;
   schoolYear: string | null;
-  semester: string | null;
   program: string | null;
   yearLevel: string | null;
   noDownpayment: boolean;

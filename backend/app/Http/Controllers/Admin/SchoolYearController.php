@@ -15,8 +15,6 @@ use Illuminate\Validation\ValidationException;
 
 class SchoolYearController extends Controller
 {
-    private const SEMESTERS = ['first', 'second'];
-
     /**
      * All school years, newest first. Restricted to admins by route middleware.
      */
@@ -57,7 +55,6 @@ class SchoolYearController extends Controller
         $schoolYear = DB::transaction(function () use ($validated, $seedFees) {
             $schoolYear = SchoolYear::create([
                 'school_year' => $validated['schoolYear'],
-                'current_semester' => 'first',
                 'start_date' => $validated['startDate'],
                 'end_date' => $validated['endDate'],
                 'is_active' => false,
@@ -120,9 +117,9 @@ class SchoolYearController extends Controller
 
     /**
      * Toggle a school year's active state, its admission window and/or its
-     * progression window, and advance its current-semester pointer. Activating one
-     * deactivates any other (at most one active at a time). Deactivating also closes
-     * admissions and progression; both can only be open on the active year.
+     * progression window. Activating one deactivates any other (at most one
+     * active at a time). Deactivating also closes admissions and progression;
+     * both can only be open on the active year.
      */
     public function update(Request $request, SchoolYear $schoolYear): SchoolYearResource
     {
@@ -132,7 +129,6 @@ class SchoolYearController extends Controller
             // Nullable: null clears the override (follow the end-date schedule),
             // true/false force the window open/closed.
             'progressionOpen' => ['sometimes', 'nullable', 'boolean'],
-            'currentSemester' => ['sometimes', Rule::in(self::SEMESTERS)],
         ]);
 
         DB::transaction(function () use ($schoolYear, $validated) {
@@ -170,10 +166,6 @@ class SchoolYearController extends Controller
                     ]);
                 }
                 $schoolYear->progression_open = $validated['progressionOpen'];
-            }
-
-            if (array_key_exists('currentSemester', $validated)) {
-                $schoolYear->current_semester = $validated['currentSemester'];
             }
 
             $schoolYear->save();

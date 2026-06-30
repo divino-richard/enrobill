@@ -48,7 +48,6 @@ export function useUpdateTermStatus() {
       isActive?: boolean;
       admissionOpen?: boolean;
       progressionOpen?: boolean | null;
-      currentSemester?: string;
     }) => updateTermStatus(id, changes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: termsQueryKey });

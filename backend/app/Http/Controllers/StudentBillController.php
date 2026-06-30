@@ -55,7 +55,7 @@ class StudentBillController extends Controller
     }
 
     /**
-     * The student's enrollment per school year — program, year level, semester and
+     * The student's enrollment per school year — program, year level, and
      * status for the current year plus past years. Newest first.
      */
     public function enrollments(Request $request): AnonymousResourceCollection

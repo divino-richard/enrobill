@@ -23,7 +23,6 @@ class EnrollmentResource extends JsonResource
         return [
             'id' => $this->id,
             'schoolYear' => $this->schoolYear?->school_year,
-            'semester' => $this->schoolYear?->current_semester,
             'program' => $this->track,
             'yearLevel' => $this->year_level,
             'noDownpayment' => (bool) $this->no_downpayment,

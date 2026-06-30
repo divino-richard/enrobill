@@ -13,7 +13,6 @@ export interface Application {
   reference: string;
   program: string;
   schoolYear: string;
-  semester: string;
   status: ApplicationStatus;
   decisionNote: string | null;
   submittedAt: string | null;
@@ -97,7 +96,6 @@ export interface ApplicationFormValues {
   // Course & Strand Selection
   trackOrStrand: string;
   yearLevel: string;
-  semester: string;
   schoolYear: string;
   // Declaration / electronic signature
   declarationStudentName: string;
@@ -124,16 +122,11 @@ export const CIVIL_STATUS_OPTIONS = [
 ] as const;
 
 // Track / strand options come from the admin-managed program catalog
-// (@/features/programs). Year level, semester and enrollment type are fixed.
+// (@/features/programs). Year level and enrollment type are fixed.
 
 export const YEAR_LEVEL_OPTIONS = [
   { value: "grade_11", label: "Grade 11" },
   { value: "grade_12", label: "Grade 12" },
-] as const;
-
-export const SEMESTER_OPTIONS = [
-  { value: "first", label: "1st Semester" },
-  { value: "second", label: "2nd Semester" },
 ] as const;
 
 export const SCHOOL_TYPE_OPTIONS = [

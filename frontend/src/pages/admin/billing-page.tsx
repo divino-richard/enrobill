@@ -29,7 +29,6 @@ import { formatPeso } from "@/lib/money";
 import { formatDate } from "@/features/applications/utils";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useTerms } from "@/features/terms/hooks";
-import { semesterLabel } from "@/features/terms/types";
 import { useBills } from "@/features/bills/hooks";
 import {
   BILL_STATUS_META,
@@ -138,16 +137,9 @@ function BillingPage() {
         header: "School year",
         enableSorting: false,
         cell: ({ row }) => (
-          <div className="flex flex-col whitespace-nowrap">
-            <span>
-              {row.original.schoolYear ? `SY ${row.original.schoolYear}` : "—"}
-            </span>
-            {row.original.semester && (
-              <span className="text-muted-foreground text-xs">
-                {semesterLabel(row.original.semester)}
-              </span>
-            )}
-          </div>
+          <span className="whitespace-nowrap">
+            {row.original.schoolYear ? `SY ${row.original.schoolYear}` : "—"}
+          </span>
         ),
       },
       {

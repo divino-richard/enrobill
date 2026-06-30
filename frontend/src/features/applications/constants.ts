@@ -93,7 +93,6 @@ export const STEP_FIELDS: Record<number, TextFieldKey[]> = {
   3: [
     "trackOrStrand",
     "yearLevel",
-    "semester",
     "schoolYear",
     "declarationStudentName",
     "declarationGuardianName",
@@ -121,7 +120,6 @@ export const MOCK_APPLICATIONS: Application[] = [
     reference: "APP-2026-001245",
     program: "BS Information Technology",
     schoolYear: "2026–2027",
-    semester: "1st Semester",
     status: "under_review",
     decisionNote: null,
     submittedAt: "2026-06-12T08:30:00Z",
@@ -132,7 +130,6 @@ export const MOCK_APPLICATIONS: Application[] = [
     reference: "APP-2025-000871",
     program: "BS Information Technology",
     schoolYear: "2025–2026",
-    semester: "1st Semester",
     status: "rejected",
     decisionNote: "Incomplete documents — please attach your Grade 10 report card and resubmit.",
     submittedAt: "2025-06-03T02:15:00Z",

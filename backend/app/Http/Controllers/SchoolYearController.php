@@ -19,7 +19,6 @@ class SchoolYearController extends Controller
         return response()->json([
             'data' => $schoolYear ? [
                 'schoolYear' => $schoolYear->school_year,
-                'semester' => $schoolYear->current_semester,
             ] : null,
         ]);
     }

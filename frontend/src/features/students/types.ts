@@ -140,7 +140,6 @@ export type EnrollmentStatus =
 export interface EnrollmentRecord {
   id: number;
   schoolYear: string | null;
-  semester: string | null;
   program: string | null;
   yearLevel: string | null;
   status: EnrollmentStatus;

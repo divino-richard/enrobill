@@ -171,7 +171,6 @@ function BillHeroHeader({
         </div>
         <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
           <span>{billReference(bill.id)}</span>
-          {bill.semester && <span>{bill.semester}</span>}
           <span>Issued {formatDate(bill.createdAt)}</span>
         </div>
       </div>

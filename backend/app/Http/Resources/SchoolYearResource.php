@@ -19,7 +19,6 @@ class SchoolYearResource extends JsonResource
         return [
             'id' => $this->id,
             'schoolYear' => $this->school_year,
-            'currentSemester' => $this->current_semester,
             'startDate' => $this->start_date?->format('Y-m-d'),
             'endDate' => $this->end_date?->format('Y-m-d'),
             'isActive' => (bool) $this->is_active,

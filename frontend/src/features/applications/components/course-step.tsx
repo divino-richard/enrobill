@@ -47,10 +47,9 @@ export function CourseStep({ form }: CourseStepProps) {
     }
   }, [form]);
 
-  // Semester and school year aren't chosen — they're fixed to the open term.
+  // The school year isn't chosen — it's fixed to the open enrollment year.
   useEffect(() => {
     if (openTerm) {
-      form.setFieldValue("semester", openTerm.semester);
       form.setFieldValue("schoolYear", openTerm.schoolYear);
     }
   }, [form, openTerm]);

@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'prev_school_name', 'prev_school_grade_level', 'prev_school_address',
     'prev_school_year_graduated', 'prev_school_gpa', 'prev_school_type',
     'document_promissory_note', 'document_promissory_date',
-    'track_or_strand', 'year_level', 'semester', 'school_year',
+    'track_or_strand', 'year_level', 'school_year',
     'declaration_student_name', 'declaration_guardian_name', 'date_signed',
     'agreement_accepted', 'submitted_at',
 ])]

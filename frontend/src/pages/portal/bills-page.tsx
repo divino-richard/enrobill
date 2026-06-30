@@ -58,9 +58,7 @@ function BillsMobileList({
                     </Badge>
                   )}
                 </div>
-                <p className="text-muted-foreground text-sm">
-                  {bill.semester ?? "Term bill"}
-                </p>
+                <p className="text-muted-foreground text-sm">School year bill</p>
               </div>
               <ChevronRightIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
             </div>

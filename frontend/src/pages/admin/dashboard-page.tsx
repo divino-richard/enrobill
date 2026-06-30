@@ -37,7 +37,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { StaffDashboard } from "@/features/dashboard/api";
 import { useAuthStore } from "@/features/auth/store";
 import { useStaffDashboard } from "@/features/dashboard/hooks";
-import { semesterLabel } from "@/features/terms/types";
 import { formatPeso } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -247,11 +246,6 @@ function DashboardPage() {
               <Badge variant="outline" className="bg-background/80">
                 {openTerm ? `SY ${openTerm.schoolYear}` : "No active term"}
               </Badge>
-              {openTerm && (
-                <Badge variant="outline" className="bg-background/80">
-                  {semesterLabel(openTerm.semester)}
-                </Badge>
-              )}
               {isAdmin && openTerm && (
                 <Badge
                   variant="outline"
@@ -313,7 +307,7 @@ function DashboardPage() {
               }
               hint={
                 openTerm
-                  ? semesterLabel(openTerm.semester)
+                  ? "Admissions and billing are tied to this active school year"
                   : "Activate an academic year to populate the workspace"
               }
               icon={CalendarRangeIcon}

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'school_year', 'current_semester', 'start_date', 'end_date', 'is_active', 'admission_open',
+    'school_year', 'start_date', 'end_date', 'is_active', 'admission_open',
     'progression_open', 'downpayment_type', 'downpayment_value', 'installment_count',
 ])]
 class SchoolYear extends Model

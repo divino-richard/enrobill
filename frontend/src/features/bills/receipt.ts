@@ -1,5 +1,4 @@
 import { formatPeso } from "@/lib/money";
-import { semesterLabel } from "@/features/terms/types";
 import { paymentMethodLabel, type Bill } from "./types";
 
 // Who the receipt is billed to. The admin pages can read this off the bill's
@@ -30,11 +29,7 @@ function formatIssuedAt(date: Date): string {
 }
 
 function termLine(bill: Bill): string {
-  const parts = [
-    bill.schoolYear ? `SY ${bill.schoolYear}` : null,
-    bill.semester ? semesterLabel(bill.semester) : null,
-  ].filter(Boolean);
-  return parts.join(" · ") || "—";
+  return bill.schoolYear ? `SY ${bill.schoolYear}` : "—";
 }
 
 // Build the self-contained, print-optimized HTML document for a bill receipt.

@@ -57,7 +57,6 @@ class DashboardController extends Controller
 
         return [
             'schoolYear' => $schoolYear->school_year,
-            'semester' => $schoolYear->current_semester,
             'admissionOpen' => (bool) $schoolYear->admission_open,
             'progressionOpen' => $schoolYear->isProgressionOpen(),
         ];

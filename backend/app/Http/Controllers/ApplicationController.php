@@ -80,7 +80,6 @@ class ApplicationController extends Controller
                 ...$this->mapAttributes($request),
                 // The school year is set by the system, not the applicant.
                 'school_year' => $schoolYear->school_year,
-                'semester' => $schoolYear->current_semester,
             ]);
 
             $application->forceFill([
@@ -151,7 +150,6 @@ class ApplicationController extends Controller
                 ...$this->mapAttributes($request),
                 // The school year is set by the system, not the applicant.
                 'school_year' => $schoolYear->school_year,
-                'semester' => $schoolYear->current_semester,
             ]);
 
             // Replace the document set with whatever the applicant resubmitted.
@@ -191,7 +189,6 @@ class ApplicationController extends Controller
             'gender' => ['required', 'string'],
             'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
             'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
-            'semester' => ['required', 'string'],
             'schoolYear' => ['required', 'string'],
             'agreementAccepted' => ['accepted'],
             'documents' => ['array'],
@@ -295,7 +292,6 @@ class ApplicationController extends Controller
             'document_promissory_date' => $hasAllOptional ? null : ($request->input('documentPromissoryDate') ?: null),
             'track_or_strand' => $request->input('trackOrStrand'),
             'year_level' => $request->input('yearLevel'),
-            'semester' => $request->input('semester'),
             'school_year' => $request->input('schoolYear'),
             'declaration_student_name' => $request->input('declarationStudentName'),
             'declaration_guardian_name' => $request->input('declarationGuardianName'),

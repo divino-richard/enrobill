@@ -106,7 +106,6 @@ export interface Bill {
   studentId: number;
   schoolYearId: number;
   schoolYear: string | null;
-  semester: string | null;
   status: BillStatus;
   noDownpayment: boolean;
   installmentPolicy: InstallmentPolicy | null;

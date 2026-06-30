@@ -229,7 +229,7 @@ export function StudentDashboard() {
             <CardTitle className="text-base">Account summary</CardTitle>
             <CardDescription>
               {bill
-                ? `SY ${bill.schoolYear}${bill.semester ? ` · ${bill.semester}` : ""}`
+                ? `SY ${bill.schoolYear}`
                 : "Your tuition assessment for the open term."}
             </CardDescription>
             {billStatus ? (

@@ -5,7 +5,6 @@ export interface StaffDashboard {
   role: Role;
   openTerm: {
     schoolYear: string;
-    semester: string;
     admissionOpen: boolean;
     progressionOpen: boolean;
   } | null;

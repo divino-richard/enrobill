@@ -29,7 +29,6 @@ class BillResource extends JsonResource
             'studentId' => $this->student_id,
             'schoolYearId' => $this->school_year_id,
             'schoolYear' => $this->schoolYear?->school_year,
-            'semester' => $this->schoolYear?->current_semester,
             'status' => $this->status,
             'noDownpayment' => (bool) ($this->whenLoaded('enrollment', fn () => $this->enrollment?->no_downpayment, false)),
             'installmentPolicy' => $this->schoolYear ? [

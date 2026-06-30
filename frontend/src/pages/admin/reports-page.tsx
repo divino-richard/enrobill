@@ -53,16 +53,14 @@ import {
   type EnrollmentStatus,
 } from "@/features/enrollments/types";
 import { type PaymentChannel } from "@/features/payment-channels/types";
-import { semesterLabel, type TermSemester } from "@/features/terms/types";
 import { formatPeso } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
-type ReportPeriod = "month" | "quarter" | "semester";
+type ReportPeriod = "month" | "quarter" | "year";
 
 interface ReportTerm {
   id: number;
   schoolYear: string;
-  currentSemester: TermSemester;
   isActive: boolean;
 }
 
@@ -98,7 +96,6 @@ interface OutstandingBalanceRow {
   program: string;
   yearLevel: string;
   schoolYear: string;
-  semester: TermSemester;
   status: BillStatus;
   paymentStatus: PaymentStatus;
   netTotal: number;
@@ -174,13 +171,11 @@ const REPORT_TERMS: ReportTerm[] = [
   {
     id: 7,
     schoolYear: "2026-2027",
-    currentSemester: "first",
     isActive: true,
   },
   {
     id: 6,
     schoolYear: "2025-2026",
-    currentSemester: "second",
     isActive: false,
   },
 ];
@@ -188,7 +183,7 @@ const REPORT_TERMS: ReportTerm[] = [
 const PERIOD_OPTIONS: { value: ReportPeriod; label: string }[] = [
   { value: "month", label: "This month" },
   { value: "quarter", label: "This quarter" },
-  { value: "semester", label: "Semester view" },
+  { value: "year", label: "School year view" },
 ];
 
 const REPORT_DATA: Record<string, ReportDataset> = {
@@ -258,7 +253,6 @@ const REPORT_DATA: Record<string, ReportDataset> = {
         program: "STEM",
         yearLevel: "Grade 12",
         schoolYear: "2026-2027",
-        semester: "first",
         status: "partial",
         paymentStatus: "pending",
         netTotal: 15500,
@@ -273,7 +267,6 @@ const REPORT_DATA: Record<string, ReportDataset> = {
         program: "ABM",
         yearLevel: "Grade 11",
         schoolYear: "2026-2027",
-        semester: "first",
         status: "unpaid",
         paymentStatus: "rejected",
         netTotal: 14800,
@@ -288,7 +281,6 @@ const REPORT_DATA: Record<string, ReportDataset> = {
         program: "TVL - ICT",
         yearLevel: "Grade 12",
         schoolYear: "2026-2027",
-        semester: "first",
         status: "partial",
         paymentStatus: "verified",
         netTotal: 16350,
@@ -303,7 +295,6 @@ const REPORT_DATA: Record<string, ReportDataset> = {
         program: "HUMSS",
         yearLevel: "Grade 11",
         schoolYear: "2026-2027",
-        semester: "first",
         status: "partial",
         paymentStatus: "pending",
         netTotal: 15100,
@@ -596,7 +587,6 @@ const REPORT_DATA: Record<string, ReportDataset> = {
         program: "TVL - HE",
         yearLevel: "Grade 12",
         schoolYear: "2025-2026",
-        semester: "second",
         status: "partial",
         paymentStatus: "pending",
         netTotal: 13900,
@@ -611,7 +601,6 @@ const REPORT_DATA: Record<string, ReportDataset> = {
         program: "STEM",
         yearLevel: "Grade 12",
         schoolYear: "2025-2026",
-        semester: "second",
         status: "unpaid",
         paymentStatus: "rejected",
         netTotal: 12150,
@@ -779,7 +768,7 @@ function ReportsPage() {
   const [selectedTermId, setSelectedTermId] = useState(
     String(REPORT_TERMS[0].id),
   );
-  const [period, setPeriod] = useState<ReportPeriod>("semester");
+  const [period, setPeriod] = useState<ReportPeriod>("year");
 
   const selectedTerm =
     REPORT_TERMS.find((term) => String(term.id) === selectedTermId) ??
@@ -831,10 +820,10 @@ function ReportsPage() {
               <CalendarRangeIcon className="size-4 text-muted-foreground" />
               <SelectValue placeholder="School year" />
             </SelectTrigger>
-            <SelectContent>
+              <SelectContent>
               {REPORT_TERMS.map((term) => (
                 <SelectItem key={term.id} value={String(term.id)}>
-                  {`SY ${term.schoolYear} · ${semesterLabel(term.currentSemester)}`}
+                  {`SY ${term.schoolYear}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -870,9 +859,6 @@ function ReportsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="bg-background/80">
                 {`SY ${selectedTerm.schoolYear}`}
-              </Badge>
-              <Badge variant="outline" className="bg-background/80">
-                {semesterLabel(selectedTerm.currentSemester)}
               </Badge>
               <Badge variant="outline" className="bg-background/80">
                 {
@@ -1046,12 +1032,7 @@ function ReportsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span>{`SY ${row.schoolYear}`}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {semesterLabel(row.semester)}
-                          </span>
-                        </div>
+                        <span>{`SY ${row.schoolYear}`}</span>
                       </TableCell>
                       <TableCell>
                         <Badge

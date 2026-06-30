@@ -20,11 +20,6 @@ class ApplicationResource extends JsonResource
      */
     private static ?array $programNames = null;
 
-    private const SEMESTER_LABELS = [
-        'first' => '1st Semester',
-        'second' => '2nd Semester',
-    ];
-
     /**
      * Resolve a program code to its display name, falling back to the raw code.
      */
@@ -53,7 +48,6 @@ class ApplicationResource extends JsonResource
             'reference' => $this->reference,
             'program' => self::programLabel($this->track_or_strand),
             'schoolYear' => $this->school_year ?? '—',
-            'semester' => self::SEMESTER_LABELS[$this->semester] ?? ($this->semester ?? '—'),
             'status' => $this->status,
             'decisionNote' => $this->decision_note,
             'submittedAt' => $this->submitted_at?->toIso8601String(),
@@ -123,7 +117,6 @@ class ApplicationResource extends JsonResource
             'documentPromissoryDate' => $this->document_promissory_date?->format('Y-m-d') ?? '',
             'trackOrStrand' => $this->track_or_strand ?? '',
             'yearLevel' => $this->year_level ?? '',
-            'semester' => $this->semester ?? '',
             'schoolYear' => $this->school_year ?? '',
             'declarationStudentName' => $this->declaration_student_name ?? '',
             'declarationGuardianName' => $this->declaration_guardian_name ?? '',
