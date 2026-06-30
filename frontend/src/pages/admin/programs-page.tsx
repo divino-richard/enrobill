@@ -13,6 +13,7 @@ import {
   ReceiptTextIcon,
   SearchIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import { SortHeader } from "@/components/data-table-sort-header";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -520,22 +520,14 @@ function ProgramsPage() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const categoryPills: { value: CategoryFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    ...PROGRAM_CATEGORY_OPTIONS.map((option) => ({
-      value: option as CategoryFilter,
-      label: option,
-    })),
-  ];
-
-  const activePills: { value: ActiveFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "active", label: "Active" },
-    { value: "inactive", label: "Inactive" },
-  ];
-
   const hasFilters =
     Boolean(debouncedSearch) || category !== "all" || active !== "all";
+
+  const clearFilters = () => {
+    setSearch("");
+    setCategory("all");
+    setActive("all");
+  };
 
   return (
     <div className="space-y-6">
@@ -564,8 +556,8 @@ function ProgramsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative w-full sm:max-w-xs">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))_auto]">
+            <div className="relative w-full">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 value={search}
@@ -574,42 +566,46 @@ function ProgramsPage() {
                 className="pl-9"
               />
             </div>
-            <div className="flex flex-wrap gap-3">
-              <div className="flex flex-wrap gap-1.5">
-                {categoryPills.map((pill) => (
-                  <button
-                    key={pill.value}
-                    type="button"
-                    onClick={() => setCategory(pill.value)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                      category === pill.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {pill.label}
-                  </button>
+
+            <Select
+              value={category}
+              onValueChange={(value) => setCategory(value as CategoryFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All tracks" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All tracks</SelectItem>
+                {PROGRAM_CATEGORY_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
                 ))}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {activePills.map((pill) => (
-                  <button
-                    key={pill.value}
-                    type="button"
-                    onClick={() => setActive(pill.value)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                      active === pill.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {pill.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={active}
+              onValueChange={(value) => setActive(value as ActiveFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              onClick={clearFilters}
+              disabled={!hasFilters}
+            >
+              <XIcon />
+              Clear
+            </Button>
           </div>
 
           <DataTable
