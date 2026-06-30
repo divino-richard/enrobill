@@ -559,6 +559,7 @@ function TermsPage() {
   const { data, isLoading, isError, refetch } = useTerms();
   const terms = data ?? [];
   const activeTerm = terms.find((term) => term.isActive);
+  const admissionsOpen = activeTerm?.admissionOpen ?? false;
 
   const setStatus = useUpdateTermStatus();
   const remove = useDeleteTerm();
@@ -623,34 +624,26 @@ function TermsPage() {
       </div>
 
       {!isLoading && !isError && (
-        <div 
+        <div
           className={cn(
-            "text-primary flex items-center gap-2 rounded-lg border px-4 py-3 text-sm",
-            activeTerm?.admissionOpen ? "bg-primary-foreground border-primary/50" : "bg-muted border-muted-foreground/20"
-          )}>
-          <CalendarDaysIcon 
-            className={cn(
-              "size-4 shrink-0",
-              activeTerm?.admissionOpen ? "text-primary" : "text-muted-foreground"
-            )}
-          />
+            "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm",
+            admissionsOpen
+              ? "border-primary/50 bg-primary-foreground text-primary"
+              : "border-muted-foreground/20 bg-muted text-muted-foreground",
+          )}
+        >
+          <CalendarDaysIcon className="size-4 shrink-0" />
           {activeTerm ? (
-            <span 
-              className={cn(
-                activeTerm?.admissionOpen ? "text-primary" : "text-muted-foreground"
-              )}
-            >
+            <span>
               <span className="font-medium">{termLabel(activeTerm)}</span> is the
               active school year — admissions are{" "}
               <span className="font-medium">
-                {activeTerm.admissionOpen ? "open" : "closed"}
+                {admissionsOpen ? "open" : "closed"}
               </span>
               .
             </span>
           ) : (
-            <span className="text-muted-foreground">
-              No school year is currently active.
-            </span>
+            <span>No school year is currently active.</span>
           )}
         </div>
       )}
