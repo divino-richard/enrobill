@@ -163,18 +163,18 @@ function StudentDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
         {backButton}
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-10 w-72 rounded-xl" />
-        <Skeleton className="h-[30rem] w-full rounded-xl" />
+        <Skeleton className="h-120 w-full rounded-xl" />
       </div>
     );
   }
 
   if (isError || !student) {
     return (
-      <div className="mx-auto space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
         {backButton}
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
@@ -217,7 +217,7 @@ function StudentDetailPage() {
     : "—";
 
   return (
-    <div className="mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
       {backButton}
 
       <Card>
