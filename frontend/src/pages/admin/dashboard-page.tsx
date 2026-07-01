@@ -761,7 +761,7 @@ function getPrimaryAction({
 
   if (operations.pendingEnrollments > 0) {
     return {
-      label: "Process enrollments",
+      label: "View enrollments",
       description:
         "Pending enrollments need billing movement before they can progress.",
       to: "/admin/enrollments",

@@ -13,6 +13,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Section extends Model
 {
     /**
+     * Students per section. Used as the cap for auto-generated sections — once a
+     * grade's sections are full, the next lettered section opens at this size.
+     */
+    public const DEFAULT_CAPACITY = 20;
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

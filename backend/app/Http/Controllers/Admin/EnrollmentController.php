@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\AssignSectionOnEnroll;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
 use App\Models\Enrollment;
@@ -119,6 +120,11 @@ class EnrollmentController extends Controller
                 ? ($enrollment->enrolled_at ?? now())
                 : $enrollment->enrolled_at,
         ]);
+
+        // Auto-place the student into a section the first time they're enrolled.
+        if ($validated['status'] === 'enrolled') {
+            app(AssignSectionOnEnroll::class)($enrollment->fresh());
+        }
 
         $enrollment->student?->syncStatusFromLatestEnrollment();
 
