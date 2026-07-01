@@ -8,11 +8,11 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import {
+  FunnelXIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
   Trash2Icon,
-  XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -397,14 +397,17 @@ function ProgramsPage() {
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              disabled={!hasFilters}
-            >
-              <XIcon />
-              Clear
-            </Button>
+            {hasFilters && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={clearFilters}
+                aria-label="Clear filters"
+                title="Clear filters"
+              >
+                <FunnelXIcon />
+              </Button>
+            )}
           </div>
 
           <DataTable

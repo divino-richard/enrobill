@@ -14,8 +14,8 @@ import {
   ChevronUpIcon,
   ChevronsUpDownIcon,
   EyeIcon,
+  FunnelXIcon,
   SearchIcon,
-  XIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -392,14 +392,17 @@ function AdminApplicationsPage() {
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              disabled={!hasFilters}
-            >
-              <XIcon />
-              Clear
-            </Button>
+            {hasFilters && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={clearFilters}
+                aria-label="Clear filters"
+                title="Clear filters"
+              >
+                <FunnelXIcon />
+              </Button>
+            )}
           </div>
 
           <DataTable

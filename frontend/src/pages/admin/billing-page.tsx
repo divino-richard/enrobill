@@ -8,7 +8,7 @@ import {
   type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ReceiptTextIcon, SearchIcon, XIcon } from "lucide-react";
+import { FunnelXIcon, ReceiptTextIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -338,14 +338,17 @@ function BillingPage() {
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              disabled={!hasFilters}
-            >
-              <XIcon />
-              Clear
-            </Button>
+            {hasFilters && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={clearFilters}
+                aria-label="Clear filters"
+                title="Clear filters"
+              >
+                <FunnelXIcon />
+              </Button>
+            )}
           </div>
 
           <DataTable

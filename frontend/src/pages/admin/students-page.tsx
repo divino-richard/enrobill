@@ -14,10 +14,10 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   ChevronsUpDownIcon,
+  FunnelXIcon,
   GraduationCapIcon,
   SearchIcon,
   SquarePenIcon,
-  XIcon,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -398,14 +398,17 @@ function StudentsPage() {
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              disabled={!hasFilters}
-            >
-              <XIcon />
-              Clear
-            </Button>
+            {hasFilters && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={clearFilters}
+                aria-label="Clear filters"
+                title="Clear filters"
+              >
+                <FunnelXIcon />
+              </Button>
+            )}
           </div>
 
           <DataTable

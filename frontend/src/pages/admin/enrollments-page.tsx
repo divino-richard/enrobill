@@ -12,11 +12,11 @@ import {
   CheckCircle2Icon,
   ChevronRight,
   CircleAlertIcon,
+  FunnelXIcon,
   ReceiptTextIcon,
   SearchIcon,
   SquarePenIcon,
   WandSparklesIcon,
-  XIcon,
 } from "lucide-react";
 import { RowActions } from "@/components/row-actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -536,14 +536,17 @@ function EnrollmentsPage() {
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              disabled={!hasFilters}
-            >
-              <XIcon />
-              Clear
-            </Button>
+            {hasFilters && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={clearFilters}
+                aria-label="Clear filters"
+                title="Clear filters"
+              >
+                <FunnelXIcon />
+              </Button>
+            )}
           </div>
 
           <DataTable
