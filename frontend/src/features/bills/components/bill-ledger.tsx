@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { ArrowUpRightIcon, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +15,7 @@ import { formatPeso } from "@/lib/money";
 import { formatDate } from "@/features/applications/utils";
 import { FEE_CATEGORY_OPTIONS, feeCategoryLabel } from "@/features/fees/types";
 import { isOverdue, nextOutstandingInstallment } from "../utils";
+import { PaymentProofDialog } from "./payment-proof-dialog";
 import {
   INSTALLMENT_STATUS_META,
   PAYMENT_STATUS_META,
@@ -132,16 +133,21 @@ function MobileValueRow({
 }
 
 function ProofLink({ href }: { href: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-primary inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
-    >
-      View proof
-      <ArrowUpRightIcon className="size-3" />
-    </a>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-primary inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+      >
+        View proof
+      </button>
+      <PaymentProofDialog
+        url={open ? href : null}
+        onOpenChange={(next) => setOpen(next)}
+      />
+    </>
   );
 }
 

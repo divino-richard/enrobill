@@ -65,6 +65,7 @@ import {
   type PaymentMethod,
 } from "@/features/bills/types";
 import { printBillReceipt } from "@/features/bills/receipt";
+import { PaymentProofDialog } from "@/features/bills/components/payment-proof-dialog";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -265,6 +266,7 @@ function BillDetailPage() {
   const programLabel = useProgramLabel();
   const role = useAuthStore((state) => state.user?.role);
   const isPaymentReadOnly = role === "admin";
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
 
   const termLabel = useMemo(() => {
     if (!bill?.schoolYear) return "—";
@@ -581,14 +583,13 @@ function BillDetailPage() {
                             : ""}
                         </p>
                         {payment.proofUrl && (
-                          <a
-                            href={payment.proofUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => setProofUrl(payment.proofUrl)}
                             className="text-primary text-xs underline"
                           >
                             View proof
-                          </a>
+                          </button>
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
@@ -640,6 +641,13 @@ function BillDetailPage() {
           </Card>
         </div>
       </div>
+
+      <PaymentProofDialog
+        url={proofUrl}
+        onOpenChange={(open) => {
+          if (!open) setProofUrl(null);
+        }}
+      />
     </div>
   );
 }
