@@ -218,11 +218,14 @@ class YearEndCloseout
                 ->where('status', 'completed')
                 ->update(['status' => 'enrolled']);
         } else {
-            // Drop the (unbilled) next-year enrollment and restore the grade.
+            // Drop the (unbilled) next-year enrollment and restore the grade and
+            // current-standing school year to the ending year they revert to.
             $decision->toEnrollment?->delete();
+            $restore = ['school_year' => $year->school_year];
             if ($decision->from_year_level !== null) {
-                $student->update(['year_level' => $decision->from_year_level]);
+                $restore['year_level'] = $decision->from_year_level;
             }
+            $student->update($restore);
         }
 
         $decision->delete();

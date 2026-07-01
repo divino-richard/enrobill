@@ -20,7 +20,7 @@ class EnsureEnrollment
     ): Enrollment {
         // The downpayment waiver isn't set here — it's derived at bill generation
         // from whether a voucher is applied.
-        return Enrollment::firstOrCreate(
+        $enrollment = Enrollment::firstOrCreate(
             ['student_id' => $student->id, 'school_year_id' => $schoolYear->id],
             [
                 'track' => $student->track_or_strand,
@@ -29,5 +29,15 @@ class EnsureEnrollment
                 'created_by' => $createdBy,
             ],
         );
+
+        // Keep the student's current-standing snapshot moving forward with their
+        // newest enrollment, in step with year level. Forward-only, so creating an
+        // enrollment for an older year never rolls the snapshot back. School year
+        // keys are fixed-width ("YYYY-YYYY"), so string comparison orders them.
+        if ($student->school_year === null || $schoolYear->school_year > $student->school_year) {
+            $student->update(['school_year' => $schoolYear->school_year]);
+        }
+
+        return $enrollment;
     }
 }

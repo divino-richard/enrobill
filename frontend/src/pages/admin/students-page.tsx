@@ -197,7 +197,7 @@ function StudentsPage() {
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground whitespace-nowrap">
-            {row.original.schoolYear ?? "—"}
+            {row.original.schoolYear ? `SY ${row.original.schoolYear}` : "—"}
           </span>
         ),
       },

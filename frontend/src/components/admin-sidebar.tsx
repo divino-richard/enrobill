@@ -75,7 +75,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Enrollment",
+    label: "Admissions",
     roles: ["admin"],
     items: [
       {
@@ -96,18 +96,6 @@ const navGroups: NavGroup[] = [
         icon: MoveUpIcon,
         ready: true,
       },
-      {
-        title: "Sections",
-        url: "/admin/sections",
-        icon: LayoutGridIcon,
-        ready: true,
-      },
-      {
-        title: "Scheduling",
-        url: "/admin/scheduling",
-        icon: CalendarClockIcon,
-        ready: true,
-      },
     ],
   },
   {
@@ -124,6 +112,18 @@ const navGroups: NavGroup[] = [
         title: "Academic Years",
         url: "/admin/terms",
         icon: CalendarRangeIcon,
+        ready: true,
+      },
+      {
+        title: "Sections",
+        url: "/admin/sections",
+        icon: LayoutGridIcon,
+        ready: true,
+      },
+      {
+        title: "Scheduling",
+        url: "/admin/scheduling",
+        icon: CalendarClockIcon,
         ready: true,
       },
     ],
