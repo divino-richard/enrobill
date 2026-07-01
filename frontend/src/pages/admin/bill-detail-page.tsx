@@ -82,7 +82,7 @@ function SummaryRow({
   return (
     <div
       className={cn(
-        "flex justify-between gap-4",
+        "flex justify-between gap-4 hover:bg-muted cursor-pointer",
         emphasize ? "text-base" : "text-sm",
       )}
     >
@@ -404,58 +404,34 @@ function BillDetailPage() {
           <CardHeader>
             <CardTitle className="text-base">Summary</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="bg-muted/40 rounded-lg border p-4">
-              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Outstanding balance
-              </p>
-              <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
-                {formatPeso(bill.balance)}
-              </p>
-              <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
-                <span>
-                  Paid{" "}
-                  <span className="text-foreground font-medium tabular-nums">
-                    {formatPeso(bill.amountPaid)}
-                  </span>
-                </span>
-                <span>
-                  Net total{" "}
-                  <span className="text-foreground font-medium tabular-nums">
-                    {formatPeso(bill.netTotal)}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Fee breakdown
-              </p>
-              <dl className="space-y-2">
-                {bill.items.map((item) => (
-                  <SummaryRow
-                    key={item.id}
-                    label={item.name}
-                    value={formatPeso(item.amount)}
-                  />
-                ))}
-              </dl>
-              <div className="space-y-2 border-t pt-3">
-                <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
-                {bill.discountTotal > 0 && (
-                  <SummaryRow
-                    label="Discounts"
-                    value={`− ${formatPeso(bill.discountTotal)}`}
-                    muted
-                  />
-                )}
+          <CardContent className="space-y-3">
+            <dl className="space-y-2">
+              {bill.items.map((item) => (
                 <SummaryRow
-                  label="Net total"
-                  value={formatPeso(bill.netTotal)}
-                  emphasize
+                  key={item.id}
+                  label={item.name}
+                  value={formatPeso(item.amount)}
                 />
-              </div>
+              ))}
+            </dl>
+            <div className="space-y-2 border-t pt-3">
+              <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
+              {bill.discountTotal > 0 && (
+                <SummaryRow
+                  label="Discounts"
+                  value={`− ${formatPeso(bill.discountTotal)}`}
+                  muted
+                />
+              )}
+              <SummaryRow label="Net total" value={formatPeso(bill.netTotal)} />
+              <SummaryRow label="Paid" value={formatPeso(bill.amountPaid)} />
+            </div>
+            <div className="border-t pt-3">
+              <SummaryRow
+                label="Balance due"
+                value={formatPeso(bill.balance)}
+                emphasize
+              />
             </div>
           </CardContent>
         </Card>
