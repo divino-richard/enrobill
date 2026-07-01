@@ -105,7 +105,11 @@ function BillingPage() {
     () => [
       {
         id: "student",
+        // accessorFn is required for TanStack to mark the column sortable, even
+        // though ordering is done server-side (manualSorting).
+        accessorFn: (row) => row.student?.name ?? "",
         header: ({ column }) => <SortHeader column={column} title="Student" />,
+        meta: { className: "min-w-56" },
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium">
@@ -250,7 +254,7 @@ function BillingPage() {
   });
 
   const hasFilters =
-    Boolean(search.trim()) ||
+    Boolean(debouncedSearch) ||
     status !== "all" ||
     schoolYearId !== "all" ||
     trackingState !== "all";
@@ -276,8 +280,8 @@ function BillingPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="relative w-full sm:max-w-xs">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))_auto]">
+            <div className="relative w-full">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 value={search}
@@ -286,65 +290,62 @@ function BillingPage() {
                 className="pl-9"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Select value={schoolYearId} onValueChange={setSchoolYearId}>
-                <SelectTrigger className="min-w-44 w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All academic years</SelectItem>
-                  {schoolYears.map((sy) => (
-                    <SelectItem key={sy.id} value={String(sy.id)}>
-                      SY {sy.schoolYear}
-                      {sy.isActive ? " - active" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
 
-              <Select
-                value={trackingState}
-                onValueChange={(value) =>
-                  setTrackingState(value as TrackingFilter)
-                }
-              >
-                <SelectTrigger className="min-w-48 w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRACKING_FILTERS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="flex flex-wrap gap-1.5">
-                {STATUS_PILLS.map((pill) => (
-                  <button
-                    key={pill.value}
-                    type="button"
-                    onClick={() => setStatus(pill.value)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                      status === pill.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {pill.label}
-                  </button>
+            <Select
+              value={status}
+              onValueChange={(value) => setStatus(value as StatusFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_PILLS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.value === "all" ? "All statuses" : option.label}
+                  </SelectItem>
                 ))}
-              </div>
+              </SelectContent>
+            </Select>
 
-              {hasFilters && (
-                <Button variant="outline" size="sm" onClick={clearFilters}>
-                  <XIcon />
-                  Clear
-                </Button>
-              )}
-            </div>
+            <Select value={schoolYearId} onValueChange={setSchoolYearId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All school years" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All school years</SelectItem>
+                {schoolYears.map((sy) => (
+                  <SelectItem key={sy.id} value={String(sy.id)}>
+                    SY {sy.schoolYear}
+                    {sy.isActive ? " - active" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={trackingState}
+              onValueChange={(value) => setTrackingState(value as TrackingFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All payment states" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRACKING_FILTERS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              onClick={clearFilters}
+              disabled={!hasFilters}
+            >
+              <XIcon />
+              Clear
+            </Button>
           </div>
 
           <DataTable
