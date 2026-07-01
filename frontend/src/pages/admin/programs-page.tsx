@@ -10,7 +10,6 @@ import {
 import {
   PencilIcon,
   PlusIcon,
-  ReceiptTextIcon,
   SearchIcon,
   Trash2Icon,
   XIcon,
@@ -56,9 +55,7 @@ import {
   useCreateProgram,
   useDeleteProgram,
   useUpdateProgram,
-  useUpdateProgramFeeItems,
 } from "@/features/programs/hooks";
-import { YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 import {
   PROGRAM_CATEGORY_OPTIONS,
   type Program,
@@ -188,185 +185,6 @@ function ProgramDialog({
   );
 }
 
-interface ItemRow {
-  name: string;
-  // Amount input (string) keyed by year level code.
-  amounts: Record<string, string>;
-}
-
-function FeeItemsForm({
-  program,
-  levels,
-  onClose,
-}: {
-  program: Program;
-  levels: { value: string; label: string }[];
-  onClose: () => void;
-}) {
-  const save = useUpdateProgramFeeItems(program.id);
-
-  const emptyRow = (): ItemRow => ({
-    name: "",
-    amounts: Object.fromEntries(levels.map((l) => [l.value, ""])),
-  });
-
-  const [rows, setRows] = useState<ItemRow[]>(() => {
-    const items = program.feeItems ?? [];
-    if (items.length === 0) return [emptyRow()];
-    return items.map((item) => ({
-      name: item.name,
-      amounts: Object.fromEntries(
-        levels.map((l) => [
-          l.value,
-          item.amounts[l.value] !== undefined ? String(item.amounts[l.value]) : "",
-        ]),
-      ),
-    }));
-  });
-
-  function updateName(index: number, name: string) {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, name } : row)),
-    );
-  }
-
-  function updateAmount(index: number, code: string, value: string) {
-    setRows((prev) =>
-      prev.map((row, i) =>
-        i === index
-          ? { ...row, amounts: { ...row.amounts, [code]: value } }
-          : row,
-      ),
-    );
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, emptyRow()]);
-  }
-
-  function removeRow(index: number) {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  async function handleSave() {
-    const items = rows
-      .filter((row) => row.name.trim() !== "")
-      .map((row) => ({
-        name: row.name.trim(),
-        amounts: Object.fromEntries(
-          levels.map((l) => [
-            l.value,
-            row.amounts[l.value]?.trim() ? Number(row.amounts[l.value]) : null,
-          ]),
-        ),
-      }));
-    try {
-      await save.mutateAsync(items);
-      onClose();
-    } catch {
-      // Surfaced via save.isError.
-    }
-  }
-
-  return (
-    <>
-      <p className="text-muted-foreground text-xs">
-        Leave a level blank if the item isn't charged for it.
-      </p>
-      <div className="space-y-2">
-        {rows.map((row, index) => (
-          <div key={index} className="flex items-end gap-2">
-            <div className="flex-1 space-y-1">
-              {index === 0 && <FieldLabel>Item</FieldLabel>}
-              <Input
-                value={row.name}
-                placeholder="e.g. Tuition Fee"
-                onChange={(e) => updateName(index, e.target.value)}
-              />
-            </div>
-            {levels.map((level) => (
-              <div key={level.value} className="w-28 space-y-1">
-                {index === 0 && <FieldLabel>{level.label}</FieldLabel>}
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="—"
-                  value={row.amounts[level.value] ?? ""}
-                  onChange={(e) =>
-                    updateAmount(index, level.value, e.target.value)
-                  }
-                />
-              </div>
-            ))}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-destructive size-9 shrink-0"
-              onClick={() => removeRow(index)}
-            >
-              <Trash2Icon className="size-4" />
-              <span className="sr-only">Remove item</span>
-            </Button>
-          </div>
-        ))}
-        <Button variant="ghost" size="sm" onClick={addRow}>
-          <PlusIcon />
-          Add item
-        </Button>
-      </div>
-
-      {save.isError && (
-        <p className="text-destructive text-sm">{getErrorMessage(save.error)}</p>
-      )}
-
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={save.isPending}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save fee items"}
-        </Button>
-      </DialogFooter>
-    </>
-  );
-}
-
-function FeeItemsDialog({
-  program,
-  onOpenChange,
-}: {
-  program: Program | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const levels = YEAR_LEVEL_OPTIONS.map((option) => ({
-    value: option.value,
-    label: option.label,
-  }));
-
-  return (
-    <Dialog open={program !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Default fee items</DialogTitle>
-          <DialogDescription>
-            {program
-              ? `Per-year-level amounts new fee structures for ${program.name} are pre-filled with.`
-              : ""}
-          </DialogDescription>
-        </DialogHeader>
-        {program && (
-          <FeeItemsForm
-            program={program}
-            levels={levels}
-            onClose={() => onOpenChange(false)}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 type CategoryFilter = "all" | (typeof PROGRAM_CATEGORY_OPTIONS)[number];
 type ActiveFilter = "all" | "active" | "inactive";
 
@@ -402,7 +220,6 @@ function ProgramsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Program | null>(null);
-  const [itemsFor, setItemsFor] = useState<Program | null>(null);
   const [deleting, setDeleting] = useState<Program | null>(null);
 
   function openNew() {
@@ -447,19 +264,6 @@ function ProgramsPage() {
         ),
       },
       {
-        id: "items",
-        header: "Default items",
-        enableSorting: false,
-        cell: ({ row }) => {
-          const count = (row.original.feeItems ?? []).length;
-          return (
-            <span className="text-muted-foreground whitespace-nowrap">
-              {count > 0 ? `${count} ${count === 1 ? "item" : "items"}` : "—"}
-            </span>
-          );
-        },
-      },
-      {
         accessorKey: "isActive",
         header: "Status",
         enableSorting: false,
@@ -483,10 +287,6 @@ function ProgramsPage() {
         meta: { className: "text-right" },
         cell: ({ row }) => (
           <RowActions>
-            <DropdownMenuItem onClick={() => setItemsFor(row.original)}>
-              <ReceiptTextIcon />
-              Fee items
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => openEdit(row.original)}>
               <PencilIcon />
               Edit
@@ -535,8 +335,7 @@ function ProgramsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Programs</h1>
           <p className="text-muted-foreground text-sm">
-            Tracks and strands offered, and the default fee items each one seeds
-            into new fee structures.
+            The tracks and strands offered, and their availability for selection.
           </p>
         </div>
         <Button onClick={openNew}>
@@ -624,13 +423,6 @@ function ProgramsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         editing={editing}
-      />
-
-      <FeeItemsDialog
-        program={itemsFor}
-        onOpenChange={(open) => {
-          if (!open) setItemsFor(null);
-        }}
       />
 
       <AlertDialog
