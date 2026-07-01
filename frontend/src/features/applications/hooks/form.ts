@@ -92,6 +92,9 @@ interface UseApplicationFormOptions {
   // Whether to restore/auto-save the localStorage draft. Off for editing an
   // existing application so we don't clobber a new-application draft.
   persistDraft?: boolean;
+  // In create mode, the contact email is locked to the applicant's verified
+  // account email so the application always carries their login address.
+  accountEmail?: string;
 }
 
 // Single form instance for the whole multi-step application. Wrapping useForm in
@@ -103,12 +106,17 @@ export function useApplicationForm(
   onSubmit: (values: ApplicationFormValues) => void | Promise<void>,
   options: UseApplicationFormOptions = {},
 ) {
-  const { initialValues, persistDraft = true } = options;
+  const { initialValues, persistDraft = true, accountEmail } = options;
 
-  // Seed once: provided values (edit) or the saved draft (create).
-  const [defaults] = useState(
-    () => initialValues ?? loadApplicationDraft(),
-  );
+  // Seed once: provided values (edit) or the saved draft (create). In create
+  // mode, force the contact email to the verified account email so it can't
+  // drift from the applicant's login.
+  const [defaults] = useState(() => {
+    const base = initialValues ?? loadApplicationDraft();
+    return !initialValues && accountEmail
+      ? { ...base, emailAddress: accountEmail }
+      : base;
+  });
 
   const form = useForm({
     defaultValues: defaults,

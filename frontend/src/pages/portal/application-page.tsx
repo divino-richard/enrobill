@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { ApplicationsEmptyState } from "@/features/applications/components/applications-empty-state";
 import { ApplicationsHeader } from "@/features/applications/components/applications-header";
 import { ApplicationsTable } from "@/features/applications/components/applications-table";
-import { CurrentApplicationCard } from "@/features/applications/components/current-application-card";
 import { isActiveStatus } from "@/features/applications/types";
 import { useApplications } from "@/features/applications/hooks/use-applications";
 import { useOpenTerm } from "@/features/terms/hooks";
@@ -19,11 +18,8 @@ function ApplicationPage() {
   const startNewApplication = () => navigate("/portal/application/new");
 
   const applications = data ?? [];
-  const activeApplication = applications.find((app) =>
+  const hasActiveApplication = applications.some((app) =>
     isActiveStatus(app.status),
-  );
-  const previousApplications = applications.filter(
-    (app) => app.id !== activeApplication?.id,
   );
 
   // Applicants can only start an application while admissions are open.
@@ -32,17 +28,14 @@ function ApplicationPage() {
   return (
     <div className="space-y-8 mx-auto max-w-7xl">
       <ApplicationsHeader
-        hasActiveApplication={Boolean(activeApplication)}
+        hasActiveApplication={hasActiveApplication}
         onNewApplication={startNewApplication}
         canCreate={!isStudent}
         admissionsClosed={admissionsClosed}
       />
 
       {isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-44 w-full rounded-lg" />
-          <Skeleton className="h-24 w-full rounded-lg" />
-        </div>
+        <Skeleton className="h-64 w-full rounded-lg" />
       ) : isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">
@@ -53,35 +46,14 @@ function ApplicationPage() {
           </Button>
         </div>
       ) : applications.length === 0 ? (
-        <ApplicationsEmptyState
-          onNewApplication={isStudent ? undefined : startNewApplication}
-          admissionsClosed={admissionsClosed}
-        />
+        <ApplicationsEmptyState admissionsClosed={admissionsClosed} />
       ) : (
-        <>
-          {activeApplication && (
-            <CurrentApplicationCard
-              application={activeApplication}
-              onView={() =>
-                navigate(`/portal/application/${activeApplication.id}`)
-              }
-            />
-          )}
-
-          {previousApplications.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-muted-foreground text-sm font-medium">
-                Application history
-              </h2>
-              <div className="overflow-hidden rounded-lg border">
-                <ApplicationsTable
-                  applications={previousApplications}
-                  onView={(id) => navigate(`/portal/application/${id}`)}
-                />
-              </div>
-            </section>
-          )}
-        </>
+        <div className="overflow-hidden rounded-lg border">
+          <ApplicationsTable
+            applications={applications}
+            onView={(id) => navigate(`/portal/application/${id}`)}
+          />
+        </div>
       )}
     </div>
   );

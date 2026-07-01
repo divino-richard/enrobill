@@ -97,15 +97,16 @@ export function ContactStep({ form }: ContactStepProps) {
                 <FieldLabel
                   htmlFor={field.name}
                   required
-                  hint="Active email address for school communications."
+                  hint="Your verified account email — the one you use to sign in. School communications go here."
                 >
                   Email Address
                 </FieldLabel>
                 <Input
                   id={field.name}
+                  type="email"
                   value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  readOnly
+                  className="bg-muted/50 cursor-not-allowed"
                 />
                 <FieldInfo field={field} />
               </div>

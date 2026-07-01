@@ -30,7 +30,7 @@ export function ApplicationsHeader({
   const newButton = (
     <Button onClick={onNewApplication} disabled={disabled}>
       <PlusIcon />
-      New application
+      Start application
     </Button>
   );
 

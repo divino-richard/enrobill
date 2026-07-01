@@ -33,6 +33,7 @@ import {
   useUpdateApplication,
 } from "../hooks/use-applications";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { useAuthStore } from "@/features/auth/store";
 import type { ApplicationFormValues } from "../types";
 
 interface ApplicationFormProps {
@@ -49,6 +50,9 @@ export function ApplicationForm({
 }: ApplicationFormProps = {}) {
   const navigate = useNavigate();
   const isEdit = mode === "edit";
+  // The applicant's verified login email — used to pre-fill and lock the
+  // contact email on a new application.
+  const accountEmail = useAuthStore((state) => state.user?.email) ?? undefined;
   const enrollmentDate = useMemo(() => new Date(), []);
   const [currentStep, setCurrentStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -76,7 +80,7 @@ export function ApplicationForm({
     },
     // Stop auto-saving once submitted, so a debounced write can't re-create the
     // draft we just cleared.
-    { initialValues, persistDraft: !isEdit && !submitted },
+    { initialValues, persistDraft: !isEdit && !submitted, accountEmail },
   );
 
   // Discard the saved draft and reset the wizard back to an empty first step.
@@ -86,7 +90,10 @@ export function ApplicationForm({
     );
     if (!confirmed) return;
     clearApplicationDraft();
-    form.reset(DEFAULT_APPLICATION_FORM_VALUES);
+    form.reset({
+      ...DEFAULT_APPLICATION_FORM_VALUES,
+      emailAddress: accountEmail ?? "",
+    });
     setCurrentStep(0);
     setStepError(false);
   }
@@ -161,7 +168,7 @@ export function ApplicationForm({
   const progress = ((currentStep + 1) / WIZARD_STEPS.length) * 100;
 
   return (
-    <div className="mx-auto space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <Button
         variant="ghost"
         size="sm"

@@ -1,14 +1,13 @@
-import { FileTextIcon, PlusIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { FileTextIcon } from "lucide-react";
 
 interface ApplicationsEmptyStateProps {
-  onNewApplication?: () => void
   // Admissions are closed, so applications can't be started.
-  admissionsClosed?: boolean
+  admissionsClosed?: boolean;
 }
 
+// Informational only — the "Start application" action lives in the page header
+// so there's a single, consistent place to begin one.
 export function ApplicationsEmptyState({
-  onNewApplication,
   admissionsClosed = false,
 }: ApplicationsEmptyStateProps) {
   return (
@@ -23,15 +22,9 @@ export function ApplicationsEmptyState({
         <p className="text-muted-foreground mx-auto max-w-sm text-sm">
           {admissionsClosed
             ? "Admissions aren't open right now. Please check back once admissions reopen."
-            : "Start your application to apply for admission. You can track its status here once submitted."}
+            : "Start an application to apply for admission. You can track its status here once submitted."}
         </p>
       </div>
-      {!admissionsClosed && onNewApplication && (
-        <Button onClick={onNewApplication}>
-          <PlusIcon />
-          Start application
-        </Button>
-      )}
     </div>
-  )
+  );
 }
