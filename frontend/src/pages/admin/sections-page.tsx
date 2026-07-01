@@ -518,7 +518,6 @@ function SectionDetail({
             </Button>
           </div>
         </div>
-        <OccupancyBar used={section.assignedCount} total={section.capacity} />
       </CardHeader>
       <CardContent className="px-0 pb-0">
         {section.students.length === 0 ? (
