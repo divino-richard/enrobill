@@ -9,7 +9,9 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import {
-  ArrowUpRightIcon,
+  CheckCircle2Icon,
+  ChevronRight,
+  CircleAlertIcon,
   ReceiptTextIcon,
   SearchIcon,
   SquarePenIcon,
@@ -17,6 +19,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { RowActions } from "@/components/row-actions";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -98,190 +101,117 @@ function BillingInfoDialog({
   enrollment,
   open,
   onOpenChange,
-  programLabel,
 }: {
   enrollment: Enrollment | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  programLabel: (
-    code: string | null | undefined,
-    yearLevel?: string | null,
-  ) => string;
 }) {
   if (!enrollment) return null;
 
-  const {
-    openBills,
-    openBillCount,
-    openBillTotal,
-    currentOpenBillCount,
-    priorOpenBillCount,
-    canGenerateBill,
-    hasGeneratedBill,
-  } = getEnrollmentBillingSnapshot(enrollment);
+  const { openBills, openBillCount, canGenerateBill, hasGeneratedBill } =
+    getEnrollmentBillingSnapshot(enrollment);
 
   const studentName = enrollment.student?.name ?? "Student";
   const studentNumber = enrollment.student?.studentNumber ?? "No student number";
-  const programName = programLabel(enrollment.program);
-  const yearLevel =
-    labelFor(YEAR_LEVEL_OPTIONS, enrollment.yearLevel ?? "") || "No year level";
-  const schoolYear = enrollment.schoolYear ? `SY ${enrollment.schoolYear}` : "No school year";
+  const statusLabel = ENROLLMENT_STATUS_META[enrollment.status].label;
 
-  const decisionLabel = openBillCount > 0
-    ? "Needs review"
-    : canGenerateBill
-      ? "Ready for billing"
-      : hasGeneratedBill
-        ? "Bill already generated"
-        : "No billing action";
-  const decisionClassName = openBillCount > 0
-    ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
-    : canGenerateBill
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-      : "border-border";
-  const decisionDescription = openBillCount > 0
-    ? "Review these unpaid balances before generating a new bill for this enrollment."
-    : canGenerateBill
-      ? "No unpaid balances are shown here, so the cashier can proceed with bill generation."
-      : hasGeneratedBill
-        ? "A bill already exists for this enrollment. Review the student record or bill page if needed."
-        : "This enrollment does not currently have a billing action available.";
+  const readyForBilling = canGenerateBill && openBillCount === 0;
+
+  // When not ready, surface the single blocking reason (in priority order).
+  const reason = readyForBilling
+    ? "No blockers — you can generate a bill for this enrollment."
+    : hasGeneratedBill
+      ? "A bill has already been generated for this enrollment."
+      : !canGenerateBill
+        ? `Only pending enrollments can be billed — this one is ${statusLabel.toLowerCase()}.`
+        : `Settle or review the ${openBillCount} unpaid balance${openBillCount === 1 ? "" : "s"} below before billing.`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Billing info</DialogTitle>
+          <DialogTitle>Billing status</DialogTitle>
           <DialogDescription>
             {studentName} • {studentNumber}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border p-4">
-              <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                Enrollment
-              </p>
-              <p className="mt-1 font-medium">{programName}</p>
-              <p className="text-muted-foreground text-sm">{yearLevel}</p>
-              <p className="text-muted-foreground mt-2 text-xs">{schoolYear}</p>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                Outstanding
-              </p>
-              <p className="mt-1 font-medium">{formatPeso(openBillTotal)}</p>
-              <p className="text-muted-foreground text-sm">
-                {openBillCount} unpaid bill{openBillCount === 1 ? "" : "s"}
-              </p>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                New bill estimate
-              </p>
-              <p className="mt-1 font-medium">
-                {enrollment.feePreview != null
-                  ? formatPeso(enrollment.feePreview)
-                  : "—"}
-              </p>
-              <p className="text-muted-foreground text-sm">
-                {enrollment.hasBill ? "Bill already created" : "For this enrollment"}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-1">
-                <p className="font-medium">Cashier decision guide</p>
-                <p className="text-muted-foreground text-sm">
-                  {decisionDescription}
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn("shrink-0", decisionClassName)}
-              >
-                {decisionLabel}
-              </Badge>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {currentOpenBillCount > 0 && (
-                <Badge variant="secondary">
-                  {currentOpenBillCount} current balance
-                  {currentOpenBillCount === 1 ? "" : "s"}
-                </Badge>
-              )}
-              {priorOpenBillCount > 0 && (
-                <Badge variant="secondary">
-                  {priorOpenBillCount} prior balance
-                  {priorOpenBillCount === 1 ? "" : "s"}
-                </Badge>
-              )}
-              {openBillCount === 0 && (
-                <Badge variant="secondary">No unpaid balances found</Badge>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <p className="font-medium">Related student bills</p>
-              <p className="text-muted-foreground text-sm">
-                Review current and prior balances before deciding whether to bill this enrollment.
-              </p>
-            </div>
-
-            {openBills.length > 0 ? (
-              <div className="space-y-3">
-                {openBills.map((bill) => (
-                  <div
-                    key={bill.id}
-                    className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">
-                          {bill.schoolYear ? `SY ${bill.schoolYear}` : `Bill #${bill.id}`}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className={cn(BILL_STATUS_META[bill.status].className)}
-                        >
-                          {BILL_STATUS_META[bill.status].label}
-                        </Badge>
-                      </div>
-                      <p className="text-muted-foreground text-sm">
-                        {bill.isCurrent ? "Current school year balance" : "Prior school year balance"}
-                      </p>
-                      <p className="text-sm">
-                        Outstanding balance:{" "}
-                        <span className="font-medium">{formatPeso(bill.balance)}</span>
-                      </p>
-                    </div>
-
-                    <Button asChild variant="outline" size="sm" className="gap-2">
-                      <Link to={`/admin/billing/${bill.id}`}>
-                        Open bill page
-                        <ArrowUpRightIcon />
-                      </Link>
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed p-6 text-center">
-                <p className="font-medium">No unpaid or partially paid bills</p>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  This student has no related balances in the current enrollments list.
-                </p>
-              </div>
+        <div className="space-y-4">
+          <Alert
+            className={cn(
+              readyForBilling
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
             )}
-          </div>
+          >
+            {readyForBilling ? <CheckCircle2Icon /> : <CircleAlertIcon />}
+            <AlertTitle>
+              {readyForBilling ? "Ready for billing" : "Not ready for billing"}
+            </AlertTitle>
+            <AlertDescription
+              className={cn(
+                readyForBilling
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : "text-amber-700 dark:text-amber-300",
+              )}
+            >
+              {reason}
+            </AlertDescription>
+          </Alert>
+
+          {readyForBilling && enrollment.feePreview != null && (
+            <div className="flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm">
+              <span className="text-muted-foreground">Estimated bill</span>
+              <span className="font-medium tabular-nums">
+                {formatPeso(enrollment.feePreview)}
+              </span>
+            </div>
+          )}
+
+          {openBillCount > 0 && (
+            <div className="space-y-2">
+              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Outstanding balance{openBillCount === 1 ? "" : "s"}
+              </p>
+              {openBills.map((bill) => (
+                <div
+                  key={bill.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">
+                        {bill.schoolYear
+                          ? `SY ${bill.schoolYear}`
+                          : `Bill #${bill.id}`}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={cn(BILL_STATUS_META[bill.status].className)}
+                      >
+                        {BILL_STATUS_META[bill.status].label}
+                      </Badge>
+                    </div>
+                    <p className="text-muted-foreground text-xs tabular-nums">
+                      {bill.isCurrent ? "Current year" : "Prior year"} ·{" "}
+                      {formatPeso(bill.balance)} outstanding
+                    </p>
+                  </div>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 gap-1"
+                  >
+                    <Link to={`/admin/billing/${bill.id}`}>
+                      Open
+                      <ChevronRight />
+                    </Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -308,7 +238,7 @@ function EnrollmentActionsCell({
       <RowActions>
         <DropdownMenuItem onClick={() => onViewBilling(enrollment)}>
           <ReceiptTextIcon />
-          View bill
+          Billing status
         </DropdownMenuItem>
 
         {isCashier && canGenerateBill && (
@@ -645,7 +575,6 @@ function EnrollmentsPage() {
         onOpenChange={(open) => {
           if (!open) setBillingInfo(null);
         }}
-        programLabel={programLabel}
       />
     </div>
   );
