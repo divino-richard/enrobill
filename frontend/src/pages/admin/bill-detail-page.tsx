@@ -96,6 +96,7 @@ function SummaryRow({
       </span>
       <span
         className={cn(
+          "tabular-nums",
           emphasize ? "font-semibold" : "font-medium",
           muted && "text-emerald-600 dark:text-emerald-400",
         )}
@@ -272,7 +273,7 @@ function BillDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="mx-auto w-full max-w-6xl space-y-4">
         <Skeleton className="h-8 w-48 rounded-md" />
         <Skeleton className="h-64 w-full rounded-md" />
       </div>
@@ -281,7 +282,7 @@ function BillDetailPage() {
 
   if (isError || !bill) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
+      <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
         <p className="text-muted-foreground text-sm">
           We couldn't load this bill.
         </p>
@@ -310,7 +311,7 @@ function BillDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
       <div>
         <Button variant="ghost" size="sm" asChild className="-ml-2 mb-2">
           <Link to="/admin/billing">
@@ -399,40 +400,62 @@ function BillDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Summary */}
-        <Card className="lg:col-span-1">
+        <Card className="self-start lg:sticky lg:top-6 lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-base">Summary</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <dl className="space-y-2">
-              {bill.items.map((item) => (
+          <CardContent className="space-y-5">
+            <div className="bg-muted/40 rounded-lg border p-4">
+              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Outstanding balance
+              </p>
+              <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
+                {formatPeso(bill.balance)}
+              </p>
+              <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
+                <span>
+                  Paid{" "}
+                  <span className="text-foreground font-medium tabular-nums">
+                    {formatPeso(bill.amountPaid)}
+                  </span>
+                </span>
+                <span>
+                  Net total{" "}
+                  <span className="text-foreground font-medium tabular-nums">
+                    {formatPeso(bill.netTotal)}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Fee breakdown
+              </p>
+              <dl className="space-y-2">
+                {bill.items.map((item) => (
+                  <SummaryRow
+                    key={item.id}
+                    label={item.name}
+                    value={formatPeso(item.amount)}
+                  />
+                ))}
+              </dl>
+              <div className="space-y-2 border-t pt-3">
+                <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
+                {bill.discountTotal > 0 && (
+                  <SummaryRow
+                    label="Discounts"
+                    value={`− ${formatPeso(bill.discountTotal)}`}
+                    muted
+                  />
+                )}
                 <SummaryRow
-                  key={item.id}
-                  label={item.name}
-                  value={formatPeso(item.amount)}
+                  label="Net total"
+                  value={formatPeso(bill.netTotal)}
+                  emphasize
                 />
-              ))}
-            </dl>
-            <div className="space-y-2 border-t pt-3">
-              <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
-              {bill.discountTotal > 0 && (
-                <SummaryRow
-                  label="Discounts"
-                  value={`− ${formatPeso(bill.discountTotal)}`}
-                  muted
-                />
-              )}
-              <SummaryRow
-                label="Net total"
-                value={formatPeso(bill.netTotal)}
-                emphasize
-              />
-              <SummaryRow label="Paid" value={formatPeso(bill.amountPaid)} />
-              <SummaryRow
-                label="Balance"
-                value={formatPeso(bill.balance)}
-                emphasize
-              />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -470,7 +493,7 @@ function BillDetailPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">Applied</Badge>
-                        <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                        <span className="text-sm font-medium text-emerald-600 tabular-nums dark:text-emerald-400">
                           − {formatPeso(adjustment.amount)}
                         </span>
                       </div>
@@ -512,7 +535,7 @@ function BillDetailPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium">
+                        <span className="text-sm font-medium tabular-nums">
                           {formatPeso(installment.amount)}
                         </span>
                         <Badge
@@ -567,7 +590,7 @@ function BillDetailPage() {
                       className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium">
+                        <p className="text-sm font-medium tabular-nums">
                           {formatPeso(payment.amount)}
                           <span className="text-muted-foreground ml-2 text-xs font-normal">
                             {paymentMethodLabel(payment.method)}
