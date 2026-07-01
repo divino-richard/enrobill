@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeftIcon, CheckIcon, XIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CalendarDaysIcon,
+  CheckIcon,
+  GraduationCapIcon,
+  MailIcon,
+  XIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -35,6 +43,26 @@ import { formatDate } from "@/features/applications/utils";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 const DECIDABLE_STATUSES = ["submitted", "under_review", "returned"];
+
+function InfoField({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-muted-foreground flex items-center gap-1.5 text-xs">
+        <Icon className="size-3.5 shrink-0" />
+        {label}
+      </dt>
+      <dd className="mt-0.5 truncate font-medium">{value}</dd>
+    </div>
+  );
+}
 
 function AdminApplicationDetailPage() {
   const navigate = useNavigate();
@@ -74,7 +102,7 @@ function AdminApplicationDetailPage() {
   const isReject = pendingDecision === "reject";
 
   return (
-    <div className="mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
       <Button
         variant="ghost"
         size="sm"
@@ -108,7 +136,7 @@ function AdminApplicationDetailPage() {
               <CardDescription className="text-xs font-medium tracking-wide uppercase">
                 {application.reference}
               </CardDescription>
-              <CardTitle className="text-lg">
+              <CardTitle className="text-xl">
                 {application.applicant.name}
               </CardTitle>
               <CardAction>
@@ -116,27 +144,27 @@ function AdminApplicationDetailPage() {
               </CardAction>
             </CardHeader>
             <CardContent className="space-y-5">
-              <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-                <div>
-                  <dt className="text-muted-foreground text-xs">Email</dt>
-                  <dd className="truncate font-medium">
-                    {application.applicant.email}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">Program</dt>
-                  <dd className="font-medium">{application.program}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">School Year</dt>
-                  <dd className="font-medium">{application.schoolYear}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">Submitted</dt>
-                  <dd className="font-medium">
-                    {formatDate(application.submittedAt)}
-                  </dd>
-                </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm sm:grid-cols-4">
+                <InfoField
+                  icon={MailIcon}
+                  label="Email"
+                  value={application.applicant.email}
+                />
+                <InfoField
+                  icon={GraduationCapIcon}
+                  label="Program"
+                  value={application.program}
+                />
+                <InfoField
+                  icon={CalendarDaysIcon}
+                  label="School year"
+                  value={application.schoolYear}
+                />
+                <InfoField
+                  icon={CalendarDaysIcon}
+                  label="Submitted"
+                  value={formatDate(application.submittedAt)}
+                />
               </dl>
 
               {decide.isError && (
@@ -146,22 +174,27 @@ function AdminApplicationDetailPage() {
               )}
 
               {canDecide ? (
-                <div className="flex justify-end gap-2 border-t pt-4">
-                  <Button
-                    variant="destructive"
-                    disabled={decide.isPending}
-                    onClick={() => openDecision("reject")}
-                  >
-                    <XIcon />
-                    Reject
-                  </Button>
-                  <Button
-                    disabled={decide.isPending}
-                    onClick={() => openDecision("accept")}
-                  >
-                    <CheckIcon />
-                    Accept
-                  </Button>
+                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-muted-foreground text-sm">
+                    Review the submitted details below before deciding.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      disabled={decide.isPending}
+                      onClick={() => openDecision("reject")}
+                    >
+                      <XIcon />
+                      Reject
+                    </Button>
+                    <Button
+                      disabled={decide.isPending}
+                      onClick={() => openDecision("accept")}
+                    >
+                      <CheckIcon />
+                      Accept
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3 border-t pt-4">
@@ -185,6 +218,12 @@ function AdminApplicationDetailPage() {
           </Card>
 
           <Card>
+            <CardHeader className="border-b">
+              <CardTitle className="text-base">Submitted application</CardTitle>
+              <CardDescription>
+                Everything the applicant provided on their enrollment form.
+              </CardDescription>
+            </CardHeader>
             <CardContent>
               <ApplicationSummary
                 values={application.values}
