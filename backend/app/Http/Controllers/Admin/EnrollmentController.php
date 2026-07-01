@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
 use App\Models\Enrollment;
+use App\Models\SchoolYear;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -53,6 +54,14 @@ class EnrollmentController extends Controller
                 $request->filled('school_year_id'),
                 fn ($q) => $q->where('school_year_id', $request->integer('school_year_id')),
             )
+            ->when(
+                in_array($request->string('year_level')->value(), SchoolYear::YEAR_LEVELS, true),
+                fn ($q) => $q->where('year_level', $request->string('year_level')->value()),
+            )
+            ->when(
+                $request->filled('program_code'),
+                fn ($q) => $q->where('track', $request->string('program_code')->value()),
+            )
             ->when($request->filled('search'), function ($q) use ($request) {
                 $needle = '%'.$request->string('search')->value().'%';
                 $q->whereHas('student', function ($s) use ($needle) {
@@ -63,8 +72,9 @@ class EnrollmentController extends Controller
             });
 
         if ($sortKey === 'student') {
+            // Sort by first name to match the "First Last" display in the table.
             $query->orderBy(
-                Student::select('last_name')->whereColumn('students.id', 'enrollments.student_id'),
+                Student::select('first_name')->whereColumn('students.id', 'enrollments.student_id'),
                 $direction,
             );
         } elseif (isset(self::SORTABLE[$sortKey])) {
