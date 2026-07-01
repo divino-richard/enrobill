@@ -853,9 +853,9 @@ function ReportsPage() {
         </div>
       </div>
 
-      <Card className="border-primary/10 bg-gradient-to-br from-primary/8 via-background to-muted/60">
-        <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.4fr_1fr]">
-          <div className="space-y-4">
+      <Card className="border-primary/10 bg-linear-to-br from-primary/8 via-background to-muted/60">
+        <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="bg-background/80">
                 {`SY ${selectedTerm.schoolYear}`}
@@ -867,36 +867,30 @@ function ReportsPage() {
                 }
               </Badge>
             </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold tracking-tight">
-                Collection posture is at {dataset.summary.collectionRate}% for
-                the selected view.
-              </h2>
-              <p className="text-muted-foreground text-sm leading-6">
-                Bills are anchored to school year and enrollment records, while
-                verified payments and voucher credits explain how much of the
-                billed amount has already been realized.
-              </p>
-            </div>
+            <h2 className="text-base font-semibold tracking-tight">
+              Collection posture is at {dataset.summary.collectionRate}% for the
+              selected view.
+            </h2>
+            <p className="text-muted-foreground max-w-xl text-xs">
+              Bills are anchored to school year and enrollment records; verified
+              payments and voucher credits explain how much has been realized.
+            </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div className="grid gap-2 sm:grid-cols-3 lg:shrink-0">
             <HighlightTile
               label="Snapshot updated"
               value={formatDate(dataset.updatedAt)}
-              hint="Dummy reporting data"
               icon={ClockIcon}
             />
             <HighlightTile
               label="Average bill"
               value={formatPeso(averageBill)}
-              hint={`${dataset.summary.billsGenerated} generated bills`}
               icon={ReceiptTextIcon}
             />
             <HighlightTile
               label="Voucher credits"
               value={formatPeso(dataset.summary.voucherCredits)}
-              hint="Applied through bill adjustments"
               icon={TagIcon}
             />
           </div>
@@ -1384,26 +1378,23 @@ function ReportsPage() {
 function HighlightTile({
   label,
   value,
-  hint,
   icon: Icon,
 }: {
   label: string;
   value: string;
-  hint: string;
   icon: typeof ClockIcon;
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-background/75 p-4 shadow-xs">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+    <div className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-background/75 p-2.5 shadow-xs">
+      <div className="bg-muted text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
           {label}
         </p>
-        <div className="bg-muted text-primary flex size-8 items-center justify-center rounded-lg">
-          <Icon className="size-4" />
-        </div>
+        <p className="truncate text-sm font-semibold tracking-tight">{value}</p>
       </div>
-      <p className="text-base font-semibold tracking-tight">{value}</p>
-      <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
     </div>
   );
 }
