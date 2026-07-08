@@ -2,13 +2,39 @@
 
 A decoupled application:
 
-- **`backend/`** — Laravel 13 (PHP 8.5) **API-only** backend. Exposes JSON endpoints under `/api/*`. No Blade frontend.
+- **`backend/`** — Laravel 13 (PHP 8.3+) **API-only** backend. Exposes JSON endpoints under `/api/*`. No Blade frontend.
 - **`frontend/`** — React 19 + **TypeScript** single-page application built with Vite, styled with **Tailwind CSS v4** and **shadcn/ui** components. Consumes the Laravel API.
 
 ## Prerequisites
 
-- PHP 8.5+ and Composer
-- Node.js 22+ and npm
+- **PHP 8.3+** with Composer — plus the extensions Laravel needs (`pdo_sqlite`, `sqlite3`, `openssl`, `mbstring`, `curl`, `fileinfo`, `tokenizer`, `xml`, `ctype`, `bcmath`). Most ship with PHP; enable them in `php.ini` if disabled.
+- **Node.js 20.19+ or 22+** (LTS 22 recommended) with npm — required by Vite 8.
+- **Git**
+
+The default database is **SQLite**, so no database server is required for local dev. (MySQL is optional — see the Docker section.) Email defaults to AWS SES; for local dev set `MAIL_MAILER=log` in `backend/.env` to skip AWS.
+
+### Installing on Windows
+
+- **PHP + Composer:** the easiest path is [Laravel Herd for Windows](https://herd.laravel.com/windows) (bundles a configured PHP and Composer). Alternatives: [XAMPP](https://www.apachefriends.org/) or the [php.net](https://windows.php.net/download) builds + [Composer](https://getcomposer.org/download/).
+- **Node.js:** install the LTS `.msi` from [nodejs.org](https://nodejs.org/) (npm is included).
+- **Git:** [git-scm.com](https://git-scm.com/download/win).
+
+Alternatively, install only [Docker Desktop](https://www.docker.com/products/docker-desktop/) (with WSL 2) and run the backend via the Docker stack below — no local PHP needed.
+
+## First-time setup
+
+```bash
+# Backend
+cd backend
+composer install
+cp .env.example .env          # Windows: copy .env.example .env
+php artisan key:generate
+php artisan migrate            # add --seed to load demo data, if seeders are present
+
+# Frontend
+cd ../frontend
+npm install
+```
 
 ## Running in development
 
@@ -21,6 +47,8 @@ cd backend
 php artisan serve
 ```
 
+> Or run the full backend dev stack (server + queue worker + log tail + backend Vite) at once with `composer run dev`.
+
 ### 2. Frontend (React SPA) — http://localhost:5173
 
 ```bash
@@ -28,16 +56,16 @@ cd frontend
 npm run dev
 ```
 
-The Vite dev server proxies `/api/*` to `http://localhost:8000` (see `frontend/vite.config.js`), so the SPA calls the API with no CORS friction during development.
+The Vite dev server proxies `/api/*` to `http://localhost:8000` (see `frontend/vite.config.ts`), so the SPA calls the API with no CORS friction during development.
 
 ## Running the backend with Docker (MySQL)
 
 The backend ships with a Docker Compose stack (`backend/docker-compose.yml`):
 
-| Service | Image          | Purpose                                            |
-|---------|----------------|----------------------------------------------------|
-| `app`   | php:8.4        | Serves the Laravel API over HTTP on **:8000**      |
-| `mysql` | mysql:8.0      | Database (host port **3307** → 3306)               |
+| Service | Image                        | Purpose                                            |
+|---------|------------------------------|----------------------------------------------------|
+| `app`   | `enrobill-backend` (php:8.4) | Serves the Laravel API over HTTP on **:8000**      |
+| `mysql` | mysql:8.0                    | Database (host port **3307** → 3306)               |
 
 ```bash
 cd backend
@@ -101,19 +129,22 @@ hashed `/assets/*` aggressively, and never caches `index.html`.
 
 ## How they connect
 
-- The frontend uses a shared axios client at `frontend/src/lib/api.js` with `baseURL = VITE_API_URL` (default `/api`).
+- The frontend uses a shared axios client at `frontend/src/lib/api.ts` with `baseURL = VITE_API_URL` (default `/api`).
 - In development, requests to `/api` are proxied to the backend by Vite.
 - In production, set `VITE_API_URL` in `frontend/.env` to the full backend URL (e.g. `https://api.example.com/api`), and set `FRONTEND_URL` in `backend/.env` so CORS allows the SPA's origin.
 
 ## API endpoints
 
-| Method | Path          | Auth          | Description                |
-|--------|---------------|---------------|----------------------------|
-| GET    | `/api/health` | public        | Service health check       |
-| GET    | `/api/ping`   | public        | Returns `{ "message": "pong" }` |
-| GET    | `/api/user`   | `auth:sanctum`| The authenticated user     |
+All routes are defined in [`backend/routes/api.php`](backend/routes/api.php) and served under `/api/*`. Grouped overview:
 
-Auth is scaffolded with **Laravel Sanctum** (token-based). The `User` model uses the `HasApiTokens` trait, ready for issuing API tokens.
+| Group | Auth | Examples |
+|-------|------|----------|
+| Health | public | `GET /health`, `GET /ping` |
+| Auth & account | public / `auth:sanctum` | `POST /register`, `POST /login`, `POST /logout`, `GET /me`, `PUT /me/profile`, `PUT /me/password`, email verification |
+| Student portal | `auth:sanctum` | `GET /me/bill`, `GET /me/bills`, `GET /me/enrollments`, `POST /me/bill/payments`, `GET /programs`, applications (`/applications`) |
+| Admin | `auth:sanctum` (admin) | applications review, students, enrollments & sections, billing (`/admin/billing`), fees, discounts, users, terms, programs, payment channels, reports |
+
+Auth uses **Laravel Sanctum** (token-based); the `User` model has the `HasApiTokens` trait. See `backend/routes/api.php` for the full list.
 
 ## UI (Tailwind + shadcn/ui)
 
@@ -133,8 +164,12 @@ defined as CSS variables in `frontend/src/index.css`.
 
 ## Frontend routes (client-side SPA)
 
-| Path     | Page        |
-|----------|-------------|
-| `/`      | Home (calls `/api/health`) |
-| `/about` | About       |
-| `*`      | 404 Not Found |
+Defined in [`frontend/src/router.ts`](frontend/src/router.ts):
+
+| Path            | Area                                                                 |
+|-----------------|----------------------------------------------------------------------|
+| `/`             | Redirects to the right area based on the signed-in user's role       |
+| `/login`, `/register` | Authentication                                                 |
+| `/admin/*`      | Staff portal — applications, students, enrollments, sections, scheduling, billing, fees, discounts, programs, terms, users, payment methods, reports |
+| `/portal/*`     | Student/applicant portal — bills, programs, applications, notifications, account |
+| `*`             | 404 Not Found                                                        |

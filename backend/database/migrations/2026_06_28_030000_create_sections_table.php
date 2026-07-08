@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('program');
             $table->string('year_level');
             $table->string('name');
-            $table->unsignedInteger('capacity')->default(20);
+            $table->unsignedInteger('capacity')->default(30);
             $table->timestamps();
 
             // One section name per program + grade within a school year.

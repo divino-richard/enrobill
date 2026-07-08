@@ -222,14 +222,14 @@ function SectionFormDialog({
   const [program, setProgram] = useState("");
   const [yearLevel, setYearLevel] = useState("");
   const [name, setName] = useState("");
-  const [capacity, setCapacity] = useState("40");
+  const [capacity, setCapacity] = useState("30");
 
   useEffect(() => {
     if (!open) return;
     setProgram(editing?.program ?? "");
     setYearLevel(editing?.yearLevel ?? "");
     setName(editing?.name ?? "");
-    setCapacity(String(editing?.capacity ?? 40));
+    setCapacity(String(editing?.capacity ?? 30));
     mutation.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing]);

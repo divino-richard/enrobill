@@ -16,7 +16,7 @@ class Section extends Model
      * Students per section. Used as the cap for auto-generated sections — once a
      * grade's sections are full, the next lettered section opens at this size.
      */
-    public const DEFAULT_CAPACITY = 20;
+    public const DEFAULT_CAPACITY = 30;
 
     /**
      * @return array<string, string>
