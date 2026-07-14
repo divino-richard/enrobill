@@ -32,7 +32,6 @@ export interface InstallmentPolicyInput {
 }
 
 export interface TermInput extends InstallmentPolicyInput {
-  schoolYear: string;
   startDate: string;
   endDate: string;
 }

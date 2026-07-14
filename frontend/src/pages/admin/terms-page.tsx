@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { addMonths, differenceInMonths, format } from "date-fns";
 import {
   CalendarDaysIcon,
   CircleAlertIcon,
@@ -107,14 +108,49 @@ function policySummary(term: Term): string {
   return `${dp} DP · ${term.installmentCount}× monthly`;
 }
 
+function SchedulePreview({
+  startDate,
+  endDate,
+  count,
+}: {
+  startDate: string;
+  endDate: string;
+  count: number;
+}) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const final = addMonths(start, count);
+  const overrun = differenceInMonths(final, new Date(`${endDate}T00:00:00`));
+
+  return (
+    <p className="text-muted-foreground border-t pt-3 text-xs">
+      Downpayment due{" "}
+      <span className="font-medium">{format(start, "d MMM yyyy")}</span> · final
+      installment{" "}
+      <span className="font-medium">{format(final, "d MMM yyyy")}</span>
+      {overrun > 0 && (
+        <span className="text-amber-600 dark:text-amber-500">
+          {" "}
+          — {overrun} month{overrun === 1 ? "" : "s"} after the year ends.
+        </span>
+      )}
+    </p>
+  );
+}
+
 // Shared installment-policy fields used by the create and edit dialogs.
 function PolicyFields({
   policy,
   onChange,
+  startDate,
+  endDate,
 }: {
   policy: PolicyState;
   onChange: (patch: Partial<PolicyState>) => void;
+  startDate: string | null;
+  endDate: string | null;
 }) {
+  const count = Number(policy.count);
+
   return (
     <div className="space-y-3 rounded-lg border p-3 sm:col-span-2">
       <p className="text-sm font-medium">Installment policy</p>
@@ -162,6 +198,13 @@ function PolicyFields({
           />
         </div>
       </div>
+      {startDate && endDate && count >= 1 && (
+        <SchedulePreview
+          startDate={startDate}
+          endDate={endDate}
+          count={count}
+        />
+      )}
     </div>
   );
 }
@@ -220,6 +263,8 @@ function PolicyForm({ term, onDone }: { term: Term; onDone: () => void }) {
         <PolicyFields
           policy={policy}
           onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
+          startDate={term.startDate}
+          endDate={term.endDate}
         />
       </div>
       {save.isError && (
@@ -387,17 +432,28 @@ function FreebieFields({
   );
 }
 
-// Two consecutive 4-digit years, e.g. "2026-2027".
-const SCHOOL_YEAR_PATTERN = /^(\d{4})-(\d{4})$/;
-
-function isValidSchoolYear(value: string): boolean {
-  const match = SCHOOL_YEAR_PATTERN.exec(value.trim());
-  return match !== null && Number(match[2]) === Number(match[1]) + 1;
-}
-
 // School-year dates can be current/future, so widen the calendar.
 const TERM_DATE_START = new Date(new Date().getFullYear() - 2, 0);
 const TERM_DATE_END = new Date(new Date().getFullYear() + 6, 11);
+
+function schoolYearFor(startDate: string, endDate: string): string {
+  const start = startDate.slice(0, 4);
+  const end = endDate.slice(0, 4);
+  return start === end ? start : `${start}-${end}`;
+}
+
+const MIN_MONTHS = 3;
+const MAX_MONTHS = 12;
+
+function endDateBounds(startDate: string) {
+  const start = new Date(`${startDate}T00:00:00`);
+  return {
+    min: addMonths(start, MIN_MONTHS),
+    max: addMonths(start, MAX_MONTHS),
+  };
+}
+
+const toISO = (date: Date) => format(date, "yyyy-MM-dd");
 
 function NewTermDialog({
   open,
@@ -406,18 +462,27 @@ function NewTermDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [schoolYear, setSchoolYear] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [policy, setPolicy] = useState<PolicyState>(EMPTY_POLICY);
   const create = useCreateTerm();
 
-  const schoolYearValid = isValidSchoolYear(schoolYear);
-  const datesValid = startDate !== "" && endDate !== "" && endDate >= startDate;
-  const canCreate = schoolYearValid && datesValid && policyComplete(policy);
+  const bounds = startDate ? endDateBounds(startDate) : null;
+  const endValid =
+    bounds !== null &&
+    endDate >= toISO(bounds.min) &&
+    endDate <= toISO(bounds.max);
+  const canCreate = endValid && policyComplete(policy);
+
+  // A new start date can strand an end date outside the year it now implies.
+  function handleStartChange(value: string) {
+    setStartDate(value);
+    if (!value || !endDate) return;
+    const next = endDateBounds(value);
+    if (endDate < toISO(next.min) || endDate > toISO(next.max)) setEndDate("");
+  }
 
   function reset() {
-    setSchoolYear("");
     setStartDate("");
     setEndDate("");
     setPolicy(EMPTY_POLICY);
@@ -428,7 +493,6 @@ function NewTermDialog({
     if (!canCreate) return;
     try {
       await create.mutateAsync({
-        schoolYear: schoolYear.trim(),
         startDate,
         endDate,
         ...policyToInput(policy),
@@ -452,33 +516,12 @@ function NewTermDialog({
         <DialogHeader>
           <DialogTitle>New school year</DialogTitle>
           <DialogDescription>
-            Add a school year and its installment policy. Activate it to start
-            enrollment.
+            Set the dates the year runs and its installment policy. Activate it to
+            start enrollment.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <FieldLabel
-              htmlFor="schoolYear"
-              required
-              hint="Two consecutive years, e.g. 2026-2027."
-            >
-              School Year
-            </FieldLabel>
-            <Input
-              id="schoolYear"
-              value={schoolYear}
-              onChange={(e) => setSchoolYear(e.target.value)}
-              placeholder="2026-2027"
-            />
-            {schoolYear.trim() !== "" && !schoolYearValid && (
-              <p className="text-destructive text-xs">
-                Use the format 2026-2027 (consecutive years).
-              </p>
-            )}
-          </div>
-
           <div className="space-y-1.5">
             <FieldLabel htmlFor="startDate" required>
               Start date
@@ -486,7 +529,7 @@ function NewTermDialog({
             <DatePicker
               id="startDate"
               value={startDate}
-              onChange={setStartDate}
+              onChange={handleStartChange}
               placeholder="Select start date"
               startMonth={TERM_DATE_START}
               endMonth={TERM_DATE_END}
@@ -502,23 +545,36 @@ function NewTermDialog({
               id="endDate"
               value={endDate}
               onChange={setEndDate}
-              placeholder="Select end date"
-              startMonth={TERM_DATE_START}
-              endMonth={TERM_DATE_END}
+              placeholder={startDate ? "Select end date" : "Pick a start date"}
+              disabled={!startDate}
+              // Only the 12 months following the start date are reachable — the
+              // month/year dropdowns don't leave the window, and the days on
+              // either side of it are disabled.
+              startMonth={bounds?.min ?? TERM_DATE_START}
+              endMonth={bounds?.max ?? TERM_DATE_END}
               disabledDates={
-                startDate ? { before: new Date(`${startDate}T00:00:00`) } : []
+                bounds
+                  ? [{ before: bounds.min }, { after: bounds.max }]
+                  : { after: TERM_DATE_START }
               }
             />
-            {startDate !== "" && endDate !== "" && endDate < startDate && (
-              <p className="text-destructive text-xs">
-                The end date must be on or after the start date.
-              </p>
-            )}
+          </div>
+
+          <div className="bg-muted/40 rounded-lg border px-3 py-2.5 sm:col-span-2">
+            <p className="text-muted-foreground text-xs">School Year</p>
+            <p className="font-medium">
+              {startDate && endDate ? schoolYearFor(startDate, endDate) : "—"}
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Taken from the dates above, so it always matches the period.
+            </p>
           </div>
 
           <PolicyFields
             policy={policy}
             onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
+            startDate={startDate || null}
+            endDate={endDate || null}
           />
         </div>
 
