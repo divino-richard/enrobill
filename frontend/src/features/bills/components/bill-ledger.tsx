@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { ArrowUpRightIcon, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,

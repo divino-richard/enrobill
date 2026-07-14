@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import {
   ArmchairIcon,
   ArrowRightLeftIcon,
@@ -214,25 +214,50 @@ function SectionFormDialog({
   schoolYearId: number | null;
   editing: Section | null;
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit section" : "New section"}</DialogTitle>
+          <DialogDescription>
+            {editing
+              ? "Rename the section or adjust its capacity."
+              : "Sections are scoped to a program and grade within the selected school year."}
+          </DialogDescription>
+        </DialogHeader>
+        {/* Mounted fresh per open, and re-keyed per target, so the fields seed
+            straight from `editing` instead of an effect syncing them after. */}
+        {open && (
+          <SectionForm
+            key={editing?.id ?? "new"}
+            schoolYearId={schoolYearId}
+            editing={editing}
+            onDone={() => onOpenChange(false)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SectionForm({
+  schoolYearId,
+  editing,
+  onDone,
+}: {
+  schoolYearId: number | null;
+  editing: Section | null;
+  onDone: () => void;
+}) {
   const groups = useProgramGroups();
   const create = useCreateSection();
   const update = useUpdateSection(editing?.id ?? 0);
   const mutation = editing ? update : create;
 
-  const [program, setProgram] = useState("");
-  const [yearLevel, setYearLevel] = useState("");
-  const [name, setName] = useState("");
-  const [capacity, setCapacity] = useState("30");
-
-  useEffect(() => {
-    if (!open) return;
-    setProgram(editing?.program ?? "");
-    setYearLevel(editing?.yearLevel ?? "");
-    setName(editing?.name ?? "");
-    setCapacity(String(editing?.capacity ?? 30));
-    mutation.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editing]);
+  const [program, setProgram] = useState(editing?.program ?? "");
+  const [yearLevel, setYearLevel] = useState(editing?.yearLevel ?? "");
+  const [name, setName] = useState(editing?.name ?? "");
+  const [capacity, setCapacity] = useState(String(editing?.capacity ?? 30));
 
   const capacityNum = Number(capacity);
   const canSave =
@@ -256,24 +281,14 @@ function SectionFormDialog({
           capacity: capacityNum,
         });
       }
-      onOpenChange(false);
+      onDone();
     } catch {
       // Surfaced via mutation.isError.
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{editing ? "Edit section" : "New section"}</DialogTitle>
-          <DialogDescription>
-            {editing
-              ? "Rename the section or adjust its capacity."
-              : "Sections are scoped to a program and grade within the selected school year."}
-          </DialogDescription>
-        </DialogHeader>
-
+    <>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <FieldLabel required>Program</FieldLabel>
@@ -350,7 +365,7 @@ function SectionFormDialog({
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={onDone}
             disabled={mutation.isPending}
           >
             Cancel
@@ -363,8 +378,7 @@ function SectionFormDialog({
                 : "Create section"}
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </>
   );
 }
 
@@ -709,23 +723,26 @@ function UnsectionedDetail({
 
 function SectionsPage() {
   const { data: terms } = useTerms();
-  const schoolYears = terms ?? [];
+  const schoolYears = useMemo(() => terms ?? [], [terms]);
   const programGroups = useProgramGroups();
 
-  const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
+  // What the user explicitly picked; `null` means "hasn't picked yet".
+  const [pickedSchoolYearId, setPickedSchoolYearId] = useState<number | null>(
+    null,
+  );
   const [program, setProgram] = useState<string>("all");
   const [yearLevel, setYearLevel] = useState<string>("all");
-  const [selected, setSelected] = useState<Selection>(null);
+  const [picked, setPicked] = useState<Selection>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Section | null>(null);
   const [deleting, setDeleting] = useState<Section | null>(null);
 
-  useEffect(() => {
-    if (schoolYearId === null && schoolYears.length > 0) {
-      const active = schoolYears.find((sy) => sy.isActive) ?? schoolYears[0];
-      setSchoolYearId(active.id);
-    }
-  }, [schoolYears, schoolYearId]);
+  // Default to the active school year. Derived while rendering rather than
+  // backfilled by an effect, so there is no render pass with no year selected.
+  const schoolYearId =
+    pickedSchoolYearId ??
+    (schoolYears.find((sy) => sy.isActive) ?? schoolYears[0])?.id ??
+    null;
 
   const filters = useMemo(
     () => ({
@@ -746,16 +763,19 @@ function SectionsPage() {
     [unsectionedQuery.data],
   );
 
-  // Keep the current selection valid as data/filters change.
-  useEffect(() => {
-    const validSection =
-      typeof selected === "number" && sections.some((s) => s.id === selected);
-    if (validSection) return;
-    if (selected === "unsectioned" && unsectioned.length > 0) return;
-    if (sections.length > 0) setSelected(sections[0].id);
-    else if (unsectioned.length > 0) setSelected("unsectioned");
-    else setSelected(null);
-  }, [sections, unsectioned, selected]);
+  // The selection falls back to the first section (then the unsectioned bucket)
+  // whenever the user's pick isn't in the current data — a filter change can strand
+  // it. Derived while rendering, so a stale pick is never shown even for one frame.
+  const pickIsValid =
+    (typeof picked === "number" && sections.some((s) => s.id === picked)) ||
+    (picked === "unsectioned" && unsectioned.length > 0);
+  const selected: Selection = pickIsValid
+    ? picked
+    : sections.length > 0
+      ? sections[0].id
+      : unsectioned.length > 0
+        ? "unsectioned"
+        : null;
 
   const totals = useMemo(() => {
     const capacity = sections.reduce((sum, s) => sum + s.capacity, 0);
@@ -833,7 +853,7 @@ function SectionsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={schoolYearId ? String(schoolYearId) : ""}
-          onValueChange={(v) => setSchoolYearId(Number(v))}
+          onValueChange={(v) => setPickedSchoolYearId(Number(v))}
         >
           <SelectTrigger className="w-fit min-w-44">
             <SelectValue placeholder="School year" />
@@ -915,7 +935,7 @@ function SectionsPage() {
             {unsectioned.length > 0 && (
               <button
                 type="button"
-                onClick={() => setSelected("unsectioned")}
+                onClick={() => setPicked("unsectioned")}
                 className={cn(
                   "flex w-full items-center justify-between gap-2 rounded-lg border p-3 text-left transition-colors",
                   selected === "unsectioned"
@@ -946,7 +966,7 @@ function SectionsPage() {
                   key={section.id}
                   section={section}
                   selected={selected === section.id}
-                  onSelect={() => setSelected(section.id)}
+                  onSelect={() => setPicked(section.id)}
                 />
               ))
             )}

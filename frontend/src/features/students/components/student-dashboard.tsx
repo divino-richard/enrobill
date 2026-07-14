@@ -30,6 +30,7 @@ import {
   BILL_STATUS_META,
   INSTALLMENT_STATUS_META,
 } from "@/features/bills/types";
+import { isOverdue, nextOutstandingInstallment } from "@/features/bills/utils";
 import { useMyStudent } from "../hooks";
 import { StudentStatusBadge } from "./student-status-badge";
 
@@ -86,12 +87,9 @@ export function StudentDashboard() {
   const pendingTotal = pending.reduce((sum, p) => sum + p.amount, 0);
 
   // The next unpaid installment, if the bill is on a plan.
-  const nextDue = installments
-    .filter((i) => i.balance > 0)
-    .sort((a, b) => a.sequence - b.sequence)[0];
+  const nextDue = nextOutstandingInstallment(installments);
   const dueDate = nextDue?.dueDate ?? null;
-  const overdue =
-    !!dueDate && new Date(`${dueDate}T00:00:00`).getTime() < Date.now();
+  const overdue = isOverdue(dueDate);
 
   const percentPaid =
     bill && bill.netTotal > 0
@@ -315,7 +313,7 @@ export function StudentDashboard() {
         {/* Side column */}
         <div className="space-y-6">
           {/* Priority spotlight */}
-          <Card className="border-primary/10 bg-gradient-to-br from-primary/8 via-background to-background">
+          <Card className="border-primary/10 bg-linear-to-br from-primary/8 via-background to-background">
             <CardHeader>
               <CardDescription className="text-xs font-medium tracking-wide uppercase">
                 Priority
