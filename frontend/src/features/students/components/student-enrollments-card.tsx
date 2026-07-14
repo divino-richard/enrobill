@@ -43,7 +43,13 @@ function termLabel(record: EnrollmentRecord): string {
   return record.schoolYear ? `SY ${record.schoolYear}` : "—";
 }
 
-export function StudentEnrollmentsCard({ studentId }: { studentId: number }) {
+export function StudentEnrollmentsCard({
+  studentId,
+  readOnly = false,
+}: {
+  studentId: number;
+  readOnly?: boolean;
+}) {
   const programLabel = useProgramLabel();
   const { data: enrollments, isLoading } = useStudentEnrollments(studentId);
   const mutation = useUpdateEnrollmentStatus(studentId);
@@ -53,8 +59,9 @@ export function StudentEnrollmentsCard({ studentId }: { studentId: number }) {
       <CardHeader>
         <CardTitle className="text-base">Enrollments</CardTitle>
         <CardDescription>
-          The student's program, level and status per term. Changing a status
-          updates the student's overall standing.
+          The student's program, level and status per term.
+          {!readOnly &&
+            " Changing a status updates the student's overall standing."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -100,25 +107,27 @@ export function StudentEnrollmentsCard({ studentId }: { studentId: number }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <EnrollmentStatusBadge status={record.status} />
-                  <RowActions>
-                    {ACTIONS.filter((a) => a.status !== record.status).map(
-                      (action) => (
-                        <DropdownMenuItem
-                          key={action.status}
-                          disabled={mutation.isPending}
-                          onClick={() =>
-                            mutation.mutate({
-                              enrollmentId: record.id,
-                              status: action.status,
-                            })
-                          }
-                        >
-                          <action.icon />
-                          {action.label}
-                        </DropdownMenuItem>
-                      ),
-                    )}
-                  </RowActions>
+                  {!readOnly && (
+                    <RowActions>
+                      {ACTIONS.filter((a) => a.status !== record.status).map(
+                        (action) => (
+                          <DropdownMenuItem
+                            key={action.status}
+                            disabled={mutation.isPending}
+                            onClick={() =>
+                              mutation.mutate({
+                                enrollmentId: record.id,
+                                status: action.status,
+                              })
+                            }
+                          >
+                            <action.icon />
+                            {action.label}
+                          </DropdownMenuItem>
+                        ),
+                      )}
+                    </RowActions>
+                  )}
                 </div>
               </li>
             ))}

@@ -44,6 +44,7 @@ interface NavItem {
   end?: boolean;
   // Not-yet-built items render disabled with a "Soon" badge.
   ready?: boolean;
+  roles?: Role[];
 }
 
 interface NavGroup {
@@ -76,13 +77,14 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Admissions",
-    roles: ["admin"],
+    roles: ["admin", "cashier"],
     items: [
       {
         title: "Applications",
         url: "/admin/applications",
         icon: ClipboardListIcon,
         ready: true,
+        roles: ["admin"],
       },
       {
         title: "Students",
@@ -95,6 +97,7 @@ const navGroups: NavGroup[] = [
         url: "/admin/progression",
         icon: MoveUpIcon,
         ready: true,
+        roles: ["admin"],
       },
     ],
   },
@@ -186,9 +189,15 @@ const ACTIVE_CLASSES =
 export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation();
   const role = useAuthStore((state) => state.user?.role);
-  const groups = navGroups.filter(
-    (group) => role !== undefined && group.roles.includes(role),
-  );
+  const groups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          role !== undefined && (item.roles ?? group.roles).includes(role),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <Sidebar collapsible="icon" {...props}>

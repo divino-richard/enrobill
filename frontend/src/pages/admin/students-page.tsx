@@ -18,6 +18,7 @@ import {
   GraduationCapIcon,
   SearchIcon,
   SquarePenIcon,
+  EyeIcon,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuthStore } from "@/features/auth/store";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { useStudents } from "@/features/students/hooks";
@@ -82,6 +84,7 @@ function SortHeader({
 
 function StudentsPage() {
   const navigate = useNavigate();
+  const isAdmin = useAuthStore((state) => state.user?.role) === "admin";
   const progression = useProgression();
   const { data: terms } = useTerms();
   const programGroups = useProgramGroups();
@@ -225,14 +228,14 @@ function StudentsPage() {
             <DropdownMenuItem
               onClick={() => navigate(`/admin/students/${row.original.id}`)}
             >
-              <SquarePenIcon />
-              Manage
+              {isAdmin ? <SquarePenIcon /> : <EyeIcon />}
+              {isAdmin ? "Manage" : "View"}
             </DropdownMenuItem>
           </RowActions>
         ),
       },
     ],
-    [navigate],
+    [navigate, isAdmin],
   );
 
   // TanStack Table returns non-memoizable functions; the React Compiler lint

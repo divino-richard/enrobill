@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthStore } from "@/features/auth/store";
 import { useAddress } from "@/features/applications/hooks/address";
 import {
   CIVIL_STATUS_OPTIONS,
@@ -139,6 +140,7 @@ function StudentDetailPage() {
   const studentId = Number(id ?? 0);
   const [tab, setTab] = useState<StudentDetailTab>("overview");
   const [isEditing, setIsEditing] = useState(false);
+  const isAdmin = useAuthStore((state) => state.user?.role) === "admin";
   const { data: student, isLoading, isError, refetch } = useStudent(studentId);
   const { data: enrollments, isLoading: enrollmentsLoading } =
     useStudentEnrollments(studentId);
@@ -243,24 +245,26 @@ function StudentDetailPage() {
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {student.applicationId && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  navigate(`/admin/applications/${student.applicationId}`)
-                }
-              >
-                View application
-                <ArrowRightIcon />
+          {isAdmin && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {student.applicationId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    navigate(`/admin/applications/${student.applicationId}`)
+                  }
+                >
+                  View application
+                  <ArrowRightIcon />
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setIsEditing(true)}>
+                <PencilIcon />
+                Edit details
               </Button>
-            )}
-            <Button size="sm" onClick={() => setIsEditing(true)}>
-              <PencilIcon />
-              Edit details
-            </Button>
-          </div>
+            </div>
+          )}
         </CardHeader>
       </Card>
 
@@ -421,7 +425,7 @@ function StudentDetailPage() {
           </TabsContent>
 
           <TabsContent value="enrollments">
-            <StudentEnrollmentsCard studentId={student.id} />
+            <StudentEnrollmentsCard studentId={student.id} readOnly={!isAdmin} />
           </TabsContent>
 
           <TabsContent value="billing">
@@ -429,22 +433,24 @@ function StudentDetailPage() {
           </TabsContent>
         </Tabs>
 
-      <Sheet open={isEditing} onOpenChange={setIsEditing}>
-        <SheetContent className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
-          <SheetHeader className="border-b">
-            <SheetTitle>Edit student details</SheetTitle>
-            <SheetDescription>
-              {studentDisplayName(student)} · {student.studentNumber}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-4 py-5">
-            <StudentEditForm
-              student={student}
-              onSaved={() => setIsEditing(false)}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      {isAdmin && (
+        <Sheet open={isEditing} onOpenChange={setIsEditing}>
+          <SheetContent className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+            <SheetHeader className="border-b">
+              <SheetTitle>Edit student details</SheetTitle>
+              <SheetDescription>
+                {studentDisplayName(student)} · {student.studentNumber}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto px-4 py-5">
+              <StudentEditForm
+                student={student}
+                onSaved={() => setIsEditing(false)}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

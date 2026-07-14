@@ -133,16 +133,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/applications/{application}/accept', [AdminApplicationController::class, 'accept']);
         Route::post('/admin/applications/{application}/reject', [AdminApplicationController::class, 'reject']);
 
-        // Student records.
-        Route::get('/admin/students', [AdminStudentController::class, 'index']);
-        Route::get('/admin/students/{student}', [AdminStudentController::class, 'show']);
         Route::put('/admin/students/{student}', [AdminStudentController::class, 'update']);
 
-        // A student's bill for the open term.
-        Route::get('/admin/students/{student}/bill', [AdminBillController::class, 'showForStudent']);
-
-        // A student's per-term enrollment history + status management.
-        Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
         Route::put('/admin/enrollments/{enrollment}', [AdminEnrollmentController::class, 'update']);
         // Place / move an enrollment within a class section.
         Route::put('/admin/enrollments/{enrollment}/section', [AdminSectionController::class, 'assign']);
@@ -169,8 +161,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/school-years/{schoolYear}/freebies', [AdminFreebieController::class, 'index']);
         Route::put('/admin/school-years/{schoolYear}/freebies', [AdminFreebieController::class, 'upsert']);
 
-        // Programs (tracks/strands).
-        Route::get('/admin/programs', [AdminProgramController::class, 'index']);
         Route::post('/admin/programs', [AdminProgramController::class, 'store']);
         Route::put('/admin/programs/{program}', [AdminProgramController::class, 'update']);
         Route::delete('/admin/programs/{program}', [AdminProgramController::class, 'destroy']);
@@ -184,6 +174,11 @@ Route::middleware('auth:sanctum')->group(function () {
         // Read-only supporting data the finance screens depend on.
         Route::get('/admin/school-years', [AdminSchoolYearController::class, 'index']);
         Route::get('/admin/progression', [AdminProgressionController::class, 'index']);
+        Route::get('/admin/programs', [AdminProgramController::class, 'index']);
+        Route::get('/admin/students', [AdminStudentController::class, 'index']);
+        Route::get('/admin/students/{student}', [AdminStudentController::class, 'show']);
+        Route::get('/admin/students/{student}/bill', [AdminBillController::class, 'showForStudent']);
+        Route::get('/admin/students/{student}/enrollments', [AdminEnrollmentController::class, 'index']);
 
         // Global per-school-year fee schedule (by year level).
         Route::get('/admin/fees', [AdminFeeController::class, 'index']);

@@ -70,6 +70,8 @@ export const router = createBrowserRouter([
           { path: 'billing', Component: AdminBillingPage },
           { path: 'billing/:id', Component: AdminBillDetailPage },
           { path: 'payment-methods', Component: AdminPaymentChannelsPage },
+          { path: 'students', Component: AdminStudentsPage },
+          { path: 'students/:id', Component: AdminStudentDetailPage },
 
           // Admin-only areas (cashiers are redirected away).
           {
@@ -80,8 +82,6 @@ export const router = createBrowserRouter([
                 path: 'applications/:id',
                 Component: AdminApplicationDetailPage,
               },
-              { path: 'students', Component: AdminStudentsPage },
-              { path: 'students/:id', Component: AdminStudentDetailPage },
               { path: 'progression', Component: AdminProgressionPage },
               { path: 'sections', Component: AdminSectionsPage },
               { path: 'scheduling', Component: AdminSchedulingPage },
