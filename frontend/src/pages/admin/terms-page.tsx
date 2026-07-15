@@ -188,7 +188,9 @@ function PolicyFields({
           />
         </div>
         <div className="space-y-1.5 sm:col-span-2">
-          <FieldLabel>Monthly installments</FieldLabel>
+          <FieldLabel hint="Splits the balance after the downpayment into this many equal monthly dues. More installments means a smaller amount per month.">
+            Monthly installments
+          </FieldLabel>
           <Input
             type="number"
             min={1}
