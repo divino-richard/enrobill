@@ -13,11 +13,7 @@ import {
 } from "@/components/ui/select";
 import { FieldInfo } from "@/components/form/field-info";
 import { SCHOOL_TYPE_OPTIONS } from "../types";
-
-function required(message: string) {
-  return ({ value }: { value: string }) =>
-    value && value.trim() ? undefined : message;
-}
+import { compose, numericRange, required, schoolYear } from "../validators";
 
 interface AcademicStepProps {
   form: ApplicationFormApi;
@@ -138,14 +134,19 @@ export function AcademicStep({ form }: AcademicStepProps) {
 
           <form.Field
             name="prevSchoolYearGraduated"
-            validators={{ onChange: required("Year graduated is required") }}
+            validators={{
+              onChange: compose(
+                required("Year graduated is required"),
+                schoolYear("Use a school year like 2024-2025"),
+              ),
+            }}
           >
             {(field) => (
               <div className="space-y-1.5">
                 <FieldLabel
                   htmlFor={field.name}
                   required
-                  hint="School year you completed or last attended (e.g. 2024–2025)."
+                  hint="The school year you completed or last attended, written as YYYY-YYYY (e.g. 2024-2025)."
                 >
                   Year Graduated / Last Attended
                 </FieldLabel>
@@ -154,28 +155,44 @@ export function AcademicStep({ form }: AcademicStepProps) {
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="e.g. 2024-2025"
+                  inputMode="numeric"
                 />
                 <FieldInfo field={field} />
               </div>
             )}
           </form.Field>
 
-          <form.Field name="prevSchoolGpa">
+          <form.Field
+            name="prevSchoolGpa"
+            validators={{
+              onChange: numericRange(
+                75,
+                100,
+                "General average must be a number between 75 and 100",
+              ),
+            }}
+          >
             {(field) => (
               <div className="space-y-1.5">
                 <FieldLabel
                   htmlFor={field.name}
                   optional
-                  hint="Your general average or GPA from the last school year."
+                  hint="Your general average from the last school year, on the 75–100 scale."
                 >
                   General Average / GPA
                 </FieldLabel>
                 <Input
                   id={field.name}
+                  type="number"
+                  min={75}
+                  max={100}
+                  step="0.01"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
+                <FieldInfo field={field} />
               </div>
             )}
           </form.Field>

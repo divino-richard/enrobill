@@ -20,11 +20,9 @@ import { CIVIL_STATUS_OPTIONS, type Gender } from "../types";
 import { useStore } from "@tanstack/react-store";
 import { AddressCombobox } from "./address-combobox";
 import { useAddress } from "../hooks/address";
+import { compose, noDigits, required } from "../validators";
 
-function required(message: string) {
-  return ({ value }: { value: string }) =>
-    value && value.trim() ? undefined : message;
-}
+const NO_SUFFIX = "__none__";
 
 interface PersonalStepProps {
   form: ApplicationFormApi;
@@ -72,7 +70,12 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <form.Field
             name="surname"
-            validators={{ onChange: required("Family name is required") }}
+            validators={{
+              onChange: compose(
+                required("Family name is required"),
+                noDigits("Family name shouldn't contain numbers"),
+              ),
+            }}
           >
             {(field) => (
               <div className="space-y-1.5">
@@ -96,7 +99,12 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
 
           <form.Field
             name="givenName"
-            validators={{ onChange: required("Given name is required") }}
+            validators={{
+              onChange: compose(
+                required("Given name is required"),
+                noDigits("Given name shouldn't contain numbers"),
+              ),
+            }}
           >
             {(field) => (
               <div className="space-y-1.5">
@@ -118,7 +126,12 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
             )}
           </form.Field>
 
-          <form.Field name="middleName">
+          <form.Field
+            name="middleName"
+            validators={{
+              onChange: noDigits("Middle name shouldn't contain numbers"),
+            }}
+          >
             {(field) => (
               <div className="space-y-1.5">
                 <FieldLabel
@@ -134,6 +147,7 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
+                <FieldInfo field={field} />
               </div>
             )}
           </form.Field>
@@ -150,12 +164,22 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
                 </FieldLabel>
                 <Select
                   value={field.state.value}
-                  onValueChange={(v) => field.handleChange(v)}
+                  // Radix forbids an empty-string item value, so a sentinel "None"
+                  // maps back to "" — this is how the suffix gets cleared once set.
+                  onValueChange={(v) =>
+                    field.handleChange(v === NO_SUFFIX ? "" : v)
+                  }
                 >
                   <SelectTrigger id={field.name} className="w-full">
                     <SelectValue placeholder="Select suffix" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem
+                      value={NO_SUFFIX}
+                      className="text-muted-foreground"
+                    >
+                      None
+                    </SelectItem>
                     {["Jr.", "Sr.", "II", "III", "IV", "V"].map((suffix) => (
                       <SelectItem key={suffix} value={suffix}>
                         {suffix}
@@ -335,7 +359,12 @@ export function PersonalStep({ form, enrollmentDate }: PersonalStepProps) {
             )}
           </form.Field>
 
-          <form.Field name="religion">
+          <form.Field
+            name="religion"
+            validators={{
+              onChange: noDigits("Religion shouldn't contain numbers"),
+            }}
+          >
             {(field) => (
               <div className="space-y-1.5">
                 <FieldLabel

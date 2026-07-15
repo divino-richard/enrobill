@@ -4,11 +4,7 @@ import { FormSection } from "./form-section";
 import { FieldLabel } from "@/components/form/field-label";
 import { Input } from "@/components/ui/input";
 import { FieldInfo } from "@/components/form/field-info";
-
-function required(message: string) {
-  return ({ value }: { value: string }) =>
-    value && value.trim() ? undefined : message;
-}
+import { compose, noDigits, required } from "../validators";
 
 interface ContactStepProps {
   form: ApplicationFormApi;
@@ -139,7 +135,12 @@ export function ContactStep({ form }: ContactStepProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <form.Field
             name="guardianName"
-            validators={{ onChange: required("Guardian name is required") }}
+            validators={{
+              onChange: compose(
+                required("Guardian name is required"),
+                noDigits("Guardian name shouldn't contain numbers"),
+              ),
+            }}
           >
             {(field) => (
               <div className="space-y-1.5">
@@ -163,7 +164,10 @@ export function ContactStep({ form }: ContactStepProps) {
           <form.Field
             name="guardianRelation"
             validators={{
-              onChange: required("Guardian relationship is required"),
+              onChange: compose(
+                required("Guardian relationship is required"),
+                noDigits("Relationship shouldn't contain numbers"),
+              ),
             }}
           >
             {(field) => (
@@ -238,7 +242,10 @@ export function ContactStep({ form }: ContactStepProps) {
           <form.Field
             name="guardianOccupation"
             validators={{
-              onChange: required("Occupation is required"),
+              onChange: compose(
+                required("Occupation is required"),
+                noDigits("Occupation shouldn't contain numbers"),
+              ),
             }}
           >
             {(field) => (

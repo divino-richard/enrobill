@@ -100,14 +100,22 @@ export const STEP_FIELDS: Record<number, TextFieldKey[]> = {
   4: [],
 };
 
-// Non-text required fields validated when advancing a step but excluded from
-// the text-based "filled" counter (e.g. the document uploads on the academic
-// step, which have their own progress indicator).
+// Fields validated when advancing a step but excluded from the text-based
+// "filled" counter: non-text required fields (e.g. the document uploads on the
+// academic step, which have their own progress indicator) and optional text
+// fields that still enforce a format — middleName/religion reject digits but must
+// not count toward the required total.
 export const STEP_EXTRA_VALIDATED_FIELDS: Record<
   number,
   (keyof ApplicationFormValues)[]
 > = {
-  2: ["documents", "documentPromissoryNote", "documentPromissoryDate"],
+  0: ["middleName", "religion"],
+  2: [
+    "prevSchoolGpa",
+    "documents",
+    "documentPromissoryNote",
+    "documentPromissoryDate",
+  ],
   3: ["agreementAccepted"],
 };
 
