@@ -1,6 +1,7 @@
-import type { LucideIcon } from "lucide-react";
+import { InfoIcon, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface StatTileProps {
   label: string;
@@ -21,15 +22,32 @@ export function StatTile({
 }: StatTileProps) {
   return (
     <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-4">
+      <CardContent className="flex items-start justify-between gap-3 px-4 py-3">
         <div className="min-w-0 space-y-1">
           <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
             {label}
           </p>
-          <p className="truncate text-2xl font-semibold tracking-tight">
-            {value}
-          </p>
-          {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+          <div className="flex items-center gap-3">
+            <p className="truncate text-2xl font-semibold tracking-tight">
+              {value}
+            </p>
+            {hint && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-help"
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <InfoIcon className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-pretty">
+                  {hint}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
         {Icon && (
           <div

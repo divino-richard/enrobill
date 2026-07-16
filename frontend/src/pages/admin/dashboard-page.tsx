@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRightIcon,
   BanknoteIcon,
   BarChart3Icon,
   CalendarRangeIcon,
@@ -8,13 +7,27 @@ import {
   ClipboardListIcon,
   ClockIcon,
   GraduationCapIcon,
+  InfoIcon,
   ReceiptTextIcon,
   TrendingUpIcon,
   TriangleAlertIcon,
   WalletIcon,
   type LucideIcon,
 } from "lucide-react";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Label,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  RadialBar,
+  RadialBarChart,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { StatTile } from "@/components/stat-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +52,11 @@ import { useAuthStore } from "@/features/auth/store";
 import { useStaffDashboard } from "@/features/dashboard/hooks";
 import { formatPeso } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Tone = "primary" | "success" | "warning" | "violet" | "sky";
 
@@ -97,6 +115,8 @@ const admissionsChartConfig = {
   },
 } satisfies ChartConfig;
 
+// The widest-apart pair of the theme ramp that still clears both the light and
+// the dark surface; the steps outside these two wash out against one or other.
 const financeChartConfig = {
   billed: {
     label: "Billed",
@@ -107,6 +127,26 @@ const financeChartConfig = {
     color: "var(--color-chart-2)",
   },
 } satisfies ChartConfig;
+
+// Every other step of the theme ramp, so the ring reads dark (settled) to light
+// (untouched) with as much room between neighbours as the ramp allows. The steps
+// are close enough that the legend below is what ties a colour to a status.
+const billStatusChartConfig = {
+  paid: {
+    label: "Paid",
+    color: "var(--color-chart-5)",
+  },
+  partial: {
+    label: "Partially paid",
+    color: "var(--color-chart-3)",
+  },
+  unpaid: {
+    label: "Unpaid",
+    color: "var(--color-chart-1)",
+  },
+} satisfies ChartConfig;
+
+const billStatusKeys = ["paid", "partial", "unpaid"] as const;
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -236,8 +276,8 @@ function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <Card className="border-primary/10 bg-gradient-to-br from-primary/8 via-background to-muted/60">
-        <CardContent className="grid gap-4 p-4 lg:p-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.9fr)] xl:items-center">
+      <Card className="p-0 py-2 border-primary/10 bg-gradient-to-br from-primary/8 via-background to-muted/60">
+        <CardContent className="grid gap-4 p-4 lg:p-5 xl:grid-cols-2 xl:items-center">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="bg-background/80">
@@ -255,7 +295,9 @@ function DashboardPage() {
                       : "bg-background/80 text-muted-foreground",
                   )}
                 >
-                  {openTerm.admissionOpen ? "Admissions open" : "Admissions closed"}
+                  {openTerm.admissionOpen
+                    ? "Admissions open"
+                    : "Admissions closed"}
                 </Badge>
               )}
               {isAdmin && openTerm && (
@@ -274,15 +316,26 @@ function DashboardPage() {
               )}
             </div>
 
-            <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">
                 Dashboard
               </h1>
-              <p className="text-muted-foreground max-w-3xl text-sm leading-5">
-                {isAdmin
-                  ? `${firstName ? `${firstName}, ` : ""}this view keeps admissions, enrollment, and finance pressure on one screen so the next decision is obvious.`
-                  : `${firstName ? `${firstName}, ` : ""}this view keeps collection posture, verification load, and billing backlog in one place.`}
-              </p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-help"
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <InfoIcon className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-pretty">
+                  {isAdmin
+                    ? `${firstName ? `${firstName}, ` : ""}this view keeps admissions, enrollment, and finance pressure on one screen so the next decision is obvious.`
+                    : `${firstName ? `${firstName}, ` : ""}this view keeps collection posture, verification load, and billing backlog in one place.`}
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -290,7 +343,10 @@ function DashboardPage() {
                 <PrimaryActionIcon />
                 {primaryAction.label}
               </Button>
-              <Button variant="outline" onClick={() => navigate("/admin/reports")}>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/admin/reports")}
+              >
                 <BarChart3Icon />
                 Open reports
               </Button>
@@ -300,11 +356,7 @@ function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-3">
             <HighlightTile
               label="Current term"
-              value={
-                openTerm
-                  ? `SY ${openTerm.schoolYear}`
-                  : "Standby"
-              }
+              value={openTerm ? `SY ${openTerm.schoolYear}` : "Standby"}
               hint={
                 openTerm
                   ? "Admissions and billing are tied to this active school year"
@@ -346,35 +398,21 @@ function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr]">
+      <div className="space-y-6">
         {isAdmin ? (
-          <AdmissionsTrendCard trend={data.trend.admissions} />
+          <>
+            <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
+              <AdmissionsTrendCard trend={data.trend.admissions} />
+              <BillStatusCard bills={finance.bills} />
+            </div>
+            <FinanceTrendCard trend={data.trend.finance} />
+          </>
         ) : (
-          <FinanceTrendCard trend={data.trend.finance} />
+          <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
+            <FinanceTrendCard trend={data.trend.finance} />
+            <BillStatusCard bills={finance.bills} />
+          </div>
         )}
-
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b bg-muted/20">
-            <CardTitle className="text-base">Action queue</CardTitle>
-            <CardDescription>
-              Only the workflows that currently deserve dashboard space.
-            </CardDescription>
-            <CardAction>
-              <Badge variant="outline" className="bg-background/80">
-                {activeQueueCount} active lane{activeQueueCount === 1 ? "" : "s"}
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-2.5 pt-4">
-            {queueItems.map((item) => (
-              <QueueRow
-                key={item.label}
-                item={item}
-                onOpen={() => navigate(item.to)}
-              />
-            ))}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
@@ -385,41 +423,65 @@ function AdmissionsTrendCard({
 }: {
   trend: StaffDashboard["trend"]["admissions"];
 }) {
-  const currentMonth = trend[trend.length - 1] ?? {
-    month: "Current",
-    submitted: 0,
-    admitted: 0,
-    enrolled: 0,
-  };
-
   return (
     <Card className="overflow-hidden">
       <CardHeader className="border-b bg-muted/20">
-        <CardTitle className="text-base">Admissions and enrollment trend</CardTitle>
-        <CardDescription>
-          Six-month movement across submitted applications, admitted students,
-          and completed enrollments.
-        </CardDescription>
+        <CardTitle className="text-base flex items-center gap-3">
+          Admissions and enrollment trend
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-help"
+                onClick={(e) => e.preventDefault()}
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-pretty">
+              Six-month movement across submitted applications, admitted
+              students, and completed enrollments.
+            </TooltipContent>
+          </Tooltip>
+        </CardTitle>
         <CardAction>
           <Badge variant="outline" className="bg-background/80">
             Last 6 months
           </Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+      <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
           {Object.entries(admissionsChartConfig).map(([key, config]) => (
-            <LegendChip key={key} label={String(config.label)} color={config.color} />
+            <LegendChip
+              key={key}
+              label={String(config.label)}
+              color={config.color}
+            />
           ))}
         </div>
 
-        <div className="h-64">
+        <div className="h-54">
           <ChartContainer config={admissionsChartConfig}>
-            <LineChart
+            <AreaChart
               accessibilityLayer
               data={trend}
               margin={{ left: 8, right: 12, top: 8 }}
             >
+              <defs>
+                <AreaFillGradient
+                  id="fill-submitted"
+                  color="var(--color-submitted)"
+                />
+                <AreaFillGradient
+                  id="fill-admitted"
+                  color="var(--color-admitted)"
+                />
+                <AreaFillGradient
+                  id="fill-enrolled"
+                  color="var(--color-enrolled)"
+                />
+              </defs>
               <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="month"
@@ -434,52 +496,35 @@ function AdmissionsTrendCard({
                 width={32}
               />
               <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-              <Line
+              <Area
                 dataKey="submitted"
                 type="monotone"
                 stroke="var(--color-submitted)"
                 strokeWidth={2.5}
+                fill="url(#fill-submitted)"
                 dot={false}
                 activeDot={{ r: 4 }}
               />
-              <Line
+              <Area
                 dataKey="admitted"
                 type="monotone"
                 stroke="var(--color-admitted)"
                 strokeWidth={2.5}
+                fill="url(#fill-admitted)"
                 dot={false}
                 activeDot={{ r: 4 }}
               />
-              <Line
+              <Area
                 dataKey="enrolled"
                 type="monotone"
                 stroke="var(--color-enrolled)"
                 strokeWidth={2.5}
+                fill="url(#fill-enrolled)"
                 dot={false}
                 activeDot={{ r: 4 }}
               />
-            </LineChart>
+            </AreaChart>
           </ChartContainer>
-        </div>
-
-        <div className="grid gap-2.5 sm:grid-cols-3">
-          <SnapshotTile
-            label={`${currentMonth.month} submitted`}
-            value={formatCount(currentMonth.submitted)}
-            hint="Applications received"
-          />
-          <SnapshotTile
-            label={`${currentMonth.month} admitted`}
-            value={formatCount(currentMonth.admitted)}
-            hint="Students moved into admitted status"
-            accent="text-sky-600 dark:text-sky-400"
-          />
-          <SnapshotTile
-            label={`${currentMonth.month} enrolled`}
-            value={formatCount(currentMonth.enrolled)}
-            hint="Students completed enrollment"
-            accent="text-primary"
-          />
         </div>
       </CardContent>
     </Card>
@@ -491,39 +536,50 @@ function FinanceTrendCard({
 }: {
   trend: StaffDashboard["trend"]["finance"];
 }) {
-  const currentMonth = trend[trend.length - 1] ?? {
-    month: "Current",
-    billed: 0,
-    collected: 0,
-  };
-  const gap = Math.max(currentMonth.billed - currentMonth.collected, 0);
-
   return (
     <Card className="overflow-hidden">
       <CardHeader className="border-b bg-muted/20">
-        <CardTitle className="text-base">Billing and collection trend</CardTitle>
-        <CardDescription>
-          Six-month movement across billed value and verified collections.
-        </CardDescription>
+        <CardTitle className="text-base flex items-center gap-3">
+          Billing and collection trend
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-help"
+                onClick={(e) => e.preventDefault()}
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-pretty">
+              Twelve-month movement across billed value and verified collections.
+            </TooltipContent>
+          </Tooltip>
+        </CardTitle>
         <CardAction>
           <Badge variant="outline" className="bg-background/80">
-            Last 6 months
+            Last 12 months
           </Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+      <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
           {Object.entries(financeChartConfig).map(([key, config]) => (
-            <LegendChip key={key} label={String(config.label)} color={config.color} />
+            <LegendChip
+              key={key}
+              label={String(config.label)}
+              color={config.color}
+            />
           ))}
         </div>
 
-        <div className="h-64">
+        <div className="h-54">
           <ChartContainer config={financeChartConfig}>
-            <LineChart
+            <BarChart
               accessibilityLayer
               data={trend}
               margin={{ left: 8, right: 12, top: 8 }}
+              barGap={2}
             >
               <CartesianGrid vertical={false} />
               <XAxis
@@ -539,52 +595,181 @@ function FinanceTrendCard({
                 width={42}
               />
               <ChartTooltip
-                cursor={false}
                 content={
                   <ChartTooltipContent
                     formatter={(value) => formatPeso(Number(value))}
                   />
                 }
               />
-              <Line
+              <Bar
                 dataKey="billed"
-                type="monotone"
-                stroke="var(--color-billed)"
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 4 }}
+                fill="var(--color-billed)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={24}
               />
-              <Line
+              <Bar
                 dataKey="collected"
-                type="monotone"
-                stroke="var(--color-collected)"
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 4 }}
+                fill="var(--color-collected)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={24}
               />
-            </LineChart>
+            </BarChart>
           </ChartContainer>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-        <div className="grid gap-2.5 sm:grid-cols-3">
-          <SnapshotTile
-            label={`${currentMonth.month} billed`}
-            value={formatCompactPeso(currentMonth.billed)}
-            hint="New billing issued"
-          />
-          <SnapshotTile
-            label={`${currentMonth.month} collected`}
-            value={formatCompactPeso(currentMonth.collected)}
-            hint="Verified collections posted"
-            accent="text-emerald-600 dark:text-emerald-400"
-          />
-          <SnapshotTile
-            label={`${currentMonth.month} gap`}
-            value={formatCompactPeso(gap)}
-            hint="Billing not yet realized"
-            accent="text-amber-600 dark:text-amber-400"
-          />
-        </div>
+function BillStatusCard({
+  bills,
+}: {
+  bills: StaffDashboard["finance"]["bills"];
+}) {
+  const total = bills.total;
+  const data = [
+    {
+      label: "Bills",
+      paid: bills.paid,
+      partial: bills.partial,
+      unpaid: bills.unpaid,
+    },
+  ];
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b bg-muted/20">
+        <CardTitle className="text-base flex items-center gap-3">
+          Bill status mix
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-help"
+                onClick={(e) => e.preventDefault()}
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-pretty">
+              How many accounts sit at each payment stage. The metric tiles
+              above measure the same term in pesos; this one measures it in
+              accounts.
+            </TooltipContent>
+          </Tooltip>
+        </CardTitle>
+        <CardAction>
+          <Badge variant="outline" className="bg-background/80">
+            {formatCount(total)} bill{total === 1 ? "" : "s"}
+          </Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {total === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No bills have been generated for this term yet.
+          </p>
+        ) : (
+          <>
+            {/* A half ring only fills the top of its box, so the centre is
+                pushed down to keep the arc close to the legend below. */}
+            <div className="mx-auto h-40 w-full max-w-[250px]">
+              <ChartContainer config={billStatusChartConfig}>
+                <RadialBarChart
+                  data={data}
+                  cy="95%"
+                  endAngle={180}
+                  innerRadius={80}
+                  outerRadius={130}
+                >
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent hideLabel />}
+                  />
+                  {/* recharts 3 sizes the angle axis from a single series
+                      rather than the stack, which drops every segment after
+                      the first unless the total domain is given here. */}
+                  <PolarAngleAxis
+                    type="number"
+                    domain={[0, total]}
+                    tick={false}
+                    axisLine={false}
+                  />
+                  <PolarRadiusAxis
+                    tick={false}
+                    tickLine={false}
+                    axisLine={false}
+                  >
+                    <Label
+                      content={({ viewBox }) => {
+                        if (
+                          !viewBox ||
+                          !("cx" in viewBox) ||
+                          !("cy" in viewBox)
+                        ) {
+                          return null;
+                        }
+
+                        const cx = viewBox.cx ?? 0;
+                        const cy = viewBox.cy ?? 0;
+
+                        return (
+                          <text x={cx} y={cy} textAnchor="middle">
+                            <tspan
+                              x={cx}
+                              y={cy - 16}
+                              className="fill-foreground text-2xl font-semibold"
+                            >
+                              {formatCount(total)}
+                            </tspan>
+                            <tspan
+                              x={cx}
+                              y={cy + 4}
+                              className="fill-muted-foreground text-xs"
+                            >
+                              bill{total === 1 ? "" : "s"}
+                            </tspan>
+                          </text>
+                        );
+                      }}
+                    />
+                  </PolarRadiusAxis>
+                  <RadialBar
+                    dataKey="paid"
+                    stackId="bills"
+                    cornerRadius={5}
+                    fill="var(--color-paid)"
+                    className="stroke-transparent stroke-2"
+                  />
+                  <RadialBar
+                    dataKey="partial"
+                    stackId="bills"
+                    cornerRadius={5}
+                    fill="var(--color-partial)"
+                    className="stroke-transparent stroke-2"
+                  />
+                  <RadialBar
+                    dataKey="unpaid"
+                    stackId="bills"
+                    cornerRadius={5}
+                    fill="var(--color-unpaid)"
+                    className="stroke-transparent stroke-2"
+                  />
+                </RadialBarChart>
+              </ChartContainer>
+            </div>
+
+            <div className="flex flex-wrap mx-auto w-fit gap-2">
+              {billStatusKeys.map((key) => (
+                <LegendChip
+                  key={key}
+                  label={`${billStatusChartConfig[key].label} · ${formatCount(bills[key])} (${percentageOf(bills[key], total)}%)`}
+                  color={billStatusChartConfig[key].color}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -610,8 +795,24 @@ function HighlightTile({
           <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
             {label}
           </p>
-          <p className="text-base font-semibold tracking-tight">{value}</p>
-          <p className="text-muted-foreground text-xs">{hint}</p>
+          <div className="flex gap-2 items-center">
+            <p className="text-base font-semibold tracking-tight">{value}</p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={label}
+                  className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-help"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <InfoIcon className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-pretty">
+                {hint}
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
         <div
           className={cn(
@@ -626,6 +827,15 @@ function HighlightTile({
   );
 }
 
+function AreaFillGradient({ id, color }: { id: string; color: string }) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="5%" stopColor={color} stopOpacity={0.15} />
+      <stop offset="95%" stopColor={color} stopOpacity={0.01} />
+    </linearGradient>
+  );
+}
+
 function LegendChip({ label, color }: { label: string; color?: string }) {
   return (
     <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs">
@@ -634,76 +844,6 @@ function LegendChip({ label, color }: { label: string; color?: string }) {
         style={{ backgroundColor: color }}
       />
       <span className="text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
-function SnapshotTile({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-        {label}
-      </p>
-      <p className={cn("mt-2 text-lg font-semibold tracking-tight", accent)}>
-        {value}
-      </p>
-      <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
-    </div>
-  );
-}
-
-function QueueRow({
-  item,
-  onOpen,
-}: {
-  item: QueueItem;
-  onOpen: () => void;
-}) {
-  return (
-    <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 gap-3">
-          <div
-            className={cn(
-              "bg-muted/60 flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/70",
-              toneTextClass(item.tone),
-            )}
-          >
-            <item.icon className="size-4" />
-          </div>
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium">{item.label}</p>
-              <Badge variant="outline" className={cn(toneBadgeClass(item.tone))}>
-                {item.status}
-              </Badge>
-            </div>
-            <p className="text-muted-foreground text-xs leading-5">
-              {item.note}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 flex-col items-end gap-2 text-right">
-          <p className="text-lg font-semibold tracking-tight tabular-nums">
-            {formatCount(item.value)}
-          </p>
-          <Button variant="link" className="h-auto p-0" onClick={onOpen}>
-            {item.actionLabel}
-            <ArrowRightIcon />
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -752,8 +892,7 @@ function getPrimaryAction({
   if (isAdmin && (enrollment?.applications.pending ?? 0) > 0) {
     return {
       label: "Review applications",
-      description:
-        "Admissions review is the next academic queue to clear.",
+      description: "Admissions review is the next academic queue to clear.",
       to: "/admin/applications",
       icon: ClipboardListIcon,
     };
@@ -772,8 +911,7 @@ function getPrimaryAction({
   if (isAdmin && (enrollment?.sections.unsectioned ?? 0) > 0) {
     return {
       label: "Assign sections",
-      description:
-        "Some enrolled students still need section placement.",
+      description: "Some enrolled students still need section placement.",
       to: "/admin/sections",
       icon: GraduationCapIcon,
     };
@@ -859,8 +997,7 @@ function buildQueueItems({
       label: "Admissions review",
       note: `${formatCount(enrollment.applications.submitted)} submitted, ${formatCount(enrollment.applications.underReview)} under review, ${formatCount(enrollment.applications.returned)} returned.`,
       value: enrollment.applications.pending,
-      status:
-        enrollment.applications.pending > 0 ? "Queue active" : "Clear",
+      status: enrollment.applications.pending > 0 ? "Queue active" : "Clear",
       tone: "sky",
       icon: ClipboardListIcon,
       to: "/admin/applications",
@@ -956,8 +1093,7 @@ function getSummaryAlert({
       description:
         "Enrollment and finance are not fully synchronized yet for the active term.",
       icon: ReceiptTextIcon,
-      className:
-        "border-primary/20 bg-primary/8 text-primary",
+      className: "border-primary/20 bg-primary/8 text-primary",
       descriptionClassName: "text-primary/80",
     };
   }
@@ -975,38 +1111,6 @@ function getSummaryAlert({
   }
 
   return null;
-}
-
-function toneTextClass(tone: Tone) {
-  switch (tone) {
-    case "success":
-      return "text-emerald-600 dark:text-emerald-400";
-    case "warning":
-      return "text-amber-600 dark:text-amber-400";
-    case "violet":
-      return "text-violet-600 dark:text-violet-400";
-    case "sky":
-      return "text-sky-600 dark:text-sky-400";
-    case "primary":
-    default:
-      return "text-primary";
-  }
-}
-
-function toneBadgeClass(tone: Tone) {
-  switch (tone) {
-    case "success":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300";
-    case "warning":
-      return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200";
-    case "violet":
-      return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300";
-    case "sky":
-      return "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300";
-    case "primary":
-    default:
-      return "border-primary/20 bg-primary/8 text-primary";
-  }
 }
 
 function percentageOf(value: number, total: number) {

@@ -34,14 +34,6 @@ export interface StaffDashboard {
   };
   // Admins only.
   enrollment?: {
-    students: {
-      total: number;
-      admitted: number;
-      enrolled: number;
-      inactive: number;
-      graduated: number;
-      dropped: number;
-    };
     applications: {
       pending: number;
       submitted: number;
@@ -49,22 +41,12 @@ export interface StaffDashboard {
       returned: number;
       total: number;
     };
-    enrollments: {
-      totalCurrent: number;
-      pending: number;
-      enrolled: number;
-      completed: number;
-      dropped: number;
-      withdrawn: number;
-    };
     sections: {
-      active: number;
       unsectioned: number;
     };
     progression: {
       open: boolean;
       pendingDecisions: number;
-      decided: number;
       nextYearReady: boolean;
     };
   };

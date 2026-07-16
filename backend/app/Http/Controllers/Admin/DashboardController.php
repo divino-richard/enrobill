@@ -11,7 +11,6 @@ use App\Models\BillAdjustment;
 use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\SchoolYear;
-use App\Models\Section;
 use App\Models\Student;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -148,39 +147,12 @@ class DashboardController extends Controller
      */
     private function enrollment(?SchoolYear $schoolYear): array
     {
-        $studentStatuses = Student::query()
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status');
-
         $applicationStatuses = Application::query()
             ->selectRaw('status, count(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
 
-        $currentEnrollments = Enrollment::query()
-            ->when(
-                $schoolYear !== null,
-                fn ($query) => $query->where('school_year_id', $schoolYear->id),
-                fn ($query) => $query->whereRaw('1 = 0'),
-            );
-
-        $enrollmentStatuses = (clone $currentEnrollments)
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status');
-
-        $progression = $this->progression($schoolYear);
-
         return [
-            'students' => [
-                'total' => (int) Student::query()->count(),
-                'admitted' => (int) ($studentStatuses['admitted'] ?? 0),
-                'enrolled' => (int) ($studentStatuses['enrolled'] ?? 0),
-                'inactive' => (int) ($studentStatuses['inactive'] ?? 0),
-                'graduated' => (int) ($studentStatuses['graduated'] ?? 0),
-                'dropped' => (int) ($studentStatuses['dropped'] ?? 0),
-            ],
             'applications' => [
                 'pending' => (int) (($applicationStatuses['submitted'] ?? 0)
                     + ($applicationStatuses['under_review'] ?? 0)
@@ -190,28 +162,18 @@ class DashboardController extends Controller
                 'returned' => (int) ($applicationStatuses['returned'] ?? 0),
                 'total' => (int) Application::query()->count(),
             ],
-            'enrollments' => [
-                'totalCurrent' => (int) (clone $currentEnrollments)->count(),
-                'pending' => (int) ($enrollmentStatuses['pending'] ?? 0),
-                'enrolled' => (int) ($enrollmentStatuses['enrolled'] ?? 0),
-                'completed' => (int) ($enrollmentStatuses['completed'] ?? 0),
-                'dropped' => (int) ($enrollmentStatuses['dropped'] ?? 0),
-                'withdrawn' => (int) ($enrollmentStatuses['withdrawn'] ?? 0),
-            ],
             'sections' => [
-                'active' => (int) Section::query()
+                'unsectioned' => (int) Enrollment::query()
                     ->when(
                         $schoolYear !== null,
                         fn ($query) => $query->where('school_year_id', $schoolYear->id),
                         fn ($query) => $query->whereRaw('1 = 0'),
                     )
-                    ->count(),
-                'unsectioned' => (int) (clone $currentEnrollments)
                     ->where('status', 'enrolled')
                     ->whereNull('section_id')
                     ->count(),
             ],
-            'progression' => $progression,
+            'progression' => $this->progression($schoolYear),
         ];
     }
 
@@ -224,7 +186,6 @@ class DashboardController extends Controller
             return [
                 'open' => false,
                 'pendingDecisions' => 0,
-                'decided' => 0,
                 'nextYearReady' => false,
             ];
         }
@@ -232,7 +193,6 @@ class DashboardController extends Controller
         return [
             'open' => true,
             'pendingDecisions' => $this->closeout->pendingStudents($schoolYear)->count(),
-            'decided' => $this->closeout->decisions($schoolYear)->count(),
             'nextYearReady' => $this->closeout->nextYear($schoolYear) !== null,
         ];
     }
@@ -242,7 +202,7 @@ class DashboardController extends Controller
      */
     private function admissionsTrend(?SchoolYear $schoolYear): array
     {
-        return $this->recentMonths()->map(function (CarbonImmutable $start) use ($schoolYear) {
+        return $this->recentMonths(6)->map(function (CarbonImmutable $start) use ($schoolYear) {
             $end = $start->endOfMonth();
             $schoolYearKey = $schoolYear?->school_year;
 
@@ -285,7 +245,7 @@ class DashboardController extends Controller
      */
     private function financeTrend(?int $schoolYearId): array
     {
-        return $this->recentMonths()->map(function (CarbonImmutable $start) use ($schoolYearId) {
+        return $this->recentMonths(12)->map(function (CarbonImmutable $start) use ($schoolYearId) {
             $end = $start->endOfMonth();
 
             $bills = Bill::query()
@@ -322,13 +282,15 @@ class DashboardController extends Controller
     }
 
     /**
+     * The last $months months, oldest first, ending with the current one.
+     *
      * @return \Illuminate\Support\Collection<int, CarbonImmutable>
      */
-    private function recentMonths()
+    private function recentMonths(int $months)
     {
         $current = CarbonImmutable::now()->startOfMonth();
 
-        return collect(range(5, 0))
+        return collect(range($months - 1, 0))
             ->map(fn (int $offset) => $current->subMonths($offset));
     }
 }
