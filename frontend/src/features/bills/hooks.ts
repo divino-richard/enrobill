@@ -20,7 +20,6 @@ import {
   voidBill,
   voidPayment,
   type BillListParams,
-  type GenerateBillInput,
   type PaymentInput,
   type SubmitPaymentInput,
 } from "./api";
@@ -49,13 +48,8 @@ function useBillingMutationCallbacks() {
 export function useGenerateBillForEnrollment() {
   const onSuccess = useBillingMutationCallbacks();
   return useMutation({
-    mutationFn: ({
-      enrollmentId,
-      input,
-    }: {
-      enrollmentId: number;
-      input: GenerateBillInput;
-    }) => generateBillForEnrollment(enrollmentId, input),
+    mutationFn: ({ enrollmentId }: { enrollmentId: number }) =>
+      generateBillForEnrollment(enrollmentId),
     onSuccess,
   });
 }

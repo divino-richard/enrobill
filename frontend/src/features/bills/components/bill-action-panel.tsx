@@ -559,7 +559,7 @@ export function BillActionPanel({
 
   if (bill.balance <= 0) {
     return (
-      <Card className={cn("overflow-hidden", cardTone)}>
+      <Card className={cn("overflow-hidden py-0", cardTone)}>
         <CardContent className="p-0">
           <BillHeroHeader
             bill={bill}
@@ -613,7 +613,7 @@ export function BillActionPanel({
   }
 
   return (
-    <Card className={cn("overflow-hidden", cardTone)}>
+    <Card className={cn("overflow-hidden py-0", cardTone)}>
       <CardContent className="p-0">
         <BillHeroHeader
           bill={bill}

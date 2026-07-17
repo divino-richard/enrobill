@@ -281,7 +281,7 @@ function StudentsPage() {
         </div>
       </div>
 
-      {progressionOpen && (
+      {progressionOpen && isAdmin && (
         <Alert className="border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-200">
           <GraduationCapIcon className="size-4 shrink-0" />
           <AlertTitle>

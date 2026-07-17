@@ -42,21 +42,14 @@ export async function fetchBills(params: BillListParams): Promise<BillsPage> {
   return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
-// The voucher is read from the enrollment server-side, so only the cashier's
-// freebie selection travels with the request.
-export interface GenerateBillInput {
-  freebieIds: number[];
-}
-
-// Generate a bill for a pending enrollment, applying its granted voucher and the
-// chosen freebies.
+// Generate a bill for a pending enrollment. Takes no input — the server applies
+// the enrollment's granted voucher and whatever freebies the student qualifies
+// for, so there is nothing to choose here.
 export async function generateBillForEnrollment(
   enrollmentId: number,
-  input: GenerateBillInput,
 ): Promise<Bill> {
   const { data } = await api.post<Wrapped<Bill>>(
     `/admin/enrollments/${enrollmentId}/bill`,
-    input,
   );
   return data.data;
 }

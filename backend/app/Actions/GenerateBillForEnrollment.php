@@ -5,7 +5,6 @@ namespace App\Actions;
 use App\Models\Bill;
 use App\Models\Discount;
 use App\Models\Enrollment;
-use App\Models\Freebie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -18,18 +17,16 @@ class GenerateBillForEnrollment
 
     /**
      * Generate the bill for a (pending) enrollment from its school year's fee
-     * schedule, applying the voucher the enrollment carries (granted by the admin
-     * on acceptance) and any eligible freebies the cashier selected. The voucher
-     * applies first; a freebie then zeroes whatever is left. A voucher — and only a
-     * voucher — waives the downpayment (per the school's voucher rules). Idempotent
-     * — returns the existing bill if the enrollment already has one.
-     *
-     * @param  list<int>  $freebieIds  freebie (promo) ids to apply
+     * schedule. Both credits are derived here rather than chosen at billing time:
+     * the voucher is the one the enrollment carries (granted by the admin on
+     * acceptance), and the freebies are whatever the student qualifies for. The
+     * voucher applies first; a freebie then zeroes whatever is left. A voucher —
+     * and only a voucher — waives the downpayment, and gates the freebies with it
+     * ("Promo + Voucher = Zero Tuition Balance", docs/business.md). Idempotent —
+     * returns the existing bill if the enrollment already has one.
      */
-    public function __invoke(
-        Enrollment $enrollment,
-        array $freebieIds = [],
-    ): Bill {
+    public function __invoke(Enrollment $enrollment): Bill
+    {
         $enrollment->loadMissing(['student', 'schoolYear']);
         $schoolYear = $enrollment->schoolYear;
         $student = $enrollment->student;
@@ -68,25 +65,10 @@ class GenerateBillForEnrollment
         $discounts = collect($voucher !== null ? [$voucher] : []);
         $hasVoucher = $voucher !== null;
 
-        // Freebies only apply alongside a voucher, and only to students who qualify
-        // — "Promo + Voucher = Zero Tuition Balance" (docs/business.md).
-        $freebies = collect();
-        if ($freebieIds !== []) {
-            if (! $hasVoucher) {
-                throw ValidationException::withMessages([
-                    'freebieIds' => 'A freebie can only be applied to a student who also has a voucher.',
-                ]);
-            }
-
-            $eligibleIds = $this->freebieEligibility->for($enrollment)->pluck('id');
-            $freebies = Freebie::query()->whereIn('id', $freebieIds)->get();
-
-            if ($freebies->contains(fn (Freebie $f) => ! $eligibleIds->contains($f->id))) {
-                throw ValidationException::withMessages([
-                    'freebieIds' => 'A selected freebie does not apply to this student.',
-                ]);
-            }
-        }
+        // Every promo the student qualifies for, but only alongside a voucher.
+        $freebies = $hasVoucher
+            ? $this->freebieEligibility->for($enrollment)
+            : collect();
 
         return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $discounts, $freebies, $hasVoucher) {
             $bill = $student->bills()->create([

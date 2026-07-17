@@ -14,7 +14,6 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Validation\Rule;
 
 class BillController extends Controller
 {
@@ -98,21 +97,13 @@ class BillController extends Controller
     }
 
     /**
-     * Generate the bill for a pending enrollment. The voucher comes from the
-     * enrollment itself (granted by the admin on acceptance), so only the cashier's
-     * eligible freebie selection is taken from the request.
+     * Generate the bill for a pending enrollment. Takes no input: the voucher comes
+     * from the enrollment (granted by the admin on acceptance) and the freebies from
+     * the student's eligibility, so there is nothing for the cashier to choose.
      */
-    public function generate(Request $request, Enrollment $enrollment, GenerateBillForEnrollment $generate): BillResource
+    public function generate(Enrollment $enrollment, GenerateBillForEnrollment $generate): BillResource
     {
-        $validated = $request->validate([
-            'freebieIds' => ['sometimes', 'array'],
-            'freebieIds.*' => ['integer', Rule::exists('freebies', 'id')],
-        ]);
-
-        $bill = $generate(
-            $enrollment,
-            array_map('intval', $validated['freebieIds'] ?? []),
-        );
+        $bill = $generate($enrollment);
 
         return new BillResource(
             $bill->load(['student', 'schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
