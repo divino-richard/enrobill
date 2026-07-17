@@ -15,12 +15,15 @@ class PromoteApplicantToStudent
     /**
      * Promote the applicant behind an accepted application: flip their role to
      * student and create their canonical student record from the application
-     * snapshot. Opens a pending enrollment for the active school year — the bill
-     * is generated separately by the cashier. Idempotent — a user already promoted
-     * is left untouched. The downpayment waiver is decided later, at bill
-     * generation, by whether the cashier applies a voucher.
+     * snapshot. Opens a pending enrollment for the active school year, carrying the
+     * voucher the admin granted on acceptance — the bill is generated separately by
+     * the cashier, which is where that voucher gets applied and where the
+     * downpayment waiver is derived. Idempotent — a user already promoted is left
+     * untouched.
+     *
+     * @param  int|null  $discountId  the voucher the admin granted, if any
      */
-    public function __invoke(Application $application): ?Student
+    public function __invoke(Application $application, ?int $discountId = null): ?Student
     {
         $user = $application->user;
 
@@ -34,7 +37,7 @@ class PromoteApplicantToStudent
 
         // One student record per user.
         if ($user->student()->exists()) {
-            $this->ensureCurrentEnrollment($user->student);
+            $this->ensureCurrentEnrollment($user->student, $discountId);
 
             return $user->student;
         }
@@ -69,22 +72,22 @@ class PromoteApplicantToStudent
             'student_number' => sprintf('%d-%05d', $student->created_at->year, $student->id),
         ])->save();
 
-        $this->ensureCurrentEnrollment($student);
+        $this->ensureCurrentEnrollment($student, $discountId);
 
         return $student;
     }
 
     /**
-     * Open the student's pending enrollment for the active school year. No bill is
-     * created here — the cashier generates it later (applying any voucher, which
-     * is what waives the downpayment).
+     * Open the student's pending enrollment for the active school year, tagged with
+     * the granted voucher. No bill is created here — the cashier generates it
+     * later, and that is when the voucher is applied and waives the downpayment.
      */
-    private function ensureCurrentEnrollment(Student $student): void
+    private function ensureCurrentEnrollment(Student $student, ?int $discountId): void
     {
         $schoolYear = SchoolYear::active();
 
         if ($schoolYear !== null) {
-            ($this->ensureEnrollment)($student, $schoolYear);
+            ($this->ensureEnrollment)($student, $schoolYear, discountId: $discountId);
         }
     }
 }

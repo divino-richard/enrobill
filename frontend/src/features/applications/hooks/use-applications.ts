@@ -52,10 +52,12 @@ export function useDecideApplication(id: number) {
     mutationFn: ({
       decision,
       note,
+      discountId,
     }: {
       decision: "accept" | "reject";
       note?: string | null;
-    }) => decideApplication(id, decision, { note }),
+      discountId?: number | null;
+    }) => decideApplication(id, decision, { note, discountId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
     },

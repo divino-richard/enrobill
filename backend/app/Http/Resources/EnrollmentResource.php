@@ -44,6 +44,17 @@ class EnrollmentResource extends JsonResource
                     )
                     : null,
             ),
+            // The voucher granted for this year, applied automatically when the
+            // cashier generates the bill. Null once retired from the catalog —
+            // matching what generation would actually apply.
+            'voucher' => $this->whenLoaded('discount', fn () => $this->discount !== null && $this->discount->is_active
+                ? [
+                    'id' => $this->discount->id,
+                    'name' => $this->discount->name,
+                    'type' => $this->discount->type,
+                    'value' => (float) $this->discount->value,
+                ]
+                : null),
             'openBillCount' => $this->studentBillsLoaded() ? $openBills->count() : null,
             'openBillTotal' => $this->studentBillsLoaded()
                 ? round((float) $openBills->sum('balance'), 2)

@@ -2,6 +2,8 @@
 
 namespace App\Actions;
 
+use App\Models\Discount;
+use App\Models\Enrollment;
 use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
 use App\Models\Student;
@@ -112,10 +114,18 @@ class YearEndCloseout
             ]);
         }
 
-        return DB::transaction(function () use ($pending, $next, $userId) {
+        return DB::transaction(function () use ($pending, $next, $year, $userId) {
             $done = 0;
             foreach ($pending as $decision) {
-                $enrollment = ($this->ensureEnrollment)($decision->student, $next, $userId);
+                // A voucher granted on admission covers the student's whole senior
+                // high run, and progression has no accept step to re-grant it, so
+                // it rides along to the new year's enrollment.
+                $enrollment = ($this->ensureEnrollment)(
+                    $decision->student,
+                    $next,
+                    $userId,
+                    $this->grantedVoucherId($decision->student, $year),
+                );
                 $decision->update([
                     'to_school_year_id' => $next->id,
                     'to_enrollment_id' => $enrollment->id,
@@ -126,6 +136,28 @@ class YearEndCloseout
 
             return $done;
         });
+    }
+
+    /**
+     * The voucher the student holds in the ending year, if it is still one the
+     * catalog grants. A voucher retired since admission is not carried into the new
+     * year — the cashier would not be able to apply it there either.
+     */
+    private function grantedVoucherId(Student $student, SchoolYear $year): ?int
+    {
+        $discountId = Enrollment::query()
+            ->where('student_id', $student->id)
+            ->where('school_year_id', $year->id)
+            ->value('discount_id');
+
+        if ($discountId === null) {
+            return null;
+        }
+
+        return Discount::query()
+            ->whereKey($discountId)
+            ->where('is_active', true)
+            ->value('id');
     }
 
     /**

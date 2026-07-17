@@ -98,21 +98,19 @@ class BillController extends Controller
     }
 
     /**
-     * Generate the bill for a pending enrollment, applying the cashier's selected
-     * voucher(s) and any eligible freebies.
+     * Generate the bill for a pending enrollment. The voucher comes from the
+     * enrollment itself (granted by the admin on acceptance), so only the cashier's
+     * eligible freebie selection is taken from the request.
      */
     public function generate(Request $request, Enrollment $enrollment, GenerateBillForEnrollment $generate): BillResource
     {
         $validated = $request->validate([
-            'discountIds' => ['sometimes', 'array'],
-            'discountIds.*' => ['integer', Rule::exists('discounts', 'id')],
             'freebieIds' => ['sometimes', 'array'],
             'freebieIds.*' => ['integer', Rule::exists('freebies', 'id')],
         ]);
 
         $bill = $generate(
             $enrollment,
-            array_map('intval', $validated['discountIds'] ?? []),
             array_map('intval', $validated['freebieIds'] ?? []),
         );
 

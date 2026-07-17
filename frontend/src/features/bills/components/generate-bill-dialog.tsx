@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { GiftIcon, InfoIcon, LockIcon, TicketPercentIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,28 +14,40 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
-import { useAllDiscounts } from "@/features/discounts/hooks";
-import { discountValueLabel, type Discount } from "@/features/discounts/types";
+import type { EnrollmentVoucher } from "@/features/enrollments/types";
 import { useEligibleFreebies } from "@/features/freebies/hooks";
 import { useGenerateBillForEnrollment } from "@/features/bills/hooks";
 
-// The minimal data the dialog needs about the enrollment being billed.
+// e.g. "₱7,000.00" for a fixed voucher, "50%" for a percentage one.
+function voucherValueLabel(voucher: EnrollmentVoucher): string {
+  if (voucher.type === "full") return "Full coverage";
+  return voucher.type === "percentage"
+    ? `${voucher.value}%`
+    : formatPeso(voucher.value);
+}
+
+// The minimal data the dialog needs about the enrollment being billed. The
+// voucher is whatever the admin granted on acceptance — the cashier sees it but
+// cannot change it here.
 export interface GenerateBillTarget {
   enrollmentId: number;
   name: string;
   feePreview: number;
+  voucher: EnrollmentVoucher | null;
 }
 
-// Mirror the backend voucher math (Bill::creditFor): each credit caps at the
+// Mirror the backend voucher math (Bill::creditFor): the credit caps at the
 // remaining balance.
-function previewNet(gross: number, selected: Discount[]): number {
-  let remaining = gross;
-  for (const d of selected) {
-    const nominal =
-      d.type === "percentage" ? (gross * d.value) / 100 : d.value;
-    remaining = Math.round((remaining - Math.min(nominal, remaining)) * 100) / 100;
-  }
-  return Math.max(remaining, 0);
+function previewNet(gross: number, voucher: EnrollmentVoucher | null): number {
+  if (!voucher) return gross;
+  const nominal =
+    voucher.type === "percentage"
+      ? (gross * voucher.value) / 100
+      : voucher.value;
+  return Math.max(
+    Math.round((gross - Math.min(nominal, gross)) * 100) / 100,
+    0,
+  );
 }
 
 // A single selectable voucher/freebie row.
@@ -96,43 +108,23 @@ export function GenerateBillDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: discounts, isLoading } = useAllDiscounts();
   const freebiesQuery = useEligibleFreebies(enrollment?.enrollmentId);
   const generate = useGenerateBillForEnrollment();
 
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectedFreebieIds, setSelectedFreebieIds] = useState<Set<number>>(
     new Set(),
   );
 
-  const vouchers = useMemo(
-    () => (discounts ?? []).filter((d) => d.isActive),
-    [discounts],
-  );
-  const selected = useMemo(
-    () => vouchers.filter((d) => selectedIds.has(d.id)),
-    [vouchers, selectedIds],
-  );
   const eligibleFreebies = freebiesQuery.data ?? [];
 
+  const voucher = enrollment?.voucher ?? null;
   const gross = enrollment?.feePreview ?? 0;
-  const hasVoucher = selected.length > 0;
+  const hasVoucher = voucher !== null;
   const hasFreebie = selectedFreebieIds.size > 0;
-  const netAfterVouchers = previewNet(gross, selected);
+  const netAfterVouchers = previewNet(gross, voucher);
   const voucherDiscount = Math.round((gross - netAfterVouchers) * 100) / 100;
   // A freebie zeroes the whole remaining balance.
   const net = hasFreebie ? 0 : netAfterVouchers;
-
-  function toggleVoucher(id: number) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      // Freebies require a voucher — drop them if no voucher remains.
-      if (next.size === 0) setSelectedFreebieIds(new Set());
-      return next;
-    });
-  }
 
   function toggleFreebie(id: number) {
     setSelectedFreebieIds((prev) => {
@@ -148,10 +140,7 @@ export function GenerateBillDialog({
     try {
       await generate.mutateAsync({
         enrollmentId: enrollment.enrollmentId,
-        input: {
-          discountIds: [...selectedIds],
-          freebieIds: [...selectedFreebieIds],
-        },
+        input: { freebieIds: [...selectedFreebieIds] },
       });
       onOpenChange(false);
     } catch {
@@ -166,36 +155,32 @@ export function GenerateBillDialog({
           <DialogTitle>Generate bill</DialogTitle>
           <DialogDescription>
             {enrollment
-              ? `Apply a voucher and any eligible freebie for ${enrollment.name}, then generate the bill.`
+              ? `${enrollment.name}'s granted voucher is applied automatically. Add any eligible freebie, then generate the bill.`
               : ""}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
-          {/* Vouchers */}
+          {/* Voucher — granted by the admin on acceptance, shown for confirmation
+              only. It is applied automatically when the bill is generated. */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <TicketPercentIcon className="text-muted-foreground size-4" />
               <p className="text-sm font-medium">Voucher</p>
             </div>
-            {isLoading ? (
-              <Skeleton className="h-14 w-full rounded-lg" />
-            ) : vouchers.length === 0 ? (
-              <EmptyHint icon={InfoIcon}>
-                No vouchers in the catalog. Add one under Vouchers first.
-              </EmptyHint>
-            ) : (
-              <div className="max-h-44 space-y-2 overflow-y-auto pr-0.5">
-                {vouchers.map((d) => (
-                  <OptionRow
-                    key={d.id}
-                    checked={selectedIds.has(d.id)}
-                    onToggle={() => toggleVoucher(d.id)}
-                    title={d.name}
-                    meta={discountValueLabel(d)}
-                  />
-                ))}
+            {voucher ? (
+              <div className="flex items-center gap-3 rounded-lg border p-3 text-sm">
+                <LockIcon className="text-muted-foreground size-4 shrink-0" />
+                <span className="flex-1 font-medium">{voucher.name}</span>
+                <span className="text-primary text-xs font-medium">
+                  {voucherValueLabel(voucher)}
+                </span>
               </div>
+            ) : (
+              <EmptyHint icon={InfoIcon}>
+                No voucher was granted for this enrollment — it is set when the
+                application is accepted.
+              </EmptyHint>
             )}
           </div>
 
@@ -207,7 +192,7 @@ export function GenerateBillDialog({
             </div>
             {!hasVoucher ? (
               <EmptyHint icon={LockIcon}>
-                Select a voucher to see the freebies this student qualifies for.
+                Freebies only apply to a student who was granted a voucher.
               </EmptyHint>
             ) : freebiesQuery.isLoading ? (
               <Skeleton className="h-14 w-full rounded-lg" />

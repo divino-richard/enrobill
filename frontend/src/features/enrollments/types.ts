@@ -1,3 +1,5 @@
+import type { DiscountType } from "@/features/discounts/types";
+
 export type EnrollmentStatus =
   | "pending"
   | "enrolled"
@@ -23,6 +25,15 @@ export interface EnrollmentOpenBill {
   isCurrent: boolean;
 }
 
+// The voucher granted for this enrollment's school year, decided by the admin
+// when the application was accepted and applied on bill generation.
+export interface EnrollmentVoucher {
+  id: number;
+  name: string;
+  type: DiscountType;
+  value: number;
+}
+
 // An enrollment row in the global (read-only) list.
 export interface Enrollment {
   id: number;
@@ -35,6 +46,7 @@ export interface Enrollment {
   isCurrent: boolean;
   hasBill: boolean | null;
   feePreview: number | null;
+  voucher?: EnrollmentVoucher | null;
   openBillCount?: number | null;
   openBillTotal?: number | null;
   openBills?: EnrollmentOpenBill[] | null;

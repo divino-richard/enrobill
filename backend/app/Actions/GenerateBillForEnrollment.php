@@ -18,18 +18,16 @@ class GenerateBillForEnrollment
 
     /**
      * Generate the bill for a (pending) enrollment from its school year's fee
-     * schedule, applying the cashier's selected catalog credits (vouchers) and any
-     * eligible freebies. Vouchers apply first; a freebie then zeroes whatever is
-     * left. A voucher — and only a voucher — waives the downpayment (per the
-     * school's voucher rules). Idempotent — returns the existing bill if the
-     * enrollment already has one.
+     * schedule, applying the voucher the enrollment carries (granted by the admin
+     * on acceptance) and any eligible freebies the cashier selected. The voucher
+     * applies first; a freebie then zeroes whatever is left. A voucher — and only a
+     * voucher — waives the downpayment (per the school's voucher rules). Idempotent
+     * — returns the existing bill if the enrollment already has one.
      *
-     * @param  list<int>  $discountIds  catalog discount (voucher) ids, in apply order
      * @param  list<int>  $freebieIds  freebie (promo) ids to apply
      */
     public function __invoke(
         Enrollment $enrollment,
-        array $discountIds = [],
         array $freebieIds = [],
     ): Bill {
         $enrollment->loadMissing(['student', 'schoolYear']);
@@ -59,15 +57,16 @@ class GenerateBillForEnrollment
             ]);
         }
 
-        // The selected, active catalog credits (vouchers), in the requested order.
-        $discounts = Discount::query()
-            ->whereIn('id', $discountIds)
+        // The voucher granted on this enrollment, if it is still active. Retiring a
+        // voucher from the catalog stops it being applied to bills not yet raised.
+        $voucher = Discount::query()
+            ->whereKey($enrollment->discount_id)
+            ->where('category', 'voucher')
             ->where('is_active', true)
-            ->get()
-            ->sortBy(fn (Discount $d) => array_search($d->id, $discountIds, true))
-            ->values();
+            ->first();
 
-        $hasVoucher = $discounts->contains(fn (Discount $d) => $d->category === 'voucher');
+        $discounts = collect($voucher !== null ? [$voucher] : []);
+        $hasVoucher = $voucher !== null;
 
         // Freebies only apply alongside a voucher, and only to students who qualify
         // — "Promo + Voucher = Zero Tuition Balance" (docs/business.md).

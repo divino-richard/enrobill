@@ -12,19 +12,23 @@ class EnsureEnrollment
      * Find or create the student's (pending) enrollment for a school year,
      * snapshotting their current program and year level. Idempotent — returns the
      * existing enrollment untouched if one already exists for the year.
+     *
+     * @param  int|null  $discountId  the voucher granted for this year, if any
      */
     public function __invoke(
         Student $student,
         SchoolYear $schoolYear,
         ?int $createdBy = null,
+        ?int $discountId = null,
     ): Enrollment {
         // The downpayment waiver isn't set here — it's derived at bill generation
-        // from whether a voucher is applied.
+        // from whether the enrollment carries a voucher.
         $enrollment = Enrollment::firstOrCreate(
             ['student_id' => $student->id, 'school_year_id' => $schoolYear->id],
             [
                 'track' => $student->track_or_strand,
                 'year_level' => $student->year_level,
+                'discount_id' => $discountId,
                 'status' => 'pending',
                 'created_by' => $createdBy,
             ],

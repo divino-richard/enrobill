@@ -71,6 +71,7 @@ function toGenerateBillTarget(enrollment: Enrollment): GenerateBillTarget {
     enrollmentId: enrollment.id,
     name: enrollment.student?.name ?? "Student",
     feePreview: enrollment.feePreview ?? 0,
+    voucher: enrollment.voucher ?? null,
   };
 }
 

@@ -53,13 +53,18 @@ export async function fetchAdminApplication(
 }
 
 // Accept / reject an application — notifies the applicant by email (admin only).
-// The downpayment waiver is decided later, at bill generation, by the voucher.
+// Accepting grants the chosen voucher (if any), which rides on the student's
+// enrollment until the cashier generates the bill — that is where it is applied
+// and where the downpayment waiver is decided.
 export async function decideApplication(
   id: number,
   decision: "accept" | "reject",
-  options: { note?: string | null } = {},
+  options: { note?: string | null; discountId?: number | null } = {},
 ): Promise<AdminApplicationDetail> {
-  const body = decision === "accept" ? {} : { note: options.note ?? null };
+  const body =
+    decision === "accept"
+      ? { discountId: options.discountId ?? null }
+      : { note: options.note ?? null };
   const { data } = await api.post<Wrapped<AdminApplicationDetail>>(
     `/admin/applications/${id}/${decision}`,
     body,

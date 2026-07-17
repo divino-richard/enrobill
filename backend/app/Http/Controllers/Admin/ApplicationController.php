@@ -10,6 +10,7 @@ use App\Models\Application;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ApplicationController extends Controller
 {
@@ -100,12 +101,30 @@ class ApplicationController extends Controller
     }
 
     /**
-     * Accept an application and notify the applicant. The downpayment waiver is
-     * decided later, at bill generation, by whether a voucher is applied.
+     * Accept an application and notify the applicant, granting the voucher the
+     * admin selected (if any). The voucher rides on the student's enrollment and is
+     * applied when the cashier generates the bill — which is also what decides the
+     * downpayment waiver.
      */
-    public function accept(Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
+    public function accept(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
     {
-        return $this->decide($application, 'accepted', $sendEmail);
+        $validated = $request->validate([
+            'discountId' => [
+                'nullable',
+                'integer',
+                // Only an active voucher may be granted — not an arbitrary discount id.
+                Rule::exists('discounts', 'id')->where(
+                    fn ($query) => $query->where('category', 'voucher')->where('is_active', true),
+                ),
+            ],
+        ]);
+
+        return $this->decide(
+            $application,
+            'accepted',
+            $sendEmail,
+            discountId: isset($validated['discountId']) ? (int) $validated['discountId'] : null,
+        );
     }
 
     /**
@@ -126,7 +145,7 @@ class ApplicationController extends Controller
      *
      * @param  'accepted'|'rejected'  $status
      */
-    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, ?string $note = null): ApplicationResource
+    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, ?string $note = null, ?int $discountId = null): ApplicationResource
     {
         abort_unless(
             in_array($application->status, self::DECIDABLE_STATUSES, true),
@@ -134,17 +153,18 @@ class ApplicationController extends Controller
             'This application has already been decided and cannot be changed.',
         );
 
-        DB::transaction(function () use ($application, $status, $note) {
+        DB::transaction(function () use ($application, $status, $note, $discountId) {
             $application->update([
                 'status' => $status,
                 'decision_note' => $note,
             ]);
 
             // Once accepted, promote the applicant to a student (role flip +
-            // canonical student record) and open their pending enrollment. Their
-            // existing token stays valid — the role is read live from the database.
+            // canonical student record) and open their pending enrollment, tagged
+            // with the granted voucher. Their existing token stays valid — the role
+            // is read live from the database.
             if ($status === 'accepted') {
-                app(PromoteApplicantToStudent::class)($application);
+                app(PromoteApplicantToStudent::class)($application, $discountId);
             }
         });
 

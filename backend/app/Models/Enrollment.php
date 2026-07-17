@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
-    'student_id', 'school_year_id', 'section_id', 'track', 'year_level', 'no_downpayment', 'status', 'enrolled_at', 'created_by',
+    'student_id', 'school_year_id', 'section_id', 'discount_id', 'track', 'year_level', 'no_downpayment', 'status', 'enrolled_at', 'created_by',
 ])]
 class Enrollment extends Model
 {
@@ -57,6 +57,17 @@ class Enrollment extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * The voucher granted for this school year, decided when the application was
+     * accepted and applied for the cashier at bill generation.
+     *
+     * @return BelongsTo<Discount, $this>
+     */
+    public function discount(): BelongsTo
+    {
+        return $this->belongsTo(Discount::class);
     }
 
     /**

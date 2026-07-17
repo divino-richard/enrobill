@@ -5,7 +5,9 @@ import {
   CalendarDaysIcon,
   CheckIcon,
   GraduationCapIcon,
+  InfoIcon,
   MailIcon,
+  TicketPercentIcon,
   XIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -40,7 +42,10 @@ import {
 } from "@/features/applications/hooks/use-applications";
 import type { UploadedDocument } from "@/features/applications/documents";
 import { formatDate } from "@/features/applications/utils";
+import { useAllDiscounts } from "@/features/discounts/hooks";
+import { discountValueLabel } from "@/features/discounts/types";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const DECIDABLE_STATUSES = ["submitted", "under_review", "returned"];
 
@@ -64,6 +69,46 @@ function InfoField({
   );
 }
 
+// One selectable voucher in the accept dialog. Single-choice, so it behaves as a
+// radio — "No voucher" is one of the options rather than a cleared state.
+function VoucherOption({
+  checked,
+  onSelect,
+  title,
+  meta,
+}: {
+  checked: boolean;
+  onSelect: () => void;
+  title: string;
+  meta: string;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors",
+        checked ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+      )}
+    >
+      <input
+        type="radio"
+        name="accept-voucher"
+        className="accent-primary size-4 shrink-0"
+        checked={checked}
+        onChange={onSelect}
+      />
+      <span className="flex-1 font-medium">{title}</span>
+      <span
+        className={cn(
+          "text-xs font-medium",
+          checked ? "text-primary" : "text-muted-foreground",
+        )}
+      >
+        {meta}
+      </span>
+    </label>
+  );
+}
+
 function AdminApplicationDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -77,9 +122,17 @@ function AdminApplicationDetailPage() {
     "accept" | "reject" | null
   >(null);
   const [note, setNote] = useState("");
+  // null = accept without granting a voucher, which is the default.
+  const [voucherId, setVoucherId] = useState<number | null>(null);
+  const { data: discounts, isLoading: vouchersLoading } = useAllDiscounts();
+
+  const vouchers = (discounts ?? []).filter(
+    (discount) => discount.isActive && discount.category === "voucher",
+  );
 
   function openDecision(decision: "accept" | "reject") {
     setNote("");
+    setVoucherId(null);
     setPendingDecision(decision);
   }
 
@@ -89,6 +142,7 @@ function AdminApplicationDetailPage() {
       await decide.mutateAsync({
         decision: pendingDecision,
         note: note.trim() || null,
+        discountId: pendingDecision === "accept" ? voucherId : null,
       });
     } catch {
       // Surfaced below via decide.isError.
@@ -253,17 +307,82 @@ function AdminApplicationDetailPage() {
           >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>
+                <AlertDialogTitle className="flex items-center gap-2">
                   {isReject
                     ? "Reject this application?"
                     : "Accept this application?"}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-help"
+                        onClick={(e) => e.preventDefault()}
+                      >
+                        <InfoIcon className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-pretty">
+                      {isReject
+                        ? "The application will be marked as rejected and the applicant will be notified by email. They can edit and resubmit it."
+                        : "The application will be marked as accepted and the applicant becomes a student with a pending enrollment, notified by email. The cashier generates their bill afterwards."}
+                    </TooltipContent>
+                  </Tooltip>
                 </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {isReject
-                    ? "The application will be marked as rejected and the applicant will be notified by email. They can edit and resubmit it."
-                    : "The application will be marked as accepted and the applicant becomes a student with a pending enrollment, notified by email. The cashier generates their bill afterwards."}
-                </AlertDialogDescription>
               </AlertDialogHeader>
+
+              {!isReject && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <TicketPercentIcon className="text-muted-foreground size-4" />
+                      <p className="text-sm font-medium">Voucher</p>
+                    </div>
+                    {/* A radio can't be unpicked, so clearing needs its own control. */}
+                    {voucherId !== null && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-foreground h-auto px-2 py-1 text-xs"
+                        onClick={() => setVoucherId(null)}
+                      >
+                        <XIcon className="size-3.5" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+
+                  {vouchersLoading ? (
+                    <Skeleton className="h-14 w-full rounded-lg" />
+                  ) : vouchers.length === 0 ? (
+                    <div className="text-muted-foreground flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs">
+                      <InfoIcon className="size-4 shrink-0" />
+                      <span>
+                        No vouchers in the catalog. Add one under Vouchers first.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="max-h-52 space-y-2 overflow-y-auto pr-0.5">
+                      {vouchers.map((voucher) => (
+                        <VoucherOption
+                          key={voucher.id}
+                          checked={voucherId === voucher.id}
+                          onSelect={() => setVoucherId(voucher.id)}
+                          title={voucher.name}
+                          meta={discountValueLabel(voucher)}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-muted-foreground text-xs">
+                    {voucherId === null
+                      ? "Optional — leave none selected and the student pays in full."
+                      : "Applied automatically when the cashier generates this student's bill, and it waives their downpayment."}
+                  </p>
+                </div>
+              )}
+
               {isReject && (
                 <div className="space-y-1.5">
                   <label

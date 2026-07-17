@@ -42,12 +42,14 @@ export async function fetchBills(params: BillListParams): Promise<BillsPage> {
   return { rows: data.data, meta: toPageMeta(data.meta) };
 }
 
+// The voucher is read from the enrollment server-side, so only the cashier's
+// freebie selection travels with the request.
 export interface GenerateBillInput {
-  discountIds: number[];
   freebieIds: number[];
 }
 
-// Generate a bill for a pending enrollment, applying the chosen credits.
+// Generate a bill for a pending enrollment, applying its granted voucher and the
+// chosen freebies.
 export async function generateBillForEnrollment(
   enrollmentId: number,
   input: GenerateBillInput,

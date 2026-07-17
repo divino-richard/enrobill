@@ -46,6 +46,7 @@ class EnrollmentController extends Controller
                 ]),
                 'schoolYear.fees',
                 'bill',
+                'discount',
             ])
             ->when(
                 in_array($request->string('status')->value(), self::STATUSES, true),
