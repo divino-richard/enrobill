@@ -101,6 +101,21 @@ class ApplicationController extends Controller
     }
 
     /**
+     * Mark a freshly submitted application as under review — the admin has opened
+     * it. Only transitions from 'submitted', so re-opening a returned or already
+     * decided application is a no-op. Sends no email: this is an internal state
+     * change that also clears the application from the "new" queue count.
+     */
+    public function review(Application $application): ApplicationResource
+    {
+        if ($application->status === 'submitted') {
+            $application->update(['status' => 'under_review']);
+        }
+
+        return new ApplicationResource($application->load(['user', 'documents']));
+    }
+
+    /**
      * Accept an application and notify the applicant, granting the voucher the
      * admin selected (if any). The voucher rides on the student's enrollment and is
      * applied when the cashier generates the bill — which is also what decides the

@@ -130,6 +130,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // All applications across every applicant.
         Route::get('/admin/applications', [AdminApplicationController::class, 'index']);
         Route::get('/admin/applications/{application}', [AdminApplicationController::class, 'show']);
+        Route::post('/admin/applications/{application}/review', [AdminApplicationController::class, 'review']);
         Route::post('/admin/applications/{application}/accept', [AdminApplicationController::class, 'accept']);
         Route::post('/admin/applications/{application}/reject', [AdminApplicationController::class, 'reject']);
 

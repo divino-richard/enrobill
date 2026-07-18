@@ -22,6 +22,7 @@ import { Logo } from "@/components/brand/logo";
 import { NavUser } from "@/components/nav-user";
 import { useAuthStore } from "@/features/auth/store";
 import type { Role } from "@/features/auth/types";
+import { useNewApplicationsCount } from "@/features/applications/hooks/use-applications";
 import {
   Sidebar,
   SidebarContent,
@@ -45,6 +46,8 @@ interface NavItem {
   // Not-yet-built items render disabled with a "Soon" badge.
   ready?: boolean;
   roles?: Role[];
+  // Show a live count badge of new (submitted) applications waiting for review.
+  notify?: "newApplications";
 }
 
 interface NavGroup {
@@ -85,6 +88,7 @@ const navGroups: NavGroup[] = [
         icon: ClipboardListIcon,
         ready: true,
         roles: ["admin"],
+        notify: "newApplications",
       },
       {
         title: "Students",
@@ -186,9 +190,33 @@ const navGroups: NavGroup[] = [
 const ACTIVE_CLASSES =
   "relative data-active:bg-primary/10 data-active:font-medium data-active:text-primary data-active:hover:bg-primary/15 data-active:hover:text-primary data-active:before:absolute data-active:before:inset-y-1.5 data-active:before:left-0 data-active:before:w-1 data-active:before:rounded-r-full data-active:before:bg-primary data-active:before:content-['']";
 
+// A count badge that survives the icon-collapsed sidebar. Expanded, it's a pill
+// on the right of the row; collapsed, it becomes a compact bubble tucked over the
+// icon's top-right corner (with a ring in the sidebar colour so it reads as an
+// overlay). Two elements rather than one so each state gets its own size and
+// position; the variant selector out-specifies the base `hidden`.
+function NotifyBadge({ count }: { count: number }) {
+  if (count <= 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <span className="bg-primary text-primary-foreground border-sidebar pointer-events-none absolute top-1.5 right-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs  border-2 font-medium tabular-nums select-none group-data-[collapsible=icon]:hidden">
+        {count > 99 ? "99+" : count}
+      </span>
+      <span className="bg-primary text-primary-foreground border-sidebar pointer-events-none absolute top-0.5 right-0.5 hidden h-4 min-w-4 items-center justify-center rounded-full border-2 px-0.5 text-[10px] leading-none font-medium tabular-nums select-none group-data-[collapsible=icon]:flex">
+        {count > 9 ? "9+" : count}
+      </span>
+    </>
+  );
+}
+
 export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation();
   const role = useAuthStore((state) => state.user?.role);
+  // Only admins see Applications, so the count query only runs for them.
+  const { data: newApplications = 0 } = useNewApplicationsCount(role === "admin");
   const groups = navGroups
     .map((group) => ({
       ...group,
@@ -245,6 +273,9 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
                   ? pathname === item.url
                   : pathname.startsWith(item.url);
 
+                const notifyCount =
+                  item.notify === "newApplications" ? newApplications : 0;
+
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -258,6 +289,7 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
                         <span>{item.title}</span>
                       </NavLink>
                     </SidebarMenuButton>
+                    <NotifyBadge count={notifyCount} />
                   </SidebarMenuItem>
                 );
               })}

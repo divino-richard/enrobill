@@ -10,6 +10,7 @@ import {
   fetchAllApplications,
   fetchApplication,
   fetchApplications,
+  markApplicationUnderReview,
   submitApplication,
   updateApplication,
 } from "../applications-api";
@@ -36,6 +37,25 @@ export function useAllApplications(params: ListParams) {
   });
 }
 
+// How often the sidebar badge polls for newly submitted applications, so the
+// count moves without the admin taking an action or reloading.
+const NEW_APPLICATIONS_POLL_MS = 15_000;
+
+// Count of new (submitted, not-yet-reviewed) applications, for the sidebar
+// notification badge. Reuses the list endpoint with perPage: 1 and reads
+// meta.total, so it stays cheap and needs no dedicated backend route. Keyed under
+// the admin-applications prefix so deciding an application refreshes it too, and
+// polled on an interval so freshly submitted applications appear on their own.
+export function useNewApplicationsCount(enabled: boolean) {
+  return useQuery({
+    queryKey: [...adminApplicationsQueryKey, "new-count"],
+    queryFn: () => fetchAllApplications({ status: "submitted", perPage: 1 }),
+    select: (page) => page.meta.total,
+    enabled,
+    refetchInterval: NEW_APPLICATIONS_POLL_MS,
+  });
+}
+
 // Load a single application for staff review (admin).
 export function useAdminApplication(id: number) {
   return useQuery({
@@ -58,6 +78,20 @@ export function useDecideApplication(id: number) {
       note?: string | null;
       discountId?: number | null;
     }) => decideApplication(id, decision, { note, discountId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
+    },
+  });
+}
+
+// Mark a submitted application as under review when the admin opens it. Refreshes
+// the admin list, detail, and the new-applications count (all under the same
+// prefix) so the badge decrements on view, before any accept/reject.
+export function useMarkApplicationUnderReview(id: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => markApplicationUnderReview(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
     },

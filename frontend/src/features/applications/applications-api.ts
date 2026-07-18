@@ -52,6 +52,18 @@ export async function fetchAdminApplication(
   return data.data;
 }
 
+// Mark a submitted application as under review — the admin has opened it (admin
+// only). A no-op on the server unless the status is 'submitted', so it is safe to
+// call on every open. Returns the (possibly updated) application.
+export async function markApplicationUnderReview(
+  id: number,
+): Promise<AdminApplicationDetail> {
+  const { data } = await api.post<Wrapped<AdminApplicationDetail>>(
+    `/admin/applications/${id}/review`,
+  );
+  return data.data;
+}
+
 // Accept / reject an application — notifies the applicant by email (admin only).
 // Accepting grants the chosen voucher (if any), which rides on the student's
 // enrollment until the cashier generates the bill — that is where it is applied

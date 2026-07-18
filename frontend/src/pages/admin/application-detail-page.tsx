@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeftIcon,
@@ -38,6 +38,7 @@ import { DocumentViewerDialog } from "@/features/applications/components/documen
 import {
   useAdminApplication,
   useDecideApplication,
+  useMarkApplicationUnderReview,
 } from "@/features/applications/hooks/use-applications";
 import type { UploadedDocument } from "@/features/applications/documents";
 import { formatDate } from "@/features/applications/utils";
@@ -115,6 +116,20 @@ function AdminApplicationDetailPage() {
   const { data: application, isLoading, isError, refetch } =
     useAdminApplication(applicationId);
   const decide = useDecideApplication(applicationId);
+  const markUnderReview = useMarkApplicationUnderReview(applicationId);
+
+  // Opening a still-new (submitted) application counts as reviewing it: move it to
+  // under_review so it drops out of the "new applications" badge, even if the
+  // admin makes no accept/reject decision. Once per application; the server only
+  // transitions from 'submitted', so re-firing is harmless.
+  const markUnderReviewMutate = markUnderReview.mutate;
+  const reviewedId = useRef<number | null>(null);
+  useEffect(() => {
+    if (application?.status === "submitted" && reviewedId.current !== applicationId) {
+      reviewedId.current = applicationId;
+      markUnderReviewMutate();
+    }
+  }, [application?.status, applicationId, markUnderReviewMutate]);
   const [viewingDocument, setViewingDocument] =
     useState<UploadedDocument | null>(null);
   const [pendingDecision, setPendingDecision] = useState<
