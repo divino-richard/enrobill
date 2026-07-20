@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\YearEndCloseout;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\StudentDocumentResource;
 use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Models\StudentDocument;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -38,7 +40,17 @@ class ProgressionController extends Controller
 
         $top = $this->topLevel();
 
-        $pending = $this->closeout->pendingStudents($active)
+        $pendingStudents = $this->closeout->pendingStudents($active);
+
+        // The clearance / grade slips these students uploaded for the ending year,
+        // grouped per student so the admin can read them before deciding.
+        $documents = StudentDocument::query()
+            ->whereIn('student_id', $pendingStudents->pluck('id'))
+            ->where('school_year_id', $active->id)
+            ->get()
+            ->groupBy('student_id');
+
+        $pending = $pendingStudents
             ->map(fn (Student $student) => [
                 'studentId' => $student->id,
                 'studentNumber' => $student->student_number,
@@ -47,6 +59,9 @@ class ProgressionController extends Controller
                 'yearLevel' => $student->year_level,
                 'nextYearLevel' => $this->nextLevel($student->year_level),
                 'isTopGrade' => $student->year_level === $top,
+                'documents' => StudentDocumentResource::collection(
+                    $documents->get($student->id, collect()),
+                ),
             ])
             ->values();
 

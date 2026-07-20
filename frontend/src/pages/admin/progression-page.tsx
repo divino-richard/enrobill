@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
+import { StudentDocumentChips } from "@/features/student-documents/components/student-document-chips";
 import { getErrorMessage } from "@/lib/get-error-message";
 import {
   useDecideProgression,
@@ -556,6 +557,7 @@ function DecisionList({
               </TableHead>
               <TableHead>Student</TableHead>
               <TableHead>Program</TableHead>
+              <TableHead>Clearance &amp; Grades</TableHead>
               <TableHead>{variant === "promote" ? "Advancement" : "Outcome"}</TableHead>
             </TableRow>
           </TableHeader>
@@ -579,6 +581,9 @@ function DecisionList({
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {programLabel(s.track)}
+                </TableCell>
+                <TableCell>
+                  <StudentDocumentChips documents={s.documents ?? []} />
                 </TableCell>
                 <TableCell>
                   <span className="flex items-center gap-1.5">

@@ -74,6 +74,16 @@ class Student extends Model
     }
 
     /**
+     * Per-semester clearance and grade slips this student uploaded.
+     *
+     * @return HasMany<StudentDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(StudentDocument::class);
+    }
+
+    /**
      * Keep the student's global status as a convenience mirror of their latest
      * enrollment (the open term if billed, else the most recent). Statuses that
      * aren't enrollment-driven (graduated/inactive) are left untouched.

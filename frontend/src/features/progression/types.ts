@@ -1,3 +1,5 @@
+import type { StudentDocument } from "@/features/student-documents/types";
+
 // A pointer to a school year.
 export interface YearRef {
   id: number;
@@ -17,6 +19,9 @@ export interface CloseoutStudent {
   // The grade this student would advance to if promoted.
   nextYearLevel: string | null;
   isTopGrade: boolean;
+  // Clearance / grade slips the student uploaded for the ending year — what the
+  // admin reads to judge pass (promote) or fail (retain).
+  documents: StudentDocument[];
 }
 
 // A decision already recorded for the ending year.

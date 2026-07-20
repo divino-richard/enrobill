@@ -24,6 +24,7 @@ use App\Http\Controllers\PaymentChannelController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\StudentBillController;
+use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
@@ -86,6 +87,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // The current user's own student record (once accepted).
     Route::get('/me/student', [StudentProfileController::class, 'show']);
+
+    // Per-semester clearance / grade slips the student uploads for year-end
+    // evaluation. The view URL is also readable by admins (checked in-controller).
+    Route::get('/me/documents', [StudentDocumentController::class, 'index']);
+    Route::post('/me/documents/presign', [StudentDocumentController::class, 'presign']);
+    Route::post('/me/documents', [StudentDocumentController::class, 'store']);
+    Route::get('/student-documents/{document}', [StudentDocumentController::class, 'viewUrl']);
+    Route::get('/student-documents/{document}/download', [StudentDocumentController::class, 'download']);
 
     // The current student's bill for the open term + self-service payment.
     Route::get('/me/bill', [StudentBillController::class, 'show']);

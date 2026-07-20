@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import {
   CalendarClockIcon,
+  FolderUpIcon,
   GraduationCapIcon,
   HistoryIcon,
   InfoIcon,
@@ -29,6 +30,11 @@ import {
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useMyEnrollments, useMyStudent } from "@/features/students/hooks";
+import { useMyDocuments } from "@/features/student-documents/hooks";
+import {
+  ClearanceGradesPanel,
+  TOTAL_DOCUMENT_SLOTS,
+} from "@/features/student-documents/components/clearance-grades-panel";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { EnrollmentStatusBadge } from "@/features/students/components/enrollment-status-badge";
 import type { EnrollmentRecord } from "@/features/students/types";
@@ -150,6 +156,10 @@ function ProgramsPage() {
   const { data: student, isLoading, isError } = useMyStudent();
   const { data: enrollments } = useMyEnrollments();
   const programLabel = useProgramLabel();
+  // Drives the tab's "n/4" badge, so an unfinished submission is visible without
+  // opening the tab. Read before any early return — hook order must stay stable.
+  const { data: myDocuments } = useMyDocuments();
+  const uploadedDocuments = myDocuments?.length ?? 0;
 
   if (isLoading) {
     return (
@@ -225,6 +235,16 @@ function ProgramsPage() {
           <TabsTrigger value="schedule">
             <CalendarClockIcon />
             Schedule
+          </TabsTrigger>
+          <TabsTrigger value="clearance-grades">
+            <FolderUpIcon />
+            Clearance &amp; Grades
+            <Badge
+              variant="secondary"
+              className="ml-0.5 h-5 justify-center px-1 font-normal tabular-nums"
+            >
+              {uploadedDocuments}/{TOTAL_DOCUMENT_SLOTS}
+            </Badge>
           </TabsTrigger>
           <TabsTrigger value="history">
             <HistoryIcon />
@@ -321,6 +341,10 @@ function ProgramsPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="clearance-grades">
+          <ClearanceGradesPanel />
         </TabsContent>
 
         <TabsContent value="history">
