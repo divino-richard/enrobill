@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2Icon, UploadIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -40,11 +40,36 @@ function ChannelCard({
   const [preview, setPreview] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // The file input is uncontrolled, so discarding needs a handle to clear it.
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function pickFile(next: File | null) {
+    // Release the previous preview before replacing it.
+    setPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return next ? URL.createObjectURL(next) : null;
+    });
     setFile(next);
-    setPreview(next ? URL.createObjectURL(next) : null);
     setSaved(false);
+  }
+
+  // Unsaved edits exist only when a field diverges from what's persisted.
+  const isDirty =
+    accountName !== (channel.accountName ?? "") ||
+    accountNumber !== (channel.accountNumber ?? "") ||
+    isActive !== channel.isActive ||
+    file !== null;
+
+  function handleCancel() {
+    if (preview) URL.revokeObjectURL(preview);
+    setAccountName(channel.accountName ?? "");
+    setAccountNumber(channel.accountNumber ?? "");
+    setIsActive(channel.isActive);
+    setFile(null);
+    setPreview(null);
+    setSaved(false);
+    setUploadError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleSave() {
@@ -129,6 +154,7 @@ function ChannelCard({
               {isBank ? "QR image (optional)" : "QR image"}
             </FieldLabel>
             <Input
+              ref={fileInputRef}
               id={`qr-${channel.id}`}
               type="file"
               accept="image/png,image/jpeg"
@@ -157,10 +183,19 @@ function ChannelCard({
               read-only.
             </p>
           ) : (
-            <Button onClick={handleSave} disabled={busy}>
-              <UploadIcon />
-              {busy ? "Saving…" : "Save"}
-            </Button>
+            <>
+              <Button onClick={handleSave} disabled={busy}>
+                <UploadIcon />
+                {busy ? "Saving…" : "Save"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={busy || !isDirty}
+              >
+                Cancel
+              </Button>
+            </>
           )}
           {saved && (
             <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400">
