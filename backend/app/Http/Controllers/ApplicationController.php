@@ -33,6 +33,18 @@ class ApplicationController extends Controller
     private const OPTIONAL_DOCUMENT_TYPES = ['psa_birth_certificate', 'certificate_of_enrollment'];
 
     /**
+     * An applicant who already studied here — their records are with the
+     * registrar, so verification documents aren't asked for again.
+     */
+    private const STUDENT_TYPE_CONTINUING = 'continuing';
+
+    /**
+     * Who is applying: someone new to the school (including a transferee), or a
+     * continuing student. Mirrors STUDENT_TYPE_OPTIONS on the SPA.
+     */
+    private const STUDENT_TYPES = ['new', self::STUDENT_TYPE_CONTINUING];
+
+    /**
      * The authenticated applicant's applications, newest first.
      */
     public function index(Request $request): AnonymousResourceCollection
@@ -180,6 +192,16 @@ class ApplicationController extends Controller
     /**
      * Shared validation for submitting / resubmitting an application.
      */
+    /**
+     * Whether this applicant must supply verification documents. Only a
+     * continuing student is exempt; a null (older application, or an unanswered
+     * form) falls back to requiring them.
+     */
+    private static function requiresDocuments(Request $request): bool
+    {
+        return $request->input('studentType') !== self::STUDENT_TYPE_CONTINUING;
+    }
+
     private function validateApplication(Request $request): void
     {
         $request->validate([
@@ -191,6 +213,7 @@ class ApplicationController extends Controller
             'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
             'schoolYear' => ['required', 'string'],
             'agreementAccepted' => ['accepted'],
+            'studentType' => ['nullable', Rule::in(self::STUDENT_TYPES)],
             'documents' => ['array'],
             'documents.*.type' => ['required', 'string'],
             'documents.*.key' => ['required', 'string'],
@@ -200,6 +223,13 @@ class ApplicationController extends Controller
         ], [
             'agreementAccepted.accepted' => 'You must agree to the declaration before submitting.',
         ]);
+
+        // A continuing student's records are already with the registrar, so the
+        // document requirements don't apply to them. Everyone else — including a
+        // Grade 12 transferee — still has to comply.
+        if (! self::requiresDocuments($request)) {
+            return;
+        }
 
         $uploadedTypes = collect($request->input('documents', []))->pluck('type')->all();
 
@@ -256,6 +286,7 @@ class ApplicationController extends Controller
         $hasAllOptional = array_diff(self::OPTIONAL_DOCUMENT_TYPES, $uploadedTypes) === [];
 
         return [
+            'student_type' => $request->input('studentType') ?: 'new',
             'surname' => $request->input('surname'),
             'given_name' => $request->input('givenName'),
             'middle_name' => $request->input('middleName'),

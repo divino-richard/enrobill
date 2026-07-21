@@ -89,6 +89,10 @@ export interface ApplicationFormValues {
   prevSchoolYearGraduated: string;
   prevSchoolGpa: string;
   prevSchoolType: string;
+  // Whether the applicant is new to the school or already studied here. A
+  // continuing student's records are already with the registrar, so the
+  // verification documents below aren't asked of them.
+  studentType: StudentType;
   // Previous-school verification documents uploaded to S3.
   documents: UploadedDocument[];
   // Promissory note used when the applicant can't yet provide every required
@@ -130,6 +134,41 @@ export const YEAR_LEVEL_OPTIONS = [
   { value: "grade_11", label: "Grade 11" },
   { value: "grade_12", label: "Grade 12" },
 ] as const;
+
+// Who is applying. "continuing" means they already studied here — typically a
+// Grade 12 applicant who finished Grade 11 before this system existed — so the
+// registrar already holds their documents. A transferee is "new" and must comply.
+export type StudentType = "new" | "continuing";
+
+export const STUDENT_TYPE_OPTIONS: {
+  value: StudentType;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "new",
+    label: "New student or transferee",
+    description:
+      "I'm coming from another school. I'll upload my verification documents.",
+  },
+  {
+    value: "continuing",
+    label: "Continuing Northlink student",
+    description:
+      "I already studied here, so the registrar has my records on file.",
+  },
+];
+
+// Whether this applicant has to upload verification documents.
+export function requiresDocuments(studentType: StudentType): boolean {
+  return studentType !== "continuing";
+}
+
+export function studentTypeLabel(value: string): string {
+  return (
+    STUDENT_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value
+  );
+}
 
 export const SCHOOL_TYPE_OPTIONS = [
   { value: "Public", label: "Public" },

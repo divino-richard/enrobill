@@ -1,6 +1,7 @@
-import { GraduationCap } from "lucide-react";
+import { CheckCircle2, GraduationCap, ShieldCheck, UserCheck } from "lucide-react";
 import { FormSection } from "./form-section";
 import { DocumentUploadSection } from "./document-upload-section";
+import { cn } from "@/lib/utils";
 import type { ApplicationFormApi } from "../hooks/form";
 import { FieldLabel } from "@/components/form/field-label";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FieldInfo } from "@/components/form/field-info";
-import { SCHOOL_TYPE_OPTIONS } from "../types";
+import {
+  SCHOOL_TYPE_OPTIONS,
+  STUDENT_TYPE_OPTIONS,
+  requiresDocuments,
+} from "../types";
 import { compose, numericRange, required, schoolYear } from "../validators";
 
 interface AcademicStepProps {
@@ -199,7 +204,71 @@ export function AcademicStep({ form }: AcademicStepProps) {
         </div>
       </FormSection>
 
-      <DocumentUploadSection form={form} />
+      <FormSection
+        title="Student Type"
+        icon={UserCheck}
+        description="This tells us whether we already hold your records, which decides if you need to upload verification documents."
+      >
+        <form.Field name="studentType">
+          {(field) => (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {STUDENT_TYPE_OPTIONS.map((option) => {
+                const checked = field.state.value === option.value;
+
+                return (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-lg border p-4 text-sm transition-colors",
+                      checked
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-muted/50",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="studentType"
+                      className="accent-primary mt-0.5 size-4 shrink-0"
+                      checked={checked}
+                      onChange={() => field.handleChange(option.value)}
+                    />
+                    <span className="space-y-0.5">
+                      <span className="block font-medium">{option.label}</span>
+                      <span className="text-muted-foreground block text-xs leading-relaxed">
+                        {option.description}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </form.Field>
+      </FormSection>
+
+      <form.Subscribe selector={(state) => state.values.studentType}>
+        {(studentType) =>
+          requiresDocuments(studentType) ? (
+            <DocumentUploadSection form={form} />
+          ) : (
+            <FormSection title="Previous School Verification" icon={ShieldCheck}>
+              <div className="border-primary/30 bg-primary/5 flex items-start gap-3 rounded-lg border p-4">
+                <CheckCircle2 className="text-primary mt-0.5 size-5 shrink-0" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">
+                    No documents needed for this application
+                  </p>
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    As a continuing Northlink student, your verification
+                    documents are already on file with the registrar. If they ask
+                    for anything else, they'll contact you directly.
+                  </p>
+                </div>
+              </div>
+            </FormSection>
+          )
+        }
+      </form.Subscribe>
     </div>
   );
 }

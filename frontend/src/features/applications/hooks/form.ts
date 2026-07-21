@@ -35,6 +35,7 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
   prevSchoolYearGraduated: "",
   prevSchoolGpa: "",
   prevSchoolType: "",
+  studentType: "new",
   documents: [],
   documentPromissoryNote: "",
   documentPromissoryDate: "",

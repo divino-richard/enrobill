@@ -7,6 +7,8 @@ import {
   CIVIL_STATUS_OPTIONS,
   YEAR_LEVEL_OPTIONS,
   labelFor,
+  requiresDocuments,
+  studentTypeLabel,
   type ApplicationFormValues,
 } from "../types";
 import {
@@ -134,6 +136,7 @@ export function ApplicationSummary({
       <SummarySection
         title="Academic Background"
         rows={[
+          ["Student type", studentTypeLabel(values.studentType)],
           ["Previous school", values.prevSchoolName || "—"],
           ["School type", values.prevSchoolType || "—"],
           ["Last grade completed", values.prevSchoolGradeLevel || "—"],
@@ -147,7 +150,14 @@ export function ApplicationSummary({
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">Verification Documents</h3>
-        {values.documents.length === 0 ? (
+        {!requiresDocuments(values.studentType) ? (
+          // Say why there's nothing here, so a reviewer doesn't read the gap as
+          // an incomplete application.
+          <p className="text-muted-foreground text-sm">
+            Not required — continuing student, records already with the
+            registrar.
+          </p>
+        ) : values.documents.length === 0 ? (
           <p className="text-muted-foreground text-sm">None uploaded</p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">

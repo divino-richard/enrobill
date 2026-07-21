@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'user_id', 'reference', 'status', 'decision_note',
     'enrollment_type',
+    'student_type',
     'surname', 'given_name', 'middle_name', 'extension', 'date_of_birth',
     'age', 'gender', 'nationality', 'civil_status', 'place_of_birth',
     'religion', 'health_concerns',

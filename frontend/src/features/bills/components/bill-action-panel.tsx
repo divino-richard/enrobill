@@ -4,6 +4,7 @@ import {
   CalendarClockIcon,
   CheckCircle2Icon,
   CheckIcon,
+  ChevronRight,
   ClockIcon,
   CopyIcon,
   DownloadIcon,
@@ -22,6 +23,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { FieldLabel } from "@/components/form/field-label";
 import { cn } from "@/lib/utils";
@@ -80,6 +82,73 @@ function AccountRow({ label, value }: { label: string; value: string }) {
         )}
       </Button>
     </div>
+  );
+}
+
+function ChannelDetailsDialog({
+  channel,
+  onOpenChange,
+}: {
+  channel: PaymentChannel | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const isBank = channel?.code === "bank";
+  const hasDetails = Boolean(
+    channel?.qrUrl || channel?.accountName || channel?.accountNumber,
+  );
+
+  return (
+    <Dialog open={channel !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{channel?.label}</DialogTitle>
+          <DialogDescription>
+            Send your payment here, then upload the receipt back on the payment
+            form.
+          </DialogDescription>
+        </DialogHeader>
+
+        {channel && (
+          <div className="space-y-3">
+            {channel.qrUrl && (
+              <div className="flex flex-col items-center gap-1.5">
+                <img
+                  src={channel.qrUrl}
+                  alt={`${channel.label} QR`}
+                  className="size-48 rounded-md border bg-white object-contain p-2"
+                />
+                <p className="text-muted-foreground text-xs">
+                  Scan with your {channel.label} app
+                </p>
+              </div>
+            )}
+
+            {channel.accountName && (
+              <AccountRow
+                label={isBank ? "Bank" : "Account name"}
+                value={channel.accountName}
+              />
+            )}
+            {channel.accountNumber && (
+              <AccountRow
+                label={isBank ? "Account number" : "Number"}
+                value={channel.accountNumber}
+              />
+            )}
+
+            {!hasDetails && (
+              <p className="text-muted-foreground text-center text-sm">
+                No payment details yet. Please contact the cashier.
+              </p>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -217,6 +286,9 @@ function PayDialog({
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [detailsChannel, setDetailsChannel] = useState<PaymentChannel | null>(
+    null,
+  );
 
   function reset() {
     setAmount(String(suggestedAmount));
@@ -226,8 +298,12 @@ function PayDialog({
     setNote("");
     setFile(null);
     setError(null);
+    setDetailsChannel(null);
     submit.reset();
   }
+
+  // Falls back to the first channel, covering channels that load after open.
+  const activeMethod = method || channels[0]?.code || "";
 
   const amountNum = Number(amount);
   const amountValid =
@@ -235,19 +311,17 @@ function PayDialog({
     amountNum >= minimumAmount - 0.0001 &&
     amountNum <= bill.balance + 0.01;
 
-  const selectedChannel = channels.find((channel) => channel.code === method) ?? null;
-  const isBank = selectedChannel?.code === "bank";
 
   async function handleSubmit() {
     setError(null);
-    if (!method || !file || !amountValid) return;
+    if (!activeMethod || !file || !amountValid) return;
     try {
       setUploading(true);
       const proofKey = await uploadPaymentProof(file);
       setUploading(false);
       await submit.mutateAsync({
         amount: amountNum,
-        method: method as PaymentMethod,
+        method: activeMethod as PaymentMethod,
         reference: reference.trim() || null,
         proofKey,
         paidAt,
@@ -270,14 +344,13 @@ function PayDialog({
         setOpen(next);
       }}
     >
-      <Button
-        onClick={() => setOpen(true)}
-        disabled={disabled}
-        className={triggerClassName}
-      >
-        <UploadIcon />
-        {triggerLabel}
-      </Button>
+      {/* A real trigger, so onOpenChange fires and reset() actually runs. */}
+      <DialogTrigger asChild>
+        <Button disabled={disabled} className={triggerClassName}>
+          <UploadIcon />
+          {triggerLabel}
+        </Button>
+      </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Pay your bill</DialogTitle>
@@ -358,66 +431,26 @@ function PayDialog({
           ) : (
             <>
               <Step n={2} title="Pay with">
-                <div className="flex flex-wrap gap-1.5">
+                <p className="text-muted-foreground text-xs">
+                  Choose an account to see its QR and details.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
                   {channels.map((channel) => (
-                    <button
+                    <Button
                       key={channel.id}
                       type="button"
-                      onClick={() => setMethod(channel.code)}
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                        method === channel.code
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:bg-muted",
-                      )}
+                      variant="outline"
+                      className="flex items-center justify-between"
+                      onClick={() => {
+                        setMethod(channel.code);
+                        setDetailsChannel(channel);
+                      }}
                     >
                       {channel.label}
-                    </button>
+                      <ChevronRight />
+                    </Button>
                   ))}
                 </div>
-
-                {selectedChannel && (
-                  <div className="bg-muted/30 space-y-3 rounded-lg border p-3">
-                    {selectedChannel.qrUrl && (
-                      <div className="flex flex-col items-center gap-1.5">
-                        <img
-                          src={selectedChannel.qrUrl}
-                          alt={`${selectedChannel.label} QR`}
-                          className="size-36 rounded-md border bg-white object-contain p-1.5"
-                        />
-                        <p className="text-muted-foreground text-xs">
-                          Scan with your {selectedChannel.label} app
-                        </p>
-                      </div>
-                    )}
-
-                    {(selectedChannel.accountName ||
-                      selectedChannel.accountNumber) && (
-                      <div className="space-y-1.5">
-                        {selectedChannel.accountName && (
-                          <AccountRow
-                            label={isBank ? "Bank" : "Account name"}
-                            value={selectedChannel.accountName}
-                          />
-                        )}
-                        {selectedChannel.accountNumber && (
-                          <AccountRow
-                            label={isBank ? "Account number" : "Number"}
-                            value={selectedChannel.accountNumber}
-                          />
-                        )}
-                      </div>
-                    )}
-
-                    {!selectedChannel.qrUrl &&
-                      !selectedChannel.accountName &&
-                      !selectedChannel.accountNumber && (
-                        <p className="text-muted-foreground text-center text-sm">
-                          No payment details yet. Please contact the cashier.
-                        </p>
-                      )}
-                  </div>
-                )}
               </Step>
 
               <Step n={3} title="Confirm your payment">
@@ -474,6 +507,13 @@ function PayDialog({
           {error && <p className="text-destructive text-sm">{error}</p>}
         </div>
 
+        <ChannelDetailsDialog
+          channel={detailsChannel}
+          onOpenChange={(next) => {
+            if (!next) setDetailsChannel(null);
+          }}
+        />
+
         <DialogFooter>
           <Button
             variant="outline"
@@ -485,7 +525,11 @@ function PayDialog({
           <Button
             onClick={handleSubmit}
             disabled={
-              !method || !file || !amountValid || channels.length === 0 || busy
+              !activeMethod ||
+              !file ||
+              !amountValid ||
+              channels.length === 0 ||
+              busy
             }
           >
             {uploading

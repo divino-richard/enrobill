@@ -1,7 +1,6 @@
 import {
   CheckCircle2Icon,
   CircleSlashIcon,
-  GraduationCapIcon,
   LogOutIcon,
   RotateCcwIcon,
 } from "lucide-react";
@@ -32,8 +31,8 @@ const ACTIONS: {
   label: string;
   icon: typeof CheckCircle2Icon;
 }[] = [
-  { status: "enrolled", label: "Mark as enrolled", icon: CheckCircle2Icon },
-  { status: "completed", label: "Mark as completed", icon: GraduationCapIcon },
+  // { status: "enrolled", label: "Mark as enrolled", icon: CheckCircle2Icon },
+  // { status: "completed", label: "Mark as completed", icon: GraduationCapIcon },
   { status: "dropped", label: "Mark as dropped", icon: CircleSlashIcon },
   { status: "withdrawn", label: "Mark as withdrawn", icon: LogOutIcon },
   { status: "pending", label: "Reset to pending", icon: RotateCcwIcon },

@@ -27,6 +27,7 @@ import {
   type ApplicationDocumentType,
   type UploadedDocument,
 } from "../documents";
+import { requiresDocuments } from "../types";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -199,6 +200,10 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
         name="documents"
         validators={{
           onChange: ({ value }: { value: UploadedDocument[] }) =>
+            // A continuing student is exempt — the step validator runs this field
+            // by name whether or not this section is on screen, so the exemption
+            // has to live in the rule itself, not just in what we render.
+            !requiresDocuments(form.state.values.studentType) ||
             missingRequiredDocuments(value).length === 0
               ? undefined
               : "Please upload all required documents to continue.",
@@ -327,6 +332,8 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
 // Whether the applicant still owes a supporting (optional) document — drives
 // whether the promissory note and its fields are required to advance.
 function needsPromissoryNote(form: ApplicationFormApi): boolean {
+  // A continuing student owes nothing, so there's nothing to promise.
+  if (!requiresDocuments(form.state.values.studentType)) return false;
   return missingOptionalDocuments(form.state.values.documents).length > 0;
 }
 

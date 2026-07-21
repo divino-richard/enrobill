@@ -105,6 +105,8 @@ class ApplicationResource extends JsonResource
             'prevSchoolYearGraduated' => $this->prev_school_year_graduated ?? '',
             'prevSchoolGpa' => $this->prev_school_gpa ?? '',
             'prevSchoolType' => $this->prev_school_type ?? '',
+            // Drives whether verification documents were asked for at all.
+            'studentType' => $this->student_type ?? 'new',
             'documents' => $this->relationLoaded('documents')
                 ? $this->documents->map(fn ($document) => [
                     'id' => $document->id,
