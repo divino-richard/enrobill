@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Role;
+use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +34,12 @@ class ApplicationDocumentController extends Controller
         'image/png' => 'png',
         'application/pdf' => 'pdf',
     ];
+
+    /**
+     * Supporting documents — the ones a promissory note can defer, and so the
+     * only ones an applicant may still submit after the application is in.
+     */
+    private const SUPPORTING_TYPES = ['psa_birth_certificate', 'certificate_of_enrollment'];
 
     private const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -72,6 +79,62 @@ class ApplicationDocumentController extends Controller
             'url' => $signed['url'],
             'headers' => $signed['headers'],
         ]);
+    }
+
+    /**
+     * Attach a supporting document the applicant promised but didn't upload with
+     * their application. Clearing the last outstanding one also retires the
+     * promissory note, since there's nothing left to promise.
+     */
+    public function store(Request $request, Application $application): ApplicationResource
+    {
+        $user = $request->user();
+        abort_unless($application->user_id === $user->id, 404);
+
+        $validated = $request->validate([
+            'type' => ['required', Rule::in(self::SUPPORTING_TYPES)],
+            'key' => ['required', 'string'],
+            'file_name' => ['required', 'string', 'max:255'],
+            'size' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BYTES],
+            'content_type' => ['required', 'string', Rule::in(array_keys(self::ALLOWED_TYPES))],
+        ]);
+
+        abort_if(
+            $application->documents()->where('type', $validated['type'])->exists(),
+            422,
+            'That document has already been submitted.',
+        );
+
+        // Only accept a key this user was issued, so a crafted request can't
+        // attach someone else's object.
+        abort_unless(
+            str_starts_with($validated['key'], "applications/{$user->id}/"),
+            422,
+            'Unrecognized upload.',
+        );
+
+        $application->documents()->create([
+            'type' => $validated['type'],
+            's3_key' => $validated['key'],
+            'file_name' => $validated['file_name'],
+            'size' => $validated['size'],
+            'content_type' => $validated['content_type'],
+        ]);
+
+        $application->load('documents');
+        $outstanding = array_diff(
+            self::SUPPORTING_TYPES,
+            $application->documents->pluck('type')->all(),
+        );
+
+        if ($outstanding === [] && $application->document_promissory_note) {
+            $application->update([
+                'document_promissory_note' => null,
+                'document_promissory_date' => null,
+            ]);
+        }
+
+        return new ApplicationResource($application->load(['user', 'documents']));
     }
 
     /**

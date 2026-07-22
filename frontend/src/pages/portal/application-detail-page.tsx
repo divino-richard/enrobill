@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApplicationSummary } from "@/features/applications/components/application-summary";
+import { OutstandingDocumentsCard } from "@/features/applications/components/outstanding-documents-card";
 import { ApplicationStatusBadge } from "@/features/applications/components/application-status-badge";
 import { DocumentViewerDialog } from "@/features/applications/components/document-viewer-dialog";
 import {
@@ -150,6 +151,14 @@ function ApplicationDetailPage() {
                 ))}
             </CardContent>
           </Card>
+
+          {application.status === "accepted" && (
+            <OutstandingDocumentsCard
+              applicationId={application.id}
+              documents={application.values.documents}
+              promissoryDate={application.values.documentPromissoryDate}
+            />
+          )}
 
           <Card>
             <CardContent>

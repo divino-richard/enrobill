@@ -15,6 +15,8 @@ import {
   updateApplication,
 } from "../applications-api";
 import type { ListParams } from "@/lib/pagination";
+import { submitOutstandingDocument } from "../documents-api";
+import type { ApplicationDocumentType } from "../documents";
 import type { ApplicationFormValues } from "../types";
 
 export const applicationsQueryKey = ["applications"] as const;
@@ -103,6 +105,27 @@ export function useApplication(id: number) {
   return useQuery({
     queryKey: [...applicationsQueryKey, id],
     queryFn: () => fetchApplication(id),
+  });
+}
+
+// Submit a supporting document that was deferred with a promissory note.
+export function useSubmitOutstandingDocument(applicationId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      type,
+      file,
+      onProgress,
+    }: {
+      type: ApplicationDocumentType;
+      file: File;
+      onProgress?: (percent: number) => void;
+    }) => submitOutstandingDocument(applicationId, type, file, onProgress),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: applicationsQueryKey });
+      queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
+    },
   });
 }
 

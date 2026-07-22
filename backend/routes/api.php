@@ -119,6 +119,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/applications/documents/presign', [ApplicationDocumentController::class, 'presign']);
 
     // Short-lived URL to view a previously uploaded document.
+    Route::post('/applications/{application}/documents', [ApplicationDocumentController::class, 'store']);
     Route::get('/applications/{application}/documents/{document}', [ApplicationDocumentController::class, 'viewUrl']);
 
     // Stream a document's raw bytes (same-origin) for download / print.

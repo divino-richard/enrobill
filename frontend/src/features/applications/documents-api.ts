@@ -44,6 +44,24 @@ export async function uploadApplicationDocument(
   };
 }
 
+// Attach a supporting document the applicant promised but didn't upload with
+// their application.
+export async function submitOutstandingDocument(
+  applicationId: number,
+  type: ApplicationDocumentType,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  const uploaded = await uploadApplicationDocument(type, file, onProgress);
+  await api.post(`/applications/${applicationId}/documents`, {
+    type: uploaded.type,
+    key: uploaded.key,
+    file_name: uploaded.fileName,
+    size: uploaded.size,
+    content_type: uploaded.contentType,
+  });
+}
+
 export interface DocumentViewUrl {
   url: string;
   fileName: string;
