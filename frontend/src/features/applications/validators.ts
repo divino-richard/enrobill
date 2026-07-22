@@ -43,6 +43,18 @@ export function schoolYear(message: string): FieldValidator {
   };
 }
 
+// A PH mobile number in local format: 11 digits beginning "09" (e.g.
+// 09171234567). The +63 international form is intentionally rejected so every
+// stored number has one shape. A blank value passes — pair with `required`.
+const PH_MOBILE_PATTERN = /^09\d{9}$/;
+
+export function phMobile(message: string): FieldValidator {
+  return ({ value }) => {
+    if (!value || !value.trim()) return undefined;
+    return PH_MOBILE_PATTERN.test(value.trim()) ? undefined : message;
+  };
+}
+
 // Runs validators left to right and returns the first error, so a name field can
 // require presence and reject digits from one `onChange`.
 export function compose(...validators: FieldValidator[]): FieldValidator {

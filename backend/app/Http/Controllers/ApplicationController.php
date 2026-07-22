@@ -45,6 +45,13 @@ class ApplicationController extends Controller
     private const STUDENT_TYPES = ['new', self::STUDENT_TYPE_CONTINUING];
 
     /**
+     * A PH mobile number in local format: 11 digits beginning "09". The +63
+     * international form is rejected so every stored number has one shape.
+     * Mirrors the `phMobile` validator on the SPA.
+     */
+    private const PH_MOBILE_REGEX = '/^09\d{9}$/';
+
+    /**
      * The authenticated applicant's applications, newest first.
      */
     public function index(Request $request): AnonymousResourceCollection
@@ -209,6 +216,8 @@ class ApplicationController extends Controller
             'givenName' => ['required', 'string', 'max:100'],
             'dateOfBirth' => ['required', 'date'],
             'gender' => ['required', 'string'],
+            'phoneNumber' => ['required', 'string', 'regex:'.self::PH_MOBILE_REGEX],
+            'guardianContactNumber' => ['required', 'string', 'regex:'.self::PH_MOBILE_REGEX],
             'trackOrStrand' => ['required', 'string', 'exists:programs,code'],
             'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
             'schoolYear' => ['required', 'string'],
@@ -222,6 +231,8 @@ class ApplicationController extends Controller
             'documentPromissoryDate' => ['nullable', 'date', 'after_or_equal:today'],
         ], [
             'agreementAccepted.accepted' => 'You must agree to the declaration before submitting.',
+            'phoneNumber.regex' => 'Enter an 11-digit mobile number starting with 09.',
+            'guardianContactNumber.regex' => 'Enter an 11-digit mobile number starting with 09.',
         ]);
 
         // A continuing student's records are already with the registrar, so the

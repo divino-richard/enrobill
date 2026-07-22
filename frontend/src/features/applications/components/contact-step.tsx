@@ -4,7 +4,16 @@ import { FormSection } from "./form-section";
 import { FieldLabel } from "@/components/form/field-label";
 import { Input } from "@/components/ui/input";
 import { FieldInfo } from "@/components/form/field-info";
-import { compose, noDigits, required } from "../validators";
+import { compose, noDigits, phMobile, required } from "../validators";
+
+// PH mobile numbers are 11 digits (09XXXXXXXXX). Strip anything the user types or
+// pastes that isn't a digit — spaces, dashes, a leading "+" — so the field can
+// only ever hold digits, and cap the length. The value stays a string, keeping
+// the leading zero that a numeric input would drop.
+const MOBILE_DIGITS = 11;
+
+const toDigits = (value: string) =>
+  value.replace(/\D/g, "").slice(0, MOBILE_DIGITS);
 
 interface ContactStepProps {
   form: ApplicationFormApi;
@@ -63,14 +72,19 @@ export function ContactStep({ form }: ContactStepProps) {
           </form.Field>
           <form.Field
             name="phoneNumber"
-            validators={{ onChange: required("Phone number is required") }}
+            validators={{
+              onChange: compose(
+                required("Phone number is required"),
+                phMobile("Enter an 11-digit mobile number starting with 09"),
+              ),
+            }}
           >
             {(field) => (
               <div className="space-y-1.5">
                 <FieldLabel
                   htmlFor={field.name}
                   required
-                  hint="Active mobile number for SMS and call notifications."
+                  hint="Active mobile number for SMS and call notifications. Local format only — 11 digits starting with 09 (e.g. 09171234567), not +63."
                 >
                   Phone Number
                 </FieldLabel>
@@ -78,7 +92,11 @@ export function ContactStep({ form }: ContactStepProps) {
                   id={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(e) => field.handleChange(toDigits(e.target.value))}
+                  placeholder="09171234567"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={MOBILE_DIGITS}
                 />
                 <FieldInfo field={field} />
               </div>
@@ -192,7 +210,10 @@ export function ContactStep({ form }: ContactStepProps) {
           <form.Field
             name="guardianContactNumber"
             validators={{
-              onChange: required("Contac number is required"),
+              onChange: compose(
+                required("Contact number is required"),
+                phMobile("Enter an 11-digit mobile number starting with 09"),
+              ),
             }}
           >
             {(field) => (
@@ -200,7 +221,7 @@ export function ContactStep({ form }: ContactStepProps) {
                 <FieldLabel
                   htmlFor={field.name}
                   required
-                  hint="Active mobile number where guardian can be reached."
+                  hint="Active mobile number where the guardian can be reached. Local format only — 11 digits starting with 09 (e.g. 09171234567), not +63."
                 >
                   Contact Number
                 </FieldLabel>
@@ -208,7 +229,11 @@ export function ContactStep({ form }: ContactStepProps) {
                   id={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(e) => field.handleChange(toDigits(e.target.value))}
+                  placeholder="09171234567"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={MOBILE_DIGITS}
                 />
                 <FieldInfo field={field} />
               </div>
