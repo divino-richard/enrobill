@@ -15,7 +15,10 @@ import {
   updateApplication,
 } from "../applications-api";
 import type { ListParams } from "@/lib/pagination";
-import { submitOutstandingDocument } from "../documents-api";
+import {
+  deleteApplicationDocument,
+  submitOutstandingDocument,
+} from "../documents-api";
 import type { ApplicationDocumentType } from "../documents";
 import type { ApplicationFormValues } from "../types";
 
@@ -122,6 +125,20 @@ export function useSubmitOutstandingDocument(applicationId: number) {
       file: File;
       onProgress?: (percent: number) => void;
     }) => submitOutstandingDocument(applicationId, type, file, onProgress),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: applicationsQueryKey });
+      queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });
+    },
+  });
+}
+
+// Remove a supporting document from a submitted application.
+export function useDeleteApplicationDocument(applicationId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentId: number) =>
+      deleteApplicationDocument(applicationId, documentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: applicationsQueryKey });
       queryClient.invalidateQueries({ queryKey: adminApplicationsQueryKey });

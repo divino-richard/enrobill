@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PaymentChannelResource;
+use App\Models\Payment;
 use App\Models\PaymentChannel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -93,6 +95,8 @@ class PaymentChannelController extends Controller
             'isActive' => ['required', 'boolean'],
         ]);
 
+        $previousKey = $paymentChannel->qr_key;
+
         $paymentChannel->update([
             'account_name' => $validated['accountName'] ?? null,
             'account_number' => $validated['accountNumber'] ?? null,
@@ -101,7 +105,45 @@ class PaymentChannelController extends Controller
             'is_active' => $validated['isActive'],
         ]);
 
+        // Drop the superseded object so the bucket doesn't keep unreferenced QRs.
+        $newKey = $paymentChannel->fresh()->qr_key;
+        if ($previousKey !== null && $previousKey !== $newKey) {
+            Storage::disk('s3')->delete($previousKey);
+        }
+
         return new PaymentChannelResource($paymentChannel->fresh());
+    }
+
+    /**
+     * Cashier-only: delete a payment method outright, along with its QR object.
+     *
+     * Blocked once payments have been recorded against it. Payments store the
+     * method as a bare code rather than a foreign key, so removing the channel
+     * would strip the label off historical receipts with nothing to restore it.
+     * Deactivating hides the method from students without touching that history.
+     */
+    public function destroy(PaymentChannel $paymentChannel): Response
+    {
+        $payments = Payment::query()->where('method', $paymentChannel->code)->count();
+
+        if ($payments > 0) {
+            throw ValidationException::withMessages([
+                'paymentChannel' => sprintf(
+                    '%s has %d recorded %s and cannot be deleted. Hide it from students instead.',
+                    $paymentChannel->label,
+                    $payments,
+                    $payments === 1 ? 'payment' : 'payments',
+                ),
+            ]);
+        }
+
+        if ($paymentChannel->qr_key !== null) {
+            Storage::disk('s3')->delete($paymentChannel->qr_key);
+        }
+
+        $paymentChannel->delete();
+
+        return response()->noContent();
     }
 
     /**

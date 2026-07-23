@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { FieldLabel } from "@/components/form/field-label";
 import { cn } from "@/lib/utils";
+import { formatBytes } from "@/lib/format-bytes";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { formatDate } from "@/features/applications/utils";
@@ -284,11 +285,22 @@ function PayDialog({
   const [paidAt, setPaidAt] = useState(todayIso());
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  // Local preview of the receipt, so it can be checked for legibility before
+  // it's submitted. Revoked whenever it's replaced or cleared.
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [detailsChannel, setDetailsChannel] = useState<PaymentChannel | null>(
     null,
   );
+
+  function pickProof(next: File | null) {
+    setPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return next ? URL.createObjectURL(next) : null;
+    });
+    setFile(next);
+  }
 
   function reset() {
     setAmount(String(suggestedAmount));
@@ -296,7 +308,7 @@ function PayDialog({
     setReference("");
     setPaidAt(todayIso());
     setNote("");
-    setFile(null);
+    pickProof(null);
     setError(null);
     setDetailsChannel(null);
     submit.reset();
@@ -484,11 +496,41 @@ function PayDialog({
                       id="pay-proof"
                       type="file"
                       accept="image/png,image/jpeg"
-                      onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                      onChange={(event) =>
+                        pickProof(event.target.files?.[0] ?? null)
+                      }
                     />
-                    <p className="text-muted-foreground text-xs">
-                      A screenshot or photo of your receipt (PNG or JPG).
-                    </p>
+                    {preview && file ? (
+                      <div className="flex items-start gap-3 rounded-lg border p-2">
+                        <img
+                          src={preview}
+                          alt="Proof of payment preview"
+                          className="bg-muted size-20 shrink-0 rounded-md border object-contain"
+                        />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="truncate text-xs font-medium">
+                            {file.name}
+                          </p>
+                          <p className="text-muted-foreground text-xs">
+                            {formatBytes(file.size)} · check the amount and
+                            reference are readable.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground -ml-2"
+                            onClick={() => pickProof(null)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-xs">
+                        A screenshot or photo of your receipt (PNG or JPG).
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <FieldLabel htmlFor="pay-note">Note (optional)</FieldLabel>

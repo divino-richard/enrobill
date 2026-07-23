@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { EyeIcon } from "lucide-react";
+import { EyeIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAddress } from "../hooks/address";
 import { useProgramLabel } from "@/features/programs/hooks";
@@ -13,6 +13,7 @@ import {
 } from "../types";
 import {
   APPLICATION_DOCUMENT_TYPES,
+  OPTIONAL_DOCUMENT_TYPES,
   type UploadedDocument,
 } from "../documents";
 
@@ -54,6 +55,8 @@ interface ApplicationSummaryProps {
   enrollmentDate?: Date | null;
   // When provided, each uploaded document becomes viewable (detail page).
   onViewDocument?: (document: UploadedDocument) => void;
+  // When provided, supporting documents gain a remove action (owner only).
+  onDeleteDocument?: (document: UploadedDocument) => void;
 }
 
 // Read-only display of a full application. Shared by the review step and the
@@ -62,6 +65,7 @@ export function ApplicationSummary({
   values,
   enrollmentDate,
   onViewDocument,
+  onDeleteDocument,
 }: ApplicationSummaryProps) {
   const programLabel = useProgramLabel();
   const { getProvinceName, getCityName, getBarangayName } = useAddress({
@@ -172,18 +176,35 @@ export function ApplicationSummary({
                   </p>
                   <p className="truncate text-sm font-medium">{doc.fileName}</p>
                 </div>
-                {onViewDocument && doc.id != null && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => onViewDocument(doc)}
-                  >
-                    <EyeIcon />
-                    View
-                  </Button>
-                )}
+                <div className="flex shrink-0 items-center">
+                  {onViewDocument && doc.id != null && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onViewDocument(doc)}
+                    >
+                      <EyeIcon />
+                      View
+                    </Button>
+                  )}
+                  {/* Only supporting documents can be removed — the required
+                      ones are replaced by editing the application itself. */}
+                  {onDeleteDocument &&
+                    doc.id != null &&
+                    OPTIONAL_DOCUMENT_TYPES.includes(doc.type) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remove ${labelFor(APPLICATION_DOCUMENT_TYPES, doc.type)}`}
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => onDeleteDocument(doc)}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    )}
+                </div>
               </li>
             ))}
           </ul>

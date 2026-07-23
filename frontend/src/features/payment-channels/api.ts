@@ -65,6 +65,12 @@ export async function updatePaymentChannel(
   return data.data;
 }
 
+// Remove a payment method entirely. Refused by the API once payments have been
+// recorded against it.
+export async function deletePaymentChannel(id: number): Promise<void> {
+  await api.delete(`/admin/payment-channels/${id}`);
+}
+
 // Presign + upload a QR image straight to S3; returns the stored object key.
 export async function uploadPaymentChannelQr(
   id: number,

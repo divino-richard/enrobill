@@ -13,10 +13,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/form/date-picker";
 import { FieldInfo } from "@/components/form/field-info";
 import { FieldLabel } from "@/components/form/field-label";
+import {
+  FilePreviewDialog,
+  type PendingFile,
+} from "@/components/file-preview-dialog";
 import { cn } from "@/lib/utils";
+import { formatBytes } from "@/lib/format-bytes";
 import { FormSection } from "./form-section";
 import type { ApplicationFormApi } from "../hooks/form";
-import { uploadApplicationDocument } from "../documents-api";
+import {
+  deleteUnattachedDocument,
+  uploadApplicationDocument,
+} from "../documents-api";
 import {
   ACCEPTED_DOCUMENT_ACCEPT,
   ACCEPTED_DOCUMENT_MIME_TYPES,
@@ -28,12 +36,6 @@ import {
   type UploadedDocument,
 } from "../documents";
 import { requiresDocuments } from "../types";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 interface DocumentRowProps {
   type: ApplicationDocumentType;
@@ -53,9 +55,19 @@ function DocumentRow({
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Picked but not yet sent — the applicant reviews it in the preview first.
+  const [pending, setPending] = useState<PendingFile | null>(null);
   const isUploading = progress !== null;
 
-  async function handleFile(file: File | undefined) {
+  function clearPending() {
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }
+
+  // Validates the pick and stages it for review; nothing is uploaded yet.
+  function handleFile(file: File | undefined) {
     if (!file) return;
     setError(null);
 
@@ -72,11 +84,26 @@ function DocumentRow({
       return;
     }
 
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return { file, url: URL.createObjectURL(file) };
+    });
+  }
+
+  async function confirmUpload() {
+    if (!pending) return;
+    setError(null);
     setProgress(0);
     try {
-      const doc = await uploadApplicationDocument(type, file, setProgress);
+      const doc = await uploadApplicationDocument(
+        type,
+        pending.file,
+        setProgress,
+      );
       onUploaded(doc);
+      clearPending();
     } catch {
+      // Kept open so the applicant can retry.
       setError("Upload failed. Please try again.");
     } finally {
       setProgress(null);
@@ -165,7 +192,11 @@ function DocumentRow({
         </div>
       )}
 
-      {error && <p className="text-destructive mt-2 text-xs">{error}</p>}
+      {/* Validation errors sit on the row; upload failures show in the preview,
+          which stays open so the applicant can retry. */}
+      {error && !pending && (
+        <p className="text-destructive mt-2 text-xs">{error}</p>
+      )}
 
       <input
         ref={inputRef}
@@ -173,10 +204,24 @@ function DocumentRow({
         accept={ACCEPTED_DOCUMENT_ACCEPT}
         className="hidden"
         onChange={(e) => {
-          void handleFile(e.target.files?.[0]);
+          handleFile(e.target.files?.[0]);
           // Reset so re-selecting the same file fires onChange again.
           e.target.value = "";
         }}
+      />
+
+      <FilePreviewDialog
+        pending={pending}
+        onOpenChange={(open) => {
+          if (!open) clearPending();
+        }}
+        onConfirm={() => void confirmUpload()}
+        onChooseAnother={() => inputRef.current?.click()}
+        isUploading={isUploading}
+        progress={progress ?? 0}
+        error={error}
+        title={`Upload ${label}`}
+        description="Check the document is complete and readable before attaching it to your application."
       />
     </div>
   );
@@ -233,8 +278,16 @@ export function DocumentUploadSection({ form }: DocumentUploadSectionProps) {
               form.setFieldValue("documentPromissoryDate", "");
             }
           };
-          const removeDoc = (type: ApplicationDocumentType) =>
+          const removeDoc = (type: ApplicationDocumentType) => {
+            const removed = docs.find((d) => d.type === type);
             field.handleChange(docs.filter((d) => d.type !== type));
+            // The file is already in the bucket (the wizard uploads on pick), so
+            // drop the object too rather than leaving it orphaned. Best-effort:
+            // the form state is what matters, and a stray object is harmless.
+            if (removed) {
+              void deleteUnattachedDocument(removed.key).catch(() => {});
+            }
+          };
 
           return (
             <div className="space-y-6">

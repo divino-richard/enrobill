@@ -138,6 +138,72 @@ class ApplicationDocumentController extends Controller
     }
 
     /**
+     * Remove a supporting document the applicant attached after submitting, so a
+     * wrong file can be replaced — `store` refuses a type that already exists, so
+     * without this a mistaken upload would be stuck forever.
+     *
+     * Limited to supporting types on purpose: they're the only ones `store` can
+     * re-add. Deleting a required document would leave the application
+     * permanently incomplete, since re-adding those only happens through the
+     * rejected-application edit flow.
+     */
+    public function destroy(Request $request, Application $application, ApplicationDocument $document): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($application->user_id === $user->id, 404);
+        abort_unless($document->application_id === $application->id, 404);
+
+        // Deliberately allowed at every status, including accepted: supporting
+        // documents are handed in after acceptance via the promissory-note flow,
+        // so that's exactly when a wrong file needs replacing.
+        abort_unless(
+            in_array($document->type, self::SUPPORTING_TYPES, true),
+            422,
+            'Required documents can only be changed by editing the application.',
+        );
+
+        Storage::disk('s3')->delete($document->s3_key);
+        $document->delete();
+
+        return response()->json(
+            new ApplicationResource($application->fresh()->load(['user', 'documents'])),
+        );
+    }
+
+    /**
+     * Discard a file that was uploaded to the bucket but never attached to an
+     * application — the wizard uploads as soon as a file is picked, so removing
+     * one before submitting would otherwise orphan the object in S3.
+     */
+    public function destroyUnattached(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', 'max:255'],
+        ]);
+
+        // Only ever touch an object under this user's own prefix.
+        abort_unless(
+            str_starts_with($validated['key'], "applications/{$user->id}/"),
+            422,
+            'Unrecognized upload.',
+        );
+
+        // A key already attached to an application is a record, not an orphan;
+        // it goes through `destroy` with its own rules.
+        abort_if(
+            ApplicationDocument::query()->where('s3_key', $validated['key'])->exists(),
+            422,
+            'That document is already attached to an application.',
+        );
+
+        Storage::disk('s3')->delete($validated['key']);
+
+        return response()->json(['deleted' => true]);
+    }
+
+    /**
      * Issue a short-lived, pre-signed GET URL so the owner can view a previously
      * uploaded document (e.g. inside a modal preview).
      */

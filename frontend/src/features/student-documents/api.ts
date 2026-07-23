@@ -57,6 +57,12 @@ export async function uploadMyDocument(
   return data.data;
 }
 
+// Remove one of the student's own documents, freeing the slot. The stored file
+// is deleted server-side too.
+export async function deleteMyDocument(documentId: number): Promise<void> {
+  await api.delete(`/me/documents/${documentId}`);
+}
+
 export interface DocumentViewUrl {
   url: string;
   fileName: string;

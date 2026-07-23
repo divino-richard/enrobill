@@ -4,6 +4,7 @@ import {
   PlusIcon,
   QrCodeIcon,
   SettingsIcon,
+  Trash2Icon,
   UploadIcon,
   WalletIcon,
 } from "lucide-react";
@@ -14,6 +15,16 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +40,7 @@ import { useAuthStore } from "@/features/auth/store";
 import {
   useAdminPaymentChannels,
   useCreatePaymentChannel,
+  useDeletePaymentChannel,
   useUpdatePaymentChannel,
 } from "@/features/payment-channels/hooks";
 import { uploadPaymentChannelQr } from "@/features/payment-channels/api";
@@ -48,10 +60,12 @@ function ChannelCard({
   channel,
   readOnly,
   onEdit,
+  onDelete,
 }: {
   channel: PaymentChannel;
   readOnly: boolean;
   onEdit: () => void;
+  onDelete: () => void;
 }) {
   const configured = isConfigured(channel);
   const isBank = isBankLike(channel);
@@ -121,14 +135,25 @@ function ChannelCard({
         </div>
 
         {!readOnly && (
-          <Button
-            variant={configured ? "outline" : "default"}
-            className="w-full"
-            onClick={onEdit}
-          >
-            {configured ? <PencilIcon /> : <SettingsIcon />}
-            {configured ? "Edit details" : "Finish setup"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={configured ? "outline" : "default"}
+              className="flex-1"
+              onClick={onEdit}
+            >
+              {configured ? <PencilIcon /> : <SettingsIcon />}
+              {configured ? "Edit details" : "Finish setup"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Delete ${channel.label}`}
+              className="text-muted-foreground hover:text-destructive shrink-0"
+              onClick={onDelete}
+            >
+              <Trash2Icon />
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -447,6 +472,18 @@ function PaymentChannelsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<PaymentChannel | null>(null);
+  const [deleting, setDeleting] = useState<PaymentChannel | null>(null);
+  const remove = useDeletePaymentChannel();
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    try {
+      await remove.mutateAsync(deleting.id);
+      setDeleting(null);
+    } catch {
+      // Kept open so the refusal reason stays visible.
+    }
+  }
 
   const needsSetup = channels.filter((c) => !isConfigured(c));
   const liveCount = channels.filter(
@@ -558,6 +595,7 @@ function PaymentChannelsPage() {
               channel={channel}
               readOnly={isReadOnly}
               onEdit={() => setEditing(channel)}
+              onDelete={() => setDeleting(channel)}
             />
           ))}
         </div>
@@ -579,6 +617,50 @@ function PaymentChannelsPage() {
           if (!open) setEditing(null);
         }}
       />
+
+      <AlertDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open && !remove.isPending) {
+            setDeleting(null);
+            remove.reset();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this payment method?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleting
+                ? `${deleting.label} will be removed along with its QR code. Students will no longer see it. This can't be undone.`
+                : ""}
+              <span className="mt-2 block">
+                A method with recorded payments can't be deleted — hide it
+                instead, so past receipts keep their details.
+              </span>
+              {remove.isError && (
+                <span className="text-destructive mt-2 block">
+                  {getErrorMessage(remove.error)}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={remove.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDelete();
+              }}
+            >
+              {remove.isPending ? "Deleting…" : "Delete method"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

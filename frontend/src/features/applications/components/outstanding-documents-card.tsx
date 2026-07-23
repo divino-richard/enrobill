@@ -8,6 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  FilePreviewDialog,
+  type PendingFile,
+} from "@/components/file-preview-dialog";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { formatDate } from "../utils";
 import { useSubmitOutstandingDocument } from "../hooks/use-applications";
@@ -34,8 +38,18 @@ function OutstandingRow({
   const submit = useSubmitOutstandingDocument(applicationId);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Picked but not yet sent — reviewed in the preview first.
+  const [pending, setPending] = useState<PendingFile | null>(null);
 
-  async function handleFile(file: File | undefined) {
+  function clearPending() {
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }
+
+  // Validates the pick and stages it for review; nothing is uploaded yet.
+  function handleFile(file: File | undefined) {
     if (!file) return;
     setError(null);
 
@@ -52,10 +66,25 @@ function OutstandingRow({
       return;
     }
 
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return { file, url: URL.createObjectURL(file) };
+    });
+  }
+
+  async function confirmUpload() {
+    if (!pending) return;
+    setError(null);
     setProgress(0);
     try {
-      await submit.mutateAsync({ type, file, onProgress: setProgress });
+      await submit.mutateAsync({
+        type,
+        file: pending.file,
+        onProgress: setProgress,
+      });
+      clearPending();
     } catch (err) {
+      // Kept open so the student can retry.
       setError(getErrorMessage(err));
     } finally {
       setProgress(null);
@@ -101,7 +130,11 @@ function OutstandingRow({
         </Button>
       </div>
 
-      {error && <p className="text-destructive mt-2 text-xs">{error}</p>}
+      {/* Validation errors sit on the row; upload failures show in the preview,
+          which stays open so the student can retry. */}
+      {error && !pending && (
+        <p className="text-destructive mt-2 text-xs">{error}</p>
+      )}
 
       <input
         ref={inputRef}
@@ -109,9 +142,23 @@ function OutstandingRow({
         accept={ACCEPTED_DOCUMENT_ACCEPT}
         className="hidden"
         onChange={(event) => {
-          void handleFile(event.target.files?.[0]);
+          handleFile(event.target.files?.[0]);
           event.target.value = "";
         }}
+      />
+
+      <FilePreviewDialog
+        pending={pending}
+        onOpenChange={(open) => {
+          if (!open) clearPending();
+        }}
+        onConfirm={() => void confirmUpload()}
+        onChooseAnother={() => inputRef.current?.click()}
+        isUploading={busy}
+        progress={progress ?? 0}
+        error={error}
+        title={`Upload ${label}`}
+        description="Check the document is complete and readable before submitting it to the registrar."
       />
     </div>
   );

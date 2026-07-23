@@ -62,6 +62,21 @@ export async function submitOutstandingDocument(
   });
 }
 
+// Remove a supporting document already attached to an application, freeing the
+// slot so a corrected file can be uploaded in its place.
+export async function deleteApplicationDocument(
+  applicationId: number,
+  documentId: number,
+): Promise<void> {
+  await api.delete(`/applications/${applicationId}/documents/${documentId}`);
+}
+
+// Discard a file uploaded during the wizard but never attached to an
+// application, so removing it doesn't leave the object orphaned in the bucket.
+export async function deleteUnattachedDocument(key: string): Promise<void> {
+  await api.delete("/applications/documents", { data: { key } });
+}
+
 export interface DocumentViewUrl {
   url: string;
   fileName: string;

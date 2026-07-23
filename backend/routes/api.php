@@ -93,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/documents', [StudentDocumentController::class, 'index']);
     Route::post('/me/documents/presign', [StudentDocumentController::class, 'presign']);
     Route::post('/me/documents', [StudentDocumentController::class, 'store']);
+    Route::delete('/me/documents/{document}', [StudentDocumentController::class, 'destroy']);
     Route::get('/student-documents/{document}', [StudentDocumentController::class, 'viewUrl']);
     Route::get('/student-documents/{document}/download', [StudentDocumentController::class, 'download']);
 
@@ -118,9 +119,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // uploads verification documents directly to the bucket.
     Route::post('/applications/documents/presign', [ApplicationDocumentController::class, 'presign']);
 
+    // Discard a file uploaded but not yet attached to an application (the wizard
+    // uploads on pick, so removing one before submitting must clean up S3).
+    // Declared before the {application} routes so the literal segment wins.
+    Route::delete('/applications/documents', [ApplicationDocumentController::class, 'destroyUnattached']);
+
     // Short-lived URL to view a previously uploaded document.
     Route::post('/applications/{application}/documents', [ApplicationDocumentController::class, 'store']);
     Route::get('/applications/{application}/documents/{document}', [ApplicationDocumentController::class, 'viewUrl']);
+    Route::delete('/applications/{application}/documents/{document}', [ApplicationDocumentController::class, 'destroy']);
 
     // Stream a document's raw bytes (same-origin) for download / print.
     Route::get('/applications/{application}/documents/{document}/download', [ApplicationDocumentController::class, 'download']);
@@ -235,6 +242,7 @@ Route::middleware('auth:sanctum')->group(function () {
             // Payment channel maintenance (GCash / Maya / Bank Transfer).
             Route::post('/admin/payment-channels', [AdminPaymentChannelController::class, 'store']);
             Route::put('/admin/payment-channels/{paymentChannel}', [AdminPaymentChannelController::class, 'update']);
+            Route::delete('/admin/payment-channels/{paymentChannel}', [AdminPaymentChannelController::class, 'destroy']);
             Route::post('/admin/payment-channels/{paymentChannel}/presign', [AdminPaymentChannelController::class, 'presign']);
         });
     });

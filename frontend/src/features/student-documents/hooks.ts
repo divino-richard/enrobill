@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchMyDocuments, uploadMyDocument } from "./api";
+import { deleteMyDocument, fetchMyDocuments, uploadMyDocument } from "./api";
 import type { Semester, StudentDocumentType } from "./types";
 
 export const myDocumentsQueryKey = ["me", "documents"] as const;
@@ -28,6 +28,18 @@ export function useUploadMyDocument() {
       file: File;
       onProgress?: (percent: number) => void;
     }) => uploadMyDocument(semester, type, file, onProgress),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: myDocumentsQueryKey });
+    },
+  });
+}
+
+// Remove an uploaded document, clearing its slot.
+export function useDeleteMyDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentId: number) => deleteMyDocument(documentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: myDocumentsQueryKey });
     },

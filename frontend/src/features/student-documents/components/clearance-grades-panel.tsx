@@ -5,6 +5,7 @@ import {
   FileTextIcon,
   InfoIcon,
   Loader2Icon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -19,11 +20,30 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DocumentViewerDialog } from "@/components/document-viewer-dialog";
+import {
+  FilePreviewDialog,
+  type PendingFile,
+} from "@/components/file-preview-dialog";
 import { cn } from "@/lib/utils";
+import { formatBytes } from "@/lib/format-bytes";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { fetchStudentDocumentBlob, fetchStudentDocumentViewUrl } from "../api";
-import { useMyDocuments, useUploadMyDocument } from "../hooks";
+import {
+  useDeleteMyDocument,
+  useMyDocuments,
+  useUploadMyDocument,
+} from "../hooks";
 import {
   ACCEPT_ATTR,
   ACCEPTED_MIME,
@@ -38,18 +58,14 @@ import {
 // Every slot a student is expected to fill across the school year.
 export const TOTAL_DOCUMENT_SLOTS = SEMESTERS.length * DOCUMENT_TYPES.length;
 
-function formatSize(bytes: number | null) {
-  if (bytes == null) return "";
-  const mb = bytes / (1024 * 1024);
-  return mb >= 1
-    ? `${mb.toFixed(1)} MB`
-    : `${Math.max(Math.round(bytes / 1024), 1)} KB`;
-}
+const formatSize = (bytes: number | null) =>
+  bytes == null ? "" : formatBytes(bytes);
 
 // One upload slot: a semester's clearance or grade slip. Re-uploading replaces
 // whatever is already there.
 function DocumentSlot({
   semester,
+  semesterLabel,
   type,
   label,
   hint,
@@ -57,6 +73,7 @@ function DocumentSlot({
   onView,
 }: {
   semester: Semester;
+  semesterLabel: string;
   type: StudentDocumentType;
   label: string;
   hint: string;
@@ -67,10 +84,33 @@ function DocumentSlot({
   const upload = useUploadMyDocument();
   const [progress, setProgress] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
+  // Picked but not yet sent — the student reviews it in the preview first.
+  const [pending, setPending] = useState<PendingFile | null>(null);
+  const remove = useDeleteMyDocument();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  async function handleFile(file: File | undefined) {
+  async function confirmDelete() {
+    if (!existing) return;
+    try {
+      await remove.mutateAsync(existing.id);
+      setConfirmingDelete(false);
+    } catch {
+      // Kept open so the message is visible next to the action.
+    }
+  }
+
+  function clearPending() {
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }
+
+  // Validates the pick and stages it for review; nothing is uploaded yet.
+  function handleFile(file: File | undefined) {
     if (!file) return;
     setLocalError(null);
+    upload.reset();
 
     if (!ACCEPTED_MIME.includes(file.type)) {
       setLocalError("Upload a JPG, PNG or PDF file.");
@@ -81,11 +121,25 @@ function DocumentSlot({
       return;
     }
 
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return { file, url: URL.createObjectURL(file) };
+    });
+  }
+
+  async function confirmUpload() {
+    if (!pending) return;
     setProgress(0);
     try {
-      await upload.mutateAsync({ semester, type, file, onProgress: setProgress });
+      await upload.mutateAsync({
+        semester,
+        type,
+        file: pending.file,
+        onProgress: setProgress,
+      });
+      clearPending();
     } catch {
-      // Surfaced below via upload.isError.
+      // Kept open so the student can retry — surfaced via upload.isError.
     }
   }
 
@@ -151,10 +205,28 @@ function DocumentSlot({
             {busy ? <Loader2Icon className="animate-spin" /> : <UploadIcon />}
             {busy ? "Uploading…" : existing ? "Replace" : "Upload"}
           </Button>
+          {existing && !busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Remove ${label}`}
+              className="text-muted-foreground hover:text-destructive"
+              disabled={remove.isPending}
+              onClick={() => setConfirmingDelete(true)}
+            >
+              {remove.isPending ? (
+                <Loader2Icon className="animate-spin" />
+              ) : (
+                <Trash2Icon />
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
-      {(localError || upload.isError) && (
+      {/* Validation errors belong on the slot; upload failures show in the
+          preview dialog, which stays open so the student can retry. */}
+      {(localError || (upload.isError && !pending)) && (
         <p className="text-destructive mt-2 text-xs">
           {localError ?? getErrorMessage(upload.error)}
         </p>
@@ -166,11 +238,70 @@ function DocumentSlot({
         accept={ACCEPT_ATTR}
         className="hidden"
         onChange={(event) => {
-          void handleFile(event.target.files?.[0]);
+          handleFile(event.target.files?.[0]);
           // Reset so picking the same file again still fires a change.
           event.target.value = "";
         }}
       />
+
+      <FilePreviewDialog
+        pending={pending}
+        onOpenChange={(open) => {
+          if (!open) clearPending();
+        }}
+        onConfirm={() => void confirmUpload()}
+        onChooseAnother={() => inputRef.current?.click()}
+        isUploading={busy}
+        progress={progress}
+        error={upload.isError ? getErrorMessage(upload.error) : null}
+        title={existing ? `Replace ${label}` : `Upload ${label}`}
+        description={
+          existing
+            ? `${semesterLabel} · this replaces the file you uploaded before.`
+            : `${semesterLabel} · check the page is complete and readable before uploading.`
+        }
+        confirmLabel={existing ? "Replace file" : "Upload this file"}
+      />
+
+      <AlertDialog
+        open={confirmingDelete}
+        onOpenChange={(open) => {
+          if (!open && !remove.isPending) {
+            setConfirmingDelete(false);
+            remove.reset();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {label} for {semesterLabel} will be deleted and the slot left
+              empty. You can upload a new file any time before the registrar
+              evaluates you.
+              {remove.isError && (
+                <span className="text-destructive mt-2 block">
+                  {getErrorMessage(remove.error)}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={remove.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDelete();
+              }}
+            >
+              {remove.isPending ? "Removing…" : "Remove file"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -238,6 +369,7 @@ export function ClearanceGradesPanel() {
                 <DocumentSlot
                   key={type.value}
                   semester={semester.value}
+                  semesterLabel={semester.label}
                   type={type.value}
                   label={type.label}
                   hint={type.hint}

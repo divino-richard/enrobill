@@ -3,13 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Role;
+use App\Http\Resources\StudentDocumentResource;
+use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\StudentDocument;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use App\Http\Resources\StudentDocumentResource;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -134,6 +136,38 @@ class StudentDocumentController extends Controller
         );
 
         return new StudentDocumentResource($document);
+    }
+
+    /**
+     * Remove one of the student's own documents, freeing the slot for a fresh
+     * upload. The S3 object goes with it so nothing lingers unreferenced.
+     *
+     * Only the owner may delete, and only while the year is still open: once the
+     * registrar has recorded a progression decision for that school year, these
+     * files are evidence behind a decision that has already been made.
+     */
+    public function destroy(Request $request, StudentDocument $document): Response
+    {
+        $student = $this->ownStudentOrAbort($request);
+
+        // 404 rather than 403 — a student shouldn't learn another's document exists.
+        abort_unless($document->student_id === $student->id, 404);
+
+        $decided = ProgressionDecision::query()
+            ->where('student_id', $student->id)
+            ->where('from_school_year_id', $document->school_year_id)
+            ->exists();
+
+        abort_if(
+            $decided,
+            422,
+            'This school year has already been evaluated, so its documents can no longer be removed.',
+        );
+
+        Storage::disk('s3')->delete($document->s3_key);
+        $document->delete();
+
+        return response()->noContent();
     }
 
     /**

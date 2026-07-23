@@ -11,6 +11,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { getErrorMessage } from "@/lib/get-error-message";
 import { ApplicationSummary } from "@/features/applications/components/application-summary";
 import { OutstandingDocumentsCard } from "@/features/applications/components/outstanding-documents-card";
 import { ApplicationStatusBadge } from "@/features/applications/components/application-status-badge";
@@ -18,6 +29,7 @@ import { DocumentViewerDialog } from "@/features/applications/components/documen
 import {
   useApplication,
   useApplications,
+  useDeleteApplicationDocument,
 } from "@/features/applications/hooks/use-applications";
 import {
   APPLICATION_STATUS_META,
@@ -36,7 +48,20 @@ function ApplicationDetailPage() {
   const { data: applications } = useApplications();
   const [viewingDocument, setViewingDocument] =
     useState<UploadedDocument | null>(null);
+  const [deletingDocument, setDeletingDocument] =
+    useState<UploadedDocument | null>(null);
+  const removeDocument = useDeleteApplicationDocument(Number(id));
   const isStudent = useAuthStore((state) => state.user?.role) === "student";
+
+  async function confirmDeleteDocument() {
+    if (!deletingDocument?.id) return;
+    try {
+      await removeDocument.mutateAsync(deletingDocument.id);
+      setDeletingDocument(null);
+    } catch {
+      // Kept open so the reason stays visible.
+    }
+  }
 
   // Only applicants edit/resubmit a rejected application.
   const isRejected = application?.status === "rejected" && !isStudent;
@@ -170,6 +195,7 @@ function ApplicationDetailPage() {
                     : null
                 }
                 onViewDocument={setViewingDocument}
+                onDeleteDocument={setDeletingDocument}
               />
             </CardContent>
           </Card>
@@ -181,6 +207,46 @@ function ApplicationDetailPage() {
               if (!open) setViewingDocument(null);
             }}
           />
+
+          <AlertDialog
+            open={deletingDocument !== null}
+            onOpenChange={(open) => {
+              if (!open && !removeDocument.isPending) {
+                setDeletingDocument(null);
+                removeDocument.reset();
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove this document?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {deletingDocument
+                    ? `${deletingDocument.fileName} will be deleted. You can upload a replacement afterwards.`
+                    : ""}
+                  {removeDocument.isError && (
+                    <span className="text-destructive mt-2 block">
+                      {getErrorMessage(removeDocument.error)}
+                    </span>
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={removeDocument.isPending}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={removeDocument.isPending}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void confirmDeleteDocument();
+                  }}
+                >
+                  {removeDocument.isPending ? "Removing…" : "Remove document"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>
