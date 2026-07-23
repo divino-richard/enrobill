@@ -35,6 +35,25 @@ export interface PaymentChannelInput {
   qrKey?: string | null;
 }
 
+// A new payment method. The QR is added afterwards via update, since presigning
+// the upload needs a saved channel id.
+export interface PaymentChannelCreateInput {
+  label: string;
+  accountName: string | null;
+  accountNumber: string | null;
+  isActive: boolean;
+}
+
+export async function createPaymentChannel(
+  input: PaymentChannelCreateInput,
+): Promise<PaymentChannel> {
+  const { data } = await api.post<Wrapped<PaymentChannel>>(
+    "/admin/payment-channels",
+    input,
+  );
+  return data.data;
+}
+
 export async function updatePaymentChannel(
   id: number,
   input: PaymentChannelInput,

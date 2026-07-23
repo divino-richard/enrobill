@@ -233,6 +233,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/admin/bills/{bill}/payments/{payment}', [AdminPaymentController::class, 'destroy']);
 
             // Payment channel maintenance (GCash / Maya / Bank Transfer).
+            Route::post('/admin/payment-channels', [AdminPaymentChannelController::class, 'store']);
             Route::put('/admin/payment-channels/{paymentChannel}', [AdminPaymentChannelController::class, 'update']);
             Route::post('/admin/payment-channels/{paymentChannel}/presign', [AdminPaymentChannelController::class, 'presign']);
         });

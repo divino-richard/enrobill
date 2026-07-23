@@ -11,6 +11,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class PaymentChannelController extends Controller
 {
@@ -32,6 +33,50 @@ class PaymentChannelController extends Controller
         return PaymentChannelResource::collection(
             PaymentChannel::query()->orderBy('id')->get(),
         );
+    }
+
+    /**
+     * Cashier-only: add a payment method students can pay to.
+     *
+     * The `code` is derived from the label rather than typed — it's an internal
+     * key (used for QR object paths and channel-specific rendering), so it must
+     * stay stable and slug-safe. A QR can't be attached here because presigning
+     * needs a saved channel id; it's uploaded via update straight after.
+     */
+    public function store(Request $request): PaymentChannelResource
+    {
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:100'],
+            'accountName' => ['nullable', 'string', 'max:150'],
+            'accountNumber' => ['nullable', 'string', 'max:50'],
+            'isActive' => ['required', 'boolean'],
+        ]);
+
+        $code = Str::slug($validated['label']);
+
+        // A label of only punctuation/non-latin characters slugs to "", which
+        // would collide with any other such label.
+        if ($code === '') {
+            throw ValidationException::withMessages([
+                'label' => 'Use a name with letters or numbers.',
+            ]);
+        }
+
+        if (PaymentChannel::query()->where('code', $code)->exists()) {
+            throw ValidationException::withMessages([
+                'label' => 'A payment method with that name already exists.',
+            ]);
+        }
+
+        $paymentChannel = PaymentChannel::create([
+            'code' => $code,
+            'label' => $validated['label'],
+            'account_name' => $validated['accountName'] ?? null,
+            'account_number' => $validated['accountNumber'] ?? null,
+            'is_active' => $validated['isActive'],
+        ]);
+
+        return new PaymentChannelResource($paymentChannel);
     }
 
     /**

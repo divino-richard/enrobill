@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  createPaymentChannel,
   fetchActivePaymentChannels,
   fetchAdminPaymentChannels,
   updatePaymentChannel,
+  type PaymentChannelCreateInput,
   type PaymentChannelInput,
 } from "./api";
 
@@ -20,6 +22,18 @@ export function useActivePaymentChannels() {
   return useQuery({
     queryKey: activePaymentChannelsKey,
     queryFn: fetchActivePaymentChannels,
+  });
+}
+
+export function useCreatePaymentChannel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PaymentChannelCreateInput) =>
+      createPaymentChannel(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminPaymentChannelsKey });
+      queryClient.invalidateQueries({ queryKey: activePaymentChannelsKey });
+    },
   });
 }
 
