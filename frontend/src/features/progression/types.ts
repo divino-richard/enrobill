@@ -1,52 +1,68 @@
 import type { StudentDocument } from "@/features/student-documents/types";
 
-// A pointer to a school year.
 export interface YearRef {
   id: number;
   schoolYear: string;
 }
 
-// The year-end decisions an admin can record for a student.
 export type ProgressionDecisionKind = "promote" | "retain" | "graduate";
 
-// An enrolled student in the ending year still awaiting a year-end decision.
-export interface CloseoutStudent {
+export const SEMESTERS = ["first", "second"] as const;
+export type Semester = (typeof SEMESTERS)[number];
+
+export type ProgressionStatus = "pending" | "decided";
+
+export interface SemesterReview {
+  clearanceCleared: boolean;
+  gradesPassed: boolean;
+  // Whether the file each flag depends on exists — a flag can't be set without it.
+  hasClearanceDoc: boolean;
+  hasGradesDoc: boolean;
+}
+
+// One row of the unified close-out roster — a student, pending or decided.
+export interface RosterStudent {
   studentId: number;
   studentNumber: string;
   name: string;
   track: string | null;
   yearLevel: string | null;
-  // The grade this student would advance to if promoted.
   nextYearLevel: string | null;
   isTopGrade: boolean;
-  // Clearance / grade slips the student uploaded for the ending year — what the
-  // admin reads to judge pass (promote) or fail (retain).
   documents: StudentDocument[];
-}
-
-// A decision already recorded for the ending year.
-export interface CloseoutDecision {
-  id: number;
-  studentId: number;
-  studentNumber: string;
-  name: string;
-  track: string | null;
-  decision: ProgressionDecisionKind;
+  review: Record<Semester, SemesterReview>;
+  // Every semester cleared and passed — the gate for promote / graduate.
+  eligible: boolean;
+  status: ProgressionStatus;
+  decision: ProgressionDecisionKind | null;
+  decisionId: number | null;
   fromYearLevel: string | null;
   toYearLevel: string | null;
-  // Whether the promote/retain decision has been enrolled into the next year.
-  materialized: boolean;
-  // False once a materialized next-year enrollment has been billed.
-  revertable: boolean;
+  materialized: boolean | null;
+  revertable: boolean | null;
 }
 
-export interface ProgressionInfo {
-  // The active (ending) school year the close-out targets, or null if none.
+export interface RosterFilters {
+  page: number;
+  perPage: number;
+  search: string;
+  status: ProgressionStatus | "";
+  grade: string;
+  program: string;
+  clearance: "eligible" | "incomplete" | "";
+}
+
+export interface RosterPage {
+  data: RosterStudent[];
+  meta: { page: number; perPage: number; total: number; lastPage: number };
+}
+
+// Header banners and counts, fetched apart from the paginated roster.
+export interface ProgressionSummary {
   activeYear: YearRef | null;
-  // The next school year promote/retain decisions enroll into, if it exists yet.
   nextYear: YearRef | null;
-  // Whether the active year's progression window is open.
   progressionOpen: boolean;
-  pending: CloseoutStudent[];
-  decided: CloseoutDecision[];
+  // Students still awaiting a year-end decision.
+  pending: number;
+  readyToEnroll: number;
 }

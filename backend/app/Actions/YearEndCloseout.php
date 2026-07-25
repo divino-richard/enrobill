@@ -6,6 +6,7 @@ use App\Models\Discount;
 use App\Models\Enrollment;
 use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
+use App\Models\SemesterStanding;
 use App\Models\Student;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -81,7 +82,7 @@ class YearEndCloseout
 
         $students = $this->pendingStudents($year)
             ->whereIn('id', $studentIds)
-            ->filter(fn (Student $s) => $this->eligibleFor($s, $decision));
+            ->filter(fn (Student $s) => $this->eligibleFor($s, $year, $decision));
 
         return DB::transaction(function () use ($students, $year, $decision, $userId) {
             $done = 0;
@@ -195,12 +196,35 @@ class YearEndCloseout
      * Whether a student may receive the given decision. Only top-grade students
      * graduate; only non-top students promote; anyone may be retained.
      */
-    private function eligibleFor(Student $student, string $decision): bool
+    /**
+     * Every semester cleared and passed — the gate on promotion and graduation.
+     */
+    public function isFullyCleared(Student $student, SchoolYear $year): bool
+    {
+        $rows = SemesterStanding::query()
+            ->where('student_id', $student->id)
+            ->where('school_year_id', $year->id)
+            ->get()
+            ->keyBy('semester');
+
+        foreach (SemesterStanding::SEMESTERS as $semester) {
+            $row = $rows->get($semester);
+            if ($row === null || ! $row->isMet()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function eligibleFor(Student $student, SchoolYear $year, string $decision): bool
     {
         return match ($decision) {
-            'promote' => $student->year_level !== $this->topLevel(),
-            'graduate' => $student->year_level === $this->topLevel(),
-            default => true, // retain
+            'promote' => $student->year_level !== $this->topLevel()
+                && $this->isFullyCleared($student, $year),
+            'graduate' => $student->year_level === $this->topLevel()
+                && $this->isFullyCleared($student, $year),
+            default => true, // retain — always allowed
         };
     }
 

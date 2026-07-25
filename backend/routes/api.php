@@ -169,6 +169,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/progression/materialize', [AdminProgressionController::class, 'materialize']);
         Route::post('/admin/progression/revert', [AdminProgressionController::class, 'revert']);
 
+        // Per-semester clearance/grades review that gates promotion. No
+        // enrollment or billing impact.
+        Route::post('/admin/progression/review', [AdminProgressionController::class, 'review']);
+
         // School years — managing periods (read endpoint is shared below).
         Route::post('/admin/school-years', [AdminSchoolYearController::class, 'store']);
         Route::put('/admin/school-years/{schoolYear}', [AdminSchoolYearController::class, 'update']);
@@ -192,6 +196,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Read-only supporting data the finance screens depend on.
         Route::get('/admin/school-years', [AdminSchoolYearController::class, 'index']);
         Route::get('/admin/progression', [AdminProgressionController::class, 'index']);
+        Route::get('/admin/progression/students', [AdminProgressionController::class, 'students']);
         Route::get('/admin/programs', [AdminProgramController::class, 'index']);
         Route::get('/admin/students', [AdminStudentController::class, 'index']);
         Route::get('/admin/students/{student}', [AdminStudentController::class, 'show']);

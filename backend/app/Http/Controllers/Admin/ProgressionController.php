@@ -7,11 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentDocumentResource;
 use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
+use App\Models\SemesterStanding;
 use App\Models\Student;
 use App\Models\StudentDocument;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ProgressionController extends Controller
 {
@@ -21,6 +24,10 @@ class ProgressionController extends Controller
      * The year-end close-out for the active (ending) school year: students still
      * awaiting a decision, and the decisions already recorded. Empty unless the
      * active year's progression window is open.
+     */
+    /**
+     * Close-out summary for the active year: the header banners and counts. The
+     * student rows are paginated separately via `students`.
      */
     public function index(): JsonResponse
     {
@@ -32,26 +39,141 @@ class ProgressionController extends Controller
                     'activeYear' => $active ? $this->yearRef($active) : null,
                     'nextYear' => null,
                     'progressionOpen' => false,
-                    'pending' => [],
-                    'decided' => [],
+                    'pending' => 0,
+                    'readyToEnroll' => 0,
                 ],
             ]);
         }
 
-        $top = $this->topLevel();
+        $next = $this->closeout->nextYear($active);
+        $readyToEnroll = $this->closeout->decisions($active)
+            ->filter->needsMaterialization()
+            ->count();
 
-        $pendingStudents = $this->closeout->pendingStudents($active);
+        return response()->json([
+            'data' => [
+                'activeYear' => $this->yearRef($active),
+                'nextYear' => $next ? $this->yearRef($next) : null,
+                'progressionOpen' => true,
+                'pending' => $this->closeout->pendingStudents($active)->count(),
+                'readyToEnroll' => $readyToEnroll,
+            ],
+        ]);
+    }
 
-        // The clearance / grade slips these students uploaded for the ending year,
-        // grouped per student so the admin can read them before deciding.
+    /**
+     * The unified, filtered, server-paginated close-out roster: every student in
+     * the ending year — pending or decided — in one list.
+     */
+    public function students(Request $request): JsonResponse
+    {
+        $active = SchoolYear::active();
+        abort_if($active === null, 422, 'No school year is currently active.');
+        abort_unless($active->isProgressionOpen(), 422, 'Progression is not open for the active school year.');
+
+        $validated = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'perPage' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'status' => ['sometimes', 'nullable', Rule::in(['pending', 'decided'])],
+            'outcome' => ['sometimes', 'nullable', Rule::in(ProgressionDecision::DECISIONS)],
+            'grade' => ['sometimes', 'nullable', Rule::in(SchoolYear::YEAR_LEVELS)],
+            'program' => ['sometimes', 'nullable', 'string'],
+            'clearance' => ['sometimes', 'nullable', Rule::in(['eligible', 'incomplete'])],
+        ]);
+
+        $hasDecision = fn ($q) => $q->where('from_school_year_id', $active->id);
+
+        $query = Student::query()->where(function ($q) use ($active, $hasDecision) {
+            // Relevant to close-out: still enrolled in the ending year, or already
+            // decided (graduation completes the enrolment, so it only matches here).
+            $q->whereHas('enrollments', fn ($e) => $e
+                ->where('school_year_id', $active->id)
+                ->where('status', 'enrolled'))
+                ->orWhereHas('progressionDecisions', $hasDecision);
+        });
+
+        if (! empty($validated['search'])) {
+            $term = trim($validated['search']);
+            $query->where(fn ($q) => $q
+                ->where('first_name', 'like', "%{$term}%")
+                ->orWhere('last_name', 'like', "%{$term}%")
+                ->orWhere('student_number', 'like', "%{$term}%"));
+        }
+
+        if (! empty($validated['grade'])) {
+            $query->where('year_level', $validated['grade']);
+        }
+
+        if (! empty($validated['program'])) {
+            $query->where('track_or_strand', $validated['program']);
+        }
+
+        if (($validated['status'] ?? null) === 'pending') {
+            $query->whereDoesntHave('progressionDecisions', $hasDecision);
+        } elseif (($validated['status'] ?? null) === 'decided') {
+            $query->whereHas('progressionDecisions', $hasDecision);
+        }
+
+        if (! empty($validated['outcome'])) {
+            $query->whereHas('progressionDecisions', fn ($d) => $d
+                ->where('from_school_year_id', $active->id)
+                ->where('decision', $validated['outcome']));
+        }
+
+        if (! empty($validated['clearance'])) {
+            $eligibleIds = SemesterStanding::query()
+                ->where('school_year_id', $active->id)
+                ->where('clearance_cleared', true)
+                ->where('grades_passed', true)
+                ->groupBy('student_id')
+                ->havingRaw('count(distinct semester) = ?', [count(SemesterStanding::SEMESTERS)])
+                ->pluck('student_id');
+
+            $validated['clearance'] === 'eligible'
+                ? $query->whereIn('id', $eligibleIds)
+                : $query->whereNotIn('id', $eligibleIds);
+        }
+
+        $page = $query
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->paginate($validated['perPage'] ?? 10);
+
+        $ids = collect($page->items())->pluck('id');
+
         $documents = StudentDocument::query()
-            ->whereIn('student_id', $pendingStudents->pluck('id'))
+            ->whereIn('student_id', $ids)
             ->where('school_year_id', $active->id)
             ->get()
             ->groupBy('student_id');
 
-        $pending = $pendingStudents
-            ->map(fn (Student $student) => [
+        $standings = SemesterStanding::query()
+            ->whereIn('student_id', $ids)
+            ->where('school_year_id', $active->id)
+            ->get()
+            ->groupBy('student_id');
+
+        $decisions = ProgressionDecision::query()
+            ->whereIn('student_id', $ids)
+            ->where('from_school_year_id', $active->id)
+            ->with('toEnrollment.bill')
+            ->get()
+            ->keyBy('student_id');
+
+        $top = $this->topLevel();
+
+        $rows = collect($page->items())->map(function (Student $student) use ($documents, $standings, $decisions, $top) {
+            $docs = $documents->get($student->id, collect());
+            $review = $this->buildReview($standings->get($student->id, collect()), $docs);
+            $eligible = collect(SemesterStanding::SEMESTERS)->every(
+                fn ($s) => $review[$s]['clearanceCleared'] && $review[$s]['gradesPassed'],
+            );
+
+            $decision = $decisions->get($student->id);
+            $billed = $decision?->toEnrollment && $decision->toEnrollment->bill;
+
+            return [
                 'studentId' => $student->id,
                 'studentNumber' => $student->student_number,
                 'name' => trim($student->first_name.' '.$student->last_name),
@@ -59,43 +181,125 @@ class ProgressionController extends Controller
                 'yearLevel' => $student->year_level,
                 'nextYearLevel' => $this->nextLevel($student->year_level),
                 'isTopGrade' => $student->year_level === $top,
-                'documents' => StudentDocumentResource::collection(
-                    $documents->get($student->id, collect()),
-                ),
-            ])
-            ->values();
-
-        $decided = $this->closeout->decisions($active)
-            ->map(function (ProgressionDecision $decision) {
-                $billed = $decision->toEnrollment && $decision->toEnrollment->bill;
-
-                return [
-                    'id' => $decision->id,
-                    'studentId' => $decision->student_id,
-                    'studentNumber' => $decision->student?->student_number,
-                    'name' => trim(($decision->student?->first_name ?? '').' '.($decision->student?->last_name ?? '')),
-                    'track' => $decision->student?->track_or_strand,
-                    'decision' => $decision->decision,
-                    'fromYearLevel' => $decision->from_year_level,
-                    'toYearLevel' => $decision->to_year_level,
-                    'materialized' => $decision->materialized_at !== null,
-                    // A materialized, already-billed enrollment can't be undone here.
-                    'revertable' => ! $billed,
-                ];
-            })
-            ->values();
-
-        $next = $this->closeout->nextYear($active);
+                'documents' => StudentDocumentResource::collection($docs),
+                'review' => $review,
+                'eligible' => $eligible,
+                'status' => $decision ? 'decided' : 'pending',
+                'decision' => $decision?->decision,
+                'decisionId' => $decision?->id,
+                'fromYearLevel' => $decision?->from_year_level,
+                'toYearLevel' => $decision?->to_year_level,
+                'materialized' => $decision ? $decision->materialized_at !== null : null,
+                'revertable' => $decision ? ! $billed : null,
+            ];
+        });
 
         return response()->json([
-            'data' => [
-                'activeYear' => $this->yearRef($active),
-                'nextYear' => $next ? $this->yearRef($next) : null,
-                'progressionOpen' => true,
-                'pending' => $pending,
-                'decided' => $decided,
+            'data' => $rows,
+            'meta' => [
+                'page' => $page->currentPage(),
+                'perPage' => $page->perPage(),
+                'total' => $page->total(),
+                'lastPage' => $page->lastPage(),
             ],
         ]);
+    }
+
+    /**
+     * Set one student's clearance/grades review for a semester of the active year.
+     * Gates the promote/graduate decision; no enrollment or billing impact.
+     */
+    public function review(Request $request): JsonResponse
+    {
+        $active = SchoolYear::active();
+        abort_if($active === null, 422, 'No school year is currently active.');
+
+        $validated = $request->validate([
+            'studentId' => ['required', 'integer'],
+            'semester' => ['required', Rule::in(SemesterStanding::SEMESTERS)],
+            'clearanceCleared' => ['required', 'boolean'],
+            'gradesPassed' => ['required', 'boolean'],
+        ]);
+
+        // Only students actually enrolled in the active year can be reviewed.
+        $isEnrolled = Student::query()
+            ->whereKey($validated['studentId'])
+            ->whereHas('enrollments', fn ($q) => $q
+                ->where('school_year_id', $active->id)
+                ->where('status', 'enrolled'))
+            ->exists();
+
+        abort_unless($isEnrolled, 404);
+
+        // A slot can't be marked cleared/passed without the file that proves it.
+        $uploaded = fn (string $type) => StudentDocument::query()
+            ->where('student_id', $validated['studentId'])
+            ->where('school_year_id', $active->id)
+            ->where('semester', $validated['semester'])
+            ->where('type', $type)
+            ->exists();
+
+        if ($validated['clearanceCleared'] && ! $uploaded('clearance')) {
+            throw ValidationException::withMessages([
+                'clearanceCleared' => 'Upload the clearance for this semester before marking it cleared.',
+            ]);
+        }
+
+        if ($validated['gradesPassed'] && ! $uploaded('grades')) {
+            throw ValidationException::withMessages([
+                'gradesPassed' => 'Upload the grades for this semester before marking them passed.',
+            ]);
+        }
+
+        SemesterStanding::updateOrCreate(
+            [
+                'student_id' => $validated['studentId'],
+                'school_year_id' => $active->id,
+                'semester' => $validated['semester'],
+            ],
+            [
+                'clearance_cleared' => $validated['clearanceCleared'],
+                'grades_passed' => $validated['gradesPassed'],
+                'reviewed_by' => $request->user()?->id,
+                'reviewed_at' => now(),
+            ],
+        );
+
+        $student = Student::findOrFail($validated['studentId']);
+
+        return response()->json([
+            'data' => ['eligible' => $this->closeout->isFullyCleared($student, $active)],
+        ]);
+    }
+
+    /**
+     * Per-semester review for a student: the marked flags plus whether the file
+     * each depends on exists (so the UI can disable a check with nothing to prove
+     * it). Filled for every semester.
+     *
+     * @param  Collection<int, SemesterStanding>  $standings
+     * @param  Collection<int, StudentDocument>  $documents
+     * @return array<string, array{clearanceCleared: bool, gradesPassed: bool, hasClearanceDoc: bool, hasGradesDoc: bool}>
+     */
+    private function buildReview($standings, $documents): array
+    {
+        $bySemester = $standings->keyBy('semester');
+
+        $map = [];
+        foreach (SemesterStanding::SEMESTERS as $semester) {
+            $row = $bySemester->get($semester);
+            $has = fn (string $type) => $documents
+                ->contains(fn ($d) => $d->semester === $semester && $d->type === $type);
+
+            $map[$semester] = [
+                'clearanceCleared' => (bool) ($row?->clearance_cleared ?? false),
+                'gradesPassed' => (bool) ($row?->grades_passed ?? false),
+                'hasClearanceDoc' => $has('clearance'),
+                'hasGradesDoc' => $has('grades'),
+            ];
+        }
+
+        return $map;
     }
 
     /**

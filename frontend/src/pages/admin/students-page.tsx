@@ -39,7 +39,7 @@ import { useAuthStore } from "@/features/auth/store";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { useStudents } from "@/features/students/hooks";
-import { useProgression } from "@/features/progression/hooks";
+import { useProgressionSummary } from "@/features/progression/hooks";
 import { useProgramGroups } from "@/features/programs/hooks";
 import { useTerms } from "@/features/terms/hooks";
 import {
@@ -85,7 +85,7 @@ function SortHeader({
 function StudentsPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore((state) => state.user?.role) === "admin";
-  const progression = useProgression();
+  const progression = useProgressionSummary();
   const { data: terms } = useTerms();
   const programGroups = useProgramGroups();
   const [search, setSearch] = useState("");
@@ -130,7 +130,7 @@ function StudentsPage() {
   const progressionData = progression.data;
   const progressionOpen = progressionData?.progressionOpen ?? false;
   const activeYear = progressionData?.activeYear ?? null;
-  const pendingDecisions = progressionData?.pending.length ?? 0;
+  const pendingDecisions = progressionData?.pending ?? 0;
 
   const columns = useMemo<ColumnDef<Student>[]>(
     () => [
