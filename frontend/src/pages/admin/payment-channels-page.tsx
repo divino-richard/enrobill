@@ -142,7 +142,7 @@ function ChannelCard({
               onClick={onEdit}
             >
               {configured ? <PencilIcon /> : <SettingsIcon />}
-              {configured ? "Edit details" : "Finish setup"}
+              {configured ? "Edit details" : "Continue setup"}
             </Button>
             <Button
               variant="ghost"
