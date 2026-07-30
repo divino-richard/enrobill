@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import {
+  ArrowRightLeftIcon,
   CalendarClockIcon,
   FolderUpIcon,
   GraduationCapIcon,
@@ -37,7 +38,8 @@ import {
 } from "@/features/student-documents/components/clearance-grades-panel";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { EnrollmentStatusBadge } from "@/features/students/components/enrollment-status-badge";
-import type { EnrollmentRecord } from "@/features/students/types";
+import { studentFullName, type EnrollmentRecord } from "@/features/students/types";
+import { TransferRequestPanel } from "@/features/program-transfers/components/transfer-request-panel";
 
 // --- Dummy class schedule (UI preview until timetables are wired in) ---------
 // Senior high school timetable: subjects with day/time, room and teacher.
@@ -258,6 +260,10 @@ function ProgramsPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="transfer">
+            <ArrowRightLeftIcon />
+            Transfer
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -389,6 +395,16 @@ function ProgramsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="transfer">
+          <TransferRequestPanel
+            studentId={student.id}
+            studentName={studentFullName(student)}
+            studentNumber={student.studentNumber}
+            currentProgramCode={currentProgram ?? ""}
+            currentProgramName={programLabel(currentProgram)}
+          />
         </TabsContent>
       </Tabs>
     </div>

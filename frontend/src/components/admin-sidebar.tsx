@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
+  ArrowRightLeftIcon,
   BanknoteIcon,
   BarChart3Icon,
   BookUserIcon,
@@ -23,6 +24,7 @@ import { NavUser } from "@/components/nav-user";
 import { useAuthStore } from "@/features/auth/store";
 import type { Role } from "@/features/auth/types";
 import { useNewApplicationsCount } from "@/features/applications/hooks/use-applications";
+import { usePendingTransferCount } from "@/features/program-transfers/store";
 import {
   Sidebar,
   SidebarContent,
@@ -47,7 +49,7 @@ interface NavItem {
   ready?: boolean;
   roles?: Role[];
   // Show a live count badge of new (submitted) applications waiting for review.
-  notify?: "newApplications";
+  notify?: "newApplications" | "pendingTransfers";
 }
 
 interface NavGroup {
@@ -102,6 +104,14 @@ const navGroups: NavGroup[] = [
         icon: MoveUpIcon,
         ready: true,
         roles: ["admin"],
+      },
+      {
+        title: "Transfer Requests",
+        url: "/admin/transfer-requests",
+        icon: ArrowRightLeftIcon,
+        ready: true,
+        roles: ["admin"],
+        notify: "pendingTransfers",
       },
     ],
   },
@@ -217,6 +227,7 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
   const role = useAuthStore((state) => state.user?.role);
   // Only admins see Applications, so the count query only runs for them.
   const { data: newApplications = 0 } = useNewApplicationsCount(role === "admin");
+  const pendingTransfers = usePendingTransferCount();
   const groups = navGroups
     .map((group) => ({
       ...group,
@@ -274,7 +285,11 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
                   : pathname.startsWith(item.url);
 
                 const notifyCount =
-                  item.notify === "newApplications" ? newApplications : 0;
+                  item.notify === "newApplications"
+                    ? newApplications
+                    : item.notify === "pendingTransfers"
+                      ? pendingTransfers
+                      : 0;
 
                 return (
                   <SidebarMenuItem key={item.title}>
