@@ -39,10 +39,10 @@ class ApplicationController extends Controller
     private const STUDENT_TYPE_CONTINUING = 'continuing';
 
     /**
-     * Who is applying: someone new to the school (including a transferee), or a
-     * continuing student. Mirrors STUDENT_TYPE_OPTIONS on the SPA.
+     * Who is applying: a first-time Grade 11 entrant, a transferee from another
+     * school, or a continuing student. Mirrors STUDENT_TYPE_OPTIONS on the SPA.
      */
-    private const STUDENT_TYPES = ['new', self::STUDENT_TYPE_CONTINUING];
+    private const STUDENT_TYPES = ['new', 'transferee', self::STUDENT_TYPE_CONTINUING];
 
     /**
      * A PH mobile number in local format: 11 digits beginning "09". The +63

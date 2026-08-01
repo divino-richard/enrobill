@@ -135,10 +135,14 @@ export const YEAR_LEVEL_OPTIONS = [
   { value: "grade_12", label: "Grade 12" },
 ] as const;
 
-// Who is applying. "continuing" means they already studied here — typically a
-// Grade 12 applicant who finished Grade 11 before this system existed — so the
-// registrar already holds their documents. A transferee is "new" and must comply.
-export type StudentType = "new" | "continuing";
+export type YearLevel = (typeof YEAR_LEVEL_OPTIONS)[number]["value"];
+
+// Who is applying. "new" is a first-time Grade 10 completer entering Senior
+// High. A transferee already attended another school and can enter at either
+// grade. "continuing" means they already studied here — typically a Grade 12
+// applicant who finished Grade 11 before this system existed — so the
+// registrar already holds their documents.
+export type StudentType = "new" | "transferee" | "continuing";
 
 export const STUDENT_TYPE_OPTIONS: {
   value: StudentType;
@@ -147,7 +151,13 @@ export const STUDENT_TYPE_OPTIONS: {
 }[] = [
   {
     value: "new",
-    label: "New student or transferee",
+    label: "New student",
+    description:
+      "I'm entering Senior High for the first time. I'll upload my verification documents.",
+  },
+  {
+    value: "transferee",
+    label: "Transferee",
     description:
       "I'm coming from another school. I'll upload my verification documents.",
   },
@@ -162,6 +172,20 @@ export const STUDENT_TYPE_OPTIONS: {
 // Whether this applicant has to upload verification documents.
 export function requiresDocuments(studentType: StudentType): boolean {
   return studentType !== "continuing";
+}
+
+// Grade level(s) a given student type may apply for — a first-timer only
+// ever enters at Grade 11, a continuing student only ever re-enters at Grade
+// 12, and only a transferee can legitimately be either.
+export function allowedYearLevels(studentType: StudentType): YearLevel[] {
+  switch (studentType) {
+    case "new":
+      return ["grade_11"];
+    case "transferee":
+      return ["grade_11", "grade_12"];
+    case "continuing":
+      return ["grade_12"];
+  }
 }
 
 export function studentTypeLabel(value: string): string {

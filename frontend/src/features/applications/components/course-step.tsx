@@ -18,7 +18,12 @@ import {
 import type { ApplicationFormApi } from "../hooks/form";
 import { useProgramGroups } from "@/features/programs/hooks";
 import { useOpenTerm } from "@/features/terms/hooks";
-import { DECLARATION_AGREEMENT_TEXT, YEAR_LEVEL_OPTIONS } from "../types";
+import {
+  allowedYearLevels,
+  DECLARATION_AGREEMENT_TEXT,
+  YEAR_LEVEL_OPTIONS,
+  type YearLevel,
+} from "../types";
 
 function required(message: string) {
   return ({ value }: { value: string }) =>
@@ -53,6 +58,22 @@ export function CourseStep({ form }: CourseStepProps) {
       form.setFieldValue("schoolYear", openTerm.schoolYear);
     }
   }, [form, openTerm]);
+
+  // Student type determines which grade levels are valid (see
+  // allowedYearLevels in ../types). When only one is valid, set it
+  // automatically instead of making the applicant pick from a single-option
+  // list; otherwise clear a value an earlier-step edit made invalid.
+  useEffect(() => {
+    const { studentType, yearLevel } = form.state.values;
+    const allowed = allowedYearLevels(studentType);
+    if (allowed.length === 1) {
+      if (yearLevel !== allowed[0]) {
+        form.setFieldValue("yearLevel", allowed[0]);
+      }
+    } else if (yearLevel && !allowed.includes(yearLevel as YearLevel)) {
+      form.setFieldValue("yearLevel", "");
+    }
+  }, [form]);
 
   return (
     <div className="space-y-8">
@@ -98,34 +119,63 @@ export function CourseStep({ form }: CourseStepProps) {
             )}
           </form.Field>
 
-          <form.Field
-            name="yearLevel"
-            validators={{ onChange: required("Year level is required") }}
-          >
-            {(field) => (
-              <div className="space-y-1.5">
-                <FieldLabel htmlFor={field.name} required>
-                  Year Level
-                </FieldLabel>
-                <Select
-                  value={field.state.value}
-                  onValueChange={field.handleChange}
+          <form.Subscribe selector={(state) => state.values.studentType}>
+            {(studentType) => {
+              const allowed = allowedYearLevels(studentType);
+              const locked = allowed.length === 1;
+              const hint = locked
+                ? studentType === "continuing"
+                  ? "Continuing students already completed Grade 11, so this is set to Grade 12 automatically."
+                  : "New students enter directly into Grade 11, so this is set automatically."
+                : undefined;
+
+              return (
+                <form.Field
+                  name="yearLevel"
+                  validators={{ onChange: required("Year level is required") }}
                 >
-                  <SelectTrigger id={field.name} className="w-full">
-                    <SelectValue placeholder="Select year level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {YEAR_LEVEL_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldInfo field={field} />
-              </div>
-            )}
-          </form.Field>
+                  {(field) => (
+                    <div className="space-y-1.5">
+                      <FieldLabel htmlFor={field.name} required hint={hint}>
+                        Year Level
+                      </FieldLabel>
+                      {locked ? (
+                        <Input
+                          id={field.name}
+                          value={
+                            YEAR_LEVEL_OPTIONS.find(
+                              (option) => option.value === allowed[0],
+                            )?.label ?? ""
+                          }
+                          disabled
+                          readOnly
+                        />
+                      ) : (
+                        <Select
+                          value={field.state.value}
+                          onValueChange={field.handleChange}
+                        >
+                          <SelectTrigger id={field.name} className="w-full">
+                            <SelectValue placeholder="Select year level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {YEAR_LEVEL_OPTIONS.filter((option) =>
+                              allowed.includes(option.value),
+                            ).map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <FieldInfo field={field} />
+                    </div>
+                  )}
+                </form.Field>
+              );
+            }}
+          </form.Subscribe>
 
           <form.Field
             name="schoolYear"

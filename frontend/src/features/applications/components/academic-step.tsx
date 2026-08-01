@@ -211,7 +211,7 @@ export function AcademicStep({ form }: AcademicStepProps) {
       >
         <form.Field name="studentType">
           {(field) => (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               {STUDENT_TYPE_OPTIONS.map((option) => {
                 const checked = field.state.value === option.value;
 
