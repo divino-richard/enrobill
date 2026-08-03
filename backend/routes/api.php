@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelCo
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
 use App\Http\Controllers\Admin\ProgressionController as AdminProgressionController;
+use App\Http\Controllers\Admin\ReportsController as AdminReportsController;
 use App\Http\Controllers\Admin\SchoolYearController as AdminSchoolYearController;
 use App\Http\Controllers\Admin\SectionController as AdminSectionController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
@@ -192,6 +193,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin,cashier')->group(function () {
         // Staff dashboard stats (finance for all staff; enrollment for admins).
         Route::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
+
+        // Finance and enrollment reports, scoped to a selectable school year.
+        Route::get('/admin/reports', [AdminReportsController::class, 'index']);
 
         // Read-only supporting data the finance screens depend on.
         Route::get('/admin/school-years', [AdminSchoolYearController::class, 'index']);
