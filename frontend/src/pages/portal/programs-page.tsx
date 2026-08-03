@@ -38,7 +38,7 @@ import {
 } from "@/features/student-documents/components/clearance-grades-panel";
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { EnrollmentStatusBadge } from "@/features/students/components/enrollment-status-badge";
-import { studentFullName, type EnrollmentRecord } from "@/features/students/types";
+import type { EnrollmentRecord } from "@/features/students/types";
 import { TransferRequestPanel } from "@/features/program-transfers/components/transfer-request-panel";
 
 // --- Dummy class schedule (UI preview until timetables are wired in) ---------
@@ -399,9 +399,6 @@ function ProgramsPage() {
 
         <TabsContent value="transfer">
           <TransferRequestPanel
-            studentId={student.id}
-            studentName={studentFullName(student)}
-            studentNumber={student.studentNumber}
             currentProgramCode={currentProgram ?? ""}
             currentProgramName={programLabel(currentProgram)}
           />

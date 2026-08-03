@@ -24,7 +24,7 @@ import { NavUser } from "@/components/nav-user";
 import { useAuthStore } from "@/features/auth/store";
 import type { Role } from "@/features/auth/types";
 import { useNewApplicationsCount } from "@/features/applications/hooks/use-applications";
-import { usePendingTransferCount } from "@/features/program-transfers/store";
+import { usePendingTransferCount } from "@/features/program-transfers/hooks";
 import {
   Sidebar,
   SidebarContent,
@@ -225,9 +225,9 @@ function NotifyBadge({ count }: { count: number }) {
 export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation();
   const role = useAuthStore((state) => state.user?.role);
-  // Only admins see Applications, so the count query only runs for them.
+  // Only admins see Applications/Transfer Requests, so these only query for them.
   const { data: newApplications = 0 } = useNewApplicationsCount(role === "admin");
-  const pendingTransfers = usePendingTransferCount();
+  const pendingTransfers = usePendingTransferCount(role === "admin");
   const groups = navGroups
     .map((group) => ({
       ...group,

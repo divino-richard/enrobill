@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\FreebieController as AdminFreebieController;
 use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
+use App\Http\Controllers\Admin\ProgramTransferRequestController as AdminProgramTransferRequestController;
 use App\Http\Controllers\Admin\ProgressionController as AdminProgressionController;
 use App\Http\Controllers\Admin\ReportsController as AdminReportsController;
 use App\Http\Controllers\Admin\SchoolYearController as AdminSchoolYearController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\PaymentChannelController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\ProgramTransferRequestController;
 use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentDocumentController;
@@ -97,6 +99,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/me/documents/{document}', [StudentDocumentController::class, 'destroy']);
     Route::get('/student-documents/{document}', [StudentDocumentController::class, 'viewUrl']);
     Route::get('/student-documents/{document}/download', [StudentDocumentController::class, 'download']);
+
+    // Requests to move to a different track/strand.
+    Route::get('/me/transfer-requests', [ProgramTransferRequestController::class, 'index']);
+    Route::post('/me/transfer-requests', [ProgramTransferRequestController::class, 'store']);
 
     // The current student's bill for the open term + self-service payment.
     Route::get('/me/bill', [StudentBillController::class, 'show']);
@@ -173,6 +179,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Per-semester clearance/grades review that gates promotion. No
         // enrollment or billing impact.
         Route::post('/admin/progression/review', [AdminProgressionController::class, 'review']);
+
+        // Program transfer requests — accepting one moves the student for real.
+        Route::get('/admin/transfer-requests', [AdminProgramTransferRequestController::class, 'index']);
+        Route::post('/admin/transfer-requests/{transferRequest}/decide', [AdminProgramTransferRequestController::class, 'decide']);
 
         // School years — managing periods (read endpoint is shared below).
         Route::post('/admin/school-years', [AdminSchoolYearController::class, 'store']);

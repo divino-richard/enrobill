@@ -84,6 +84,16 @@ class Student extends Model
     }
 
     /**
+     * This student's program transfer requests.
+     *
+     * @return HasMany<ProgramTransferRequest, $this>
+     */
+    public function transferRequests(): HasMany
+    {
+        return $this->hasMany(ProgramTransferRequest::class);
+    }
+
+    /**
      * Keep the student's global status as a convenience mirror of their latest
      * enrollment (the open term if billed, else the most recent). Statuses that
      * aren't enrollment-driven (graduated/inactive) are left untouched.

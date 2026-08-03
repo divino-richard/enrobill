@@ -2,18 +2,29 @@ export type TransferRequestStatus = "pending" | "approved" | "rejected";
 
 export interface TransferRequest {
   id: number;
+  controlNumber: string;
   studentId: number;
   studentName: string;
   studentNumber: string;
   fromProgramCode: string;
-  fromProgramName: string;
   toProgramCode: string;
-  toProgramName: string;
+  schoolYear: string;
   reason: string;
   status: TransferRequestStatus;
   requestedAt: string; // ISO timestamp
   decidedAt: string | null;
   decisionNote: string | null;
+  decidedByName: string | null;
+}
+
+export interface TransferRequestInput {
+  toProgramCode: string;
+  reason: string;
+}
+
+export interface TransferDecisionInput {
+  status: Extract<TransferRequestStatus, "approved" | "rejected">;
+  note?: string;
 }
 
 interface StatusMeta {

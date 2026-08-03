@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -32,16 +33,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldLabel } from "@/components/form/field-label";
-import { useProgramGroups } from "@/features/programs/hooks";
-import { useProgramTransferStore } from "@/features/program-transfers/store";
+import { getErrorMessage } from "@/lib/get-error-message";
+import { useProgramGroups, useProgramLabel } from "@/features/programs/hooks";
+import { TransferRequestFields } from "@/features/program-transfers/components/transfer-request-fields";
+import {
+  useMyTransferRequests,
+  useSubmitTransferRequest,
+} from "@/features/program-transfers/hooks";
 import {
   TRANSFER_STATUS_META,
   type TransferRequest,
   type TransferRequestStatus,
 } from "@/features/program-transfers/types";
-import { Separator } from "@/components/ui/separator";
 
 function formatDate(value: string) {
   return format(new Date(value), "PP");
@@ -59,22 +66,16 @@ function TransferStatusBadge({ status }: { status: TransferRequestStatus }) {
 function RequestTransferDialog({
   open,
   onOpenChange,
-  studentId,
-  studentName,
-  studentNumber,
   currentProgramCode,
   currentProgramName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  studentId: number;
-  studentName: string;
-  studentNumber: string;
   currentProgramCode: string;
   currentProgramName: string;
 }) {
   const programGroups = useProgramGroups();
-  const submitRequest = useProgramTransferStore((state) => state.submitRequest);
+  const submitRequest = useSubmitTransferRequest();
   const [toCode, setToCode] = useState("");
   const [reason, setReason] = useState("");
 
@@ -95,22 +96,20 @@ function RequestTransferDialog({
   function reset() {
     setToCode("");
     setReason("");
+    submitRequest.reset();
   }
 
   function handleSubmit() {
-    if (!toCode || reason.trim() === "" || !selectedLabel) return;
-    submitRequest({
-      studentId,
-      studentName,
-      studentNumber,
-      fromProgramCode: currentProgramCode,
-      fromProgramName: currentProgramName,
-      toProgramCode: toCode,
-      toProgramName: selectedLabel,
-      reason: reason.trim(),
-    });
-    reset();
-    onOpenChange(false);
+    if (!toCode || reason.trim() === "") return;
+    submitRequest.mutate(
+      { toProgramCode: toCode, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          reset();
+          onOpenChange(false);
+        },
+      },
+    );
   }
 
   return (
@@ -135,7 +134,11 @@ function RequestTransferDialog({
             <FieldLabel htmlFor="transfer-target" required>
               Transfer to
             </FieldLabel>
-            <Select value={toCode} onValueChange={setToCode}>
+            <Select
+              value={toCode}
+              onValueChange={setToCode}
+              disabled={submitRequest.isPending}
+            >
               <SelectTrigger id="transfer-target" className="w-full">
                 <SelectValue placeholder="Select a program" />
               </SelectTrigger>
@@ -163,6 +166,7 @@ function RequestTransferDialog({
               rows={3}
               value={reason}
               placeholder="Why do you want to transfer?"
+              disabled={submitRequest.isPending}
               onChange={(e) => setReason(e.target.value)}
             />
           </div>
@@ -170,31 +174,41 @@ function RequestTransferDialog({
           {selectedLabel && (
             <div className="bg-muted/30 items-center gap-3 rounded-lg border p-3 text-sm space-y-2">
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">From</span>
+                <span className="text-xs text-muted-foreground">Current</span>
                 <span className="min-w-0 truncate font-medium">
                   {currentProgramName}
                 </span>
               </div>
               <Separator />
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">To</span>
+                <span className="text-xs text-muted-foreground">Transfer to</span>
                 <span className="min-w-0 truncate font-medium">
                   {selectedLabel}
                 </span>
               </div>
             </div>
           )}
+
+          {submitRequest.isError && (
+            <p className="text-destructive text-sm">
+              {getErrorMessage(submitRequest.error)}
+            </p>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitRequest.isPending}
+          >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!toCode || reason.trim() === ""}
+            disabled={!toCode || reason.trim() === "" || submitRequest.isPending}
           >
-            Submit request
+            {submitRequest.isPending ? "Submitting…" : "Submit request"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -203,15 +217,19 @@ function RequestTransferDialog({
 }
 
 function HistoryEntry({ request }: { request: TransferRequest }) {
+  const programLabel = useProgramLabel();
+
   return (
     <li className="space-y-2 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <span className="truncate font-medium">
-            {request.fromProgramName}
+            {programLabel(request.fromProgramCode)}
           </span>
           <ArrowRightIcon className="text-muted-foreground size-3.5 shrink-0" />
-          <span className="truncate font-medium">{request.toProgramName}</span>
+          <span className="truncate font-medium">
+            {programLabel(request.toProgramCode)}
+          </span>
         </div>
         <TransferStatusBadge status={request.status} />
       </div>
@@ -226,7 +244,7 @@ function HistoryEntry({ request }: { request: TransferRequest }) {
         </p>
       )}
       <p className="text-muted-foreground text-xs">
-        Submitted {formatDate(request.requestedAt)}
+        {request.controlNumber} · Submitted {formatDate(request.requestedAt)}
         {request.decidedAt && ` · Decided ${formatDate(request.decidedAt)}`}
       </p>
     </li>
@@ -234,26 +252,42 @@ function HistoryEntry({ request }: { request: TransferRequest }) {
 }
 
 export function TransferRequestPanel({
-  studentId,
-  studentName,
-  studentNumber,
   currentProgramCode,
   currentProgramName,
 }: {
-  studentId: number;
-  studentName: string;
-  studentNumber: string;
   currentProgramCode: string;
   currentProgramName: string;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const allRequests = useProgramTransferStore((state) => state.requests);
+  const {
+    data: myRequests,
+    isLoading,
+    isError,
+    refetch,
+  } = useMyTransferRequests();
 
-  const myRequests = allRequests
-    .filter((r) => r.studentId === studentId)
-    .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
-  const pending = myRequests.find((r) => r.status === "pending") ?? null;
-  const history = myRequests.filter((r) => r.id !== pending?.id);
+  if (isLoading) {
+    return <Skeleton className="h-48 w-full rounded-xl" />;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-14 text-center">
+        <p className="text-muted-foreground text-sm">
+          We couldn't load your transfer requests. Please try again.
+        </p>
+        <Button variant="outline" onClick={() => refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  const sorted = [...(myRequests ?? [])].sort((a, b) =>
+    b.requestedAt.localeCompare(a.requestedAt),
+  );
+  const pending = sorted.find((r) => r.status === "pending") ?? null;
+  const history = sorted.filter((r) => r.id !== pending?.id);
 
   return (
     <div className="space-y-6">
@@ -264,28 +298,26 @@ export function TransferRequestPanel({
             Ask to move to a different track or strand. The registrar reviews
             every request before it takes effect.
           </CardDescription>
+          {pending && (
+            <CardAction>
+              <TransferStatusBadge status={pending.status} />
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent>
           {pending ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3 text-sm">
-                  <span className="min-w-0 truncate font-medium">
-                    {pending.fromProgramName}
-                  </span>
-                  <ArrowRightIcon className="text-muted-foreground size-4 shrink-0" />
-                  <span className="min-w-0 truncate font-medium">
-                    {pending.toProgramName}
-                  </span>
-                </div>
-                <TransferStatusBadge status={pending.status} />
+            <div className="space-y-4">
+              <TransferRequestFields request={pending} />
+              <div className="space-y-1">
+                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  Reason
+                </p>
+                <p className="text-muted-foreground text-sm whitespace-pre-line">
+                  {pending.reason}
+                </p>
               </div>
-              <p className="text-muted-foreground text-sm whitespace-pre-line">
-                {pending.reason}
-              </p>
               <p className="text-muted-foreground text-xs">
-                Submitted {formatDate(pending.requestedAt)} · Waiting on the
-                registrar's decision.
+                Waiting on the registrar's decision.
               </p>
             </div>
           ) : (
@@ -330,9 +362,6 @@ export function TransferRequestPanel({
       <RequestTransferDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        studentId={studentId}
-        studentName={studentName}
-        studentNumber={studentNumber}
         currentProgramCode={currentProgramCode}
         currentProgramName={currentProgramName}
       />
