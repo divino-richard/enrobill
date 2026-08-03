@@ -71,13 +71,16 @@ export async function revertProgression(
   return data.data.reverted;
 }
 
-// Set one student's clearance + grades review for a semester; returns whether
-// they're now eligible for promotion/graduation.
+// Accept or return one requirement (clearance or grades) for a semester;
+// returns whether the student is now eligible for promotion/graduation.
+// Returning (accepted: false) requires a note — it's what unlocks the file
+// for the student to replace.
 export async function reviewSemester(input: {
   studentId: number;
   semester: Semester;
-  clearanceCleared: boolean;
-  gradesPassed: boolean;
+  field: "clearance" | "grades";
+  accepted: boolean;
+  note?: string;
 }): Promise<boolean> {
   const { data } = await api.post<Wrapped<{ eligible: boolean }>>(
     "/admin/progression/review",

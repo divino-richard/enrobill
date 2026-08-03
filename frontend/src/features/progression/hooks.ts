@@ -79,15 +79,16 @@ export function useRevertProgression() {
   });
 }
 
-// Set a student's clearance + grades review for a semester.
+// Accept or return one requirement (clearance or grades) for a semester.
 export function useReviewSemester() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: {
       studentId: number;
       semester: Semester;
-      clearanceCleared: boolean;
-      gradesPassed: boolean;
+      field: "clearance" | "grades";
+      accepted: boolean;
+      note?: string;
     }) => reviewSemester(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: rosterQueryKey });

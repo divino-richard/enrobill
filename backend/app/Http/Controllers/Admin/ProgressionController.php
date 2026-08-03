@@ -206,8 +206,12 @@ class ProgressionController extends Controller
     }
 
     /**
-     * Set one student's clearance/grades review for a semester of the active year.
-     * Gates the promote/graduate decision; no enrollment or billing impact.
+     * Accept or return one clearance/grades requirement for a semester of the
+     * active year — one field at a time, so accepting one never touches the
+     * other's stored state. Gates the promote/graduate decision; no
+     * enrollment or billing impact. Returning requires a reason: it's the
+     * only way the student learns what to fix, and it's what unlocks the
+     * file for them to replace.
      */
     public function review(Request $request): JsonResponse
     {
@@ -217,8 +221,9 @@ class ProgressionController extends Controller
         $validated = $request->validate([
             'studentId' => ['required', 'integer'],
             'semester' => ['required', Rule::in(SemesterStanding::SEMESTERS)],
-            'clearanceCleared' => ['required', 'boolean'],
-            'gradesPassed' => ['required', 'boolean'],
+            'field' => ['required', Rule::in(['clearance', 'grades'])],
+            'accepted' => ['required', 'boolean'],
+            'note' => ['nullable', 'string', 'max:1000', 'required_if:accepted,false'],
         ]);
 
         // Only students actually enrolled in the active year can be reviewed.
@@ -231,24 +236,22 @@ class ProgressionController extends Controller
 
         abort_unless($isEnrolled, 404);
 
-        // A slot can't be marked cleared/passed without the file that proves it.
-        $uploaded = fn (string $type) => StudentDocument::query()
-            ->where('student_id', $validated['studentId'])
-            ->where('school_year_id', $active->id)
-            ->where('semester', $validated['semester'])
-            ->where('type', $type)
-            ->exists();
+        $field = $validated['field'];
 
-        if ($validated['clearanceCleared'] && ! $uploaded('clearance')) {
-            throw ValidationException::withMessages([
-                'clearanceCleared' => 'Upload the clearance for this semester before marking it cleared.',
-            ]);
-        }
+        // A slot can't be accepted without the file that proves it.
+        if ($validated['accepted']) {
+            $uploaded = StudentDocument::query()
+                ->where('student_id', $validated['studentId'])
+                ->where('school_year_id', $active->id)
+                ->where('semester', $validated['semester'])
+                ->where('type', $field)
+                ->exists();
 
-        if ($validated['gradesPassed'] && ! $uploaded('grades')) {
-            throw ValidationException::withMessages([
-                'gradesPassed' => 'Upload the grades for this semester before marking them passed.',
-            ]);
+            if (! $uploaded) {
+                throw ValidationException::withMessages([
+                    'accepted' => "Upload the {$field} for this semester before accepting it.",
+                ]);
+            }
         }
 
         SemesterStanding::updateOrCreate(
@@ -258,8 +261,10 @@ class ProgressionController extends Controller
                 'semester' => $validated['semester'],
             ],
             [
-                'clearance_cleared' => $validated['clearanceCleared'],
-                'grades_passed' => $validated['gradesPassed'],
+                ($field === 'clearance' ? 'clearance_cleared' : 'grades_passed') => $validated['accepted'],
+                ($field === 'clearance' ? 'clearance_note' : 'grades_note') => $validated['accepted']
+                    ? null
+                    : $validated['note'],
                 'reviewed_by' => $request->user()?->id,
                 'reviewed_at' => now(),
             ],
@@ -279,7 +284,7 @@ class ProgressionController extends Controller
      *
      * @param  Collection<int, SemesterStanding>  $standings
      * @param  Collection<int, StudentDocument>  $documents
-     * @return array<string, array{clearanceCleared: bool, gradesPassed: bool, hasClearanceDoc: bool, hasGradesDoc: bool}>
+     * @return array<string, array{clearanceCleared: bool, clearanceNote: ?string, gradesPassed: bool, gradesNote: ?string, hasClearanceDoc: bool, hasGradesDoc: bool}>
      */
     private function buildReview($standings, $documents): array
     {
@@ -293,7 +298,9 @@ class ProgressionController extends Controller
 
             $map[$semester] = [
                 'clearanceCleared' => (bool) ($row?->clearance_cleared ?? false),
+                'clearanceNote' => $row?->clearance_note,
                 'gradesPassed' => (bool) ($row?->grades_passed ?? false),
+                'gradesNote' => $row?->grades_note,
                 'hasClearanceDoc' => $has('clearance'),
                 'hasGradesDoc' => $has('grades'),
             ];

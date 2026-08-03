@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Http\Resources\StudentDocumentResource;
 use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
+use App\Models\SemesterStanding;
 use App\Models\Student;
 use App\Models\StudentDocument;
 use Illuminate\Http\JsonResponse;
@@ -39,11 +40,26 @@ class StudentDocumentController extends Controller
         $student = $this->ownStudentOrAbort($request);
         $schoolYear = $this->activeYearOrAbort();
 
-        return StudentDocumentResource::collection(
-            $student->documents()
-                ->where('school_year_id', $schoolYear->id)
-                ->get(),
-        );
+        $documents = $student->documents()
+            ->where('school_year_id', $schoolYear->id)
+            ->get();
+
+        $standings = SemesterStanding::query()
+            ->where('student_id', $student->id)
+            ->where('school_year_id', $schoolYear->id)
+            ->get()
+            ->keyBy('semester');
+
+        $documents->each(function (StudentDocument $document) use ($standings) {
+            $standing = $standings->get($document->semester);
+            $accepted = $standing?->isAccepted($document->type) ?? false;
+            $note = $standing?->noteFor($document->type);
+
+            $document->review_status = $accepted ? 'accepted' : ($note ? 'returned' : 'pending');
+            $document->review_note = $note;
+        });
+
+        return StudentDocumentResource::collection($documents);
     }
 
     /**
@@ -117,8 +133,22 @@ class StudentDocumentController extends Controller
             ->where('type', $validated['type'])
             ->first();
 
-        if ($existing !== null && $existing->s3_key !== $validated['key']) {
-            Storage::disk('s3')->delete($existing->s3_key);
+        $standing = null;
+
+        if ($existing !== null) {
+            $standing = $this->standingFor($student, $schoolYear, $validated['semester']);
+
+            // Locked unless the registrar explicitly returned it — a file
+            // still awaiting review is just as locked as an accepted one.
+            abort_unless(
+                $standing?->isReturned($validated['type']) ?? false,
+                422,
+                'This file is locked and can no longer be replaced. It\'ll unlock once the registrar returns it with a reason.',
+            );
+
+            if ($existing->s3_key !== $validated['key']) {
+                Storage::disk('s3')->delete($existing->s3_key);
+            }
         }
 
         $document = $student->documents()->updateOrCreate(
@@ -134,6 +164,14 @@ class StudentDocumentController extends Controller
                 'content_type' => $validated['content_type'],
             ],
         );
+
+        // A fresh upload resolves any prior return — clear the stale reason
+        // so it isn't shown next to a file the registrar hasn't seen yet.
+        if ($standing !== null && $standing->noteFor($validated['type']) !== null) {
+            $standing->update([
+                $validated['type'] === 'clearance' ? 'clearance_note' : 'grades_note' => null,
+            ]);
+        }
 
         return new StudentDocumentResource($document);
     }
@@ -162,6 +200,17 @@ class StudentDocumentController extends Controller
             $decided,
             422,
             'This school year has already been evaluated, so its documents can no longer be removed.',
+        );
+
+        $schoolYear = SchoolYear::findOrFail($document->school_year_id);
+        $standing = $this->standingFor($student, $schoolYear, $document->semester);
+
+        // Locked unless the registrar explicitly returned it — a file still
+        // awaiting review is just as locked as an accepted one.
+        abort_unless(
+            $standing?->isReturned($document->type) ?? false,
+            422,
+            'This file is locked and can no longer be removed. It\'ll unlock once the registrar returns it with a reason.',
         );
 
         Storage::disk('s3')->delete($document->s3_key);
@@ -230,5 +279,14 @@ class StudentDocumentController extends Controller
         abort_if($schoolYear === null, 422, 'No school year is currently active.');
 
         return $schoolYear;
+    }
+
+    private function standingFor(Student $student, SchoolYear $schoolYear, string $semester): ?SemesterStanding
+    {
+        return SemesterStanding::query()
+            ->where('student_id', $student->id)
+            ->where('school_year_id', $schoolYear->id)
+            ->where('semester', $semester)
+            ->first();
     }
 }

@@ -24,6 +24,11 @@ class StudentDocumentResource extends JsonResource
             'size' => $this->size,
             'contentType' => $this->content_type,
             'uploadedAt' => $this->updated_at?->toIso8601String(),
+            // Set by the controller from the matching SemesterStanding row —
+            // not a real column on this model. Defaults to "pending" for
+            // callers (e.g. the admin roster) that never set it.
+            'reviewStatus' => $this->review_status ?? 'pending',
+            'reviewNote' => $this->review_note ?? null,
         ];
     }
 }

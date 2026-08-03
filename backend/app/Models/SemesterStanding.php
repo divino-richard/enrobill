@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'student_id', 'school_year_id', 'semester',
-    'clearance_cleared', 'grades_passed', 'reviewed_by', 'reviewed_at',
+    'clearance_cleared', 'clearance_note',
+    'grades_passed', 'grades_note',
+    'reviewed_by', 'reviewed_at',
 ])]
 class SemesterStanding extends Model
 {
@@ -34,6 +36,27 @@ class SemesterStanding extends Model
     public function isMet(): bool
     {
         return $this->clearance_cleared && $this->grades_passed;
+    }
+
+    /** Whether the given document type ('clearance'|'grades') is currently accepted. */
+    public function isAccepted(string $type): bool
+    {
+        return (bool) ($type === 'clearance' ? $this->clearance_cleared : $this->grades_passed);
+    }
+
+    /** The reason the given document type was last returned, if any. */
+    public function noteFor(string $type): ?string
+    {
+        return $type === 'clearance' ? $this->clearance_note : $this->grades_note;
+    }
+
+    /**
+     * Whether the given document type was explicitly sent back with a
+     * reason — the only state that lets the student replace/remove the file.
+     */
+    public function isReturned(string $type): bool
+    {
+        return ! $this->isAccepted($type) && $this->noteFor($type) !== null;
     }
 
     /**

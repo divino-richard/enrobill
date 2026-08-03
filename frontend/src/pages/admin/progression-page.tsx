@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ArrowRightIcon,
   CheckCircle2Icon,
+  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
@@ -13,14 +14,25 @@ import {
   SlidersHorizontalIcon,
   Undo2Icon,
   UsersIcon,
+  XIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -563,21 +575,47 @@ function StudentReview({ student }: { student: RosterStudent }) {
 
   const busy = decide.isPending || revert.isPending;
   const decided = student.status === "decided";
+  const reviewBusy = busy || review.isPending;
 
-  const setReview = (
-    semester: Semester,
-    field: "clearanceCleared" | "gradesPassed",
-    value: boolean,
-  ) => {
-    const current = student.review[semester];
+  const [returning, setReturning] = useState<{
+    semester: Semester;
+    type: "clearance" | "grades";
+    label: string;
+  } | null>(null);
+  const [reason, setReason] = useState("");
+
+  function accept(semester: Semester, type: "clearance" | "grades") {
     review.mutate({
       studentId: student.studentId,
       semester,
-      clearanceCleared:
-        field === "clearanceCleared" ? value : current.clearanceCleared,
-      gradesPassed: field === "gradesPassed" ? value : current.gradesPassed,
+      field: type,
+      accepted: true,
     });
-  };
+  }
+
+  function openReturn(
+    semester: Semester,
+    type: "clearance" | "grades",
+    label: string,
+  ) {
+    review.reset();
+    setReason("");
+    setReturning({ semester, type, label });
+  }
+
+  function confirmReturn() {
+    if (!returning || reason.trim() === "") return;
+    review.mutate(
+      {
+        studentId: student.studentId,
+        semester: returning.semester,
+        field: returning.type,
+        accepted: false,
+        note: reason.trim(),
+      },
+      { onSuccess: () => setReturning(null) },
+    );
+  }
 
   const primary = student.isTopGrade
     ? { verb: "Graduate", kind: "graduate" as const, Icon: GraduationCapIcon }
@@ -605,47 +643,87 @@ function StudentReview({ student }: { student: RosterStudent }) {
                   (student.documents ?? []).find(
                     (d) => d.semester === semester && d.type === req.type,
                   ) ?? null;
-                const checked = student.review[semester][req.field];
+                const semReview = student.review[semester];
+                const accepted = semReview[req.field];
+                const note =
+                  req.type === "clearance"
+                    ? semReview.clearanceNote
+                    : semReview.gradesNote;
+
                 return (
-                  <div
-                    key={req.type}
-                    className="flex items-center justify-between gap-3 p-3"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <FileTextIcon className="text-muted-foreground size-4 shrink-0" />
-                      <span className="text-sm">{req.label}</span>
-                      {doc ? (
-                        <Button
-                          variant="link"
-                          className="text-primary h-auto px-0 text-xs"
-                          onClick={() => setViewing(doc)}
-                        >
-                          View
-                        </Button>
+                  <div key={req.type} className="space-y-1.5 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <FileTextIcon className="text-muted-foreground size-4 shrink-0" />
+                        <span className="text-sm">{req.label}</span>
+                        {doc ? (
+                          <Button
+                            variant="link"
+                            className="text-primary h-auto px-0 text-xs"
+                            onClick={() => setViewing(doc)}
+                          >
+                            View
+                          </Button>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-muted-foreground border-dashed font-normal"
+                          >
+                            Not uploaded
+                          </Badge>
+                        )}
+                      </div>
+
+                      {accepted ? (
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                          >
+                            <CheckCircle2Icon className="size-3" />
+                            {req.verb}
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={reviewBusy || decided}
+                            onClick={() =>
+                              openReturn(semester, req.type, req.label)
+                            }
+                          >
+                            <XIcon />
+                            Return
+                          </Button>
+                        </div>
                       ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-muted-foreground border-dashed font-normal"
-                        >
-                          Not uploaded
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={reviewBusy || decided || !doc}
+                            onClick={() =>
+                              openReturn(semester, req.type, req.label)
+                            }
+                          >
+                            <XIcon />
+                            Return
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={reviewBusy || decided || !doc}
+                            onClick={() => accept(semester, req.type)}
+                          >
+                            <CheckIcon />
+                            Accept
+                          </Button>
+                        </div>
                       )}
                     </div>
-                    <label
-                      className={cn(
-                        "flex items-center gap-1.5 text-sm",
-                        (!doc || decided) && "opacity-50",
-                      )}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        disabled={busy || decided || !doc}
-                        onCheckedChange={(c) =>
-                          setReview(semester, req.field, c === true)
-                        }
-                      />
-                      <span>{req.verb}</span>
-                    </label>
+                    {note && (
+                      <p className="text-amber-800 dark:text-amber-200 text-xs">
+                        <span className="font-medium">Returned:</span> {note}
+                      </p>
+                    )}
                   </div>
                 );
               })}
@@ -723,6 +801,60 @@ function StudentReview({ student }: { student: RosterStudent }) {
         fetchUrl={fetchStudentDocumentViewUrl}
         fetchBlob={fetchStudentDocumentBlob}
       />
+
+      <AlertDialog
+        open={returning !== null}
+        onOpenChange={(open) => {
+          if (!open && !review.isPending) setReturning(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Return {returning?.label.toLowerCase()}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This unlocks the file so {student.name} can upload a new one.
+              Say what needs to change — they'll see this note.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-1.5">
+            <label htmlFor="return-reason" className="text-sm font-medium">
+              Reason
+            </label>
+            <Textarea
+              id="return-reason"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="What's wrong with the file, or what to fix before resubmitting…"
+            />
+          </div>
+
+          {review.isError && (
+            <p className="text-destructive text-sm">
+              {getErrorMessage(review.error)}
+            </p>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={review.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={review.isPending || reason.trim() === ""}
+              className={cn(buttonVariants({ variant: "destructive" }))}
+              onClick={(event) => {
+                event.preventDefault();
+                confirmReturn();
+              }}
+            >
+              {review.isPending ? "Returning…" : "Return"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

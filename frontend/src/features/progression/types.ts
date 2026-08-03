@@ -14,7 +14,10 @@ export type ProgressionStatus = "pending" | "decided";
 
 export interface SemesterReview {
   clearanceCleared: boolean;
+  // The reason clearance was last returned, if any — cleared once re-accepted.
+  clearanceNote: string | null;
   gradesPassed: boolean;
+  gradesNote: string | null;
   // Whether the file each flag depends on exists — a flag can't be set without it.
   hasClearanceDoc: boolean;
   hasGradesDoc: boolean;
