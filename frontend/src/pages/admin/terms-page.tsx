@@ -305,7 +305,7 @@ function FreebieDialog({
           <DialogTitle>Early-enrollment freebie</DialogTitle>
           <DialogDescription>
             {term
-              ? `Grade 11 students who enrol within this window for ${termLabel(term)} can have their balance zeroed when a voucher is applied.`
+              ? `Grade 11 students who enroll within this window for ${termLabel(term)} can have their balance zeroed when a voucher is applied.`
               : ""}
           </DialogDescription>
         </DialogHeader>

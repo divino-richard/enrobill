@@ -86,7 +86,7 @@ class ProgressionController extends Controller
 
         $query = Student::query()->where(function ($q) use ($active, $hasDecision) {
             // Relevant to close-out: still enrolled in the ending year, or already
-            // decided (graduation completes the enrolment, so it only matches here).
+            // decided (graduation completes the enrollment, so it only matches here).
             $q->whereHas('enrollments', fn ($e) => $e
                 ->where('school_year_id', $active->id)
                 ->where('status', 'enrolled'))

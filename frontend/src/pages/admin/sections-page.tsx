@@ -541,7 +541,7 @@ function SectionDetail({
             </div>
             <p className="text-sm font-medium">No students yet</p>
             <p className="text-muted-foreground max-w-xs text-xs">
-              Students are placed here automatically when they enrol, or add them
+              Students are placed here automatically when they enroll, or add them
               from the unsectioned list.
             </p>
           </div>
@@ -807,7 +807,7 @@ function SectionsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Sections</h1>
           <p className="text-muted-foreground text-sm">
             Class sections per program and grade. Students are placed
-            automatically when they enrol; move them as needed.
+            automatically when they enroll; move them as needed.
           </p>
         </div>
         <Button onClick={openCreate} disabled={!schoolYearId}>
