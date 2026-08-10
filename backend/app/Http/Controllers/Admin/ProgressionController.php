@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\NotifyStudent;
 use App\Actions\YearEndCloseout;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentDocumentResource;
@@ -213,7 +214,7 @@ class ProgressionController extends Controller
      * only way the student learns what to fix, and it's what unlocks the
      * file for them to replace.
      */
-    public function review(Request $request): JsonResponse
+    public function review(Request $request, NotifyStudent $notify): JsonResponse
     {
         $active = SchoolYear::active();
         abort_if($active === null, 422, 'No school year is currently active.');
@@ -271,6 +272,21 @@ class ProgressionController extends Controller
         );
 
         $student = Student::findOrFail($validated['studentId']);
+
+        $fieldLabel = $field === 'clearance' ? 'Clearance' : 'Grades';
+        $semesterLabel = $validated['semester'] === 'first' ? '1st Semester' : '2nd Semester';
+
+        $notify(
+            $student,
+            'documents',
+            $validated['accepted'] ? "{$fieldLabel} accepted" : "{$fieldLabel} returned",
+            $validated['accepted']
+                ? "Your {$semesterLabel} {$field} was accepted."
+                : "Your {$semesterLabel} {$field} was returned: {$validated['note']}",
+            ctaLabel: 'View documents',
+            ctaUrl: '/portal/programs',
+            actionRequired: ! $validated['accepted'],
+        );
 
         return response()->json([
             'data' => ['eligible' => $this->closeout->isFullyCleared($student, $active)],

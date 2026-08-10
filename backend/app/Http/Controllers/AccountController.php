@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\NotifyStudent;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,7 +44,7 @@ class AccountController extends Controller
      * Change the authenticated user's own password after confirming the current
      * one.
      */
-    public function updatePassword(Request $request): JsonResponse
+    public function updatePassword(Request $request, NotifyStudent $notify): JsonResponse
     {
         $data = $request->validate([
             'currentPassword' => ['required', 'string'],
@@ -70,6 +71,16 @@ class AccountController extends Controller
         }
 
         $user->update(['password' => $data['password']]);
+
+        // Only students have an inbox to receive this in — staff/applicants don't.
+        if ($user->student !== null) {
+            $notify(
+                $user->student,
+                'account',
+                'Password changed',
+                'Your account password was updated successfully.',
+            );
+        }
 
         return response()->json(['message' => 'Your password has been updated.']);
     }

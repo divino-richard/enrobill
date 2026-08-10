@@ -94,6 +94,16 @@ class Student extends Model
     }
 
     /**
+     * This student's in-app notification inbox.
+     *
+     * @return HasMany<StudentNotification, $this>
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(StudentNotification::class);
+    }
+
+    /**
      * Keep the student's global status as a convenience mirror of their latest
      * enrollment (the open term if billed, else the most recent). Statuses that
      * aren't enrollment-driven (graduated/inactive) are left untouched.

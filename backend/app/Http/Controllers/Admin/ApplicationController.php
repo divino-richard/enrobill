@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\NotifyStudent;
 use App\Actions\PromoteApplicantToStudent;
 use App\Actions\SendApplicationDecisionEmail;
 use App\Http\Controllers\Controller;
@@ -121,7 +122,7 @@ class ApplicationController extends Controller
      * applied when the cashier generates the bill — which is also what decides the
      * downpayment waiver.
      */
-    public function accept(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
+    public function accept(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail, NotifyStudent $notify): ApplicationResource
     {
         $validated = $request->validate([
             'discountId' => [
@@ -138,6 +139,7 @@ class ApplicationController extends Controller
             $application,
             'accepted',
             $sendEmail,
+            $notify,
             discountId: isset($validated['discountId']) ? (int) $validated['discountId'] : null,
         );
     }
@@ -146,13 +148,13 @@ class ApplicationController extends Controller
      * Reject an application, with an optional note (reason) shown to the applicant,
      * and notify them.
      */
-    public function reject(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail): ApplicationResource
+    public function reject(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail, NotifyStudent $notify): ApplicationResource
     {
         $note = $request->validate([
             'note' => ['nullable', 'string', 'max:1000'],
         ])['note'] ?? null;
 
-        return $this->decide($application, 'rejected', $sendEmail, note: $note);
+        return $this->decide($application, 'rejected', $sendEmail, $notify, note: $note);
     }
 
     /**
@@ -160,7 +162,7 @@ class ApplicationController extends Controller
      *
      * @param  'accepted'|'rejected'  $status
      */
-    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, ?string $note = null, ?int $discountId = null): ApplicationResource
+    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, NotifyStudent $notify, ?string $note = null, ?int $discountId = null): ApplicationResource
     {
         abort_unless(
             in_array($application->status, self::DECIDABLE_STATUSES, true),
@@ -168,7 +170,7 @@ class ApplicationController extends Controller
             'This application has already been decided and cannot be changed.',
         );
 
-        DB::transaction(function () use ($application, $status, $note, $discountId) {
+        DB::transaction(function () use ($application, $status, $note, $discountId, $notify) {
             $application->update([
                 'status' => $status,
                 'decision_note' => $note,
@@ -179,7 +181,21 @@ class ApplicationController extends Controller
             // with the granted voucher. Their existing token stays valid — the role
             // is read live from the database.
             if ($status === 'accepted') {
-                app(PromoteApplicantToStudent::class)($application, $discountId);
+                $student = app(PromoteApplicantToStudent::class)($application, $discountId);
+
+                // The decision email is the only channel while they're an
+                // applicant; this in-app copy is waiting for them the moment
+                // they can actually see an inbox.
+                if ($student !== null) {
+                    $notify(
+                        $student,
+                        'applications',
+                        'Application accepted',
+                        'Congratulations — your application was accepted! Welcome aboard.',
+                        ctaLabel: 'View application',
+                        ctaUrl: '/portal/application',
+                    );
+                }
             }
         });
 

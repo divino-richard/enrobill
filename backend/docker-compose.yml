@@ -1,7 +1,9 @@
 # Docker Compose stack for the Enrobill Laravel API.
 #
-#   app    - PHP 8.4 running the Laravel API over HTTP on :8000
-#   mysql  - MySQL 8 database
+#   app        - PHP 8.4 running the Laravel API over HTTP on :8000
+#   scheduler  - runs `php artisan schedule:work`, driving routes/console.php
+#                (no system cron in these containers, so this stands in for it)
+#   mysql      - MySQL 8 database
 #
 # The app is served by Laravel's built-in server (`php artisan serve`) — simple
 # and good enough for development. Put a proper web server / reverse proxy in
@@ -28,6 +30,33 @@ services:
       # API served over HTTP — reachable at http://localhost:8000
       - "8000:8000"
     command: php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: enrobill
+      DB_USERNAME: enrobill
+      DB_PASSWORD: secret
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - enrobill
+
+  scheduler:
+    # Runs Laravel's scheduler loop (routes/console.php) in the foreground —
+    # no system cron available in this container, so `schedule:work` stands in
+    # for it during local dev.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enrobill-backend
+    container_name: enrobill-scheduler
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    command: php artisan schedule:work
     environment:
       DB_CONNECTION: mysql
       DB_HOST: mysql

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\GenerateInstallmentSchedule;
+use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class BillAdjustmentController extends Controller
 {
+    public function __construct(private NotifyStudent $notify) {}
+
     /**
      * Apply a catalog discount to a bill, snapshotting its resolved peso credit.
      */
@@ -37,7 +40,7 @@ class BillAdjustmentController extends Controller
             ]);
         }
 
-        $bill->adjustments()->create([
+        $adjustment = $bill->adjustments()->create([
             'discount_id' => $discount->id,
             'label' => $discount->name,
             'type' => $discount->type,
@@ -51,6 +54,17 @@ class BillAdjustmentController extends Controller
         $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
 
+        if ($bill->student !== null) {
+            ($this->notify)(
+                $bill->student,
+                'billing',
+                'Discount applied',
+                'A discount of ₱'.number_format((float) $adjustment->amount, 2)." ({$adjustment->label}) was applied to your bill.",
+                ctaLabel: 'View bill',
+                ctaUrl: '/portal/bills',
+            );
+        }
+
         return $this->billResource($bill);
     }
 
@@ -61,10 +75,24 @@ class BillAdjustmentController extends Controller
     {
         abort_if($adjustment->bill_id !== $bill->id, 404);
 
+        $label = $adjustment->label;
+        $student = $bill->student;
+
         $adjustment->delete();
         $this->syncDownpaymentWaiver($bill);
         $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
+
+        if ($student !== null) {
+            ($this->notify)(
+                $student,
+                'billing',
+                'Discount removed',
+                "The \"{$label}\" discount was removed from your bill.",
+                ctaLabel: 'View bill',
+                ctaUrl: '/portal/bills',
+            );
+        }
 
         return $this->billResource($bill);
     }

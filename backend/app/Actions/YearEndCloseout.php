@@ -20,7 +20,7 @@ use Illuminate\Validation\ValidationException;
  */
 class YearEndCloseout
 {
-    public function __construct(private EnsureEnrollment $ensureEnrollment) {}
+    public function __construct(private EnsureEnrollment $ensureEnrollment, private NotifyStudent $notify) {}
 
     /**
      * Enrolled students in the ending year still awaiting a decision.
@@ -132,6 +132,18 @@ class YearEndCloseout
                     'to_enrollment_id' => $enrollment->id,
                     'materialized_at' => now(),
                 ]);
+
+                if ($decision->student !== null) {
+                    ($this->notify)(
+                        $decision->student,
+                        'progression',
+                        'Enrollment ready for next school year',
+                        "Your enrollment for {$next->school_year} is ready.",
+                        ctaLabel: 'View enrollment',
+                        ctaUrl: '/portal',
+                    );
+                }
+
                 $done++;
             }
 
@@ -253,6 +265,14 @@ class YearEndCloseout
                 ->update(['status' => 'completed']);
             $student->syncStatusFromLatestEnrollment();
 
+            ($this->notify)(
+                $student,
+                'progression',
+                "You've graduated!",
+                'Congratulations — your enrollment is complete and you have graduated.',
+                ctaUrl: '/portal',
+            );
+
             return;
         }
 
@@ -260,7 +280,30 @@ class YearEndCloseout
         // enrolled and is carried into the next year on materialization.
         if ($decision === 'promote') {
             $student->update(['year_level' => $toLevel]);
+
+            ($this->notify)(
+                $student,
+                'progression',
+                'Promoted to '.$this->levelLabel($toLevel),
+                'You\'ve been promoted to '.$this->levelLabel($toLevel).' for the next school year.',
+                ctaUrl: '/portal',
+            );
+
+            return;
         }
+
+        ($this->notify)(
+            $student,
+            'progression',
+            'Retained in '.$this->levelLabel($toLevel),
+            'You\'ll continue in '.$this->levelLabel($toLevel).' for the next school year.',
+            ctaUrl: '/portal',
+        );
+    }
+
+    private function levelLabel(?string $level): string
+    {
+        return $level === null ? '' : str_replace('_', ' ', ucfirst($level));
     }
 
     private function reverseDecision(ProgressionDecision $decision, SchoolYear $year): void
@@ -286,6 +329,14 @@ class YearEndCloseout
 
         $decision->delete();
         $student->syncStatusFromLatestEnrollment();
+
+        ($this->notify)(
+            $student,
+            'progression',
+            'Progression decision reverted',
+            'A previous decision affecting your enrollment for this school year was reverted.',
+            ctaUrl: '/portal',
+        );
     }
 
     private function topLevel(): string

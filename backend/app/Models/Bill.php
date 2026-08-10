@@ -336,10 +336,22 @@ class Bill extends Model
         $enrollment = $this->enrollment;
 
         if ($enrollment !== null) {
+            $justEnrolled = $enrollment->status === 'pending';
             $enrollment->markEnrolled();
             // Auto-place the now-enrolled student into a matching section.
             app(\App\Actions\AssignSectionOnEnroll::class)($enrollment->fresh());
             $this->student?->syncStatusFromLatestEnrollment();
+
+            if ($justEnrolled && $this->student !== null) {
+                app(\App\Actions\NotifyStudent::class)(
+                    $this->student,
+                    'enrollment',
+                    'Enrollment status: Enrolled',
+                    "Your payment cleared the downpayment — you're now enrolled.",
+                    ctaLabel: 'View enrollment',
+                    ctaUrl: '/portal',
+                );
+            }
 
             return;
         }

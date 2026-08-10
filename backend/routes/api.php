@@ -22,6 +22,7 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentChannelController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\ProgramTransferRequestController;
@@ -90,6 +91,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // The current user's own student record (once accepted).
     Route::get('/me/student', [StudentProfileController::class, 'show']);
+
+    // The current student's in-app notification inbox.
+    Route::get('/me/notifications', [NotificationController::class, 'index']);
+    Route::post('/me/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
+    Route::post('/me/notifications/{notification}/read', [NotificationController::class, 'markRead']);
 
     // Per-semester clearance / grade slips the student uploads for year-end
     // evaluation. The view URL is also readable by admins (checked in-controller).

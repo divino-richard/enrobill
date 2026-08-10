@@ -63,7 +63,7 @@ The Vite dev server proxies `/api/*` to `http://localhost:8000` (see `frontend/v
 The backend ships with a Docker Compose stack (`backend/docker-compose.yml`):
 
 | Service | Image                        | Purpose                                            |
-|---------|------------------------------|----------------------------------------------------|
+|---------|------------------------------|-----------------------------------------------------|
 | `app`   | `enrobill-backend` (php:8.4) | Serves the Laravel API over HTTP on **:8000**      |
 | `mysql` | mysql:8.0                    | Database (host port **3307** → 3306)               |
 
@@ -173,3 +173,47 @@ Defined in [`frontend/src/router.ts`](frontend/src/router.ts):
 | `/admin/*`      | Staff portal — applications, students, enrollments, sections, scheduling, billing, fees, discounts, programs, terms, users, payment methods, reports |
 | `/portal/*`     | Student/applicant portal — bills, programs, applications, notifications, account |
 | `*`             | 404 Not Found                                                        |
+
+## Scheduled jobs
+
+Recurring tasks are defined in [`backend/routes/console.php`](backend/routes/console.php)
+using Laravel's `Schedule` facade. Currently there's one: an installment
+due-date reminder (`notifications:installments-due`,
+[`backend/app/Console/Commands/NotifyUpcomingInstallments.php`](backend/app/Console/Commands/NotifyUpcomingInstallments.php)),
+which notifies students whose next installment is due within 3 days. It runs
+daily at **07:00 UTC** — the app's timezone (`backend/config/app.php`) is UTC,
+so adjust `APP_TIMEZONE` (or scope a `.timezone()` call onto the schedule
+entry) if you want it to fire at a specific local time instead.
+
+Defining a schedule entry only says *what* should run and *when* — something
+still has to call `php artisan schedule:run` every minute to actually check
+it. There's no system cron inside these containers, so the Docker stack
+(`backend/docker-compose.yml`) includes a `scheduler` service that runs
+`php artisan schedule:work` instead (a foreground loop built for exactly
+this: no cron needed, checks every minute on its own). Bring it up along with
+everything else via `docker compose up -d --build` (or on its own with
+`docker compose up -d --build scheduler`, which also starts `mysql` since the
+scheduler depends on it — but not `app`, so don't `exec` into `app` unless
+you started that too). Watch it with:
+
+```bash
+docker compose logs -f scheduler
+```
+
+**Testing without waiting for 07:00 UTC** — two options, neither touches the
+schedule definition itself. Run them against `scheduler` — it's guaranteed to
+be up if you're following this section, and it's the identical image/DB as
+`app`, so it doesn't matter which one actually runs the command:
+
+```bash
+# Run the command directly, right now, regardless of the schedule:
+docker compose exec scheduler php artisan notifications:installments-due
+
+# Or run it through the scheduler machinery (picks from a list of scheduled
+# tasks and runs the one you choose immediately):
+docker compose exec scheduler php artisan schedule:test
+```
+
+The command is safe to re-run — each notification carries a dedupe key
+(`installment-due:{id}`), so running it repeatedly while testing won't create
+duplicate notifications for the same installment.

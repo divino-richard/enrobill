@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SectionResource;
 use App\Models\Enrollment;
@@ -125,7 +126,7 @@ class SectionController extends Controller
     /**
      * Place (or move/unassign) an enrollment in a section.
      */
-    public function assign(Request $request, Enrollment $enrollment): JsonResponse
+    public function assign(Request $request, Enrollment $enrollment, NotifyStudent $notify): JsonResponse
     {
         $validated = $request->validate([
             'sectionId' => ['present', 'nullable', 'integer', 'exists:sections,id'],
@@ -157,6 +158,17 @@ class SectionController extends Controller
         }
 
         $enrollment->update(['section_id' => $section->id]);
+
+        if ($enrollment->student !== null) {
+            $notify(
+                $enrollment->student,
+                'enrollment',
+                'Section assigned',
+                "You've been placed in Section {$section->name}.",
+                ctaLabel: 'View enrollment',
+                ctaUrl: '/portal',
+            );
+        }
 
         return response()->json(['data' => ['sectionId' => $section->id]]);
     }

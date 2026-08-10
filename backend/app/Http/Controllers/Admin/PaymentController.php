@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
@@ -13,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 class PaymentController extends Controller
 {
     public const METHODS = ['cash', 'gcash', 'maya', 'bank'];
+
+    public function __construct(private NotifyStudent $notify) {}
 
     /**
      * Record a verified payment against a bill and recompute its balance and
@@ -50,6 +53,17 @@ class PaymentController extends Controller
         $bill->recalculate();
         $bill->settleEnrollment();
 
+        if ($bill->student !== null) {
+            ($this->notify)(
+                $bill->student,
+                'billing',
+                'Payment received',
+                'A payment of ₱'.number_format((float) $validated['amount'], 2).' was recorded on your bill.',
+                ctaLabel: 'View bill',
+                ctaUrl: '/portal/bills',
+            );
+        }
+
         return $this->billResource($bill);
     }
 
@@ -73,6 +87,17 @@ class PaymentController extends Controller
         $bill->recalculate();
         $bill->settleEnrollment();
 
+        if ($bill->student !== null) {
+            ($this->notify)(
+                $bill->student,
+                'billing',
+                'Payment verified',
+                'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' has been verified.',
+                ctaLabel: 'View bill',
+                ctaUrl: '/portal/bills',
+            );
+        }
+
         return $this->billResource($bill);
     }
 
@@ -86,6 +111,18 @@ class PaymentController extends Controller
         $payment->update(['status' => 'rejected']);
         $bill->recalculate();
 
+        if ($bill->student !== null) {
+            ($this->notify)(
+                $bill->student,
+                'billing',
+                'Payment rejected',
+                'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' was rejected. Please resubmit.',
+                ctaLabel: 'View bill',
+                ctaUrl: '/portal/bills',
+                actionRequired: true,
+            );
+        }
+
         return $this->billResource($bill);
     }
 
@@ -96,8 +133,22 @@ class PaymentController extends Controller
     {
         abort_if($payment->bill_id !== $bill->id, 404);
 
+        $amount = (float) $payment->amount;
+        $student = $bill->student;
+
         $payment->delete();
         $bill->recalculate();
+
+        if ($student !== null) {
+            ($this->notify)(
+                $student,
+                'billing',
+                'Payment reversed',
+                'A payment of ₱'.number_format($amount, 2).' on your bill was voided.',
+                ctaLabel: 'View bill',
+                ctaUrl: '/portal/bills',
+            );
+        }
 
         return $this->billResource($bill);
     }

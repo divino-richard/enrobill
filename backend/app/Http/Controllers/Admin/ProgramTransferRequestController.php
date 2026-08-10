@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\ExecuteProgramTransfer;
+use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProgramTransferRequestResource;
+use App\Models\Program;
 use App\Models\ProgramTransferRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -12,7 +14,7 @@ use Illuminate\Validation\Rule;
 
 class ProgramTransferRequestController extends Controller
 {
-    public function __construct(private ExecuteProgramTransfer $executeTransfer) {}
+    public function __construct(private ExecuteProgramTransfer $executeTransfer, private NotifyStudent $notify) {}
 
     /**
      * Every transfer request, newest first.
@@ -53,6 +55,25 @@ class ProgramTransferRequestController extends Controller
 
         if ($validated['status'] === 'approved') {
             ($this->executeTransfer)($transferRequest);
+        }
+
+        if ($transferRequest->student !== null) {
+            $approved = $validated['status'] === 'approved';
+            $programName = Program::where('code', $transferRequest->to_program_code)->value('name')
+                ?? $transferRequest->to_program_code;
+
+            ($this->notify)(
+                $transferRequest->student,
+                'transfer',
+                $approved ? 'Transfer approved' : 'Transfer rejected',
+                $approved
+                    ? "Your transfer to {$programName} was approved and is now in effect."
+                    : 'Your transfer request was not approved.'.(
+                        $validated['note'] ?? null ? " Reason: {$validated['note']}" : ''
+                    ),
+                ctaLabel: 'View transfer status',
+                ctaUrl: '/portal/programs',
+            );
         }
 
         return new ProgramTransferRequestResource(

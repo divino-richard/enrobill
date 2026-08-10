@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\AssignSectionOnEnroll;
+use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
 use App\Models\Enrollment;
@@ -108,7 +109,7 @@ class EnrollmentController extends Controller
      * Update an enrollment's status (enroll / drop / withdraw / complete) and
      * mirror the change onto the student's global status.
      */
-    public function update(Request $request, Enrollment $enrollment): EnrollmentResource
+    public function update(Request $request, Enrollment $enrollment, NotifyStudent $notify): EnrollmentResource
     {
         $validated = $request->validate([
             'status' => ['required', Rule::in(self::STATUSES)],
@@ -129,6 +130,19 @@ class EnrollmentController extends Controller
 
         $enrollment->student?->syncStatusFromLatestEnrollment();
 
-        return new EnrollmentResource($enrollment->fresh()->load('schoolYear'));
+        $fresh = $enrollment->fresh()->load(['schoolYear', 'student']);
+
+        if ($fresh->student !== null) {
+            $notify(
+                $fresh->student,
+                'enrollment',
+                'Enrollment status: '.ucfirst($validated['status']),
+                'Your enrollment for '.($fresh->schoolYear->school_year ?? 'the school year')." was marked \"{$validated['status']}\".",
+                ctaLabel: 'View enrollment',
+                ctaUrl: '/portal',
+            );
+        }
+
+        return new EnrollmentResource($fresh);
     }
 }

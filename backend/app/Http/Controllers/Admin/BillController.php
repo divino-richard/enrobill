@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\FreebieEligibility;
 use App\Actions\GenerateBillForEnrollment;
+use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Http\Resources\FreebieResource;
@@ -101,13 +102,23 @@ class BillController extends Controller
      * from the enrollment (granted by the admin on acceptance) and the freebies from
      * the student's eligibility, so there is nothing for the cashier to choose.
      */
-    public function generate(Enrollment $enrollment, GenerateBillForEnrollment $generate): BillResource
+    public function generate(Enrollment $enrollment, GenerateBillForEnrollment $generate, NotifyStudent $notify): BillResource
     {
         $bill = $generate($enrollment);
+        $bill->load(['student', 'schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']);
 
-        return new BillResource(
-            $bill->load(['student', 'schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
-        );
+        if ($bill->student !== null) {
+            $notify(
+                $bill->student,
+                'billing',
+                'Bill generated',
+                'Your bill for '.($bill->schoolYear->school_year ?? 'the current school year').' is ready — view your balance and due dates.',
+                ctaLabel: 'View bill',
+                ctaUrl: '/portal/bills',
+            );
+        }
+
+        return new BillResource($bill);
     }
 
     /**
