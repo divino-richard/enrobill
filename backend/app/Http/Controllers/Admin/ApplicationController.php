@@ -8,6 +8,7 @@ use App\Actions\SendApplicationDecisionEmail;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
+use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +59,7 @@ class ApplicationController extends Controller
                 fn ($query) => $query->where('school_year', $request->string('school_year')->value()),
             )
             ->when(
-                in_array($request->string('year_level')->value(), \App\Models\SchoolYear::YEAR_LEVELS, true),
+                in_array($request->string('year_level')->value(), SchoolYear::YEAR_LEVELS, true),
                 fn ($query) => $query->where('year_level', $request->string('year_level')->value()),
             )
             ->when(
@@ -124,15 +125,21 @@ class ApplicationController extends Controller
      */
     public function accept(Request $request, Application $application, SendApplicationDecisionEmail $sendEmail, NotifyStudent $notify): ApplicationResource
     {
+        $voucherLocked = strcasecmp(trim((string) $application->prev_school_type), 'private') === 0;
+
         $validated = $request->validate([
             'discountId' => [
+                'bail',
                 'nullable',
                 'integer',
+                Rule::prohibitedIf($voucherLocked),
                 // Only an active voucher may be granted — not an arbitrary discount id.
                 Rule::exists('discounts', 'id')->where(
                     fn ($query) => $query->where('category', 'voucher')->where('is_active', true),
                 ),
             ],
+        ], [
+            'discountId.prohibited' => 'A voucher cannot be granted to an applicant from a private school.',
         ]);
 
         return $this->decide(

@@ -6,6 +6,7 @@ import {
   CheckIcon,
   GraduationCapIcon,
   InfoIcon,
+  LockIcon,
   MailIcon,
   TicketPercentIcon,
   XIcon,
@@ -143,6 +144,8 @@ function AdminApplicationDetailPage() {
   const vouchers = (discounts ?? []).filter(
     (discount) => discount.isActive && discount.category === "voucher",
   );
+  const isVoucherLocked =
+    application?.values.prevSchoolType.trim().toLowerCase() === "private";
 
   function openDecision(decision: "accept" | "reject") {
     setNote("");
@@ -156,7 +159,8 @@ function AdminApplicationDetailPage() {
       await decide.mutateAsync({
         decision: pendingDecision,
         note: note.trim() || null,
-        discountId: pendingDecision === "accept" ? voucherId : null,
+        discountId:
+          pendingDecision === "accept" && !isVoucherLocked ? voucherId : null,
       });
     } catch {
       // Surfaced below via decide.isError.
@@ -352,7 +356,7 @@ function AdminApplicationDetailPage() {
                       <p className="text-sm font-medium">Voucher</p>
                     </div>
                     {/* A radio can't be unpicked, so clearing needs its own control. */}
-                    {voucherId !== null && (
+                    {!isVoucherLocked && voucherId !== null && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -366,7 +370,15 @@ function AdminApplicationDetailPage() {
                     )}
                   </div>
 
-                  {vouchersLoading ? (
+                  {isVoucherLocked ? (
+                    <div className="bg-muted/50 text-muted-foreground flex items-start gap-2 rounded-lg border p-3 text-xs">
+                      <LockIcon className="mt-0.5 size-4 shrink-0" />
+                      <span>
+                        Voucher setup is locked because the applicant came from
+                        a private school.
+                      </span>
+                    </div>
+                  ) : vouchersLoading ? (
                     <Skeleton className="h-14 w-full rounded-lg" />
                   ) : vouchers.length === 0 ? (
                     <div className="text-muted-foreground flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs">
@@ -389,11 +401,13 @@ function AdminApplicationDetailPage() {
                     </div>
                   )}
 
-                  <p className="text-muted-foreground text-xs">
-                    {voucherId === null
-                      ? "Optional — leave none selected and the student pays in full."
-                      : "Applied automatically when the cashier generates this student's bill, and it waives their downpayment."}
-                  </p>
+                  {!isVoucherLocked && (
+                    <p className="text-muted-foreground text-xs">
+                      {voucherId === null
+                        ? "Optional — leave none selected and the student pays in full."
+                        : "Applied automatically when the cashier generates this student's bill, and it waives their downpayment."}
+                    </p>
+                  )}
                 </div>
               )}
 
