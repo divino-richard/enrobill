@@ -11,6 +11,7 @@ import {
   PowerIcon,
   PowerOffIcon,
   Trash2Icon,
+  UserPlusIcon,
   WalletIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -434,6 +435,149 @@ function FreebieFields({
   );
 }
 
+// --- Grade 12 referral tuition incentive ---------------------------------
+
+function ReferralFreebieDialog({
+  term,
+  onOpenChange,
+}: {
+  term: Term | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={term !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Referral tuition incentive</DialogTitle>
+          <DialogDescription>
+            {term
+              ? `Offer a tuition benefit to both students in ${termLabel(term)}, with a separate voucher check for each.`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {term && (
+          <ReferralFreebieForm
+            key={term.id}
+            term={term}
+            onDone={() => onOpenChange(false)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReferralFreebieForm({
+  term,
+  onDone,
+}: {
+  term: Term;
+  onDone: () => void;
+}) {
+  const { data: freebies, isLoading, isError, isFetching, refetch } = useSchoolYearFreebies(term.id);
+  const existing = (freebies ?? []).find((item) => item.type === "referral");
+  const save = useUpsertFreebie(term.id);
+
+  if (isError) {
+    return <div role="alert" className="space-y-3 py-4 text-sm">
+      <p>We couldn't load the campaign settings. Retry before making changes.</p>
+      <Button variant="outline" disabled={isFetching} onClick={() => refetch()}>{isFetching ? "Retrying…" : "Try again"}</Button>
+    </div>;
+  }
+
+  if (isLoading) {
+    return <p className="text-muted-foreground py-6 text-sm">Loading…</p>;
+  }
+
+  return (
+    <ReferralFreebieFields
+      key={existing?.id ?? "new"}
+      existing={existing ?? null}
+      save={save}
+      onDone={onDone}
+    />
+  );
+}
+
+function ReferralFreebieFields({
+  existing,
+  save,
+  onDone,
+}: {
+  existing: Freebie | null;
+  save: ReturnType<typeof useUpsertFreebie>;
+  onDone: () => void;
+}) {
+  const [enabled, setEnabled] = useState(existing?.isActive ?? false);
+
+  async function handleSave() {
+    try {
+      await save.mutateAsync({
+        type: "referral",
+        name: existing?.name ?? "Referral Tuition Incentive",
+        isActive: enabled,
+      });
+      onDone();
+    } catch {
+      // Surfaced via save.isError.
+    }
+  }
+
+  return (
+    <>
+      <div className="space-y-4">
+        <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+          <Checkbox
+            checked={enabled}
+            onCheckedChange={(checked) => setEnabled(checked === true)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-medium">
+              Enable referral tuition incentive
+            </span>
+            <span className="text-muted-foreground block text-xs">
+              Allow eligible students to create codes and applicants to claim
+              referrals during normal admissions. No separate date window.
+            </span>
+          </span>
+        </label>
+
+        <div className="space-y-4 text-sm">
+          <h3 className="font-medium">Two students. Two eligibility checks.</h3>
+          <dl className="divide-y">
+            <div className="pb-3">
+              <dt className="font-medium">Grade 11 applicant</dt>
+              <dd className="text-muted-foreground mt-1 text-xs leading-relaxed">A new or transferee student qualifies when their application with a valid referral code is accepted.</dd>
+            </div>
+            <div className="pt-3">
+              <dt className="font-medium">Grade 12 referrer</dt>
+              <dd className="text-muted-foreground mt-1 text-xs leading-relaxed">Qualifies after one referred Grade 11 student is officially enrolled. Awarded once per school year; extra referrals do not add credit.</dd>
+            </div>
+          </dl>
+          <p className="text-muted-foreground border-l-2 border-primary/40 pl-3 text-xs leading-relaxed">Each student needs their own active voucher. The remaining unpaid bill, including miscellaneous fees, is then waived. A missing voucher on one side does not block the other.</p>
+          <p className="text-muted-foreground text-xs">Disabling the campaign does not revoke successful referrals or applied benefits.</p>
+        </div>
+      </div>
+
+      {save.isError && (
+        <p className="text-destructive text-sm">
+          {getErrorMessage(save.error)}
+        </p>
+      )}
+
+      <DialogFooter>
+        <Button variant="outline" onClick={onDone} disabled={save.isPending}>
+          Cancel
+        </Button>
+        <Button onClick={handleSave} disabled={save.isPending}>
+          {save.isPending ? "Saving…" : "Save incentive"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
 // School-year dates can be current/future, so widen the calendar.
 const TERM_DATE_START = new Date(new Date().getFullYear() - 2, 0);
 const TERM_DATE_END = new Date(new Date().getFullYear() + 6, 11);
@@ -625,6 +769,8 @@ function TermsPage() {
   const [newTermOpen, setNewTermOpen] = useState(false);
   const [policyTerm, setPolicyTerm] = useState<Term | null>(null);
   const [freebieTerm, setFreebieTerm] = useState<Term | null>(null);
+  const [referralFreebieTerm, setReferralFreebieTerm] =
+    useState<Term | null>(null);
   const [deleting, setDeleting] = useState<Term | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [statusAction, setStatusAction] = useState<StatusAction | null>(null);
@@ -874,6 +1020,12 @@ function TermsPage() {
                         Early-enrollment freebie
                       </DropdownMenuItem>
                       <DropdownMenuItem
+                        onClick={() => setReferralFreebieTerm(term)}
+                      >
+                        <UserPlusIcon />
+                        Referral tuition incentive
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         variant="destructive"
                         onClick={() => {
                           setDeleteError(null);
@@ -898,6 +1050,13 @@ function TermsPage() {
         term={freebieTerm}
         onOpenChange={(open) => {
           if (!open) setFreebieTerm(null);
+        }}
+      />
+
+      <ReferralFreebieDialog
+        term={referralFreebieTerm}
+        onOpenChange={(open) => {
+          if (!open) setReferralFreebieTerm(null);
         }}
       />
 

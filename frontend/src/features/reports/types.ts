@@ -18,6 +18,7 @@ export interface ReportSummary {
   billsGenerated: number;
   activeStudents: number;
   voucherCredits: number;
+  incentiveCredits?: number;
 }
 
 export interface BillStatusSnapshot {
@@ -87,6 +88,9 @@ export interface CreditActivityRow {
   studentName: string;
   studentNumber: string;
   voucherName: string;
+  creditName?: string;
+  creditType?: string;
+  reasons?: string[];
   amountApplied: number;
   billStatus: BillStatus;
   postedAt: string;

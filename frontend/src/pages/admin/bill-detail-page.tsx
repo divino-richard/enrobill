@@ -420,7 +420,7 @@ function BillDetailPage() {
               <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
               {bill.discountTotal > 0 && (
                 <SummaryRow
-                  label="Discounts"
+                  label="Credits"
                   value={`− ${formatPeso(bill.discountTotal)}`}
                   muted
                 />
@@ -439,18 +439,19 @@ function BillDetailPage() {
         </Card>
 
         <div className="space-y-6 lg:col-span-2">
-          {/* Discounts */}
+          {/* Credits */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Applied vouchers</CardTitle>
+              <CardTitle className="text-base">Applied credits</CardTitle>
               <CardDescription>
-                Read-only credits captured when this bill was generated.
+                Vouchers and tuition incentives captured when this bill was
+                generated.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {adjustments.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
-                  No vouchers or promos were applied.
+                  No vouchers or tuition incentives were applied.
                 </p>
               ) : (
                 <ul className="divide-y">
@@ -458,7 +459,7 @@ function BillDetailPage() {
                     <li
                       key={adjustment.id}
                       className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
-                      >
+                    >
                       <div>
                         <p className="text-sm font-medium">{adjustment.label}</p>
                         <p className="text-muted-foreground text-xs">
@@ -468,6 +469,11 @@ function BillDetailPage() {
                               ? "Full coverage"
                               : "Fixed"}
                         </p>
+                        {(adjustment.reasons?.length ?? 0) > 0 && (
+                          <p className="text-primary mt-1 text-xs">
+                            Reason: {adjustment.reasons?.join(" + ")}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">Applied</Badge>

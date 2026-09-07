@@ -16,6 +16,7 @@ import {
   QrCodeIcon,
   ReceiptTextIcon,
   TagIcon,
+  UserRoundPlusIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -97,6 +98,13 @@ const navGroups: NavGroup[] = [
         url: "/admin/students",
         icon: GraduationCapIcon,
         ready: true,
+      },
+      {
+        title: "Referrals",
+        url: "/admin/referrals",
+        icon: UserRoundPlusIcon,
+        ready: true,
+        roles: ["admin"],
       },
       {
         title: "Progression",

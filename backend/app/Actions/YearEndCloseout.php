@@ -20,7 +20,12 @@ use Illuminate\Validation\ValidationException;
  */
 class YearEndCloseout
 {
-    public function __construct(private EnsureEnrollment $ensureEnrollment, private NotifyStudent $notify) {}
+    public function __construct(
+        private EnsureEnrollment $ensureEnrollment,
+        private NotifyStudent $notify,
+        private ReferralLifecycle $referrals,
+        private ReconcileEnrollmentIncentives $reconcileIncentives,
+    ) {}
 
     /**
      * Enrolled students in the ending year still awaiting a decision.
@@ -132,6 +137,13 @@ class YearEndCloseout
                     'to_enrollment_id' => $enrollment->id,
                     'materialized_at' => now(),
                 ]);
+
+                // A successful referral can predate the referrer's Grade 12
+                // enrollment. Attach that waiting award as soon as progression
+                // materializes the enrollment, then apply it if a bill already
+                // exists (the call is harmless when billing comes later).
+                $this->referrals->attachReferrerEnrollment($enrollment);
+                ($this->reconcileIncentives)($enrollment);
 
                 if ($decision->student !== null) {
                     ($this->notify)(

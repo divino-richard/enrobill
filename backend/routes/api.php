@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\BillController as AdminBillController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
+use App\Http\Controllers\Admin\EnrollmentIncentiveController as AdminEnrollmentIncentiveController;
 use App\Http\Controllers\Admin\FeeController as AdminFeeController;
 use App\Http\Controllers\Admin\FreebieController as AdminFreebieController;
 use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
 use App\Http\Controllers\Admin\ProgramTransferRequestController as AdminProgramTransferRequestController;
 use App\Http\Controllers\Admin\ProgressionController as AdminProgressionController;
+use App\Http\Controllers\Admin\ReferralController as AdminReferralController;
 use App\Http\Controllers\Admin\ReportsController as AdminReportsController;
 use App\Http\Controllers\Admin\SchoolYearController as AdminSchoolYearController;
 use App\Http\Controllers\Admin\SectionController as AdminSectionController;
@@ -26,6 +28,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentChannelController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\ProgramTransferRequestController;
+use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentDocumentController;
@@ -92,6 +95,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // The current user's own student record (once accepted).
     Route::get('/me/student', [StudentProfileController::class, 'show']);
 
+    // A Grade 11 student's referral code and privacy-safe referral progress for
+    // the upcoming school year.
+    Route::middleware('role:student')->group(function () {
+        Route::post('/me/referral-codes', [ReferralController::class, 'store']);
+        Route::get('/me/referrals', [ReferralController::class, 'index']);
+    });
+
     // The current student's in-app notification inbox.
     Route::get('/me/notifications', [NotificationController::class, 'index']);
     Route::post('/me/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
@@ -132,6 +142,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // uploads verification documents directly to the bucket.
     Route::post('/applications/documents/presign', [ApplicationDocumentController::class, 'presign']);
 
+    // Validate before saving an application. Keep this literal route ahead of the
+    // {application} routes so "referral-code" is never treated as a model id.
+    Route::post('/applications/referral-code/validate', [ApplicationController::class, 'validateReferralCode'])
+        ->middleware('role:applicant');
+
     // Discard a file uploaded but not yet attached to an application (the wizard
     // uploads on pick, so removing one before submitting must clean up S3).
     // Declared before the {application} routes so the literal segment wins.
@@ -163,6 +178,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/applications/{application}/review', [AdminApplicationController::class, 'review']);
         Route::post('/admin/applications/{application}/accept', [AdminApplicationController::class, 'accept']);
         Route::post('/admin/applications/{application}/reject', [AdminApplicationController::class, 'reject']);
+        Route::put('/admin/applications/{application}/referral', [AdminApplicationController::class, 'updateReferral']);
+
+        // Referral attribution and award audit across target school years.
+        Route::get('/admin/referrals', [AdminReferralController::class, 'index']);
 
         Route::put('/admin/students/{student}', [AdminStudentController::class, 'update']);
 
@@ -240,6 +259,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // pending one (applying voucher + eligible freebies).
         Route::get('/admin/enrollments', [AdminEnrollmentController::class, 'all']);
         Route::get('/admin/enrollments/{enrollment}/freebies', [AdminBillController::class, 'eligibleFreebies']);
+        Route::get('/admin/enrollments/{enrollment}/incentives', [AdminEnrollmentIncentiveController::class, 'show']);
 
         // Billing — bills across school years.
         Route::get('/admin/bills', [AdminBillController::class, 'index']);

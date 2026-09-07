@@ -100,6 +100,16 @@ class Bill extends Model
             ->exists();
     }
 
+    /** Whether a currently active voucher is available to unlock a new award. */
+    public function hasActiveVoucher(): bool
+    {
+        return $this->adjustments()
+            ->whereHas('discount', fn ($query) => $query
+                ->where('category', 'voucher')
+                ->where('is_active', true))
+            ->exists();
+    }
+
     /**
      * Total credits (discounts/scholarships/vouchers) applied to this bill.
      */

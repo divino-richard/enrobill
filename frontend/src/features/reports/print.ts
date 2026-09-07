@@ -66,6 +66,7 @@ export function buildReportHtml(
     ["Bills generated", String(summary.billsGenerated)],
     ["Active students", String(summary.activeStudents)],
     ["Voucher credits", formatPeso(summary.voucherCredits)],
+    ["Tuition incentive credits", formatPeso(summary.incentiveCredits ?? 0)],
   ]
     .map(
       ([label, value]) => `
@@ -182,7 +183,7 @@ export function buildReportHtml(
           (row) => `
         <tr>
           <td>${escapeHtml(row.studentName)}<br /><span class="muted">${escapeHtml(row.studentNumber)}</span></td>
-          <td>${escapeHtml(row.voucherName)}</td>
+          <td>${escapeHtml(row.creditName ?? row.voucherName)}${row.reasons?.length ? `<br /><span class="muted">${escapeHtml(row.reasons.join(" + "))}</span>` : ""}</td>
           <td>${escapeHtml(BILL_STATUS_META[row.billStatus].label)}</td>
           <td class="amount">${formatPeso(row.amountApplied)}</td>
           <td>${formatShortDate(row.postedAt)}</td>
@@ -360,7 +361,7 @@ export function buildReportHtml(
     <section>
       <table>
         <caption>Recent credit activity</caption>
-        <thead><tr><th>Student</th><th>Voucher</th><th>Status</th><th class="amount">Amount applied</th><th>Posted</th></tr></thead>
+        <thead><tr><th>Student</th><th>Credit</th><th>Status</th><th class="amount">Amount applied</th><th>Posted</th></tr></thead>
         <tbody>${creditActivityRows}</tbody>
       </table>
     </section>

@@ -4,8 +4,10 @@ namespace App\Http\Resources;
 
 use App\Models\Application;
 use App\Models\Program;
+use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 /**
  * @mixin Application
@@ -60,7 +62,59 @@ class ApplicationResource extends JsonResource
                 'name' => $this->user->name,
                 'email' => $this->user->email,
             ]),
+            'referral' => $this->referralSummary(),
             'values' => $this->formValues(),
+        ];
+    }
+
+    /**
+     * Display another student without exposing their full surname, student number,
+     * email address, or other account details.
+     */
+    public static function studentDisplay(?Student $student): ?string
+    {
+        if ($student === null) {
+            return null;
+        }
+
+        return self::nameDisplay($student->first_name, $student->last_name);
+    }
+
+    public static function nameDisplay(?string $firstName, ?string $lastName): ?string
+    {
+        $firstName = trim((string) $firstName);
+        if ($firstName === '') {
+            return null;
+        }
+
+        $initial = Str::upper(Str::substr(trim((string) $lastName), 0, 1));
+
+        return trim($firstName.($initial !== '' ? " {$initial}." : ''));
+    }
+
+    /**
+     * Referral details safe for both the applicant portal and application review.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function referralSummary(): ?array
+    {
+        if (! $this->relationLoaded('referral') || $this->referral === null) {
+            return null;
+        }
+
+        $referralCode = $this->referral->relationLoaded('referralCode')
+            ? $this->referral->referralCode
+            : null;
+        $referrer = $referralCode?->relationLoaded('referrer')
+            ? $referralCode->referrer
+            : null;
+
+        return [
+            'id' => $this->referral->id,
+            'code' => $referralCode?->code,
+            'referrerDisplay' => self::studentDisplay($referrer),
+            'status' => $this->referral->status,
         ];
     }
 
@@ -107,6 +161,7 @@ class ApplicationResource extends JsonResource
             'prevSchoolType' => $this->prev_school_type ?? '',
             // Drives whether verification documents were asked for at all.
             'studentType' => $this->student_type ?? 'new',
+            'referralCode' => $this->referralCodeValue(),
             'documents' => $this->relationLoaded('documents')
                 ? $this->documents->map(fn ($document) => [
                     'id' => $document->id,
@@ -127,5 +182,14 @@ class ApplicationResource extends JsonResource
             'dateSigned' => $this->date_signed?->toIso8601String() ?? '',
             'agreementAccepted' => (bool) $this->agreement_accepted,
         ];
+    }
+
+    private function referralCodeValue(): string
+    {
+        if (! $this->relationLoaded('referral') || $this->referral === null) {
+            return '';
+        }
+
+        return (string) ($this->referral->referralCode?->code ?? '');
     }
 }

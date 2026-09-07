@@ -44,7 +44,8 @@ class BillResource extends JsonResource
             // What the student actually owes after credits.
             'netTotal' => $netTotal,
             'amountPaid' => $paid,
-            'balance' => round($netTotal - $paid, 2),
+            // Late discounts/incentives never turn prior payments into a refund.
+            'balance' => round(max($netTotal - $paid, 0), 2),
             // What a student should pay now (next installment, else balance).
             'amountDue' => $this->amountDue(),
             'items' => $this->items->map(fn ($item) => [
@@ -56,10 +57,22 @@ class BillResource extends JsonResource
             'adjustments' => $this->whenLoaded('adjustments', fn () => $this->adjustments->map(fn ($adjustment) => [
                 'id' => $adjustment->id,
                 'discountId' => $adjustment->discount_id,
+                'incentiveKey' => $adjustment->incentive_key,
                 'label' => $adjustment->label,
                 'type' => $adjustment->type,
                 'value' => (float) $adjustment->value,
                 'amount' => (float) $adjustment->amount,
+                // One monetary row may carry both early-enrollment and referral
+                // qualification reasons. The amount is still counted only once.
+                'reasons' => $adjustment->incentiveAwards
+                    ->map(fn ($award) => match ($award->type) {
+                        'early_enrollment' => 'Early enrollment',
+                        'referral' => 'Referral',
+                        default => (string) str($award->type)->replace('_', ' ')->title(),
+                    })
+                    ->unique()
+                    ->values(),
+                'locked' => $adjustment->incentive_key !== null,
             ])->values()),
             'installments' => $this->whenLoaded('installments', fn () => $this->installmentSchedule($paid)),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments

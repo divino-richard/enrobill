@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\GenerateInstallmentSchedule;
 use App\Actions\NotifyStudent;
+use App\Actions\ReconcileEnrollmentIncentives;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
 use App\Models\BillAdjustment;
 use App\Models\Discount;
+use App\Models\IncentiveAward;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -20,7 +22,12 @@ class BillAdjustmentController extends Controller
     /**
      * Apply a catalog discount to a bill, snapshotting its resolved peso credit.
      */
-    public function store(Request $request, Bill $bill, GenerateInstallmentSchedule $generate): BillResource
+    public function store(
+        Request $request,
+        Bill $bill,
+        GenerateInstallmentSchedule $generate,
+        ReconcileEnrollmentIncentives $reconcile,
+    ): BillResource
     {
         $validated = $request->validate([
             'discountId' => [
@@ -53,6 +60,11 @@ class BillAdjustmentController extends Controller
         $this->syncDownpaymentWaiver($bill);
         $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
+        $bill->loadMissing('enrollment');
+        if ($bill->enrollment !== null) {
+            $reconcile($bill->enrollment);
+        }
+        $bill->fresh()->load(['enrollment', 'adjustments'])->settleEnrollment();
 
         if ($bill->student !== null) {
             ($this->notify)(
@@ -71,9 +83,38 @@ class BillAdjustmentController extends Controller
     /**
      * Remove an applied discount from a bill.
      */
-    public function destroy(Bill $bill, BillAdjustment $adjustment, GenerateInstallmentSchedule $generate): BillResource
+    public function destroy(
+        Bill $bill,
+        BillAdjustment $adjustment,
+        GenerateInstallmentSchedule $generate,
+        ReconcileEnrollmentIncentives $reconcile,
+    ): BillResource
     {
         abort_if($adjustment->bill_id !== $bill->id, 404);
+
+        if ($adjustment->incentive_key !== null) {
+            throw ValidationException::withMessages([
+                'adjustment' => 'An applied tuition incentive is permanent and cannot be removed.',
+            ]);
+        }
+
+        $adjustment->loadMissing('discount');
+        $bill->loadMissing('enrollment');
+        $isVoucher = $adjustment->discount?->category === 'voucher';
+        $hasPermanentAward = $bill->enrollment !== null
+            && IncentiveAward::query()
+                ->where('enrollment_id', $bill->enrollment->id)
+                ->whereIn('status', [
+                    IncentiveAward::STATUS_APPLIED,
+                    IncentiveAward::STATUS_APPLIED_NO_BALANCE,
+                ])
+                ->exists();
+
+        if ($isVoucher && $hasPermanentAward) {
+            throw ValidationException::withMessages([
+                'adjustment' => 'This voucher unlocked a permanent tuition incentive and cannot be removed.',
+            ]);
+        }
 
         $label = $adjustment->label;
         $student = $bill->student;
@@ -82,6 +123,10 @@ class BillAdjustmentController extends Controller
         $this->syncDownpaymentWaiver($bill);
         $this->syncInstallmentPlan($bill->fresh(), $generate);
         $bill->recalculate();
+        if ($bill->enrollment !== null) {
+            $reconcile($bill->enrollment);
+        }
+        $bill->fresh()->load(['enrollment', 'adjustments'])->settleEnrollment();
 
         if ($student !== null) {
             ($this->notify)(
@@ -128,7 +173,15 @@ class BillAdjustmentController extends Controller
     private function billResource(Bill $bill): BillResource
     {
         return new BillResource(
-            $bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
+            $bill->fresh()->load([
+                'schoolYear',
+                'enrollment',
+                'items',
+                'adjustments.incentiveAwards.freebie',
+                'installments',
+                'payments.recorder',
+                'payments.submitter',
+            ]),
         );
     }
 }

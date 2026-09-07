@@ -35,6 +35,8 @@ they land in (staff workspace vs. the student/applicant portal).
 5. **Payment & Receipts** — collect money, update balances.
 6. **Student / Applicant Portal** — self-service view across the above.
 7. **Reporting & Notifications** — oversight and reminders.
+8. **Referral Tuition Incentives** — target-year referral codes, two-sided
+   eligibility, and voucher-gated bill credits.
 
 ---
 
@@ -122,6 +124,22 @@ Prerequisite configuration that everything else depends on:
 2. It generates an **assessment / invoice** with a full line-item breakdown,
    total, and one or more **due dates**.
 3. The bill appears in the **student's portal**.
+
+#### Referral tuition incentive
+
+1. A student enrolled in Grade 11 receives a code for the following school
+   year while that year's referral campaign is enabled.
+2. A new-to-Northlink Grade 11 applicant may enter the code. Acceptance makes
+   the incoming student's referral award eligible.
+3. Once that Grade 11 enrollment becomes officially enrolled, the referral is
+   successful and the referrer's Grade 12 award becomes eligible. If their
+   Grade 12 enrollment does not exist, only the referrer award waits; the
+   incoming student keeps their award.
+4. Each award checks its beneficiary's voucher independently. Billing applies
+   the voucher first and one tuition-incentive credit second. If early
+   enrollment and referral both qualify, both reasons point to the same credit.
+5. A late award waives only the unpaid balance. Verified payments are retained
+   and are not converted into a refund or future credit.
 
 ### Phase 4 — Payment & Receipts
 1. The student sees the **outstanding balance** and due schedule.

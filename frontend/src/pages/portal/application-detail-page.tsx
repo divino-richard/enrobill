@@ -189,6 +189,7 @@ function ApplicationDetailPage() {
             <CardContent>
               <ApplicationSummary
                 values={application.values}
+                referral={application.referral}
                 enrollmentDate={
                   application.submittedAt
                     ? new Date(application.submittedAt)

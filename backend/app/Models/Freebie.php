@@ -5,19 +5,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'school_year_id', 'type', 'name', 'is_active', 'starts_on', 'ends_on', 'min_referrals',
 ])]
 class Freebie extends Model
 {
-    /** The promo types. early_enrollment is live; referral is scaffolded for later. */
+    /** The school-year promo types. */
     public const TYPES = ['early_enrollment', 'referral'];
 
-    /** The year level each promo type applies to. */
+    /** Promo types whose eligibility has exactly one grade-level target. */
     public const GRADE_FOR_TYPE = [
         'early_enrollment' => 'grade_11',
-        'referral' => 'grade_12',
     ];
 
     /**
@@ -39,5 +39,10 @@ class Freebie extends Model
     public function schoolYear(): BelongsTo
     {
         return $this->belongsTo(SchoolYear::class);
+    }
+
+    public function incentiveAwards(): HasMany
+    {
+        return $this->hasMany(IncentiveAward::class);
     }
 }

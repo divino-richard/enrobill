@@ -17,11 +17,17 @@ return new class extends Migration
             }
         });
 
-        Schema::table('applications', function (Blueprint $table) {
-            if (Schema::hasColumn('applications', 'semester')) {
+        if (Schema::hasColumn('applications', 'semester')) {
+            // SQLite cannot rebuild the table for a dropped column while an
+            // index still references that column. Dropping the known index
+            // explicitly is also safe for MySQL/PostgreSQL fresh installs.
+            Schema::table('applications', function (Blueprint $table) {
+                $table->dropIndex(['semester']);
+            });
+            Schema::table('applications', function (Blueprint $table) {
                 $table->dropColumn('semester');
-            }
-        });
+            });
+        }
     }
 
     /**

@@ -1,4 +1,5 @@
 import type { UploadedDocument } from "./documents";
+import type { ApplicationReferralSummary } from "@/features/referrals/types";
 
 export type ApplicationStatus =
   | "draft"
@@ -19,6 +20,7 @@ export interface Application {
   decisionNote: string | null;
   submittedAt: string | null;
   updatedAt: string;
+  referral?: ApplicationReferralSummary | null;
 }
 
 // A single application with its full submitted answers (detail / edit screens).
@@ -103,6 +105,9 @@ export interface ApplicationFormValues {
   trackOrStrand: string;
   yearLevel: string;
   schoolYear: string;
+  // Optional code supplied by an incoming Grade 11 applicant so the Grade 12
+  // student who referred them can receive credit after successful enrollment.
+  referralCode: string;
   // Declaration / electronic signature
   declarationStudentName: string;
   declarationGuardianName: string;

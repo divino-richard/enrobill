@@ -26,13 +26,19 @@ class FreebieController extends Controller
      */
     public function upsert(Request $request, SchoolYear $schoolYear): FreebieResource
     {
+        $isReferral = $request->input('type') === 'referral';
+
         $validated = $request->validate([
             'type' => ['required', Rule::in(Freebie::TYPES)],
             'name' => ['required', 'string', 'max:100'],
             'isActive' => ['sometimes', 'boolean'],
-            'startsOn' => ['nullable', 'date'],
-            'endsOn' => ['nullable', 'date', 'after_or_equal:startsOn'],
-            'minReferrals' => ['nullable', 'integer', 'min:0'],
+            'startsOn' => [Rule::prohibitedIf($isReferral), 'nullable', 'date'],
+            'endsOn' => [Rule::prohibitedIf($isReferral), 'nullable', 'date', 'after_or_equal:startsOn'],
+            'minReferrals' => [Rule::prohibitedIf($isReferral), 'nullable', 'integer', 'min:1'],
+        ], [
+            'startsOn.prohibited' => 'The referral incentive follows normal admissions and does not use a separate start date.',
+            'endsOn.prohibited' => 'The referral incentive follows normal admissions and does not use a separate end date.',
+            'minReferrals.prohibited' => 'The referral requirement is fixed at one successful referral.',
         ]);
 
         $freebie = Freebie::updateOrCreate(
@@ -40,9 +46,9 @@ class FreebieController extends Controller
             [
                 'name' => $validated['name'],
                 'is_active' => $validated['isActive'] ?? true,
-                'starts_on' => $validated['startsOn'] ?? null,
-                'ends_on' => $validated['endsOn'] ?? null,
-                'min_referrals' => $validated['minReferrals'] ?? null,
+                'starts_on' => $isReferral ? null : ($validated['startsOn'] ?? null),
+                'ends_on' => $isReferral ? null : ($validated['endsOn'] ?? null),
+                'min_referrals' => $isReferral ? 1 : null,
             ],
         );
 

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\ReferralLifecycle;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
 use App\Models\SchoolYear;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -56,7 +58,10 @@ class ApplicationController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $applications = $request->user()->applications()->latest()->get();
+        $applications = $request->user()->applications()
+            ->with('referral.referralCode.referrer')
+            ->latest()
+            ->get();
 
         return ApplicationResource::collection($applications);
     }
@@ -64,7 +69,7 @@ class ApplicationController extends Controller
     /**
      * Submit a new application for the authenticated applicant.
      */
-    public function store(Request $request): ApplicationResource
+    public function store(Request $request, ReferralLifecycle $referrals): ApplicationResource
     {
         $this->validateApplication($request);
 
@@ -88,7 +93,7 @@ class ApplicationController extends Controller
             ]);
         }
 
-        $application = DB::transaction(function () use ($user, $request, $schoolYear) {
+        $application = DB::transaction(function () use ($user, $request, $schoolYear, $referrals) {
             $application = $user->applications()->create([
                 // Temporary unique value; replaced with the readable reference
                 // once the auto-incremented id exists.
@@ -106,11 +111,12 @@ class ApplicationController extends Controller
             ])->save();
 
             $application->documents()->createMany($this->mapDocuments($request));
+            $referrals->syncApplication($application, $this->referralCode($request), $user);
 
             return $application;
         });
 
-        return new ApplicationResource($application->load('documents'));
+        return new ApplicationResource($application->load($this->applicationRelations()));
     }
 
     /**
@@ -120,14 +126,14 @@ class ApplicationController extends Controller
     {
         abort_unless($application->user_id === $request->user()->id, 404);
 
-        return new ApplicationResource($application->load('documents'));
+        return new ApplicationResource($application->load($this->applicationRelations()));
     }
 
     /**
      * Edit and resubmit a rejected application. Updates the answers, replaces
      * the documents, and moves the application back to "submitted".
      */
-    public function update(Request $request, Application $application): ApplicationResource
+    public function update(Request $request, Application $application, ReferralLifecycle $referrals): ApplicationResource
     {
         abort_unless($application->user_id === $request->user()->id, 404);
         abort_unless(
@@ -162,7 +168,7 @@ class ApplicationController extends Controller
 
         $this->validateApplication($request);
 
-        DB::transaction(function () use ($application, $request, $schoolYear) {
+        DB::transaction(function () use ($application, $request, $schoolYear, $referrals) {
             $application->update([
                 'status' => 'submitted',
                 'submitted_at' => now(),
@@ -174,9 +180,45 @@ class ApplicationController extends Controller
             // Replace the document set with whatever the applicant resubmitted.
             $application->documents()->delete();
             $application->documents()->createMany($this->mapDocuments($request));
+            $referrals->syncApplication($application, $this->referralCode($request), $request->user());
         });
 
-        return new ApplicationResource($application->fresh()->load('documents'));
+        return new ApplicationResource($application->fresh()->load($this->applicationRelations()));
+    }
+
+    /**
+     * Validate a referral code for the school year currently accepting applications.
+     * Only the referrer's privacy-safe display name is returned to the applicant.
+     */
+    public function validateReferralCode(Request $request, ReferralLifecycle $referrals): JsonResponse
+    {
+        $validated = $request->validate([
+            'code' => ['nullable', 'required_without:referralCode', 'string', 'max:32'],
+            'referralCode' => ['nullable', 'required_without:code', 'string', 'max:32'],
+            'schoolYear' => ['required', 'string', 'exists:school_years,school_year'],
+        ]);
+
+        $schoolYear = $this->openSchoolYearOrFail();
+        if ($validated['schoolYear'] !== $schoolYear->school_year) {
+            throw ValidationException::withMessages([
+                'schoolYear' => 'Referral codes can only be validated for the school year currently accepting applications.',
+            ]);
+        }
+        $code = $referrals->validateCode(
+            trim($validated['code'] ?? $validated['referralCode']),
+            $schoolYear,
+            application: null,
+            actor: $request->user(),
+        );
+
+        $code->loadMissing('referrer');
+
+        return response()->json([
+            'data' => [
+                'valid' => true,
+                'referrerDisplay' => ApplicationResource::studentDisplay($code->referrer),
+            ],
+        ]);
     }
 
     /**
@@ -223,6 +265,7 @@ class ApplicationController extends Controller
             'schoolYear' => ['required', 'string'],
             'agreementAccepted' => ['accepted'],
             'studentType' => ['nullable', Rule::in(self::STUDENT_TYPES)],
+            'referralCode' => ['nullable', 'string', 'max:32'],
             'documents' => ['array'],
             'documents.*.type' => ['required', 'string'],
             'documents.*.key' => ['required', 'string'],
@@ -340,5 +383,23 @@ class ApplicationController extends Controller
             'date_signed' => $request->input('dateSigned') ?: null,
             'agreement_accepted' => $request->boolean('agreementAccepted'),
         ];
+    }
+
+    private function referralCode(Request $request): ?string
+    {
+        $code = trim((string) $request->input('referralCode', ''));
+
+        return $code !== '' ? $code : null;
+    }
+
+    /**
+     * Relationships needed for the application form and privacy-safe referral
+     * summary. Kept in one place so list/detail/edit responses stay consistent.
+     *
+     * @return array<int, string>
+     */
+    private function applicationRelations(): array
+    {
+        return ['documents', 'referral.referralCode.referrer'];
     }
 }

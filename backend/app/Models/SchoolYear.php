@@ -119,4 +119,19 @@ class SchoolYear extends Model
     {
         return $this->hasMany(Freebie::class);
     }
+
+    public function referralCodes(): HasMany
+    {
+        return $this->hasMany(ReferralCode::class);
+    }
+
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(Referral::class);
+    }
+
+    public function incentiveAwards(): HasMany
+    {
+        return $this->hasMany(IncentiveAward::class);
+    }
 }

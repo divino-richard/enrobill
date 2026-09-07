@@ -107,13 +107,37 @@ Students who enroll within the enrollment period specified by Northlink are elig
 
 This means qualified students who meet the promo requirements may have no remaining tuition balance after the voucher has been applied.
 
-### Grade 12 Referral Incentive
+### Grade 11 to Grade 12 Referral Tuition Incentive
 
-Grade 12 students who successfully refer at least one new student to enroll at Northlink are eligible for the following incentive:
+An enrolled Grade 11 student may receive a referral code for the next school
+year. The code may be used by an incoming Grade 11 student who is new to
+Northlink, including a Grade 11 transferee. Continuing Northlink students are
+not eligible to be referred.
 
-* *Referral Incentive + Voucher = Zero Tuition Balance*
+One referral creates two separate possible benefits:
 
-Terms and conditions for the referral program apply.
+* The incoming Grade 11 student's benefit becomes eligible when their
+  application is accepted.
+* The referrer's Grade 12 benefit becomes eligible after the incoming Grade 11
+  student is officially enrolled.
+
+Each student must have their own valid voucher. One student's missing voucher
+does not prevent the other student from receiving their benefit.
+
+* *Referral Tuition Incentive + Voucher = Zero Remaining Balance*
+
+The voucher is applied first, then the incentive waives the student's remaining
+tuition and miscellaneous balance. One successful referral is enough for the
+referrer's once-per-school-year benefit. Additional valid referred students may
+receive their own benefit, but they do not create additional financial credits
+for the referrer.
+
+The referral program has no separate date window, but it must be enabled for the
+target school year and applications must still be submitted while admissions are
+open. If the incentive is earned after payments have been made, only the unpaid
+balance is waived; previous payments are not refunded or carried forward. A
+successful referral and an applied benefit are final and are not revoked by a
+later withdrawal.
 
 ---
 

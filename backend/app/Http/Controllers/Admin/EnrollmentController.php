@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\AssignSectionOnEnroll;
 use App\Actions\NotifyStudent;
+use App\Actions\ReferralLifecycle;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
 use App\Models\Enrollment;
@@ -11,6 +12,7 @@ use App\Models\SchoolYear;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class EnrollmentController extends Controller
@@ -109,28 +111,36 @@ class EnrollmentController extends Controller
      * Update an enrollment's status (enroll / drop / withdraw / complete) and
      * mirror the change onto the student's global status.
      */
-    public function update(Request $request, Enrollment $enrollment, NotifyStudent $notify): EnrollmentResource
-    {
+    public function update(
+        Request $request,
+        Enrollment $enrollment,
+        NotifyStudent $notify,
+        ReferralLifecycle $referrals,
+    ): EnrollmentResource {
         $validated = $request->validate([
             'status' => ['required', Rule::in(self::STATUSES)],
         ]);
 
-        $enrollment->update([
-            'status' => $validated['status'],
-            // Stamp the enrollment date the first time it becomes enrolled.
-            'enrolled_at' => $validated['status'] === 'enrolled'
-                ? ($enrollment->enrolled_at ?? now())
-                : $enrollment->enrolled_at,
-        ]);
+        $fresh = DB::transaction(function () use ($enrollment, $validated, $referrals) {
+            $enrollment->update([
+                'status' => $validated['status'],
+                // Stamp the enrollment date the first time it becomes enrolled.
+                'enrolled_at' => $validated['status'] === 'enrolled'
+                    ? ($enrollment->enrolled_at ?? now())
+                    : $enrollment->enrolled_at,
+            ]);
 
-        // Auto-place the student into a section the first time they're enrolled.
-        if ($validated['status'] === 'enrolled') {
-            app(AssignSectionOnEnroll::class)($enrollment->fresh());
-        }
+            // Auto-place the student into a section the first time they're enrolled.
+            if ($validated['status'] === 'enrolled') {
+                app(AssignSectionOnEnroll::class)($enrollment->fresh());
 
-        $enrollment->student?->syncStatusFromLatestEnrollment();
+                $referrals->markEnrollmentSuccessful($enrollment->fresh());
+            }
 
-        $fresh = $enrollment->fresh()->load(['schoolYear', 'student']);
+            $enrollment->student?->syncStatusFromLatestEnrollment();
+
+            return $enrollment->fresh()->load(['schoolYear', 'student']);
+        });
 
         if ($fresh->student !== null) {
             $notify(

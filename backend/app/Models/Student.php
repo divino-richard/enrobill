@@ -63,6 +63,30 @@ class Student extends Model
         return $this->hasMany(Enrollment::class);
     }
 
+    /** Reusable referral codes issued to this student for upcoming school years. */
+    public function referralCodes(): HasMany
+    {
+        return $this->hasMany(ReferralCode::class, 'referrer_student_id');
+    }
+
+    /** Referral claims made with this student as the referrer. */
+    public function referralsMade(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referrer_student_id');
+    }
+
+    /** Referral claims through which this student was admitted. */
+    public function referralsReceived(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referred_student_id');
+    }
+
+    /** Eligibility awards earned across school years. */
+    public function incentiveAwards(): HasMany
+    {
+        return $this->hasMany(IncentiveAward::class);
+    }
+
     /**
      * The year-end progression decisions recorded for this student.
      *

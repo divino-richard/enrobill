@@ -97,6 +97,10 @@ class ReportsController extends Controller
             ->whereIn('bill_id', (clone $bills)->select('id'))
             ->whereHas('discount', fn ($q) => $q->where('category', 'voucher'))
             ->sum('amount');
+        $incentiveCredits = (float) BillAdjustment::query()
+            ->whereIn('bill_id', (clone $bills)->select('id'))
+            ->whereNotNull('incentive_key')
+            ->sum('amount');
 
         $billed = round(max($gross - $discounts, 0), 2);
         $outstanding = round(max($billed - $collected, 0), 2);
@@ -122,6 +126,7 @@ class ReportsController extends Controller
                 ->where('status', 'enrolled')
                 ->count(),
             'voucherCredits' => round($voucherCredits, 2),
+            'incentiveCredits' => round($incentiveCredits, 2),
         ];
     }
 
@@ -404,22 +409,41 @@ class ReportsController extends Controller
 
         return BillAdjustment::query()
             ->whereIn('bill_id', $billIds)
-            ->whereNotNull('discount_id')
             ->when($since !== null, fn ($q) => $q->where('created_at', '>=', $since))
-            ->with(['bill.student', 'discount'])
+            ->with(['bill.student', 'discount', 'incentiveAwards.freebie'])
             ->latest()
             ->limit(10)
             ->get()
             ->filter(fn (BillAdjustment $adjustment) => $adjustment->bill?->student !== null)
-            ->map(fn (BillAdjustment $adjustment) => [
-                'id' => $adjustment->id,
-                'studentName' => trim($adjustment->bill->student->first_name.' '.$adjustment->bill->student->last_name),
-                'studentNumber' => $adjustment->bill->student->student_number,
-                'voucherName' => $adjustment->discount?->name ?? $adjustment->label,
-                'amountApplied' => (float) $adjustment->amount,
-                'billStatus' => $adjustment->bill->status,
-                'postedAt' => $adjustment->created_at?->toIso8601String(),
-            ])
+            ->map(function (BillAdjustment $adjustment) {
+                $reasons = $adjustment->incentiveAwards
+                    ->map(fn ($award) => match ($award->type) {
+                        'early_enrollment' => 'Early enrollment',
+                        'referral' => 'Referral',
+                        default => (string) str($award->type)->replace('_', ' ')->title(),
+                    })
+                    ->unique()
+                    ->values()
+                    ->all();
+                $name = $adjustment->discount?->name ?? $adjustment->label;
+
+                return [
+                    'id' => $adjustment->id,
+                    'studentName' => trim($adjustment->bill->student->first_name.' '.$adjustment->bill->student->last_name),
+                    'studentNumber' => $adjustment->bill->student->student_number,
+                    // Keep voucherName for older clients while the broader fields
+                    // identify shared incentive credits and all earned reasons.
+                    'voucherName' => $name,
+                    'creditName' => $name,
+                    'creditType' => $adjustment->incentive_key !== null
+                        ? 'incentive'
+                        : ($adjustment->discount?->category ?? 'adjustment'),
+                    'reasons' => $reasons,
+                    'amountApplied' => (float) $adjustment->amount,
+                    'billStatus' => $adjustment->bill->status,
+                    'postedAt' => $adjustment->created_at?->toIso8601String(),
+                ];
+            })
             ->values()
             ->all();
     }

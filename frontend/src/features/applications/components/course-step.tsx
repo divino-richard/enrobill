@@ -1,6 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { BookOpen, FileSignature } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2Icon,
+  FileSignature,
+  GiftIcon,
+  LoaderCircleIcon,
+} from "lucide-react";
 import { FormSection } from "./form-section";
 import { FieldLabel } from "@/components/form/field-label";
 import { FieldInfo } from "@/components/form/field-info";
@@ -18,6 +24,8 @@ import {
 import type { ApplicationFormApi } from "../hooks/form";
 import { useProgramGroups } from "@/features/programs/hooks";
 import { useOpenTerm } from "@/features/terms/hooks";
+import { useValidateReferralCode } from "@/features/referrals/hooks";
+import { getErrorMessage } from "@/lib/get-error-message";
 import {
   allowedYearLevels,
   DECLARATION_AGREEMENT_TEXT,
@@ -32,6 +40,115 @@ function required(message: string) {
 
 interface CourseStepProps {
   form: ApplicationFormApi;
+}
+
+function ReferralCodeField({
+  form,
+  schoolYear,
+}: {
+  form: ApplicationFormApi;
+  schoolYear: string;
+}) {
+  const validateCode = useValidateReferralCode();
+  const [matched, setMatched] = useState<{
+    code: string;
+    schoolYear: string;
+    referrerDisplay: string;
+  } | null>(null);
+
+  return (
+    <FormSection
+      title="Were you referred by a Northlink student?"
+      icon={GiftIcon}
+      description="If a Northlink student encouraged you to enroll, enter the referral code they shared with you."
+    >
+      <form.Field
+        name="referralCode"
+        validators={{
+          onChangeAsyncDebounceMs: 450,
+          onChangeAsync: async ({ value, signal }) => {
+            const code = value.trim().toUpperCase();
+            setMatched(null);
+            validateCode.reset();
+
+            if (!code) return undefined;
+            if (!schoolYear) {
+              return "The school year must be available before we can check this code.";
+            }
+
+            try {
+              const result = await validateCode.mutateAsync({
+                code,
+                schoolYear,
+              });
+              if (signal.aborted) return undefined;
+              setMatched({
+                code,
+                schoolYear,
+                referrerDisplay: result.referrerDisplay,
+              });
+              return undefined;
+            } catch (error) {
+              if (signal.aborted) return undefined;
+              return getErrorMessage(
+                error,
+                "We couldn't verify this referral code. Check the code and try again.",
+              );
+            }
+          },
+        }}
+      >
+        {(field) => {
+          const normalized = field.state.value.trim().toUpperCase();
+          const isMatched =
+            matched?.code === normalized && matched.schoolYear === schoolYear;
+
+          return (
+            <div className="max-w-md space-y-1.5">
+              <FieldLabel htmlFor={field.name} optional>
+                Referral code
+              </FieldLabel>
+              <Input
+                id={field.name}
+                value={field.state.value}
+                placeholder="Enter the code shared with you"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                aria-describedby="referral-code-help referral-code-feedback"
+                aria-invalid={field.state.meta.errors.length > 0}
+                className="font-mono uppercase"
+                onBlur={field.handleBlur}
+                onChange={(event) =>
+                  field.handleChange(event.target.value.toUpperCase())
+                }
+              />
+              <div
+                id="referral-code-feedback"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {field.state.meta.isValidating ? (
+                  <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                    <LoaderCircleIcon className="size-3.5 animate-spin" />
+                    Checking referral code…
+                  </p>
+                ) : isMatched ? (
+                  <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300">
+                    <CheckCircle2Icon className="size-3.5" />
+                    Code confirmed for {matched.referrerDisplay}. It will be
+                    linked when you submit.
+                  </p>
+                ) : (
+                  <FieldInfo field={field} />
+                )}
+              </div>
+            </div>
+          );
+        }}
+      </form.Field>
+    </FormSection>
+  );
 }
 
 export function CourseStep({ form }: CourseStepProps) {
@@ -72,6 +189,12 @@ export function CourseStep({ form }: CourseStepProps) {
       }
     } else if (yearLevel && !allowed.includes(yearLevel as YearLevel)) {
       form.setFieldValue("yearLevel", "");
+    }
+    if (
+      studentType === "continuing" ||
+      (yearLevel !== "" && yearLevel !== "grade_11")
+    ) {
+      form.setFieldValue("referralCode", "");
     }
   }, [form]);
 
@@ -153,7 +276,12 @@ export function CourseStep({ form }: CourseStepProps) {
                       ) : (
                         <Select
                           value={field.state.value}
-                          onValueChange={field.handleChange}
+                          onValueChange={(value) => {
+                            field.handleChange(value);
+                            if (value !== "grade_11") {
+                              form.setFieldValue("referralCode", "");
+                            }
+                          }}
                         >
                           <SelectTrigger id={field.name} className="w-full">
                             <SelectValue placeholder="Select year level" />
@@ -162,7 +290,10 @@ export function CourseStep({ form }: CourseStepProps) {
                             {YEAR_LEVEL_OPTIONS.filter((option) =>
                               allowed.includes(option.value),
                             ).map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
                                 {option.label}
                               </SelectItem>
                             ))}
@@ -202,6 +333,23 @@ export function CourseStep({ form }: CourseStepProps) {
           </form.Field>
         </div>
       </FormSection>
+
+      <form.Subscribe
+        selector={(state) =>
+          [
+            state.values.studentType,
+            state.values.yearLevel,
+            state.values.schoolYear,
+          ] as const
+        }
+      >
+        {([studentType, yearLevel, schoolYear]) =>
+          yearLevel === "grade_11" &&
+          (studentType === "new" || studentType === "transferee") ? (
+            <ReferralCodeField form={form} schoolYear={schoolYear} />
+          ) : null
+        }
+      </form.Subscribe>
 
       <FormSection
         title="Declaration"

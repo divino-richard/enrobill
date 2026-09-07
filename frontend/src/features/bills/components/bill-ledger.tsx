@@ -30,10 +30,16 @@ import {
 const HEAD =
   "text-muted-foreground h-9 text-[11px] font-medium tracking-wide uppercase";
 
-const discountLabel = (adjustment: BillAdjustment) =>
-  adjustment.type === "percentage"
-    ? `${adjustment.label} (${adjustment.value}%)`
-    : adjustment.label;
+const discountLabel = (adjustment: BillAdjustment) => {
+  const valueLabel =
+    adjustment.type === "percentage"
+      ? `${adjustment.label} (${adjustment.value}%)`
+      : adjustment.label;
+  const reasons = (adjustment.reasons ?? []).filter(
+    (reason) => reason.toLowerCase() !== adjustment.label.toLowerCase(),
+  );
+  return reasons.length > 0 ? `${valueLabel} — ${reasons.join(" + ")}` : valueLabel;
+};
 
 function groupFees(items: BillItem[]) {
   const order = FEE_CATEGORY_OPTIONS.map((option) => option.value as string);
@@ -201,7 +207,7 @@ export function BillStatement({ bill }: { bill: Bill }) {
                 ))
               : bill.discountTotal > 0 && (
                   <MobileValueRow
-                    label="Discount"
+                    label="Credit"
                     value={`- ${formatPeso(bill.discountTotal)}`}
                     muted
                   />
@@ -270,7 +276,7 @@ export function BillStatement({ bill }: { bill: Bill }) {
                 ))
               : bill.discountTotal > 0 && (
                   <TotalRow
-                    label="Discount"
+                    label="Credit"
                     value={`- ${formatPeso(bill.discountTotal)}`}
                     muted
                   />

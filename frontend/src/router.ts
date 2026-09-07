@@ -30,6 +30,7 @@ import AdminBillingPage from './pages/admin/billing-page'
 import AdminBillDetailPage from './pages/admin/bill-detail-page'
 import AdminPaymentChannelsPage from './pages/admin/payment-channels-page'
 import AdminTransferRequestsPage from './pages/admin/transfer-requests-page'
+import AdminReferralsPage from './pages/admin/referrals-page'
 import AccountPage from './pages/account-page'
 import PortalHomePage from './pages/portal/home-page'
 import PortalBillsPage from './pages/portal/bills-page'
@@ -79,6 +80,7 @@ export const router = createBrowserRouter([
             Component: AdminGuard,
             children: [
               { path: 'applications', Component: AdminApplicationsPage },
+              { path: 'referrals', Component: AdminReferralsPage },
               {
                 path: 'applications/:id',
                 Component: AdminApplicationDetailPage,

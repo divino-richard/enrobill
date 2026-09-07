@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "type-check": "tsc -b",
+    "test:incentives": "node --experimental-strip-types --test tests/incentive-preview.test.mjs",
+    "test:referral-ui": "node --test tests/student-referral-banner.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

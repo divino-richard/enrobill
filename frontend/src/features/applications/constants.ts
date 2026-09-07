@@ -116,7 +116,7 @@ export const STEP_EXTRA_VALIDATED_FIELDS: Record<
     "documentPromissoryNote",
     "documentPromissoryDate",
   ],
-  3: ["agreementAccepted"],
+  3: ["referralCode", "agreementAccepted"],
 };
 
 // Mock applications for an aspiring student. One active (under review) plus a

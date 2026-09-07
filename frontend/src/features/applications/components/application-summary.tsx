@@ -16,6 +16,8 @@ import {
   OPTIONAL_DOCUMENT_TYPES,
   type UploadedDocument,
 } from "../documents";
+import type { ApplicationReferralSummary } from "@/features/referrals/types";
+import { referralStatusLabel } from "@/features/referrals/types";
 
 function formatBirthDate(value: string): string {
   if (!value) return "—";
@@ -51,6 +53,7 @@ function SummarySection({
 
 interface ApplicationSummaryProps {
   values: ApplicationFormValues;
+  referral?: ApplicationReferralSummary | null;
   // When the application was started / submitted; null hides the row.
   enrollmentDate?: Date | null;
   // When provided, each uploaded document becomes viewable (detail page).
@@ -63,6 +66,7 @@ interface ApplicationSummaryProps {
 // applicant's application detail page.
 export function ApplicationSummary({
   values,
+  referral,
   enrollmentDate,
   onViewDocument,
   onDeleteDocument,
@@ -240,6 +244,28 @@ export function ApplicationSummary({
           ["School year", values.schoolYear || "—"],
         ]}
       />
+
+      {(values.referralCode || referral) && (
+        <>
+          <div className="border-t" />
+          <SummarySection
+            title="Referral"
+            rows={[
+              ["Referral code", referral?.code ?? values.referralCode ?? "—"],
+              [
+                "Grade 12 referrer",
+                referral?.referrerDisplay ?? "Confirmed when submitted",
+              ],
+              [
+                "Status",
+                referral
+                  ? referralStatusLabel(referral.status)
+                  : "Ready to submit",
+              ],
+            ]}
+          />
+        </>
+      )}
 
       <div className="border-t" />
 

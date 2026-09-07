@@ -42,6 +42,7 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
   trackOrStrand: "",
   yearLevel: "",
   schoolYear: "",
+  referralCode: "",
   declarationStudentName: "",
   declarationGuardianName: "",
   dateSigned: "",
@@ -53,7 +54,7 @@ export const DEFAULT_APPLICATION_FORM_VALUES: ApplicationFormValues = {
 // leave and come back without losing work. Bump the version suffix whenever the
 // field structure changes, so drafts saved against an older shape are ignored
 // rather than restored into a mismatched form.
-const DRAFT_STORAGE_KEY = "enrobill:application-draft:v3";
+const DRAFT_STORAGE_KEY = "enrobill:application-draft:v4";
 
 // How long to wait after the last change before writing to storage.
 const DRAFT_SAVE_DEBOUNCE_MS = 500;
@@ -113,7 +114,10 @@ export function useApplicationForm(
   // mode, force the contact email to the verified account email so it can't
   // drift from the applicant's login.
   const [defaults] = useState(() => {
-    const base = initialValues ?? loadApplicationDraft();
+    const base = {
+      ...DEFAULT_APPLICATION_FORM_VALUES,
+      ...(initialValues ?? loadApplicationDraft()),
+    };
     return !initialValues && accountEmail
       ? { ...base, emailAddress: accountEmail }
       : base;

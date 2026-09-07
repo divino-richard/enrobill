@@ -33,6 +33,7 @@ import {
 import { isOverdue, nextOutstandingInstallment } from "@/features/bills/utils";
 import { useMyStudent } from "../hooks";
 import { StudentStatusBadge } from "./student-status-badge";
+import { StudentReferralCard } from "@/features/referrals/components/student-referral-card";
 
 type Tone = "danger" | "warning" | "success" | "info";
 
@@ -218,6 +219,12 @@ export function StudentDashboard() {
           accent="default"
         />
       </div>
+
+      <StudentReferralCard
+        showWhenUnavailable={
+          student.yearLevel === "grade_11" || student.yearLevel === "grade_12"
+        }
+      />
 
       {/* Body */}
       <div className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">

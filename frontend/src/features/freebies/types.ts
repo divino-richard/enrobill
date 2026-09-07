@@ -16,8 +16,8 @@ export interface FreebieUpsertInput {
   type: FreebieType;
   name: string;
   isActive: boolean;
-  startsOn: string | null;
-  endsOn: string | null;
+  startsOn?: string | null;
+  endsOn?: string | null;
   minReferrals?: number | null;
 }
 

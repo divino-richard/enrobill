@@ -78,6 +78,19 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
         .join("")
     : `<tr><td colspan="4" class="muted center">No verified payments recorded.</td></tr>`;
 
+  const adjustmentRows = (bill.adjustments ?? [])
+    .map((adjustment) => {
+      const reasons = adjustment.reasons?.length
+        ? `<br /><span class="muted">Reason: ${escapeHtml(adjustment.reasons.join(" + "))}</span>`
+        : "";
+      return `
+        <tr>
+          <td>${escapeHtml(adjustment.label)}${reasons}</td>
+          <td class="amount discount">− ${formatPeso(adjustment.amount)}</td>
+        </tr>`;
+    })
+    .join("");
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -185,6 +198,16 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
       </tbody>
     </table>
 
+    ${
+      adjustmentRows
+        ? `<table>
+      <caption>Credits applied</caption>
+      <thead><tr><th>Credit</th><th class="amount">Amount</th></tr></thead>
+      <tbody>${adjustmentRows}</tbody>
+    </table>`
+        : ""
+    }
+
     <table>
       <caption>Payments received</caption>
       <thead>
@@ -201,7 +224,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
       <div class="row"><span class="muted">Gross total</span><span>${formatPeso(bill.total)}</span></div>
       ${
         bill.discountTotal > 0
-          ? `<div class="row discount"><span>Discounts</span><span>− ${formatPeso(bill.discountTotal)}</span></div>`
+          ? `<div class="row discount"><span>Credits</span><span>− ${formatPeso(bill.discountTotal)}</span></div>`
           : ""
       }
       <div class="row"><span class="muted">Net total</span><span>${formatPeso(bill.netTotal)}</span></div>

@@ -9,11 +9,21 @@ import {
   LockIcon,
   MailIcon,
   TicketPercentIcon,
+  UserRoundPlusIcon,
   XIcon,
   type LucideIcon,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +57,8 @@ import { useAllDiscounts } from "@/features/discounts/hooks";
 import { discountValueLabel } from "@/features/discounts/types";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useUpdateApplicationReferral } from "@/features/referrals/hooks";
+import { referralStatusLabel } from "@/features/referrals/types";
 
 const DECIDABLE_STATUSES = ["submitted", "under_review", "returned"];
 
@@ -118,6 +130,7 @@ function AdminApplicationDetailPage() {
     useAdminApplication(applicationId);
   const decide = useDecideApplication(applicationId);
   const markUnderReview = useMarkApplicationUnderReview(applicationId);
+  const updateReferral = useUpdateApplicationReferral(applicationId);
 
   // Opening a still-new (submitted) application counts as reviewing it: move it to
   // under_review so it drops out of the "new applications" badge, even if the
@@ -139,6 +152,9 @@ function AdminApplicationDetailPage() {
   const [note, setNote] = useState("");
   // null = accept without granting a voucher, which is the default.
   const [voucherId, setVoucherId] = useState<number | null>(null);
+  const [referralDialogOpen, setReferralDialogOpen] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralReason, setReferralReason] = useState("");
   const { data: discounts, isLoading: vouchersLoading } = useAllDiscounts();
 
   const vouchers = (discounts ?? []).filter(
@@ -151,6 +167,28 @@ function AdminApplicationDetailPage() {
     setNote("");
     setVoucherId(null);
     setPendingDecision(decision);
+  }
+
+  function openReferralManager() {
+    setReferralCode(
+      application?.referral?.code ?? application?.values.referralCode ?? "",
+    );
+    setReferralReason("");
+    updateReferral.reset();
+    setReferralDialogOpen(true);
+  }
+
+  async function saveReferral() {
+    if (!referralReason.trim()) return;
+    try {
+      await updateReferral.mutateAsync({
+        referralCode: referralCode.trim().toUpperCase() || null,
+        reason: referralReason.trim(),
+      });
+      setReferralDialogOpen(false);
+    } catch {
+      // Error remains visible in the dialog.
+    }
   }
 
   async function confirmDecision() {
@@ -171,6 +209,10 @@ function AdminApplicationDetailPage() {
 
   const canDecide =
     application != null && DECIDABLE_STATUSES.includes(application.status);
+  const supportsReferral =
+    application?.values.yearLevel === "grade_11" &&
+    (application.values.studentType === "new" ||
+      application.values.studentType === "transferee");
   const isReject = pendingDecision === "reject";
 
   return (
@@ -289,6 +331,65 @@ function AdminApplicationDetailPage() {
             </CardContent>
           </Card>
 
+          {(supportsReferral || application.referral) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Referral</CardTitle>
+                <CardDescription>
+                  Link this Grade 11 applicant to the student who referred them.
+                  Changes are allowed before acceptance and require an audit reason.
+                </CardDescription>
+                {canDecide && (
+                  <CardAction>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={openReferralManager}
+                    >
+                      <UserRoundPlusIcon />
+                      Manage referral
+                    </Button>
+                  </CardAction>
+                )}
+              </CardHeader>
+              <CardContent>
+                {application.referral ? (
+                  <dl className="grid gap-4 text-sm sm:grid-cols-3">
+                    <div>
+                      <dt className="text-muted-foreground text-xs">Code</dt>
+                      <dd className="mt-1 break-all font-mono font-medium tracking-wide">
+                        {application.referral.code ?? "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground text-xs">
+                        Referring student
+                      </dt>
+                      <dd className="mt-1 font-medium">
+                        {application.referral.referrerDisplay ?? "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground text-xs">Status</dt>
+                      <dd className="mt-1 font-medium">
+                        {referralStatusLabel(application.referral.status)}
+                      </dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    No referral code is linked to this application.
+                  </p>
+                )}
+                {!canDecide && (
+                  <p className="text-muted-foreground mt-4 border-t pt-3 text-xs">
+                    Referral details are locked after the application is decided.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader className="border-b">
               <CardTitle className="text-base">Submitted application</CardTitle>
@@ -299,6 +400,7 @@ function AdminApplicationDetailPage() {
             <CardContent>
               <ApplicationSummary
                 values={application.values}
+                referral={application.referral}
                 enrollmentDate={
                   application.submittedAt
                     ? new Date(application.submittedAt)
@@ -459,6 +561,89 @@ function AdminApplicationDetailPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          <Dialog
+            open={referralDialogOpen}
+            onOpenChange={(open) => {
+              if (!open && !updateReferral.isPending) {
+                setReferralDialogOpen(false);
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manage referral</DialogTitle>
+                <DialogDescription>
+                  Correct the code or leave it blank to remove the referral. A
+                  reason is required for the audit record.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="admin-referral-code" className="text-sm font-medium">
+                    Referral code
+                  </label>
+                  <Input
+                    id="admin-referral-code"
+                    value={referralCode}
+                    className="font-mono uppercase"
+                    placeholder="Leave blank to remove"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    aria-describedby="admin-referral-code-help"
+                    onChange={(event) =>
+                      setReferralCode(event.target.value.toUpperCase())
+                    }
+                  />
+                  <p id="admin-referral-code-help" className="text-muted-foreground text-xs">Use a code for this application's school year. Leaving this blank removes the link, not the application.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="admin-referral-reason" className="text-sm font-medium">
+                    Reason <span className="text-destructive">*</span>
+                  </label>
+                  <Textarea
+                    id="admin-referral-reason"
+                    rows={3}
+                    required
+                    value={referralReason}
+                    placeholder="Explain why this referral is being changed…"
+                    onChange={(event) => setReferralReason(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              {updateReferral.isError && (
+                <p role="alert" className="text-destructive text-sm">
+                  {getErrorMessage(
+                    updateReferral.error,
+                    "We couldn't update this referral. Check the code and try again.",
+                  )}
+                </p>
+              )}
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setReferralDialogOpen(false)}
+                  disabled={updateReferral.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={saveReferral}
+                  disabled={!referralReason.trim() || updateReferral.isPending}
+                >
+                  {updateReferral.isPending
+                    ? "Saving…"
+                    : referralCode.trim()
+                      ? "Save referral"
+                      : "Remove referral"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

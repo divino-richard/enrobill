@@ -63,10 +63,15 @@ export interface BillItem {
 export interface BillAdjustment {
   id: number;
   discountId: number | null;
+  incentiveKey?: string | null;
   label: string;
   type: "fixed" | "percentage" | "full";
   value: number;
   amount: number;
+  // A full-coverage credit may have more than one qualifying reason (for
+  // example, early enrollment and referral) while remaining one adjustment.
+  reasons?: string[];
+  locked?: boolean;
 }
 
 export interface BillInstallment {

@@ -12,18 +12,17 @@ class GenerateBillForEnrollment
 {
     public function __construct(
         private GenerateInstallmentSchedule $generateSchedule,
-        private FreebieEligibility $freebieEligibility,
+        private ReconcileEnrollmentIncentives $reconcileIncentives,
     ) {}
 
     /**
      * Generate the bill for a (pending) enrollment from its school year's fee
      * schedule. Both credits are derived here rather than chosen at billing time:
      * the voucher is the one the enrollment carries (granted by the admin on
-     * acceptance), and the freebies are whatever the student qualifies for. The
-     * voucher applies first; a freebie then zeroes whatever is left. A voucher —
-     * and only a voucher — waives the downpayment, and gates the freebies with it
-     * ("Promo + Voucher = Zero Tuition Balance", docs/business.md). Idempotent —
-     * returns the existing bill if the enrollment already has one.
+     * acceptance), while incentive awards are reconciled centrally after the
+     * ordinary voucher credit. A voucher — and only a voucher — waives the
+     * downpayment and unlocks an eligible incentive. Idempotent — an existing
+     * bill is reconciled and returned.
      */
     public function __invoke(Enrollment $enrollment): Bill
     {
@@ -39,7 +38,9 @@ class GenerateBillForEnrollment
             ->first();
 
         if ($existing !== null) {
-            return $existing;
+            ($this->reconcileIncentives)($enrollment);
+
+            return $existing->fresh();
         }
 
         $fees = $schoolYear->fees()
@@ -62,15 +63,9 @@ class GenerateBillForEnrollment
             ->where('is_active', true)
             ->first();
 
-        $discounts = collect($voucher !== null ? [$voucher] : []);
         $hasVoucher = $voucher !== null;
 
-        // Every promo the student qualifies for, but only alongside a voucher.
-        $freebies = $hasVoucher
-            ? $this->freebieEligibility->for($enrollment)
-            : collect();
-
-        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $discounts, $freebies, $hasVoucher) {
+        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $voucher, $hasVoucher) {
             $bill = $student->bills()->create([
                 'school_year_id' => $schoolYear->id,
                 'enrollment_id' => $enrollment->id,
@@ -88,26 +83,14 @@ class GenerateBillForEnrollment
             );
 
             // Vouchers/catalog credits first.
-            foreach ($discounts as $discount) {
+            if ($voucher !== null) {
                 $bill->load('adjustments'); // keep netTotal()/creditFor() current
                 $bill->adjustments()->create([
-                    'discount_id' => $discount->id,
-                    'label' => $discount->name,
-                    'type' => $discount->type,
-                    'value' => $discount->value,
-                    'amount' => $bill->creditFor($discount),
-                ]);
-            }
-
-            // Then freebies — each covers whatever balance remains (→ ₱0).
-            foreach ($freebies as $freebie) {
-                $bill->load('adjustments');
-                $bill->adjustments()->create([
-                    'discount_id' => null,
-                    'label' => $freebie->name,
-                    'type' => 'full',
-                    'value' => 0,
-                    'amount' => $bill->netTotal(),
+                    'discount_id' => $voucher->id,
+                    'label' => $voucher->name,
+                    'type' => $voucher->type,
+                    'value' => $voucher->value,
+                    'amount' => $bill->creditFor($voucher),
                 ]);
             }
 
@@ -124,6 +107,10 @@ class GenerateBillForEnrollment
             $bill->load(['enrollment', 'installments', 'adjustments']);
             $bill->recalculate();
             $bill->settleEnrollment();
+
+            // Materialize all earned reasons and post at most one shared
+            // zero-tuition adjustment after vouchers and ordinary discounts.
+            ($this->reconcileIncentives)($enrollment->fresh());
 
             return $bill->fresh();
         });

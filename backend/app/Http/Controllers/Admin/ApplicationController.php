@@ -4,15 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\NotifyStudent;
 use App\Actions\PromoteApplicantToStudent;
+use App\Actions\ReferralLifecycle;
 use App\Actions\SendApplicationDecisionEmail;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
 use App\Models\SchoolYear;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ApplicationController extends Controller
 {
@@ -49,7 +52,7 @@ class ApplicationController extends Controller
         $perPage = min(max($request->integer('per_page', 15), 1), 100);
 
         $applications = Application::query()
-            ->with('user')
+            ->with(['user', 'referral.referralCode.referrer'])
             ->when(
                 in_array($request->string('status')->value(), self::STATUSES, true),
                 fn ($query) => $query->where('status', $request->string('status')->value()),
@@ -99,7 +102,7 @@ class ApplicationController extends Controller
      */
     public function show(Application $application): ApplicationResource
     {
-        return new ApplicationResource($application->load(['user', 'documents']));
+        return new ApplicationResource($application->load($this->applicationRelations()));
     }
 
     /**
@@ -114,7 +117,7 @@ class ApplicationController extends Controller
             $application->update(['status' => 'under_review']);
         }
 
-        return new ApplicationResource($application->load(['user', 'documents']));
+        return new ApplicationResource($application->load($this->applicationRelations()));
     }
 
     /**
@@ -148,6 +151,7 @@ class ApplicationController extends Controller
             $sendEmail,
             $notify,
             discountId: isset($validated['discountId']) ? (int) $validated['discountId'] : null,
+            actor: $request->user(),
         );
     }
 
@@ -161,7 +165,57 @@ class ApplicationController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
         ])['note'] ?? null;
 
-        return $this->decide($application, 'rejected', $sendEmail, $notify, note: $note);
+        return $this->decide(
+            $application,
+            'rejected',
+            $sendEmail,
+            $notify,
+            note: $note,
+            actor: $request->user(),
+        );
+    }
+
+    /**
+     * Correct or remove a referral claim before the application is decided. The
+     * existing claim is cancelled with the supplied audit reason before a corrected
+     * code is attached.
+     */
+    public function updateReferral(Request $request, Application $application, ReferralLifecycle $referrals): ApplicationResource
+    {
+        abort_unless(
+            in_array($application->status, self::DECIDABLE_STATUSES, true),
+            422,
+            'A referral can only be corrected before the application is accepted or rejected.',
+        );
+
+        $validated = $request->validate([
+            'referralCode' => ['nullable', 'string', 'max:32'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+        $code = trim((string) ($validated['referralCode'] ?? ''));
+        $code = $code !== '' ? $code : null;
+        $actor = $request->user();
+
+        DB::transaction(function () use ($application, $referrals, $code, $actor, $validated) {
+            $application->loadMissing('referral.referralCode');
+            $current = $application->referral?->referralCode?->code;
+
+            if ($code === null) {
+                if ($current !== null) {
+                    $referrals->cancelApplication($application, $actor, $validated['reason']);
+                }
+
+                return;
+            }
+
+            if ($current !== null && strcasecmp($current, $code) !== 0) {
+                $referrals->cancelApplication($application, $actor, $validated['reason']);
+            }
+
+            $referrals->syncApplication($application, $code, $actor);
+        });
+
+        return new ApplicationResource($application->fresh()->load($this->applicationRelations()));
     }
 
     /**
@@ -169,15 +223,22 @@ class ApplicationController extends Controller
      *
      * @param  'accepted'|'rejected'  $status
      */
-    private function decide(Application $application, string $status, SendApplicationDecisionEmail $sendEmail, NotifyStudent $notify, ?string $note = null, ?int $discountId = null): ApplicationResource
-    {
+    private function decide(
+        Application $application,
+        string $status,
+        SendApplicationDecisionEmail $sendEmail,
+        NotifyStudent $notify,
+        ?string $note = null,
+        ?int $discountId = null,
+        ?User $actor = null,
+    ): ApplicationResource {
         abort_unless(
             in_array($application->status, self::DECIDABLE_STATUSES, true),
             422,
             'This application has already been decided and cannot be changed.',
         );
 
-        DB::transaction(function () use ($application, $status, $note, $discountId, $notify) {
+        DB::transaction(function () use ($application, $status, $note, $discountId, $notify, $actor) {
             $application->update([
                 'status' => $status,
                 'decision_note' => $note,
@@ -189,6 +250,36 @@ class ApplicationController extends Controller
             // is read live from the database.
             if ($status === 'accepted') {
                 $student = app(PromoteApplicantToStudent::class)($application, $discountId);
+
+                if ($student === null) {
+                    throw ValidationException::withMessages([
+                        'application' => 'The applicant could not be promoted to a student.',
+                    ]);
+                }
+
+                $enrollment = $student->enrollments()
+                    ->whereHas(
+                        'schoolYear',
+                        fn ($query) => $query->where('school_year', $application->school_year),
+                    )
+                    ->first();
+
+                if ($enrollment === null) {
+                    throw ValidationException::withMessages([
+                        'application' => 'The accepted application has no enrollment for its school year.',
+                    ]);
+                }
+
+                $lifecycle = app(ReferralLifecycle::class);
+                $wasAlreadyEnrolled = $enrollment->status === 'enrolled';
+                $lifecycle->acceptApplication($application, $enrollment, $actor);
+
+                // Defensive support for legacy/pre-existing bills: reconciliation
+                // only triggers the model transition for pending enrollments, so an
+                // enrollment that was already final needs the success hook explicitly.
+                if ($wasAlreadyEnrolled) {
+                    $lifecycle->markEnrollmentSuccessful($enrollment->fresh());
+                }
 
                 // The decision email is the only channel while they're an
                 // applicant; this in-app copy is waiting for them the moment
@@ -203,12 +294,26 @@ class ApplicationController extends Controller
                         ctaUrl: '/portal/application',
                     );
                 }
+            } else {
+                app(ReferralLifecycle::class)->cancelApplication(
+                    $application,
+                    $actor,
+                    $note ?: 'Application rejected.',
+                );
             }
         });
 
         $application->load('user');
         $sendEmail($application, $status);
 
-        return new ApplicationResource($application->load(['user', 'documents']));
+        return new ApplicationResource($application->load($this->applicationRelations()));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function applicationRelations(): array
+    {
+        return ['user', 'documents', 'referral.referralCode.referrer'];
     }
 }

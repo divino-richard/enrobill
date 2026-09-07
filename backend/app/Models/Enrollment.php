@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Actions\ReferralLifecycle;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -80,6 +82,22 @@ class Enrollment extends Model
         return $this->hasOne(Bill::class);
     }
 
+    /** Incentive eligibility records attached to this school-year enrollment. */
+    public function incentiveAwards(): HasMany
+    {
+        return $this->hasMany(IncentiveAward::class);
+    }
+
+    public function referralsAsReferrer(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referrer_enrollment_id');
+    }
+
+    public function referralsAsReferredStudent(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referred_enrollment_id');
+    }
+
     /**
      * Mark this enrollment as enrolled (downpayment/full payment met). Idempotent.
      */
@@ -87,6 +105,12 @@ class Enrollment extends Model
     {
         if ($this->status === 'pending') {
             $this->update(['status' => 'enrolled', 'enrolled_at' => now()]);
+
+            // Referral success is tied to the actual Grade 11 enrollment
+            // milestone, regardless of whether it was reached by a payment,
+            // voucher-backed incentive, or an administrative settlement.
+            app(ReferralLifecycle::class)
+                ->markEnrollmentSuccessful($this->fresh());
         }
     }
 }

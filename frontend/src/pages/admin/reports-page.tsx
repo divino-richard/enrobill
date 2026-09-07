@@ -203,7 +203,7 @@ function ReportsPage() {
           </div>
           <p className="text-muted-foreground max-w-3xl text-sm">
             Finance and enrollment snapshots for bills, payments, enrollments,
-            vouchers, and payment channels.
+            vouchers, tuition incentives, and payment channels.
           </p>
         </div>
 
@@ -286,11 +286,12 @@ function ReportsPage() {
             </h2>
             <p className="text-muted-foreground max-w-xl text-xs">
               Bills are anchored to school year and enrollment records; verified
-              payments and voucher credits explain how much has been realized.
+              payments, voucher credits, and tuition incentive credits explain
+              how much has been realized.
             </p>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3 lg:shrink-0">
+          <div className="grid gap-2 sm:grid-cols-2 lg:shrink-0 xl:grid-cols-4">
             <HighlightTile
               label="Snapshot updated"
               value={formatDate(dataset.updatedAt)}
@@ -305,6 +306,11 @@ function ReportsPage() {
               label="Voucher credits"
               value={formatPeso(dataset.summary.voucherCredits)}
               icon={TagIcon}
+            />
+            <HighlightTile
+              label="Tuition incentive credits"
+              value={formatPeso(dataset.summary.incentiveCredits ?? 0)}
+              icon={GraduationCapIcon}
             />
           </div>
         </CardContent>
@@ -789,8 +795,8 @@ function ReportsPage() {
             <CardHeader>
               <CardTitle className="text-base">Recent credit activity</CardTitle>
               <CardDescription>
-                Voucher applications mapped back to bill status for finance
-                follow-up.
+                Vouchers and tuition incentives mapped back to bill status for
+                finance follow-up.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -798,7 +804,7 @@ function ReportsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Student</TableHead>
-                    <TableHead>Voucher</TableHead>
+                    <TableHead>Credit</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Amount applied</TableHead>
                     <TableHead className="text-right">Posted</TableHead>
@@ -825,7 +831,16 @@ function ReportsPage() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>{row.voucherName}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span>{row.creditName ?? row.voucherName}</span>
+                            {(row.reasons?.length ?? 0) > 0 && (
+                              <span className="text-muted-foreground text-xs">
+                                {row.reasons?.join(" + ")}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant="outline"
