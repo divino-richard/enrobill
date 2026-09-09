@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\ApplicationController as AdminApplicationController;
 use App\Http\Controllers\Admin\BillAdjustmentController as AdminBillAdjustmentController;
 use App\Http\Controllers\Admin\BillController as AdminBillController;
+use App\Http\Controllers\Admin\ClassScheduleController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentProfileController;
+use App\Http\Controllers\StudentScheduleController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -94,6 +96,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // The current user's own student record (once accepted).
     Route::get('/me/student', [StudentProfileController::class, 'show']);
+    Route::get('/me/schedule', [StudentScheduleController::class, 'show'])->middleware('role:student');
 
     // A Grade 11 student's referral code and privacy-safe referral progress for
     // the upcoming school year.
@@ -192,6 +195,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Class sections — managed catalog + rosters.
         Route::get('/admin/sections/unsectioned', [AdminSectionController::class, 'unsectioned']);
         Route::get('/admin/sections', [AdminSectionController::class, 'index']);
+        Route::get('/admin/sections/{section}/schedule', [ClassScheduleController::class, 'show']);
+        Route::put('/admin/sections/{section}/schedule', [ClassScheduleController::class, 'update']);
+        Route::post('/admin/sections/{section}/schedule/publish', [ClassScheduleController::class, 'publish']);
+        Route::post('/admin/sections/{section}/schedule/unpublish', [ClassScheduleController::class, 'unpublish']);
         Route::post('/admin/sections', [AdminSectionController::class, 'store']);
         Route::put('/admin/sections/{section}', [AdminSectionController::class, 'update']);
         Route::delete('/admin/sections/{section}', [AdminSectionController::class, 'destroy']);

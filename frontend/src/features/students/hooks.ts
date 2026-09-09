@@ -15,6 +15,7 @@ import {
   type StudentListParams,
 } from "./api";
 import type { EnrollmentStatus, StudentFormValues } from "./types";
+import { useAuthStore } from "@/features/auth/store";
 
 export const studentsQueryKey = ["admin", "students"] as const;
 export const myStudentQueryKey = ["me", "student"] as const;
@@ -31,8 +32,10 @@ export function useMyStudent() {
 
 // The signed-in student's per-term enrollment history.
 export function useMyEnrollments() {
+  const userId = useAuthStore((state) => state.user?.id);
   return useQuery({
-    queryKey: myEnrollmentsQueryKey,
+    queryKey: [...myEnrollmentsQueryKey, userId],
+    enabled: Boolean(userId),
     queryFn: fetchMyEnrollments,
     retry: false,
   });

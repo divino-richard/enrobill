@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { format } from "date-fns";
 import {
   ArrowRightLeftIcon,
@@ -5,10 +6,7 @@ import {
   FolderUpIcon,
   GraduationCapIcon,
   HistoryIcon,
-  InfoIcon,
-  MapPinIcon,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardAction,
@@ -20,14 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { StudentClassSchedule } from "@/features/scheduling/student-schedule";
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useMyEnrollments, useMyStudent } from "@/features/students/hooks";
@@ -40,76 +31,6 @@ import { StudentStatusBadge } from "@/features/students/components/student-statu
 import { EnrollmentStatusBadge } from "@/features/students/components/enrollment-status-badge";
 import type { EnrollmentRecord } from "@/features/students/types";
 import { TransferRequestPanel } from "@/features/program-transfers/components/transfer-request-panel";
-
-// --- Dummy class schedule (UI preview until timetables are wired in) ---------
-// Senior high school timetable: subjects with day/time, room and teacher.
-interface ScheduleEntry {
-  subject: string;
-  day: string;
-  time: string;
-  room: string;
-  teacher: string;
-}
-
-const DUMMY_SECTION = "HUMSS 11-A";
-const DUMMY_SCHEDULE: ScheduleEntry[] = [
-  {
-    subject: "Oral Communication",
-    day: "Mon · Wed · Fri",
-    time: "8:00 – 9:00 AM",
-    room: "Room 201",
-    teacher: "Ms. Reyes",
-  },
-  {
-    subject: "General Mathematics",
-    day: "Mon · Wed · Fri",
-    time: "9:00 – 10:00 AM",
-    room: "Room 201",
-    teacher: "Mr. Santos",
-  },
-  {
-    subject: "Komunikasyon sa Akademikong Filipino",
-    day: "Mon · Wed · Fri",
-    time: "10:00 – 11:00 AM",
-    room: "Room 201",
-    teacher: "Ms. Bautista",
-  },
-  {
-    subject: "Earth and Life Science",
-    day: "Tue · Thu",
-    time: "8:00 – 9:30 AM",
-    room: "Science Lab 1",
-    teacher: "Ms. Cruz",
-  },
-  {
-    subject: "Understanding Culture, Society & Politics",
-    day: "Tue · Thu",
-    time: "9:30 – 11:00 AM",
-    room: "Room 203",
-    teacher: "Mr. Dela Peña",
-  },
-  {
-    subject: "Personal Development",
-    day: "Tue · Thu",
-    time: "1:00 – 2:30 PM",
-    room: "Room 205",
-    teacher: "Ms. Garcia",
-  },
-  {
-    subject: "Introduction to the Philosophy of the Human Person",
-    day: "Mon · Wed",
-    time: "1:00 – 2:30 PM",
-    room: "Room 207",
-    teacher: "Mr. Aquino",
-  },
-  {
-    subject: "Physical Education and Health",
-    day: "Fri",
-    time: "1:00 – 3:00 PM",
-    room: "Gymnasium",
-    teacher: "Mr. Lim",
-  },
-];
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
@@ -155,6 +76,7 @@ function EmptyTab({
 }
 
 function ProgramsPage() {
+  const [activeTab, setActiveTab] = useState("overview");
   const { data: student, isLoading, isError } = useMyStudent();
   const { data: enrollments } = useMyEnrollments();
   const programLabel = useProgramLabel();
@@ -197,7 +119,7 @@ function ProgramsPage() {
   const currentSchoolYear = current?.schoolYear ?? student.schoolYear;
 
   return (
-    <div className="space-y-6 mx-auto max-w-7xl">
+    <div className="space-y-4 mx-auto min-w-0 max-w-7xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">My Program</h1>
@@ -228,7 +150,7 @@ function ProgramsPage() {
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="overview">
             <GraduationCapIcon />
@@ -292,61 +214,8 @@ function ProgramsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="schedule" className="space-y-6">
-          <Alert className="border-primary/15 bg-primary/5">
-            <InfoIcon className="size-4" />
-            <AlertTitle>Sample schedule</AlertTitle>
-            <AlertDescription>
-              This timetable uses placeholder data for preview. Your real class
-              schedule will appear here once it's published by the registrar.
-            </AlertDescription>
-          </Alert>
-
-          <Card className="overflow-hidden">
-            <CardHeader className="border-b bg-muted/20">
-              <CardTitle className="text-base">Class schedule</CardTitle>
-              <CardDescription>
-                {DUMMY_SCHEDULE.length} subjects · {DUMMY_SECTION}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Subject</TableHead>
-                    <TableHead>Day</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Room</TableHead>
-                    <TableHead className="pr-6">Teacher</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {DUMMY_SCHEDULE.map((entry) => (
-                    <TableRow key={entry.subject}>
-                      <TableCell className="pl-6 font-medium whitespace-normal">
-                        {entry.subject}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {entry.day}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground tabular-nums">
-                        {entry.time}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
-                          <MapPinIcon className="size-3.5" />
-                          {entry.room}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground pr-6">
-                        {entry.teacher}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+        <TabsContent value="schedule">
+          <StudentClassSchedule />
         </TabsContent>
 
         <TabsContent value="clearance-grades">
