@@ -29,7 +29,7 @@ class SectionController extends Controller
             ->when($schoolYearId, fn ($q) => $q->where('school_year_id', $schoolYearId))
             ->when($request->filled('program'), fn ($q) => $q->where('program', $request->string('program')->value()))
             ->when($request->filled('yearLevel'), fn ($q) => $q->where('year_level', $request->string('yearLevel')->value()))
-            ->with(['enrollments' => fn ($q) => $q->with('student')->orderBy('id')])
+            ->with(['adviser', 'enrollments' => fn ($q) => $q->with('student')->orderBy('id')])
             ->orderBy('program')
             ->orderBy('year_level')
             ->orderBy('name')
@@ -80,6 +80,11 @@ class SectionController extends Controller
                     ->where('year_level', $request->string('yearLevel')->value())),
             ],
             'capacity' => ['required', 'integer', 'min:1', 'max:500'],
+            'adviserTeacherId' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where('role', 'teacher'),
+            ],
         ], [
             'name.unique' => 'A section with this name already exists for this program and grade.',
         ]);
@@ -90,9 +95,10 @@ class SectionController extends Controller
             'year_level' => $validated['yearLevel'],
             'name' => $validated['name'],
             'capacity' => $validated['capacity'],
+            'adviser_teacher_id' => $validated['adviserTeacherId'] ?? null,
         ]);
 
-        return new SectionResource($section->load('enrollments.student'));
+        return new SectionResource($section->load(['adviser', 'enrollments.student']));
     }
 
     public function update(Request $request, Section $section): SectionResource
@@ -106,13 +112,22 @@ class SectionController extends Controller
                     ->where('year_level', $section->year_level)),
             ],
             'capacity' => ['required', 'integer', 'min:1', 'max:500'],
+            'adviserTeacherId' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where('role', 'teacher'),
+            ],
         ], [
             'name.unique' => 'A section with this name already exists for this program and grade.',
         ]);
 
-        $section->update($validated);
+        $section->update([
+            'name' => $validated['name'],
+            'capacity' => $validated['capacity'],
+            'adviser_teacher_id' => $validated['adviserTeacherId'] ?? null,
+        ]);
 
-        return new SectionResource($section->load('enrollments.student'));
+        return new SectionResource($section->load(['adviser', 'enrollments.student']));
     }
 
     public function destroy(Section $section): Response

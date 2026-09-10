@@ -1,11 +1,24 @@
 import { useState, type ReactNode } from "react";
-import { CheckCircle2Icon, Clock3Icon, EyeOffIcon, MoreHorizontalIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  Clock3Icon,
+  EyeOffIcon,
+  MoreHorizontalIcon,
+  PlusIcon,
+  SendIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TimePicker } from "@/components/ui/time-picker";
 import { Label } from "@/components/ui/label";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -29,8 +42,15 @@ import {
   useChangeSchedule,
 } from "@/features/scheduling/hooks";
 import { WeeklyTimetable } from "@/features/scheduling/weekly-timetable";
-import { SCHEDULE_DAYS, classMinutes, scheduleDuration, scheduleTime, type ClassEntry } from "@/features/scheduling/types";
+import {
+  SCHEDULE_DAYS,
+  classMinutes,
+  scheduleDuration,
+  scheduleTime,
+  type ClassEntry,
+} from "@/features/scheduling/types";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { useUsers } from "@/features/users/hooks";
 
 function sectionLabel(section: Section) {
   return `${section.program.toUpperCase()} · Grade ${section.yearLevel === "grade_11" ? "11" : "12"} · ${section.name}`;
@@ -49,56 +69,68 @@ export default function SchedulingPage() {
     sections.data?.find((item) => String(item.id) === selectedSection) ??
     sections.data?.[0];
   const selectionControls = (
-      <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap">
-        <div className="min-w-0 sm:w-44">
-          <Label htmlFor="schedule-year" className="sr-only">School year</Label>
-          <Select
-            value={yearId ? String(yearId) : ""}
-            onValueChange={(value) => {
-              setSelectedYear(value);
-              setSelectedSection("");
-            }}
-            disabled={terms.isLoading || terms.isError}
-          >
-            <SelectTrigger id="schedule-year" className="w-full">
-              <SelectValue placeholder="Select school year" />
-            </SelectTrigger>
-            <SelectContent>
-              {terms.data?.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  SY {item.schoolYear}
-                  {item.isActive ? " · Active" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-0 sm:w-64">
-          <Label htmlFor="schedule-section" className="sr-only">Section</Label>
-          <Select
-            value={section ? String(section.id) : ""}
-            onValueChange={setSelectedSection}
-            disabled={sections.isLoading || sections.isError}
-          >
-            <SelectTrigger id="schedule-section" className="w-full">
-              <SelectValue placeholder="Select section" />
-            </SelectTrigger>
-            <SelectContent>
-              {sections.data?.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  {sectionLabel(item)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap">
+      <div className="min-w-0 sm:w-44">
+        <Label htmlFor="schedule-year" className="sr-only">
+          School year
+        </Label>
+        <Select
+          value={yearId ? String(yearId) : ""}
+          onValueChange={(value) => {
+            setSelectedYear(value);
+            setSelectedSection("");
+          }}
+          disabled={terms.isLoading || terms.isError}
+        >
+          <SelectTrigger id="schedule-year" className="w-full">
+            <SelectValue placeholder="Select school year" />
+          </SelectTrigger>
+          <SelectContent>
+            {terms.data?.map((item) => (
+              <SelectItem key={item.id} value={String(item.id)}>
+                SY {item.schoolYear}
+                {item.isActive ? " · Active" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+      <div className="min-w-0 sm:w-64">
+        <Label htmlFor="schedule-section" className="sr-only">
+          Section
+        </Label>
+        <Select
+          value={section ? String(section.id) : ""}
+          onValueChange={setSelectedSection}
+          disabled={sections.isLoading || sections.isError}
+        >
+          <SelectTrigger id="schedule-section" className="w-full">
+            <SelectValue placeholder="Select section" />
+          </SelectTrigger>
+          <SelectContent>
+            {sections.data?.map((item) => (
+              <SelectItem key={item.id} value={String(item.id)}>
+                {sectionLabel(item)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
 
   return (
     <div className="min-w-0 space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Class scheduling</h1>
-      {(terms.isError || sections.isError || terms.isLoading || sections.isLoading || !yearId || !section) && selectionControls}
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Class scheduling
+      </h1>
+      {(terms.isError ||
+        sections.isError ||
+        terms.isLoading ||
+        sections.isLoading ||
+        !yearId ||
+        !section) &&
+        selectionControls}
       {terms.isError || sections.isError ? (
         <div role="alert" className="space-y-3 rounded-lg border p-6">
           <p>We couldn't load school years or sections.</p>
@@ -143,6 +175,12 @@ function SectionSchedule({
 }) {
   const query = useClassSchedule(section.id);
   const change = useChangeSchedule(section.id);
+  const teachers = useUsers({
+    role: "teacher",
+    perPage: 100,
+    sort: "name",
+    dir: "asc",
+  });
   const [draft, setDraft] = useState<ClassEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [initialDraft, setInitialDraft] = useState<ClassEntry | null>(null);
@@ -158,18 +196,18 @@ function SectionSchedule({
     setNotice("");
     setExpectedVersion(schedule?.version ?? 0);
     setEditing(Boolean(entry));
-    const next =
-      entry
-        ? { ...entry }
-        : {
-            id: crypto.randomUUID(),
-            day,
-            startTime: "07:30",
-            endTime: "08:30",
-            subject: "",
-            teacher: "",
-            room: "",
-          };
+    const next = entry
+      ? { ...entry }
+      : {
+          id: crypto.randomUUID(),
+          day,
+          startTime: "07:30",
+          endTime: "08:30",
+          subject: "",
+          teacherId: undefined,
+          teacher: "",
+          room: "",
+        };
     setDraft(next);
     setInitialDraft(next);
   }
@@ -260,7 +298,13 @@ function SectionSchedule({
     </div>
   ) : null;
 
-  if (query.isLoading) return <div className="space-y-4">{selectionControls}<p role="status">Loading timetable…</p></div>;
+  if (query.isLoading)
+    return (
+      <div className="space-y-4">
+        {selectionControls}
+        <p role="status">Loading timetable…</p>
+      </div>
+    );
   if (query.isError || !schedule)
     return (
       <div role="alert" className="space-y-3 rounded-lg border p-6">
@@ -279,10 +323,19 @@ function SectionSchedule({
   return (
     <>
       <section aria-label="Section timetable" className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {selectionControls}
-            <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => startEdit()} disabled={change.isPending}>
+            <Badge variant={schedule.adviser ? "secondary" : "outline"}>
+              Adviser: {schedule.adviser?.name ?? "Not assigned"}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => startEdit()}
+              disabled={change.isPending}
+            >
               <PlusIcon />
               Add class
             </Button>
@@ -304,35 +357,85 @@ function SectionSchedule({
             {schedule.publishedAt && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" disabled={change.isPending} aria-label="Schedule options"><MoreHorizontalIcon aria-hidden="true" /></Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={change.isPending}
+                    aria-label="Schedule options"
+                  >
+                    <MoreHorizontalIcon aria-hidden="true" />
+                  </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <div className="text-muted-foreground px-2 py-1.5 text-xs">Published {new Date(schedule.publishedAt).toLocaleString()}</div>
-                  <DropdownMenuItem onSelect={() => {
-                  change.reset();
-                  setExpectedVersion(schedule.version);
-                  setConfirm("unpublish");
-                  }}><EyeOffIcon aria-hidden="true" />Unpublish schedule</DropdownMenuItem>
+                <DropdownMenuContent align="end" className="w-full max-w-56">
+                  <div className="text-muted-foreground px-2 py-1.5 text-xs">
+                    Published {new Date(schedule.publishedAt).toLocaleString()}
+                  </div>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      change.reset();
+                      setExpectedVersion(schedule.version);
+                      setConfirm("unpublish");
+                    }}
+                  >
+                    <EyeOffIcon aria-hidden="true" />
+                    Unpublish schedule
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            </div>
           </div>
+        </div>
         <div className="space-y-3">
-          <div role="status" className={notice ? undefined : "sr-only"}>{notice && <p className="flex items-start gap-2 text-sm"><CheckCircle2Icon aria-hidden="true" className="text-primary mt-0.5 size-4 shrink-0" />{notice}</p>}</div>
+          <div role="status" className={notice ? undefined : "sr-only"}>
+            {notice && (
+              <p className="flex items-start gap-2 text-sm">
+                <CheckCircle2Icon
+                  aria-hidden="true"
+                  className="text-primary mt-0.5 size-4 shrink-0"
+                />
+                {notice}
+              </p>
+            )}
+          </div>
           {!draft && !confirm && error}
           <WeeklyTimetable
             entries={schedule.entries}
             onEdit={startEdit}
             onAdd={(day) => startEdit(undefined, day)}
             disabled={change.isPending}
-            summary={<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-              <Badge variant="secondary" className={schedule.publishedAt && !schedule.hasUnpublishedChanges ? "bg-primary/10 text-primary" : ""}>
-                {schedule.publishedAt ? schedule.hasUnpublishedChanges ? "Unpublished changes" : "Published" : "Draft · Only admins"}
-              </Badge>
-              <span className="text-muted-foreground">{schedule.entries.length} {schedule.entries.length === 1 ? "class" : "classes"} · {scheduleDuration(schedule.entries.reduce((total, entry) => total + classMinutes(entry), 0))}</span>
-              {schedule.publishedAt && schedule.hasUnpublishedChanges && <span className="text-muted-foreground">Students see the last published version.</span>}
-            </div>}
+            summary={
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                <Badge
+                  variant="secondary"
+                  className={
+                    schedule.publishedAt && !schedule.hasUnpublishedChanges
+                      ? "bg-primary/10 text-primary"
+                      : ""
+                  }
+                >
+                  {schedule.publishedAt
+                    ? schedule.hasUnpublishedChanges
+                      ? "Unpublished changes"
+                      : "Published"
+                    : "Draft · Only admins"}
+                </Badge>
+                <span className="text-muted-foreground">
+                  {schedule.entries.length}{" "}
+                  {schedule.entries.length === 1 ? "class" : "classes"} ·{" "}
+                  {scheduleDuration(
+                    schedule.entries.reduce(
+                      (total, entry) => total + classMinutes(entry),
+                      0,
+                    ),
+                  )}
+                </span>
+                {schedule.publishedAt && schedule.hasUnpublishedChanges && (
+                  <span className="text-muted-foreground">
+                    Students see the last published version.
+                  </span>
+                )}
+              </div>
+            }
           />
         </div>
       </section>
@@ -345,7 +448,9 @@ function SectionSchedule({
       >
         <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-xl p-5 sm:p-6">
           <DialogHeader className="text-left">
-            <DialogTitle className="pr-6 text-lg">{editing ? "Edit class" : "Add class"}</DialogTitle>
+            <DialogTitle className="pr-6 text-lg">
+              {editing ? "Edit class" : "Add class"}
+            </DialogTitle>
             <DialogDescription>
               {sectionLabel(section)}. All fields are required.
             </DialogDescription>
@@ -422,21 +527,60 @@ function SectionSchedule({
                   />
                 </div>
                 <div className="bg-muted/40 col-span-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm">
-                  <Clock3Icon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
-                  <p>{draft.endTime > draft.startTime ? <><span className="font-medium">{scheduleDuration(classMinutes(draft))}</span><span className="text-muted-foreground"> · {SCHEDULE_DAYS[draft.day - 1]} · {scheduleTime(draft.startTime)} – {scheduleTime(draft.endTime)}</span></> : "Choose an end time after the start time."}</p>
+                  <Clock3Icon
+                    aria-hidden="true"
+                    className="text-muted-foreground size-4 shrink-0"
+                  />
+                  <p>
+                    {draft.endTime > draft.startTime ? (
+                      <>
+                        <span className="font-medium">
+                          {scheduleDuration(classMinutes(draft))}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {SCHEDULE_DAYS[draft.day - 1]} ·{" "}
+                          {scheduleTime(draft.startTime)} –{" "}
+                          {scheduleTime(draft.endTime)}
+                        </span>
+                      </>
+                    ) : (
+                      "Choose an end time after the start time."
+                    )}
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="class-teacher">Teacher</Label>
-                  <Input
-                    id="class-teacher"
-                    required
-                    maxLength={120}
-                    placeholder="Teacher's full name"
-                    value={draft.teacher}
-                    onChange={(e) =>
-                      setDraft({ ...draft, teacher: e.target.value })
-                    }
-                  />
+                  <Select
+                    value={draft.teacherId ? String(draft.teacherId) : ""}
+                    onValueChange={(value) => {
+                      const teacher = teachers.data?.rows.find(
+                        (item) => item.id === Number(value),
+                      );
+                      setDraft({
+                        ...draft,
+                        teacherId: Number(value),
+                        teacher: teacher?.name ?? "",
+                      });
+                    }}
+                    disabled={teachers.isLoading || teachers.isError}
+                  >
+                    <SelectTrigger id="class-teacher" className="w-full">
+                      <SelectValue placeholder="Select teacher" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teachers.data?.rows.map((teacher) => (
+                        <SelectItem key={teacher.id} value={String(teacher.id)}>
+                          {teacher.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {teachers.isError && (
+                    <p className="text-destructive text-xs">
+                      Teachers could not be loaded. Reopen this class to retry.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="class-room">Room</Label>
@@ -452,7 +596,10 @@ function SectionSchedule({
                   />
                 </div>
               </fieldset>
-              <p className="text-muted-foreground text-xs">Use consistent teacher and room names across sections. Scheduling conflicts are checked when you save.</p>
+              <p className="text-muted-foreground text-xs">
+                Grade access begins after this schedule is published. Scheduling
+                conflicts are checked when you save.
+              </p>
               {draft.endTime <= draft.startTime && (
                 <p role="alert" className="text-destructive text-sm">
                   End time must be after start time.
@@ -489,11 +636,15 @@ function SectionSchedule({
                     change.isPending ||
                     draft.endTime <= draft.startTime ||
                     !draft.subject.trim() ||
-                    !draft.teacher.trim() ||
+                    !draft.teacherId ||
                     !draft.room.trim()
                   }
                 >
-                  {change.isPending ? "Saving…" : editing ? "Save changes" : "Add to draft"}
+                  {change.isPending
+                    ? "Saving…"
+                    : editing
+                      ? "Save changes"
+                      : "Add to draft"}
                 </Button>
               </DialogFooter>
             </form>
@@ -513,22 +664,35 @@ function SectionSchedule({
         <DialogContent className="w-[calc(100%-2rem)] rounded-xl">
           <DialogHeader>
             <DialogTitle>
-              {confirm === "discard" ? "Discard unsaved changes?" : confirm === "publish"
-                ? "Publish this schedule?"
-                : confirm === "unpublish"
-                  ? "Unpublish this schedule?"
-                  : "Remove this class?"}
+              {confirm === "discard"
+                ? "Discard unsaved changes?"
+                : confirm === "publish"
+                  ? "Publish this schedule?"
+                  : confirm === "unpublish"
+                    ? "Unpublish this schedule?"
+                    : "Remove this class?"}
             </DialogTitle>
             <DialogDescription>
-              {confirm === "discard" ? "Your changes to this class haven't been saved. The saved timetable will stay unchanged." : confirm === "publish"
-                ? "Students assigned to this section will see the saved draft. Any previously published timetable is replaced."
-                : confirm === "unpublish"
-                  ? "Students will no longer see this timetable. Your draft classes are kept."
-                  : "This removes the class from the saved draft. The published schedule stays unchanged until you publish again."}
+              {confirm === "discard"
+                ? "Your changes to this class haven't been saved. The saved timetable will stay unchanged."
+                : confirm === "publish"
+                  ? "Students assigned to this section will see the saved draft. Any previously published timetable is replaced."
+                  : confirm === "unpublish"
+                    ? "Students will no longer see this timetable. Your draft classes are kept."
+                    : "This removes the class from the saved draft. The published schedule stays unchanged until you publish again."}
             </DialogDescription>
           </DialogHeader>
           {confirm !== "discard" && error}
-          {confirm === "remove" && draft && <p className="bg-muted/40 rounded-lg p-3 text-sm"><span className="font-medium">{draft.subject}</span><br /><span className="text-muted-foreground">{SCHEDULE_DAYS[draft.day - 1]} · {scheduleTime(draft.startTime)} – {scheduleTime(draft.endTime)}</span></p>}
+          {confirm === "remove" && draft && (
+            <p className="bg-muted/40 rounded-lg p-3 text-sm">
+              <span className="font-medium">{draft.subject}</span>
+              <br />
+              <span className="text-muted-foreground">
+                {SCHEDULE_DAYS[draft.day - 1]} · {scheduleTime(draft.startTime)}{" "}
+                – {scheduleTime(draft.endTime)}
+              </span>
+            </p>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
@@ -541,17 +705,23 @@ function SectionSchedule({
               {confirm === "discard" ? "Keep editing" : "Cancel"}
             </Button>
             <Button
-              variant={confirm === "remove" || confirm === "discard" ? "destructive" : "default"}
+              variant={
+                confirm === "remove" || confirm === "discard"
+                  ? "destructive"
+                  : "default"
+              }
               disabled={change.isPending}
               onClick={() => void confirmChange()}
             >
               {change.isPending
                 ? "Saving…"
-                : confirm === "discard" ? "Discard changes" : confirm === "publish"
-                  ? "Publish"
-                  : confirm === "unpublish"
-                    ? "Unpublish"
-                    : "Remove class"}
+                : confirm === "discard"
+                  ? "Discard changes"
+                  : confirm === "publish"
+                    ? "Publish"
+                    : confirm === "unpublish"
+                      ? "Unpublish"
+                      : "Remove class"}
             </Button>
           </DialogFooter>
         </DialogContent>

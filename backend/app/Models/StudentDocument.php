@@ -21,7 +21,7 @@ class StudentDocument extends Model
     /** The semesters a document can belong to, in academic order. */
     public const SEMESTERS = ['first', 'second'];
 
-    /** What a student uploads each semester for year-end evaluation. */
+    /** What is collected each semester for year-end evaluation. */
     public const TYPES = ['clearance', 'grades'];
 
     /**

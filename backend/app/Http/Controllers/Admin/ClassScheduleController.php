@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\ClassTimetable;
 use App\Models\SchoolYear;
 use App\Models\Section;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ClassScheduleController extends Controller
@@ -24,22 +26,35 @@ class ClassScheduleController extends Controller
         $input = $request->validate([
             'version' => ['required', 'integer', 'min:0'],
             'entries' => ['present', 'array', 'max:100'],
-            'entries.*' => ['required', 'array:id,day,startTime,endTime,subject,teacher,room'],
+            'entries.*' => ['required', 'array:id,day,startTime,endTime,subject,teacherId,teacher,room'],
             'entries.*.id' => ['required', 'uuid', 'distinct'],
             'entries.*.day' => ['required', 'integer', 'between:1,7'],
             'entries.*.startTime' => ['required', 'date_format:H:i'],
             'entries.*.endTime' => ['required', 'date_format:H:i'],
             'entries.*.subject' => ['required', 'string', 'max:150'],
-            'entries.*.teacher' => ['required', 'string', 'max:120'],
+            'entries.*.teacherId' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where('role', 'teacher'),
+            ],
+            'entries.*.teacher' => ['sometimes', 'nullable', 'string', 'max:120'],
             'entries.*.room' => ['required', 'string', 'max:80'],
         ]);
-        $entries = collect($input['entries'])->map(function (array $entry) {
-            foreach (['subject', 'teacher', 'room'] as $field) {
+        $teachers = User::query()
+            ->whereIn('id', collect($input['entries'])->pluck('teacherId'))
+            ->where('role', 'teacher')
+            ->get()
+            ->keyBy('id');
+
+        $entries = collect($input['entries'])->map(function (array $entry) use ($teachers) {
+            foreach (['subject', 'room'] as $field) {
                 $entry[$field] = Str::squish($entry[$field]);
                 if ($entry[$field] === '') {
-                    throw ValidationException::withMessages(['entries' => 'Subject, teacher and room must not be blank.']);
+                    throw ValidationException::withMessages(['entries' => 'Subject and room must not be blank.']);
                 }
             }
+            $entry['teacherId'] = (int) $entry['teacherId'];
+            $entry['teacher'] = $teachers->get($entry['teacherId'])?->name;
             $entry['day'] = (int) $entry['day'];
             if ($entry['endTime'] <= $entry['startTime']) {
                 throw ValidationException::withMessages(['entries' => 'Each class must end after its start time on the same day.']);
@@ -63,7 +78,9 @@ class ClassScheduleController extends Controller
             if ($entries === []) {
                 throw ValidationException::withMessages(['entries' => 'Add at least one class before publishing.']);
             }
+            $entries = $this->requireLinkedTeachers($entries);
             $this->checkConflicts($section, $entries);
+            $timetable->entries = $entries;
             $timetable->published_entries = $entries;
             $timetable->published_at = now();
             $timetable->published_by = $request->user()->id;
@@ -125,10 +142,14 @@ class ClassScheduleController extends Controller
                     if (! $this->overlaps($entry, $other)) {
                         continue;
                     }
-                    foreach (['teacher', 'room'] as $field) {
-                        if (Str::lower(Str::squish($entry[$field])) === Str::lower(Str::squish($other[$field]))) {
-                            throw ValidationException::withMessages(['entries' => ucfirst($field)." {$entry[$field]} is already scheduled in {$timetable->section->program} {$timetable->section->name} at this time."]);
-                        }
+                    $sameTeacher = isset($entry['teacherId'], $other['teacherId'])
+                        ? (int) $entry['teacherId'] === (int) $other['teacherId']
+                        : Str::lower(Str::squish($entry['teacher'] ?? '')) === Str::lower(Str::squish($other['teacher'] ?? ''));
+                    if ($sameTeacher) {
+                        throw ValidationException::withMessages(['entries' => "Teacher {$entry['teacher']} is already scheduled in {$timetable->section->program} {$timetable->section->name} at this time."]);
+                    }
+                    if (Str::lower(Str::squish($entry['room'])) === Str::lower(Str::squish($other['room'] ?? ''))) {
+                        throw ValidationException::withMessages(['entries' => "Room {$entry['room']} is already scheduled in {$timetable->section->program} {$timetable->section->name} at this time."]);
                     }
                 }
             }
@@ -142,12 +163,60 @@ class ClassScheduleController extends Controller
 
     private function response(Section $section, ?ClassTimetable $timetable): JsonResponse
     {
+        $entries = $this->currentTeacherNames($timetable?->entries ?? []);
+        $section->loadMissing('adviser');
+
         return response()->json(['data' => [
             'sectionId' => $section->id,
+            'adviser' => $section->adviser
+                ? ['id' => $section->adviser->id, 'name' => $section->adviser->name]
+                : null,
             'version' => $timetable?->version ?? 0,
-            'entries' => $timetable?->entries ?? [],
+            'entries' => $entries,
             'publishedAt' => $timetable?->published_at?->toIso8601String(),
             'hasUnpublishedChanges' => ($timetable?->entries ?? []) !== ($timetable?->published_entries ?? []),
         ]]);
+    }
+
+    private function requireLinkedTeachers(array $entries): array
+    {
+        $teacherIds = collect($entries)->pluck('teacherId')->filter()->unique();
+        $teachers = User::query()
+            ->whereIn('id', $teacherIds)
+            ->where('role', 'teacher')
+            ->get()
+            ->keyBy('id');
+
+        foreach ($entries as &$entry) {
+            $teacher = $teachers->get((int) ($entry['teacherId'] ?? 0));
+            if ($teacher === null) {
+                throw ValidationException::withMessages([
+                    'entries' => 'Every class must be linked to an active Teacher account before publishing.',
+                ]);
+            }
+            $entry['teacherId'] = $teacher->id;
+            $entry['teacher'] = $teacher->name;
+        }
+        unset($entry);
+
+        return $entries;
+    }
+
+    private function currentTeacherNames(array $entries): array
+    {
+        $teachers = User::query()
+            ->whereIn('id', collect($entries)->pluck('teacherId')->filter())
+            ->where('role', 'teacher')
+            ->pluck('name', 'id');
+
+        foreach ($entries as &$entry) {
+            $currentName = $teachers->get((int) ($entry['teacherId'] ?? 0));
+            if ($currentName !== null) {
+                $entry['teacher'] = $currentName;
+            }
+        }
+        unset($entry);
+
+        return $entries;
     }
 }

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'school_year_id', 'program', 'year_level', 'name', 'capacity',
+    'school_year_id', 'program', 'year_level', 'name', 'capacity', 'adviser_teacher_id',
 ])]
 class Section extends Model
 {
@@ -34,6 +34,16 @@ class Section extends Model
     public function schoolYear(): BelongsTo
     {
         return $this->belongsTo(SchoolYear::class);
+    }
+
+    /**
+     * The teacher responsible for this section's consolidated grade slips.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function adviser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'adviser_teacher_id');
     }
 
     /**

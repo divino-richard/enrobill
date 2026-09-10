@@ -35,6 +35,7 @@ use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\StudentScheduleController;
+use App\Http\Controllers\Teacher\GradeController as TeacherGradeController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -172,6 +173,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Back-office endpoints — admins only.
     Route::middleware('role:admin')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
         Route::get('/users/{user}', [UserController::class, 'show']);
         // Route::put('/users/{user}', [UserController::class, 'update']);
 
@@ -229,6 +231,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/programs', [AdminProgramController::class, 'store']);
         Route::put('/admin/programs/{program}', [AdminProgramController::class, 'update']);
         Route::delete('/admin/programs/{program}', [AdminProgramController::class, 'destroy']);
+    });
+
+    Route::middleware('role:teacher')->group(function () {
+        Route::get('/teacher/grades', [TeacherGradeController::class, 'index']);
+        Route::post('/teacher/students/{student}/grades/presign', [TeacherGradeController::class, 'presign']);
+        Route::post('/teacher/students/{student}/grades', [TeacherGradeController::class, 'store']);
     });
 
     // Accounting endpoints — available to admins and cashiers.

@@ -98,7 +98,7 @@ class Student extends Model
     }
 
     /**
-     * Per-semester clearance and grade slips this student uploaded.
+     * Per-semester clearance and grade slips recorded for this student.
      *
      * @return HasMany<StudentDocument, $this>
      */

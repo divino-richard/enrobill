@@ -4,7 +4,7 @@ import type { Role } from './types'
 export const AUTH_STORAGE_KEY = 'enrobill-auth'
 
 // Role groups decide which area a user lands in after the shared login.
-export const STAFF_ROLES: Role[] = ['admin', 'cashier']
+export const STAFF_ROLES: Role[] = ['admin', 'cashier', 'teacher']
 export const PORTAL_ROLES: Role[] = ['student', 'applicant']
 
 // TanStack Query mutation keys.

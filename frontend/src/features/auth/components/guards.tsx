@@ -27,6 +27,14 @@ export function AdminGuard() {
   return <RequireRole allow={['admin']} />
 }
 
+export function AdminCashierGuard() {
+  return <RequireRole allow={['admin', 'cashier']} />
+}
+
+export function TeacherGuard() {
+  return <RequireRole allow={['teacher']} />
+}
+
 export function PortalGuard() {
   return <RequireRole allow={PORTAL_ROLES} />
 }

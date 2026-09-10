@@ -63,6 +63,18 @@ interface NavGroup {
 // Sidebar grouped by area of work so admins can find things quickly.
 const navGroups: NavGroup[] = [
   {
+    label: "Teaching",
+    roles: ["teacher"],
+    items: [
+      {
+        title: "Students",
+        url: "/admin/my-students",
+        icon: GraduationCapIcon,
+        ready: true,
+      },
+    ],
+  },
+  {
     label: "Overview",
     roles: ["admin", "cashier"],
     items: [
@@ -257,7 +269,11 @@ export function AdminSidebar(props: ComponentProps<typeof Sidebar>) {
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Enrobill</span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {role === "cashier" ? "Cashier Console" : "Admin Console"}
+                    {role === "teacher"
+                      ? "Teacher Workspace"
+                      : role === "cashier"
+                        ? "Cashier Console"
+                        : "Admin Console"}
                   </span>
                 </div>
               </NavLink>

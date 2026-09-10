@@ -9,6 +9,7 @@ use App\Models\SchoolYear;
 use App\Models\SemesterStanding;
 use App\Models\Student;
 use App\Models\StudentDocument;
+use App\Support\TeacherStudentAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -74,7 +75,7 @@ class StudentDocumentController extends Controller
 
         $validated = $request->validate([
             'semester' => ['required', Rule::in(StudentDocument::SEMESTERS)],
-            'type' => ['required', Rule::in(StudentDocument::TYPES)],
+            'type' => ['required', Rule::in(['clearance'])],
             'content_type' => ['required', 'string', Rule::in(array_keys(self::ALLOWED_TYPES))],
             'size' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BYTES],
         ]);
@@ -115,7 +116,7 @@ class StudentDocumentController extends Controller
 
         $validated = $request->validate([
             'semester' => ['required', Rule::in(StudentDocument::SEMESTERS)],
-            'type' => ['required', Rule::in(StudentDocument::TYPES)],
+            'type' => ['required', Rule::in(['clearance'])],
             'key' => ['required', 'string'],
             'file_name' => ['required', 'string', 'max:255'],
             'size' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BYTES],
@@ -190,6 +191,7 @@ class StudentDocumentController extends Controller
 
         // 404 rather than 403 — a student shouldn't learn another's document exists.
         abort_unless($document->student_id === $student->id, 404);
+        abort_unless($document->type === 'clearance', 403, 'Grades are managed by your teacher.');
 
         $decided = ProgressionDecision::query()
             ->where('student_id', $student->id)
@@ -260,7 +262,11 @@ class StudentDocumentController extends Controller
         $user = $request->user();
         $isOwner = $user->student !== null && $user->student->id === $document->student_id;
 
-        abort_unless($isOwner || $user->role === Role::Admin, 404);
+        $isTeacher = $document->type === 'grades'
+            && $user->role === Role::Teacher
+            && app(TeacherStudentAccess::class)->handles($user, $document->student, $document->schoolYear);
+
+        abort_unless($isOwner || $user->role === Role::Admin || $isTeacher, 404);
     }
 
     private function ownStudentOrAbort(Request $request): Student

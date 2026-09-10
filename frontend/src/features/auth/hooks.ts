@@ -22,7 +22,13 @@ export function useLogin() {
     mutationFn: (credentials: LoginCredentials) => login(credentials),
     onSuccess: (data) => {
       setAuth(data)
-      navigate(STAFF_ROLES.includes(data.user.role) ? '/admin' : '/portal')
+      navigate(
+        data.user.role === 'teacher'
+          ? '/admin/my-students'
+          : STAFF_ROLES.includes(data.user.role)
+            ? '/admin'
+            : '/portal',
+      )
     },
   })
 }

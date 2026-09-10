@@ -1,8 +1,10 @@
 import { createBrowserRouter } from 'react-router-dom'
 import {
   AdminGuard,
+  AdminCashierGuard,
   PortalGuard,
   StaffGuard,
+  TeacherGuard,
 } from './features/auth/components/guards'
 import { StaffLayout } from './layouts/staff-layout'
 import { PortalLayout } from './layouts/portal-layout'
@@ -32,6 +34,7 @@ import AdminPaymentChannelsPage from './pages/admin/payment-channels-page'
 import AdminTransferRequestsPage from './pages/admin/transfer-requests-page'
 import AdminReferralsPage from './pages/admin/referrals-page'
 import AccountPage from './pages/account-page'
+import TeacherGradesPage from './pages/teacher/grades-page'
 import PortalHomePage from './pages/portal/home-page'
 import PortalBillsPage from './pages/portal/bills-page'
 import PortalBillDetailPage from './pages/portal/bill-detail-page'
@@ -43,7 +46,7 @@ import ApplicationDetailPage from './pages/portal/application-detail-page'
 import ApplicationEditPage from './pages/portal/application-edit-page'
 
 // Central route configuration. One shared login; two areas behind role guards:
-//   - Staff  (admin + cashier) under /admin
+//   - Staff  (admin + cashier + teacher) under /admin
 //   - Portal (student + applicant) under /portal
 // Uses `Component` (not `element`) so this stays a plain .ts file with no JSX.
 export const router = createBrowserRouter([
@@ -62,18 +65,26 @@ export const router = createBrowserRouter([
       {
         Component: StaffLayout,
         children: [
-          // Shared with cashiers: dashboard + accounting screens.
-          { index: true, Component: DashboardPage },
-          { path: 'reports', Component: AdminReportsPage },
           { path: 'account', Component: AccountPage },
-          { path: 'fees', Component: AdminFeesPage },
-          { path: 'discounts', Component: AdminDiscountsPage },
-          { path: 'enrollments', Component: AdminEnrollmentsPage },
-          { path: 'billing', Component: AdminBillingPage },
-          { path: 'billing/:id', Component: AdminBillDetailPage },
-          { path: 'payment-methods', Component: AdminPaymentChannelsPage },
-          { path: 'students', Component: AdminStudentsPage },
-          { path: 'students/:id', Component: AdminStudentDetailPage },
+          {
+            Component: AdminCashierGuard,
+            children: [
+              { index: true, Component: DashboardPage },
+              { path: 'reports', Component: AdminReportsPage },
+              { path: 'fees', Component: AdminFeesPage },
+              { path: 'discounts', Component: AdminDiscountsPage },
+              { path: 'enrollments', Component: AdminEnrollmentsPage },
+              { path: 'billing', Component: AdminBillingPage },
+              { path: 'billing/:id', Component: AdminBillDetailPage },
+              { path: 'payment-methods', Component: AdminPaymentChannelsPage },
+              { path: 'students', Component: AdminStudentsPage },
+              { path: 'students/:id', Component: AdminStudentDetailPage },
+            ],
+          },
+          {
+            Component: TeacherGuard,
+            children: [{ path: 'my-students', Component: TeacherGradesPage }],
+          },
 
           // Admin-only areas (cashiers are redirected away).
           {

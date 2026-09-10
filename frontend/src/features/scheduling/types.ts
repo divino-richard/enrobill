@@ -6,12 +6,14 @@ export interface ClassEntry {
   startTime: string;
   endTime: string;
   subject: string;
+  teacherId?: number;
   teacher: string;
   room: string;
 }
 
 export interface ClassTimetable {
   sectionId: number;
+  adviser: { id: number; name: string } | null;
   version: number;
   entries: ClassEntry[];
   publishedAt: string | null;

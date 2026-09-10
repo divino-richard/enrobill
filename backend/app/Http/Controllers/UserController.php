@@ -7,6 +7,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -57,6 +58,47 @@ class UserController extends Controller
      */
     public function show(User $user): UserResource
     {
+        return new UserResource($user);
+    }
+
+    /**
+     * Create a verified staff account. Student and applicant accounts continue
+     * to use their dedicated enrollment and registration flows.
+     */
+    public function store(Request $request): UserResource
+    {
+        $validated = $request->validate([
+            'first_name' => ['required', 'string', 'max:100'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'role' => [
+                'required',
+                Rule::in([Role::Admin->value, Role::Cashier->value, Role::Teacher->value]),
+            ],
+            'password' => [
+                'required',
+                'confirmed',
+                'string',
+                'min:8',
+                'regex:/[A-Z]/',
+                'regex:/\d/',
+            ],
+        ]);
+
+        $user = User::create([
+            'name' => Str::squish(
+                "{$validated['first_name']} ".($validated['middle_name'] ?? '')." {$validated['last_name']}"
+            ),
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+            'role' => $validated['role'],
+            'email_verified_at' => now(),
+        ]);
+
         return new UserResource($user);
     }
 

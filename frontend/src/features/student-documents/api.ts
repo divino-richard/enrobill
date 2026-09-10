@@ -63,7 +63,7 @@ export interface DocumentViewUrl {
   contentType: string | null;
 }
 
-// A short-lived URL to view a document — usable by its owner or an admin.
+// A short-lived URL usable by the student, an admin, or an assigned teacher.
 export async function fetchStudentDocumentViewUrl(
   documentId: number,
 ): Promise<DocumentViewUrl> {

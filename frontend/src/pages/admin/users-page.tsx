@@ -15,25 +15,255 @@ import {
   ChevronUpIcon,
   ChevronsUpDownIcon,
   Eye,
+  Loader2Icon,
+  PlusIcon,
   SearchIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RowActions } from "@/components/row-actions";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { UserRoleBadge } from "@/features/users/components/user-role-badge";
-import { useUsers } from "@/features/users/hooks";
+import { useCreateUser, useUsers } from "@/features/users/hooks";
 import {
+  CREATABLE_USER_ROLE_OPTIONS,
   USER_ROLE_OPTIONS,
+  type CreatableUserRole,
+  type CreateUserInput,
   type User,
   type UserRole,
 } from "@/features/users/types";
 import { formatDate } from "@/features/applications/utils";
+import { getErrorMessage } from "@/lib/get-error-message";
 
 type RoleFilter = UserRole | "all";
+type CreateUserForm = Omit<CreateUserInput, "role"> & {
+  role: CreatableUserRole | "";
+};
+
+const EMPTY_USER_FORM: CreateUserForm = {
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  email: "",
+  role: "",
+  password: "",
+  passwordConfirmation: "",
+};
+
+function CreateUserDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const createUser = useCreateUser();
+  const [form, setForm] = useState<CreateUserForm>(EMPTY_USER_FORM);
+
+  function update<K extends keyof CreateUserForm>(
+    field: K,
+    value: CreateUserForm[K],
+  ) {
+    createUser.reset();
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!createUser.isPending) {
+          if (!next) {
+            setForm(EMPTY_USER_FORM);
+            createUser.reset();
+          }
+          onOpenChange(next);
+        }
+      }}
+    >
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create user account</DialogTitle>
+          <DialogDescription>
+            The account is ready immediately. Share the temporary password
+            securely and ask the user to change it after signing in.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const role = form.role;
+            if (!role) return;
+
+            createUser.mutate({ ...form, role }, {
+              onSuccess: () => {
+                setForm(EMPTY_USER_FORM);
+                onOpenChange(false);
+              },
+            });
+          }}
+        >
+          <fieldset
+            disabled={createUser.isPending}
+            className="grid gap-4 sm:grid-cols-2"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="user-first-name">First name</Label>
+              <Input
+                id="user-first-name"
+                required
+                maxLength={100}
+                autoFocus
+                value={form.firstName}
+                onChange={(event) => update("firstName", event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="user-middle-name">Middle name</Label>
+              <Input
+                id="user-middle-name"
+                maxLength={100}
+                value={form.middleName}
+                onChange={(event) => update("middleName", event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="user-last-name">Last name</Label>
+              <Input
+                id="user-last-name"
+                required
+                maxLength={100}
+                value={form.lastName}
+                onChange={(event) => update("lastName", event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="user-email">Email</Label>
+              <Input
+                id="user-email"
+                type="email"
+                required
+                maxLength={255}
+                autoComplete="off"
+                value={form.email}
+                onChange={(event) => update("email", event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="user-role">Role</Label>
+              <Select
+                required
+                value={form.role}
+                onValueChange={(value) =>
+                  update("role", value as CreatableUserRole)
+                }
+              >
+                <SelectTrigger id="user-role" className="w-full">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CREATABLE_USER_ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                Student and applicant accounts use their own registration flows.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="user-password">Temporary password</Label>
+              <Input
+                id="user-password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={form.password}
+                onChange={(event) => update("password", event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="user-password-confirmation">
+                Confirm password
+              </Label>
+              <Input
+                id="user-password-confirmation"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={form.passwordConfirmation}
+                onChange={(event) =>
+                  update("passwordConfirmation", event.target.value)
+                }
+              />
+            </div>
+          </fieldset>
+          <p className="text-muted-foreground text-xs">
+            Use at least 8 characters with an uppercase letter and a number.
+          </p>
+          {createUser.isError && (
+            <p role="alert" className="text-destructive text-sm">
+              {getErrorMessage(
+                createUser.error,
+                "We couldn't create the user account.",
+              )}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={createUser.isPending}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                createUser.isPending ||
+                !form.firstName.trim() ||
+                !form.lastName.trim() ||
+                !form.email.trim() ||
+                !form.role ||
+                !form.password ||
+                form.password !== form.passwordConfirmation
+              }
+            >
+              {createUser.isPending && <Loader2Icon className="animate-spin" />}
+              Create user
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function SortHeader({
   column,
@@ -63,6 +293,7 @@ function SortHeader({
 
 function UsersPage() {
   const navigate = useNavigate();
+  const [creatingUser, setCreatingUser] = useState(false);
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
@@ -185,11 +416,17 @@ function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-        <p className="text-muted-foreground text-sm">
-          Monitor accounts and manage their roles.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+          <p className="text-muted-foreground text-sm">
+            Monitor accounts and provision administrators, cashiers, and teachers.
+          </p>
+        </div>
+        <Button onClick={() => setCreatingUser(true)}>
+          <PlusIcon />
+          Add user
+        </Button>
       </div>
 
       {query.isError ? (
@@ -244,6 +481,10 @@ function UsersPage() {
           />
         </div>
       )}
+      <CreateUserDialog
+        open={creatingUser}
+        onOpenChange={setCreatingUser}
+      />
     </div>
   );
 }

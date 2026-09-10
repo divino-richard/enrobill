@@ -15,6 +15,7 @@ export interface Section {
   yearLevel: string;
   name: string;
   capacity: number;
+  adviser: { id: number; name: string } | null;
   assignedCount: number;
   students: SectionStudent[];
 }
@@ -41,9 +42,11 @@ export interface SectionInput {
   yearLevel: string;
   name: string;
   capacity: number;
+  adviserTeacherId: number | null;
 }
 
 export interface SectionUpdateInput {
   name: string;
   capacity: number;
+  adviserTeacherId: number | null;
 }

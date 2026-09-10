@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ClassTimetable;
 use App\Models\SchoolYear;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,6 +26,9 @@ class StudentScheduleController extends Controller
         $section = $enrollment?->section;
         $timetable = $section ? ClassTimetable::where('section_id', $section->id)->first() : null;
         $status = ! $enrollment ? 'no_enrollment' : (! $section ? 'no_section' : (! $timetable?->published_at ? 'not_published' : 'published'));
+        $entries = $status === 'published'
+            ? $this->currentTeacherNames($timetable->published_entries ?? [])
+            : [];
 
         return response()->json(['data' => [
             'enrollmentId' => $enrollment?->id,
@@ -32,7 +36,25 @@ class StudentScheduleController extends Controller
             'section' => $section ? ['id' => $section->id, 'name' => $section->name, 'program' => $section->program, 'yearLevel' => $section->year_level] : null,
             'status' => $status,
             'publishedAt' => $timetable?->published_at?->toIso8601String(),
-            'entries' => $status === 'published' ? ($timetable->published_entries ?? []) : [],
+            'entries' => $entries,
         ]]);
+    }
+
+    private function currentTeacherNames(array $entries): array
+    {
+        $teachers = User::query()
+            ->whereIn('id', collect($entries)->pluck('teacherId')->filter())
+            ->where('role', 'teacher')
+            ->pluck('name', 'id');
+
+        foreach ($entries as &$entry) {
+            $currentName = $teachers->get((int) ($entry['teacherId'] ?? 0));
+            if ($currentName !== null) {
+                $entry['teacher'] = $currentName;
+            }
+        }
+        unset($entry);
+
+        return $entries;
     }
 }

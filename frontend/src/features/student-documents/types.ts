@@ -59,7 +59,7 @@ export const DOCUMENT_TYPES: {
   {
     value: "grades",
     label: "Grades",
-    hint: "Report card or grade slip",
+    hint: "Your teacher uploads this grade slip",
   },
 ];
 

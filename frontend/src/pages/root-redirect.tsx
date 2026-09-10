@@ -9,7 +9,11 @@ function RootRedirect() {
   const user = useAuthStore((state) => state.user)
 
   if (isAuthenticated && user) {
-    const target = STAFF_ROLES.includes(user.role) ? '/admin' : '/portal'
+    const target = user.role === 'teacher'
+      ? '/admin/my-students'
+      : STAFF_ROLES.includes(user.role)
+        ? '/admin'
+        : '/portal'
     return <Navigate to={target} replace />
   }
 

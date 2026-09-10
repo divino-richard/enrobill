@@ -7,10 +7,11 @@ import {
 import {
   fetchUser,
   fetchUsers,
+  createUser,
   updateUserRole,
   type UserListParams,
 } from "./api";
-import type { UserRole } from "./types";
+import type { CreateUserInput, UserRole } from "./types";
 
 export const usersQueryKey = ["admin", "users"] as const;
 
@@ -37,6 +38,17 @@ export function useUpdateUserRole(id: number) {
     onSuccess: (user) => {
       queryClient.invalidateQueries({ queryKey: usersQueryKey });
       queryClient.setQueryData([...usersQueryKey, "detail", id], user);
+    },
+  });
+}
+
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateUserInput) => createUser(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: usersQueryKey });
     },
   });
 }

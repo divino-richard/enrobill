@@ -56,6 +56,7 @@ function DocumentSlot({
   label,
   hint,
   existing,
+  uploadable = true,
   onView,
 }: {
   semester: Semester;
@@ -64,6 +65,7 @@ function DocumentSlot({
   label: string;
   hint: string;
   existing?: StudentDocument;
+  uploadable?: boolean;
   onView: (document: StudentDocument) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +121,7 @@ function DocumentSlot({
   const busy = upload.isPending;
   // Locked the moment a file exists — only an explicit return unlocks it,
   // whether it's still awaiting review or was already accepted.
-  const locked = existing !== undefined && existing.reviewStatus !== "returned";
+  const locked = !uploadable || (existing !== undefined && existing.reviewStatus !== "returned");
 
   return (
     <div
@@ -279,13 +281,12 @@ export function ClearanceGradesPanel() {
       <Alert>
         <InfoIcon className="size-4 shrink-0" />
         <AlertTitle>
-          {documents?.length ?? 0} of {TOTAL_DOCUMENT_SLOTS} uploaded
+          {documents?.length ?? 0} of {TOTAL_DOCUMENT_SLOTS} requirements on file
         </AlertTitle>
         <AlertDescription>
-          The registrar reads these at the end of the school year to decide
-          whether you move up a grade level. JPG, PNG or PDF, up to 10 MB
-          each. A file locks the moment you upload it — you can only replace
-          it if the registrar sends it back with a reason.
+          Upload your clearance each semester. Your teachers upload your grade
+          slips through their published class schedules. The registrar reviews
+          both at the end of the school year.
         </AlertDescription>
       </Alert>
 
@@ -308,6 +309,7 @@ export function ClearanceGradesPanel() {
                   label={type.label}
                   hint={type.hint}
                   existing={find(semester.value, type.value)}
+                  uploadable={type.value === "clearance"}
                   onView={setViewing}
                 />
               ))}

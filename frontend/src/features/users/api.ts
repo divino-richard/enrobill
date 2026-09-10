@@ -6,7 +6,7 @@ import {
   type ListParams,
   type PageMeta,
 } from "@/lib/pagination";
-import type { User, UserRole } from "./types";
+import type { CreateUserInput, User, UserRole } from "./types";
 
 interface Wrapped<T> {
   data: T;
@@ -31,6 +31,19 @@ export async function fetchUsers(params: UserListParams): Promise<UsersPage> {
 // A single user (admin only).
 export async function fetchUser(id: number): Promise<User> {
   const { data } = await api.get<Wrapped<User>>(`/users/${id}`);
+  return data.data;
+}
+
+export async function createUser(input: CreateUserInput): Promise<User> {
+  const { data } = await api.post<Wrapped<User>>("/users", {
+    first_name: input.firstName,
+    middle_name: input.middleName || null,
+    last_name: input.lastName,
+    email: input.email,
+    role: input.role,
+    password: input.password,
+    password_confirmation: input.passwordConfirmation,
+  });
   return data.data;
 }
 

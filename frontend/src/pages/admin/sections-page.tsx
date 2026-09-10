@@ -70,6 +70,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { useTerms } from "@/features/terms/hooks";
 import { useProgramGroups, useProgramLabel } from "@/features/programs/hooks";
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
+import { useUsers } from "@/features/users/hooks";
 import {
   useAssignSection,
   useCreateSection,
@@ -221,7 +222,7 @@ function SectionFormDialog({
           <DialogTitle>{editing ? "Edit section" : "New section"}</DialogTitle>
           <DialogDescription>
             {editing
-              ? "Rename the section or adjust its capacity."
+              ? "Update the section name, capacity, or adviser."
               : "Sections are scoped to a program and grade within the selected school year."}
           </DialogDescription>
         </DialogHeader>
@@ -250,6 +251,7 @@ function SectionForm({
   onDone: () => void;
 }) {
   const groups = useProgramGroups();
+  const teachers = useUsers({ role: "teacher", perPage: 100, sort: "name", dir: "asc" });
   const create = useCreateSection();
   const update = useUpdateSection(editing?.id ?? 0);
   const mutation = editing ? update : create;
@@ -258,6 +260,9 @@ function SectionForm({
   const [yearLevel, setYearLevel] = useState(editing?.yearLevel ?? "");
   const [name, setName] = useState(editing?.name ?? "");
   const [capacity, setCapacity] = useState(String(editing?.capacity ?? 30));
+  const [adviserTeacherId, setAdviserTeacherId] = useState(
+    editing?.adviser ? String(editing.adviser.id) : "none",
+  );
 
   const capacityNum = Number(capacity);
   const canSave =
@@ -270,7 +275,11 @@ function SectionForm({
     if (!canSave) return;
     try {
       if (editing) {
-        await update.mutateAsync({ name: name.trim(), capacity: capacityNum });
+        await update.mutateAsync({
+          name: name.trim(),
+          capacity: capacityNum,
+          adviserTeacherId: adviserTeacherId === "none" ? null : Number(adviserTeacherId),
+        });
       } else {
         if (!schoolYearId) return;
         await create.mutateAsync({
@@ -279,6 +288,7 @@ function SectionForm({
           yearLevel,
           name: name.trim(),
           capacity: capacityNum,
+          adviserTeacherId: adviserTeacherId === "none" ? null : Number(adviserTeacherId),
         });
       }
       onDone();
@@ -354,6 +364,33 @@ function SectionForm({
               onChange={(e) => setCapacity(e.target.value)}
             />
           </div>
+
+          <div className="space-y-1.5 sm:col-span-2">
+            <FieldLabel>Section adviser</FieldLabel>
+            <Select
+              value={adviserTeacherId}
+              onValueChange={setAdviserTeacherId}
+              disabled={teachers.isLoading || teachers.isError}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select adviser" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No adviser assigned</SelectItem>
+                {teachers.data?.rows.map((teacher) => (
+                  <SelectItem key={teacher.id} value={String(teacher.id)}>
+                    {teacher.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              Only the adviser can view this roster and upload student grade slips.
+            </p>
+            {teachers.isError && (
+              <p className="text-destructive text-xs">Teachers could not be loaded.</p>
+            )}
+          </div>
         </div>
 
         {mutation.isError && (
@@ -421,6 +458,9 @@ function SectionListItem({
       <p className="text-muted-foreground mt-0.5 text-xs">
         {labelFor(YEAR_LEVEL_OPTIONS, section.yearLevel)}
       </p>
+      <p className="text-muted-foreground mt-0.5 truncate text-xs">
+        Adviser: {section.adviser?.name ?? "Not assigned"}
+      </p>
       <OccupancyBar
         used={section.assignedCount}
         total={section.capacity}
@@ -475,6 +515,9 @@ function SectionDetail({
               {labelFor(YEAR_LEVEL_OPTIONS, section.yearLevel)} ·{" "}
               {section.assignedCount} of {section.capacity} seats filled ({pct}%)
             </CardDescription>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Adviser: <span className="text-foreground font-medium">{section.adviser?.name ?? "Not assigned"}</span>
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <DropdownMenu>
