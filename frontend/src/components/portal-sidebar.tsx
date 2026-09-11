@@ -25,6 +25,9 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
+const ACTIVE_CLASSES =
+  "data-active:bg-sidebar-primary data-active:font-semibold data-active:text-sidebar-primary-foreground data-active:shadow-xs data-active:hover:bg-sidebar-primary data-active:hover:text-sidebar-primary-foreground [&>svg]:text-sidebar-foreground/65 data-active:[&>svg]:text-sidebar-primary-foreground";
+
 interface NavItem {
   title: string;
   url: string;
@@ -67,10 +70,10 @@ function NotifyBadge({ count }: { count: number }) {
 
   return (
     <>
-      <span className="bg-primary text-primary-foreground border-sidebar pointer-events-none absolute top-1.5 right-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs  border-2 font-medium tabular-nums select-none group-data-[collapsible=icon]:hidden">
+      <span className="bg-brand-accent text-brand-accent-foreground border-sidebar pointer-events-none absolute top-2 right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 px-1 text-[0.6875rem] font-semibold tabular-nums select-none group-data-[collapsible=icon]:hidden">
         {count > 99 ? "99+" : count}
       </span>
-      <span className="bg-primary text-primary-foreground border-sidebar pointer-events-none absolute top-0.5 right-0.5 hidden h-4 min-w-4 items-center justify-center rounded-full border-2 px-0.5 text-[10px] leading-none font-medium tabular-nums select-none group-data-[collapsible=icon]:flex">
+      <span className="bg-brand-accent text-brand-accent-foreground border-sidebar pointer-events-none absolute top-0 right-0 hidden h-4 min-w-4 items-center justify-center rounded-full border-2 px-0.5 text-[0.625rem] leading-none font-semibold tabular-nums select-none group-data-[collapsible=icon]:flex">
         {count > 9 ? "9+" : count}
       </span>
     </>
@@ -86,15 +89,15 @@ export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-3 group-data-[collapsible=icon]:px-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
+            <SidebarMenuButton size="lg" asChild className="hover:bg-sidebar-accent">
               <NavLink to="/portal">
-                <Logo className="size-8 rounded-md" />
+                <Logo className="size-9 rounded-lg" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Enrobill</span>
-                  <span className="text-muted-foreground truncate text-xs">
+                  <span className="truncate font-semibold tracking-[-0.015em]">Enrobill</span>
+                  <span className="text-sidebar-foreground/55 truncate text-[0.6875rem]">
                     {isStudent ? "Student Portal" : "Applicant Portal"}
                   </span>
                 </div>
@@ -105,8 +108,8 @@ export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>
+        <SidebarGroup className="px-2 py-3 first:pt-2">
+          <SidebarGroupLabel className="h-7 px-2 text-[0.6875rem] font-semibold tracking-[0.08em] text-sidebar-foreground/45 uppercase">
             {isStudent ? "Enrollment" : "Application"}
           </SidebarGroupLabel>
           <SidebarMenu>
@@ -121,7 +124,7 @@ export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
                     asChild
                     isActive={isActive}
                     tooltip={item.title}
-                    className="relative data-active:bg-primary/10 data-active:font-medium data-active:text-primary data-active:hover:bg-primary/15 data-active:hover:text-primary data-active:before:absolute data-active:before:inset-y-1.5 data-active:before:left-0 data-active:before:w-1 data-active:before:rounded-r-full data-active:before:bg-primary data-active:before:content-['']"
+                    className={ACTIVE_CLASSES}
                   >
                     <NavLink to={item.url} end={item.end}>
                       <item.icon />
@@ -136,7 +139,7 @@ export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <NavUser />
       </SidebarFooter>
       <SidebarRail />
