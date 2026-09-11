@@ -37,9 +37,15 @@ export interface StaffDashboard {
     applications: {
       pending: number;
       submitted: number;
+      draft: number;
       underReview: number;
       returned: number;
+      accepted: number;
+      rejected: number;
       total: number;
+    };
+    students: {
+      enrolled: number;
     };
     sections: {
       unsectioned: number;

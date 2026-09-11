@@ -1,465 +1,258 @@
 import { format } from "date-fns";
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import {
+  BookOpenIcon,
   CheckCircle2Icon,
-  ClockIcon,
-  CircleAlertIcon,
-  ReceiptTextIcon,
-  TriangleAlertIcon,
-  type LucideIcon,
+  GraduationCapIcon,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+  DashboardError,
+  DashboardAttention,
+  DashboardHeader,
+  DashboardLoading,
+  DashboardMetricStrip,
+  DashboardPanel,
+  DashboardQueue,
+  type DashboardMetric,
+  type DashboardAttentionItem,
+  type DashboardQueueItem,
+} from "@/components/dashboard/dashboard-primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { formatPeso } from "@/lib/money";
-import { useAuthStore } from "@/features/auth/store";
-import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
-import { useProgramLabel } from "@/features/programs/hooks";
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { useMyBill } from "@/features/bills/hooks";
-import {
-  BILL_STATUS_META,
-  INSTALLMENT_STATUS_META,
-} from "@/features/bills/types";
-import { isOverdue, nextOutstandingInstallment } from "@/features/bills/utils";
-import { useMyStudent } from "../hooks";
-import { StudentStatusBadge } from "./student-status-badge";
+import { nextOutstandingInstallment } from "@/features/bills/utils";
+import { useProgramLabel } from "@/features/programs/hooks";
 import { StudentReferralCard } from "@/features/referrals/components/student-referral-card";
+import { useMyClassSchedule } from "@/features/scheduling/hooks";
+import { SCHEDULE_DAYS, scheduleTime } from "@/features/scheduling/types";
+import { useMyDocuments } from "@/features/student-documents/hooks";
+import { useMyStudent } from "../hooks";
+import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
+import { formatPeso } from "@/lib/money";
 
-type Tone = "danger" | "warning" | "success" | "info";
+const paymentConfig = {
+  paid: { label: "Paid", color: "var(--color-primary)" },
+  remaining: { label: "Remaining", color: "var(--color-muted-foreground)" },
+} satisfies ChartConfig;
 
-function formatDate(value: string | null): string {
-  if (!value) return "";
+const classesConfig = {
+  classes: { label: "Classes", color: "var(--color-primary)" },
+} satisfies ChartConfig;
+
+function dateLabel(value: string | null | undefined) {
+  if (!value) return "No due date";
   const date = new Date(value.length <= 10 ? `${value}T00:00:00` : value);
-  return Number.isNaN(date.getTime()) ? "" : format(date, "PP");
+  return Number.isNaN(date.getTime()) ? "No due date" : format(date, "MMM d, yyyy");
 }
 
 export function StudentDashboard() {
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
-  const { data: student, isLoading, isError } = useMyStudent();
-  const { data: bill } = useMyBill();
+  const studentQuery = useMyStudent();
+  const billQuery = useMyBill();
+  const scheduleQuery = useMyClassSchedule();
+  const documentsQuery = useMyDocuments();
   const programLabel = useProgramLabel();
 
-  if (isLoading) {
+  if (studentQuery.isLoading) return <DashboardLoading />;
+  const studentProfilePending =
+    studentQuery.isError &&
+    axios.isAxiosError(studentQuery.error) &&
+    studentQuery.error.response?.status === 404;
+
+  if (studentProfilePending) {
     return (
-      <div className="space-y-6 mx-auto max-w-7xl">
-        <Skeleton className="h-9 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-        <div className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-          <Skeleton className="h-80 rounded-xl" />
-          <Skeleton className="h-80 rounded-xl" />
-        </div>
+      <div className="mx-auto max-w-7xl space-y-5">
+        <DashboardHeader
+          description="Your student access is ready. Enrollment details will appear after your profile is linked."
+          context={<Badge variant="secondary">Student</Badge>}
+        />
+        <DashboardPanel title="Profile setup in progress">
+          <div className="flex flex-col items-center px-4 py-14 text-center">
+            <GraduationCapIcon className="text-primary size-9" />
+            <p className="mt-4 font-medium">Your student profile is being prepared</p>
+            <p className="text-muted-foreground mt-1 max-w-md text-sm">
+              Once enrollment staff link your record, your bill, class schedule, and academic details will appear here.
+            </p>
+          </div>
+        </DashboardPanel>
       </div>
     );
   }
 
-  if (isError || !student) {
-    return (
-      <div className="space-y-2 mx-auto max-w-7xl">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome{user ? `, ${user.name}` : ""}
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Your student profile isn't available yet. Please check back shortly.
-        </p>
-      </div>
-    );
+  if (studentQuery.isError || !studentQuery.data) {
+    return <DashboardError retry={() => studentQuery.refetch()} />;
   }
 
-  const billStatus = bill ? BILL_STATUS_META[bill.status] : null;
-  const installments = bill?.installments ?? [];
+  const student = studentQuery.data;
+  const bill = billQuery.data;
+  const schedule = scheduleQuery.data;
+  const documents = documentsQuery.data ?? [];
+  const nextDue = nextOutstandingInstallment(bill?.installments ?? []);
+  const returnedDocuments = documents.filter((item) => item.reviewStatus === "returned");
+  const pendingPayments = (bill?.payments ?? []).filter((item) => item.status === "pending");
+  const today = new Date().getDay() || 7;
+  const todayClasses = (schedule?.entries ?? [])
+    .filter((entry) => entry.day === today)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const classLoad = SCHEDULE_DAYS.slice(0, 6).map((day, index) => ({
+    day: day.slice(0, 3),
+    classes: (schedule?.entries ?? []).filter((entry) => entry.day === index + 1).length,
+  }));
+  const metrics: DashboardMetric[] = [
+    {
+      label: "Outstanding balance",
+      value: bill ? formatPeso(bill.balance) : "—",
+      detail: bill ? `${formatPeso(bill.amountPaid)} already paid` : "No bill issued",
+      tone: bill?.balance ? "warning" : "success",
+    },
+    {
+      label: "Amount due now",
+      value: bill ? formatPeso(bill.amountDue) : "—",
+      detail: nextDue ? `Due ${dateLabel(nextDue.dueDate)}` : "Nothing due",
+      tone: bill?.amountDue ? "warning" : "success",
+    },
+    {
+      label: "Section",
+      value: schedule?.section?.name ?? "—",
+      detail: schedule?.schoolYear ? `SY ${schedule.schoolYear}` : "Awaiting assignment",
+    },
+    {
+      label: "Classes today",
+      value: todayClasses.length,
+      detail: todayClasses[0]
+        ? `Next at ${scheduleTime(todayClasses[0].startTime)}`
+        : "No class scheduled",
+      tone: todayClasses.length ? "primary" : "success",
+      trend: classLoad.map((item) => item.classes),
+    },
+  ];
 
-  // Pending payments the cashier hasn't verified yet.
-  const pending = (bill?.payments ?? []).filter((p) => p.status === "pending");
-  const pendingTotal = pending.reduce((sum, p) => sum + p.amount, 0);
-
-  // The next unpaid installment, if the bill is on a plan.
-  const nextDue = nextOutstandingInstallment(installments);
-  const dueDate = nextDue?.dueDate ?? null;
-  const overdue = isOverdue(dueDate);
-
-  const percentPaid =
-    bill && bill.netTotal > 0
-      ? Math.min(100, Math.round((bill.amountPaid / bill.netTotal) * 100))
-      : bill
-        ? 100
-        : 0;
-
-  // The single most important thing this screen says — drives the spotlight.
-  let lead: {
-    tone: Tone;
-    icon: LucideIcon;
-    title: string;
-    description: string;
-    action?: { label: string; onClick: () => void };
-  };
-
-  if (!bill) {
-    lead = {
-      tone: "info",
-      icon: ReceiptTextIcon,
-      title: "No bill issued yet",
-      description: `Your tuition assessment${
-        student.schoolYear ? ` for SY ${student.schoolYear}` : ""
-      } will appear here once your enrollment is processed.`,
-    };
-  } else if (bill.balance <= 0) {
-    lead = {
-      tone: "success",
-      icon: CheckCircle2Icon,
-      title: "You're all set",
-      description: `Your tuition for SY ${bill.schoolYear} is fully settled. Nothing is due.`,
-      action: { label: "View bill", onClick: () => navigate("/portal/bills") },
-    };
-  } else if (bill.amountDue > 0) {
-    const when = formatDate(dueDate);
-    lead = {
-      tone: overdue ? "danger" : "warning",
-      icon: overdue ? TriangleAlertIcon : ClockIcon,
-      title: overdue ? "Payment overdue" : "Payment due",
-      description: `${formatPeso(bill.amountDue)}${
-        when ? ` due ${when}` : ""
-      }. Settle this to keep your enrollment in good standing.`,
-      action: {
-        label: `Pay ${formatPeso(bill.amountDue)}`,
-        onClick: () => navigate("/portal/bills"),
-      },
-    };
-  } else {
-    lead = {
-      tone: "info",
-      icon: CheckCircle2Icon,
-      title: "You're up to date",
-      description: nextDue
-        ? `Nothing due right now. Next payment of ${formatPeso(
-            nextDue.balance,
-          )}${formatDate(dueDate) ? ` on ${formatDate(dueDate)}` : ""}.`
-        : "Nothing due right now.",
-      action: { label: "View bill", onClick: () => navigate("/portal/bills") },
-    };
+  const queue: DashboardQueueItem[] = [];
+  if (returnedDocuments.length) {
+    queue.push({
+      value: returnedDocuments.length,
+      label: "Returned documents",
+      detail: "Replace the files using the reviewer notes.",
+      actionLabel: "Replace",
+      onAction: () => navigate("/portal/programs"),
+      tone: "danger",
+    });
   }
+  if ((bill?.amountDue ?? 0) > 0) {
+    queue.push({
+      value: formatPeso(bill?.amountDue ?? 0),
+      label: "Payment due",
+      detail: nextDue ? `Due ${dateLabel(nextDue.dueDate)}` : "Due now",
+      actionLabel: "Pay",
+      onAction: () => navigate("/portal/bills"),
+      tone: "warning",
+    });
+  }
+  if (pendingPayments.length) {
+    queue.push({
+      value: pendingPayments.length,
+      label: "Payment under review",
+      detail: "Your balance updates after cashier verification.",
+      actionLabel: "View",
+      onAction: () => navigate("/portal/bills"),
+    });
+  }
+  const attentionItems: DashboardAttentionItem[] = [
+    ...(returnedDocuments.length ? [{ value: returnedDocuments.length, label: "Returned documents", detail: "Replacement files required", onAction: () => navigate("/portal/programs"), tone: "danger" as const }] : []),
+    ...((bill?.amountDue ?? 0) > 0 ? [{ value: formatPeso(bill?.amountDue ?? 0), label: "Payment due", detail: nextDue ? `Due ${dateLabel(nextDue.dueDate)}` : "Due now", onAction: () => navigate("/portal/bills"), tone: "warning" as const }] : []),
+    ...(pendingPayments.length ? [{ value: pendingPayments.length, label: "Payment review", detail: "Proof awaiting verification", onAction: () => navigate("/portal/bills"), tone: "primary" as const }] : []),
+  ];
+  const attentionCount = returnedDocuments.length + pendingPayments.length + ((bill?.amountDue ?? 0) > 0 ? 1 : 0);
 
   return (
-    <div className="space-y-6 mx-auto max-w-7xl">
-      {/* Header */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Welcome back, {student.firstName}
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm">
-            {programLabel(student.trackOrStrand)}
-            {student.schoolYear ? ` · SY ${student.schoolYear}` : ""} · Student
-            no. {student.studentNumber}
-          </p>
-        </div>
-        <StudentStatusBadge status={student.status} />
-      </div>
-
-      {/* Payment under review — the one attention item with no home in the sidebar */}
-      {pending.length > 0 ? (
-        <Alert className="border-primary/15 bg-primary/5">
-          <ClockIcon className="size-4" />
-          <AlertTitle>
-            {pending.length === 1
-              ? "A payment is under review"
-              : `${pending.length} payments are under review`}
-          </AlertTitle>
-          <AlertDescription>
-            {formatPeso(pendingTotal)} submitted — the cashier is verifying your
-            proof of payment. Your balance updates once it's confirmed.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {/* Summary tiles */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryTile
-          label="Outstanding Balance"
-          value={bill ? formatPeso(bill.balance) : "—"}
-          hint={bill ? `Net ${formatPeso(bill.netTotal)}` : "No bill issued"}
-          accent={bill && bill.balance > 0 ? "primary" : "success"}
-        />
-        <SummaryTile
-          label="Amount Due Now"
-          value={bill ? formatPeso(bill.amountDue) : "—"}
-          hint={
-            dueDate
-              ? `Due ${formatDate(dueDate)}`
-              : bill
-                ? "Nothing due"
-                : "—"
-          }
-          accent={bill && bill.amountDue > 0 ? "warning" : "default"}
-        />
-        <SummaryTile
-          label="Total Paid"
-          value={bill ? formatPeso(bill.amountPaid) : "—"}
-          hint={bill ? `${percentPaid}% of net assessed` : "—"}
-          accent="success"
-        />
-        <SummaryTile
-          label="Year Level"
-          value={labelFor(YEAR_LEVEL_OPTIONS, student.yearLevel ?? "") || "—"}
-          hint={student.schoolYear ? `SY ${student.schoolYear}` : "—"}
-          accent="default"
-        />
-      </div>
-
-      <StudentReferralCard
-        showWhenUnavailable={
-          student.yearLevel === "grade_11" || student.yearLevel === "grade_12"
+    <div className="mx-auto max-w-7xl space-y-3">
+      <DashboardHeader
+        description={`${programLabel(student.trackOrStrand)} · ${labelFor(YEAR_LEVEL_OPTIONS, student.yearLevel ?? "")} · ${student.studentNumber}`}
+        context={<Badge variant="secondary">Student</Badge>}
+        actions={
+          <Button variant="outline" onClick={() => navigate("/portal/bills")}>
+            View my bill
+          </Button>
         }
       />
 
-      {/* Body */}
-      <div className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-        {/* Account summary */}
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b bg-muted/20">
-            <CardTitle className="text-base">Account summary</CardTitle>
-            <CardDescription>
-              {bill
-                ? `SY ${bill.schoolYear}`
-                : "Your tuition assessment for the open term."}
-            </CardDescription>
-            {billStatus ? (
-              <CardAction>
-                <Badge variant="outline" className={billStatus.className}>
-                  {billStatus.label}
-                </Badge>
-              </CardAction>
-            ) : null}
-          </CardHeader>
+      <DashboardAttention summary={attentionCount ? `${attentionCount} items` : "All clear"} items={attentionItems} />
+      <DashboardMetricStrip metrics={metrics} />
 
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.42fr)_minmax(18rem,.78fr)]">
+        <DashboardPanel title="Payment progress" description={bill ? `SY ${bill.schoolYear}` : "Current academic year"}>
           {bill ? (
-            <CardContent className="space-y-5">
-              <dl className="space-y-2">
-                <StatementRow
-                  label="Net assessed"
-                  value={formatPeso(bill.netTotal)}
-                />
-                <StatementRow
-                  label="Payments received"
-                  value={formatPeso(bill.amountPaid)}
-                />
-                <div className="border-t pt-2">
-                  <StatementRow
-                    label="Outstanding balance"
-                    value={formatPeso(bill.balance)}
-                    emphasis
-                  />
-                </div>
-              </dl>
-
-              {installments.length > 0 ? (
-                <div className="space-y-1 border-t pt-4">
-                  <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                    Payment schedule
-                  </p>
-                  <ul className="divide-y">
-                    {installments.map((inst) => {
-                      const meta = INSTALLMENT_STATUS_META[inst.status];
-                      return (
-                        <li
-                          key={inst.id}
-                          className="flex items-center justify-between gap-3 py-2.5"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">
-                              {inst.label}
-                            </p>
-                            <p className="text-muted-foreground text-xs">
-                              {inst.dueDate
-                                ? `Due ${formatDate(inst.dueDate)}`
-                                : "No due date"}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium tabular-nums">
-                              {formatPeso(inst.amount)}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={cn("shrink-0", meta.className)}
-                            >
-                              {meta.label}
-                            </Badge>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ) : null}
-            </CardContent>
+            <>
+            <div className="text-muted-foreground flex gap-4 px-4 pt-3 text-xs"><span className="inline-flex items-center gap-1.5"><span className="bg-primary h-1 w-3" />Paid</span><span className="inline-flex items-center gap-1.5"><span className="bg-muted-foreground h-1 w-3" />Remaining</span></div>
+            <div className="h-40 px-3 pt-2">
+              <ChartContainer config={paymentConfig}>
+                <BarChart accessibilityLayer data={[{ name: "Tuition", paid: bill.amountPaid, remaining: bill.balance }]} layout="vertical" margin={{ left: 4, right: 12 }}>
+                  <CartesianGrid horizontal={false} />
+                  <XAxis type="number" tickFormatter={(value) => formatPeso(Number(value))} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="name" hide />
+                  <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatPeso(Number(value))} />} />
+                  <Bar dataKey="paid" stackId="bill" fill="var(--color-paid)" radius={[5, 0, 0, 5]} maxBarSize={42} />
+                  <Bar dataKey="remaining" stackId="bill" fill="var(--color-remaining)" radius={[0, 5, 5, 0]} maxBarSize={42} />
+                </BarChart>
+              </ChartContainer>
+            </div>
+            </>
           ) : (
-            <CardContent>
-              <p className="text-muted-foreground text-sm">
-                No bill has been issued yet. Your assessment and payment schedule
-                will appear here once your enrollment is processed.
-              </p>
-            </CardContent>
+            <p className="text-muted-foreground px-4 py-14 text-center text-sm">Your tuition assessment will appear after enrollment processing.</p>
           )}
-        </Card>
-
-        {/* Side column */}
-        <div className="space-y-6">
-          {/* Priority spotlight */}
-          <Card className="border-primary/10 bg-linear-to-br from-primary/8 via-background to-background">
-            <CardHeader>
-              <CardDescription className="text-xs font-medium tracking-wide uppercase">
-                Priority
-              </CardDescription>
-              <CardTitle className="text-lg">{lead.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground text-sm leading-6">
-                {lead.description}
-              </p>
-              {billStatus ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={billStatus.className}>
-                    {billStatus.label}
-                  </Badge>
-                  {dueDate ? (
-                    <Badge variant="outline">Due {formatDate(dueDate)}</Badge>
-                  ) : null}
-                </div>
-              ) : null}
-              {lead.action ? (
-                <Button className="w-full" onClick={lead.action.onClick}>
-                  <CircleAlertIcon />
-                  {lead.action.label}
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          {/* Enrollment record */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Enrollment</CardTitle>
-              <CardDescription>Your record for the term.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <RecordRow
-                label="Program"
-                value={programLabel(student.trackOrStrand)}
-              />
-              <RecordRow
-                label="Year level"
-                value={labelFor(YEAR_LEVEL_OPTIONS, student.yearLevel ?? "")}
-              />
-              <RecordRow
-                label="School year"
-                value={student.schoolYear ?? "—"}
-              />
-              <RecordRow
-                label="Status"
-                value={<StudentStatusBadge status={student.status} />}
-              />
-            </CardContent>
-          </Card>
-        </div>
+          {bill ? <div className="mx-4 flex flex-wrap justify-between gap-2 border-t py-3 text-xs"><strong>{formatPeso(bill.amountPaid)} paid</strong><span className="text-muted-foreground">{formatPeso(bill.balance)} remaining</span></div> : null}
+        </DashboardPanel>
+        <DashboardPanel title="Next steps" description="Items that need your attention">
+          <DashboardQueue items={queue} />
+        </DashboardPanel>
       </div>
-    </div>
-  );
-}
 
-function SummaryTile({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  accent: "default" | "primary" | "warning" | "success";
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-          {label}
-        </p>
-        <p
-          className={cn(
-            "mt-1 text-2xl font-semibold tracking-tight tabular-nums",
-            accent === "primary" && "text-primary",
-            accent === "warning" && "text-amber-700 dark:text-amber-300",
-            accent === "success" && "text-emerald-700 dark:text-emerald-300",
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
+        <DashboardPanel title="Weekly class load" description={schedule?.section ? `${schedule.section.program.toUpperCase()} · ${schedule.section.name}` : "Published schedule"}>
+          {schedule?.status === "published" ? (
+            <div className="h-56 p-4">
+              <ChartContainer config={classesConfig}>
+                <BarChart accessibilityLayer data={classLoad} margin={{ left: 4, right: 12, top: 8 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={24} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="classes" fill="var(--color-classes)" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                </BarChart>
+              </ChartContainer>
+            </div>
+          ) : (
+            <p className="text-muted-foreground px-4 py-14 text-center text-sm">Your schedule will appear after section assignment and publication.</p>
           )}
-        >
-          {value}
-        </p>
-        <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
-      </CardContent>
-    </Card>
-  );
-}
+        </DashboardPanel>
+        <DashboardPanel title="Today" description={SCHEDULE_DAYS[today - 1]}>
+          {todayClasses.length ? (
+            <div className="divide-y">
+              {todayClasses.map((entry) => (
+                <div key={entry.id} className="flex items-start gap-3 px-4 py-3">
+                  <BookOpenIcon className="text-primary mt-0.5 size-4 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{entry.subject}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">{scheduleTime(entry.startTime)}–{scheduleTime(entry.endTime)} · {entry.room}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center px-4 py-12 text-center"><CheckCircle2Icon className="text-emerald-600 size-7" /><p className="mt-3 text-sm font-medium">No classes today</p></div>
+          )}
+        </DashboardPanel>
+      </div>
 
-function StatementRow({
-  label,
-  value,
-  emphasis,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-between",
-        emphasis ? "text-base" : "text-sm",
-      )}
-    >
-      <span className={emphasis ? "font-semibold" : "text-muted-foreground"}>
-        {label}
-      </span>
-      <span
-        className={cn(
-          "tabular-nums",
-          emphasis ? "font-semibold" : "font-medium",
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function RecordRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground text-sm">{label}</span>
-      {typeof value === "string" ? (
-        <span className="truncate text-sm font-medium">{value || "—"}</span>
-      ) : (
-        value
-      )}
+      <StudentReferralCard showWhenUnavailable={student.yearLevel === "grade_11" || student.yearLevel === "grade_12"} />
     </div>
   );
 }

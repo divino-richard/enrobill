@@ -158,9 +158,22 @@ class DashboardController extends Controller
                     + ($applicationStatuses['under_review'] ?? 0)
                     + ($applicationStatuses['returned'] ?? 0)),
                 'submitted' => (int) ($applicationStatuses['submitted'] ?? 0),
+                'draft' => (int) ($applicationStatuses['draft'] ?? 0),
                 'underReview' => (int) ($applicationStatuses['under_review'] ?? 0),
                 'returned' => (int) ($applicationStatuses['returned'] ?? 0),
+                'accepted' => (int) ($applicationStatuses['accepted'] ?? 0),
+                'rejected' => (int) ($applicationStatuses['rejected'] ?? 0),
                 'total' => (int) Application::query()->count(),
+            ],
+            'students' => [
+                'enrolled' => (int) Enrollment::query()
+                    ->when(
+                        $schoolYear !== null,
+                        fn ($query) => $query->where('school_year_id', $schoolYear->id),
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                    )
+                    ->where('status', 'enrolled')
+                    ->count(),
             ],
             'sections' => [
                 'unsectioned' => (int) Enrollment::query()

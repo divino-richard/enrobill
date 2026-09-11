@@ -12,7 +12,7 @@ import RootRedirect from './pages/root-redirect'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/login-page'
 import RegisterPage from './pages/register-page'
-import DashboardPage from './pages/admin/dashboard-page'
+import StaffDashboardPage from './pages/staff-dashboard-page'
 import AdminReportsPage from './pages/admin/reports-page'
 import AdminApplicationsPage from './pages/admin/applications-page'
 import AdminApplicationDetailPage from './pages/admin/application-detail-page'
@@ -66,10 +66,10 @@ export const router = createBrowserRouter([
         Component: StaffLayout,
         children: [
           { path: 'account', Component: AccountPage },
+          { index: true, Component: StaffDashboardPage },
           {
             Component: AdminCashierGuard,
             children: [
-              { index: true, Component: DashboardPage },
               { path: 'reports', Component: AdminReportsPage },
               { path: 'fees', Component: AdminFeesPage },
               { path: 'discounts', Component: AdminDiscountsPage },

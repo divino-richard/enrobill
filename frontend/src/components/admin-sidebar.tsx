@@ -67,6 +67,13 @@ const navGroups: NavGroup[] = [
     roles: ["teacher"],
     items: [
       {
+        title: "Dashboard",
+        url: "/admin",
+        icon: LayoutDashboardIcon,
+        end: true,
+        ready: true,
+      },
+      {
         title: "Students",
         url: "/admin/my-students",
         icon: GraduationCapIcon,

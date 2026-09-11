@@ -16,14 +16,18 @@ export function StaffLayout() {
     <SidebarProvider>
       <AdminSidebar />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-6 my-auto" />
           <span className="text-sm font-medium">
-            {role === "teacher" ? "Teacher Workspace" : "Admin Console"}
+            {role === "teacher"
+              ? "Teacher Workspace"
+              : role === "cashier"
+                ? "Cashier Console"
+                : "Admin Console"}
           </span>
         </header>
-        <main className="min-w-0 flex-1 p-4 sm:p-6">
+        <main className="min-w-0 flex-1 bg-background p-4 sm:p-6">
           <Outlet />
         </main>
       </SidebarInset>
