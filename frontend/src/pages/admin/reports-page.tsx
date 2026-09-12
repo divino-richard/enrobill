@@ -1,27 +1,22 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { BarChart3Icon, CalendarRangeIcon, ReceiptTextIcon } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import {
-  ArrowUpRightIcon,
-  BanknoteIcon,
-  BarChart3Icon,
-  CalendarRangeIcon,
-  ClockIcon,
-  GraduationCapIcon,
-  QrCodeIcon,
-  ReceiptTextIcon,
-  TagIcon,
-  WalletIcon,
-} from "lucide-react";
-import { StatTile } from "@/components/stat-tile";
+  DashboardHeader,
+  DashboardLoading,
+  DashboardMetricStrip,
+  DashboardPanel,
+  type DashboardMetric,
+} from "@/components/dashboard/dashboard-primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import {
   Select,
   SelectContent,
@@ -29,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -44,18 +38,19 @@ import {
   BILL_STATUS_META,
   PAYMENT_STATUS_META,
   paymentMethodLabel,
-  type BillStatus,
-  type PaymentMethod,
 } from "@/features/bills/types";
 import { discountValueLabel } from "@/features/discounts/types";
-import {
-  ENROLLMENT_STATUS_META,
-  type EnrollmentStatus,
-} from "@/features/enrollments/types";
+import { ENROLLMENT_STATUS_META } from "@/features/enrollments/types";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useReports } from "@/features/reports/hooks";
 import { printReport } from "@/features/reports/print";
-import type { ReportPeriod } from "@/features/reports/types";
+import type {
+  CreditActivityRow,
+  EnrollmentActivityRow,
+  OutstandingBalanceRow,
+  ReportDataset,
+  ReportPeriod,
+} from "@/features/reports/types";
 import { useTerms } from "@/features/terms/hooks";
 import { formatPeso } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -65,6 +60,20 @@ const PERIOD_OPTIONS: { value: ReportPeriod; label: string }[] = [
   { value: "quarter", label: "This quarter" },
   { value: "year", label: "School year view" },
 ];
+
+const number = new Intl.NumberFormat("en-PH");
+const chartConfig = {
+  value: { label: "Value", color: "var(--color-primary)" },
+} satisfies ChartConfig;
+
+type BreakdownDatum = {
+  name: string;
+  value: number;
+  valueLabel: string;
+  meta: string;
+  note?: string;
+  color: string;
+};
 
 function ReportsPage() {
   const {
@@ -77,9 +86,7 @@ function ReportsPage() {
   const [period, setPeriod] = useState<ReportPeriod>("year");
   const programLabel = useProgramLabel();
 
-  // Defaults to the active term (else the first one) until the picker is touched.
-  const defaultTerm =
-    terms?.find((term) => term.isActive) ?? terms?.[0] ?? null;
+  const defaultTerm = terms?.find((term) => term.isActive) ?? terms?.[0] ?? null;
   const selectedTerm =
     (selectedTermId
       ? terms?.find((term) => String(term.id) === selectedTermId)
@@ -92,145 +99,185 @@ function ReportsPage() {
     refetch,
   } = useReports({ schoolYearId: selectedTerm?.id, period });
 
-  if (termsLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-16 w-full rounded-xl" />
-        <Skeleton className="h-28 w-full rounded-xl" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-24 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-96 w-full rounded-xl" />
-      </div>
-    );
-  }
+  if (termsLoading || reportLoading) return <DashboardLoading />;
 
   if (termsError || !terms) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <p className="text-muted-foreground text-sm">
-            We couldn't load reports. Please try again.
-          </p>
-          <Button variant="outline" onClick={() => refetchTerms()}>
-            Try again
-          </Button>
-        </div>
-      </div>
+      <ReportState
+        title="Reports unavailable"
+        message="The academic years could not be loaded. Check your connection and try again."
+        retry={() => refetchTerms()}
+      />
     );
   }
 
   if (terms.length === 0) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <p className="text-muted-foreground text-sm">
-            No academic years exist yet — set one up first under Academic
-            Years.
-          </p>
-        </div>
-      </div>
+      <ReportState
+        title="Set up an academic year"
+        message="Reports become available after an academic year has been created."
+      />
     );
   }
 
-  if (reportError) {
+  if (reportError || !dataset) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <p className="text-muted-foreground text-sm">
-            We couldn't load reports. Please try again.
-          </p>
-          <Button variant="outline" onClick={() => refetch()}>
-            Try again
-          </Button>
-        </div>
-      </div>
+      <ReportState
+        title="Reports unavailable"
+        message="The selected report could not be loaded. Check your connection and try again."
+        retry={() => refetch()}
+      />
     );
   }
 
-  if (reportLoading || !dataset) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-16 w-full rounded-xl" />
-        <Skeleton className="h-28 w-full rounded-xl" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-24 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-96 w-full rounded-xl" />
-      </div>
-    );
-  }
+  const periodLabel =
+    PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? "";
+  const averageBill = dataset.summary.billsGenerated
+    ? Math.round(dataset.summary.totalBilled / dataset.summary.billsGenerated)
+    : 0;
+  const metrics: DashboardMetric[] = [
+    {
+      label: "Total billed",
+      value: formatPeso(dataset.summary.totalBilled),
+      detail: `${number.format(dataset.summary.billsGenerated)} bills · ${formatPeso(averageBill)} average`,
+      tone: "primary",
+    },
+    {
+      label: "Collected",
+      value: formatPeso(dataset.summary.totalCollected),
+      detail: `${dataset.summary.collectionRate}% collection rate`,
+      tone: "success",
+    },
+    {
+      label: "Outstanding",
+      value: formatPeso(dataset.summary.totalOutstanding),
+      detail: `${number.format(dataset.summary.activeStudents)} active students`,
+      tone: dataset.summary.totalOutstanding ? "warning" : "success",
+    },
+    {
+      label: "Pending reviews",
+      value: number.format(dataset.summary.pendingPayments),
+      detail: "Payment proofs awaiting review",
+      tone: dataset.summary.pendingPayments ? "warning" : "success",
+    },
+  ];
 
-  const totalBillStatusAmount = dataset.billStatuses.reduce(
-    (sum, item) => sum + item.total,
-    0,
+  const financialData: BreakdownDatum[] = [
+    {
+      name: "Total billed",
+      value: dataset.summary.totalBilled,
+      valueLabel: formatPeso(dataset.summary.totalBilled),
+      meta: `${number.format(dataset.summary.billsGenerated)} bills`,
+      color: "var(--color-chart-1)",
+    },
+    {
+      name: "Collected",
+      value: dataset.summary.totalCollected,
+      valueLabel: formatPeso(dataset.summary.totalCollected),
+      meta: `${dataset.summary.collectionRate}% realized`,
+      color: "var(--color-chart-4)",
+    },
+    {
+      name: "Outstanding",
+      value: dataset.summary.totalOutstanding,
+      valueLabel: formatPeso(dataset.summary.totalOutstanding),
+      meta: `${number.format(dataset.summary.activeStudents)} active students`,
+      color: "var(--color-chart-3)",
+    },
+  ];
+  const billData: BreakdownDatum[] = dataset.billStatuses.map((item) => ({
+    name: BILL_STATUS_META[item.status].label,
+    value: item.total,
+    valueLabel: formatPeso(item.total),
+    meta: `${number.format(item.count)} accounts`,
+    note: item.note,
+    color:
+      item.status === "paid"
+        ? "var(--color-chart-4)"
+        : item.status === "partial"
+          ? "var(--color-chart-2)"
+          : "var(--color-chart-3)",
+  }));
+  const paymentColors = [
+    "var(--color-chart-1)",
+    "var(--color-chart-2)",
+    "var(--color-chart-3)",
+    "var(--color-chart-5)",
+  ];
+  const paymentData: BreakdownDatum[] = dataset.paymentMethods.map((item, index) => ({
+    name: paymentMethodLabel(item.method),
+    value: item.verifiedAmount,
+    valueLabel: formatPeso(item.verifiedAmount),
+    meta: `${number.format(item.transactions)} posts · ${number.format(item.pendingCount)} pending`,
+    color: paymentColors[index % paymentColors.length],
+  }));
+  const enrollmentData: BreakdownDatum[] = dataset.enrollmentStatuses.map(
+    (item) => ({
+      name: ENROLLMENT_STATUS_META[item.status].label,
+      value: item.count,
+      valueLabel: number.format(item.count),
+      meta: `${number.format(item.count)} students`,
+      note: item.note,
+      color:
+        item.status === "enrolled"
+          ? "var(--color-chart-4)"
+          : item.status === "pending"
+            ? "var(--color-chart-3)"
+            : item.status === "completed"
+              ? "var(--color-chart-1)"
+              : "var(--color-destructive)",
+    }),
   );
-  const totalMethodAmount = dataset.paymentMethods.reduce(
-    (sum, item) => sum + item.verifiedAmount,
-    0,
-  );
-  const totalEnrollmentCount = dataset.enrollmentStatuses.reduce(
-    (sum, item) => sum + item.count,
-    0,
-  );
-  const maxProgramCount =
-    dataset.programMix.length > 0
-      ? Math.max(...dataset.programMix.map((row) => row.students))
-      : 0;
-  const averageBill =
-    dataset.summary.billsGenerated > 0
-      ? Math.round(dataset.summary.totalBilled / dataset.summary.billsGenerated)
-      : 0;
+  const programData: BreakdownDatum[] = dataset.programMix.map((item, index) => ({
+    name: `${programLabel(item.program)} · ${yearLevelLabel(item.yearLevel)}`,
+    value: item.students,
+    valueLabel: number.format(item.students),
+    meta: `${number.format(item.billed)} billed · ${number.format(item.noDownpayment)} no-DP`,
+    color: index % 2 === 0 ? "var(--color-chart-1)" : "var(--color-chart-2)",
+  }));
+  const voucherData: BreakdownDatum[] = dataset.vouchers.map((item) => ({
+    name: item.discount.name,
+    value: item.amountApplied,
+    valueLabel: formatPeso(item.amountApplied),
+    meta: `${number.format(item.recipients)} recipients · ${item.utilizationRate}% used`,
+    note: discountValueLabel(item.discount),
+    color: "var(--color-chart-1)",
+  }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
-            {selectedTerm?.isActive && (
-              <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
-                Active term
-              </Badge>
-            )}
-          </div>
-          <p className="text-muted-foreground max-w-3xl text-sm">
-            Finance and enrollment snapshots for bills, payments, enrollments,
-            vouchers, tuition incentives, and payment channels.
-          </p>
-        </div>
+    <div className="space-y-3">
+      <DashboardHeader
+        title="Reports"
+        description="A focused view of collections, enrollment, and applied credits."
+        context={selectedTerm?.isActive ? <Badge variant="secondary">Active term</Badge> : null}
+      />
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+      <Card className="gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <ReportFilter label="Academic year">
           <Select
             value={selectedTerm ? String(selectedTerm.id) : undefined}
             onValueChange={setSelectedTermId}
           >
-            <SelectTrigger className="min-w-44">
-              <CalendarRangeIcon className="size-4 text-muted-foreground" />
+            <SelectTrigger className="w-full min-w-44 bg-background sm:w-auto">
+              <CalendarRangeIcon className="text-muted-foreground size-4" />
               <SelectValue placeholder="School year" />
             </SelectTrigger>
             <SelectContent>
               {terms.map((term) => (
                 <SelectItem key={term.id} value={String(term.id)}>
-                  {`SY ${term.schoolYear}`}
+                  SY {term.schoolYear}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-
+        </ReportFilter>
+        <ReportFilter label="Reporting period">
           <Select
             value={period}
             onValueChange={(value) => setPeriod(value as ReportPeriod)}
           >
-            <SelectTrigger className="min-w-40">
-              <BarChart3Icon className="size-4 text-muted-foreground" />
+            <SelectTrigger className="w-full min-w-40 bg-background sm:w-auto">
+              <BarChart3Icon className="text-muted-foreground size-4" />
               <SelectValue placeholder="Period" />
             </SelectTrigger>
             <SelectContent>
@@ -241,764 +288,379 @@ function ReportsPage() {
               ))}
             </SelectContent>
           </Select>
-
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() =>
-              printReport(
-                dataset,
-                {
-                  schoolYear: selectedTerm
-                    ? `SY ${selectedTerm.schoolYear}`
-                    : "—",
-                  periodLabel:
-                    PERIOD_OPTIONS.find((option) => option.value === period)
-                      ?.label ?? "",
-                },
-                programLabel,
-              )
-            }
-          >
-            <ReceiptTextIcon />
-            Export snapshot
-          </Button>
+        </ReportFilter>
+        <div className="text-muted-foreground min-w-0 text-xs sm:ml-auto sm:pb-2">
+          Updated <span className="font-medium text-foreground">{formatDate(dataset.updatedAt)}</span>
         </div>
-      </div>
-
-      <Card className="border-primary/10 bg-linear-to-br from-primary/8 via-background to-muted/60">
-        <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="bg-background/80">
-                {selectedTerm ? `SY ${selectedTerm.schoolYear}` : "—"}
-              </Badge>
-              <Badge variant="outline" className="bg-background/80">
-                {
-                  PERIOD_OPTIONS.find((option) => option.value === period)
-                    ?.label
-                }
-              </Badge>
-            </div>
-            <h2 className="text-base font-semibold tracking-tight">
-              Collection posture is at {dataset.summary.collectionRate}% for the
-              selected view.
-            </h2>
-            <p className="text-muted-foreground max-w-xl text-xs">
-              Bills are anchored to school year and enrollment records; verified
-              payments, voucher credits, and tuition incentive credits explain
-              how much has been realized.
-            </p>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 lg:shrink-0 xl:grid-cols-4">
-            <HighlightTile
-              label="Snapshot updated"
-              value={formatDate(dataset.updatedAt)}
-              icon={ClockIcon}
-            />
-            <HighlightTile
-              label="Average bill"
-              value={formatPeso(averageBill)}
-              icon={ReceiptTextIcon}
-            />
-            <HighlightTile
-              label="Voucher credits"
-              value={formatPeso(dataset.summary.voucherCredits)}
-              icon={TagIcon}
-            />
-            <HighlightTile
-              label="Tuition incentive credits"
-              value={formatPeso(dataset.summary.incentiveCredits ?? 0)}
-              icon={GraduationCapIcon}
-            />
-          </div>
-        </CardContent>
+        <Button
+          type="button"
+          className="w-full sm:w-auto"
+          onClick={() =>
+            printReport(
+              dataset,
+              {
+                schoolYear: selectedTerm ? `SY ${selectedTerm.schoolYear}` : "—",
+                periodLabel,
+              },
+              programLabel,
+            )
+          }
+        >
+          <ReceiptTextIcon />
+          Export snapshot
+        </Button>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Total billed"
-          value={formatPeso(dataset.summary.totalBilled)}
-          hint={`${dataset.summary.billsGenerated} bills generated`}
-          icon={ReceiptTextIcon}
-        />
-        <StatTile
-          label="Collected"
-          value={formatPeso(dataset.summary.totalCollected)}
-          hint={`${dataset.summary.collectionRate}% collection rate`}
-          icon={WalletIcon}
-          accent="text-emerald-600 dark:text-emerald-400"
-        />
-        <StatTile
-          label="Outstanding"
-          value={formatPeso(dataset.summary.totalOutstanding)}
-          hint={`${dataset.summary.activeStudents} active students`}
-          icon={BanknoteIcon}
-          accent="text-amber-600 dark:text-amber-400"
-        />
-        <StatTile
-          label="Pending reviews"
-          value={dataset.summary.pendingPayments}
-          hint="Payments awaiting verification"
-          icon={ClockIcon}
-          accent="text-violet-600 dark:text-violet-400"
-        />
-      </div>
+      <DashboardMetricStrip metrics={metrics} />
 
-      <Tabs defaultValue="collections" className="space-y-4">
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl p-1">
-          <TabsTrigger value="collections">Collections</TabsTrigger>
-          <TabsTrigger value="enrollment">Enrollment</TabsTrigger>
-          <TabsTrigger value="credits">Credits & Channels</TabsTrigger>
+      <Tabs defaultValue="collections" className="gap-3">
+        <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl bg-card p-1 shadow-xs ring-1 ring-foreground/10 sm:flex sm:w-fit">
+          <TabsTrigger className="w-full px-2 sm:w-auto sm:px-4" value="collections">Collections</TabsTrigger>
+          <TabsTrigger className="w-full px-2 sm:w-auto sm:px-4" value="enrollment">Enrollment</TabsTrigger>
+          <TabsTrigger className="w-full px-2 sm:w-auto sm:px-4" value="credits">Credits</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="collections" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Bills by status</CardTitle>
-                <CardDescription>
-                  Distribution based on the `Bill.status` lifecycle.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dataset.billStatuses.map((item) => (
-                  <MeterRow
-                    key={item.status}
-                    label={BILL_STATUS_META[item.status].label}
-                    value={item.total}
-                    total={totalBillStatusAmount}
-                    badge={`${item.count} accounts`}
-                    meta={formatPeso(item.total)}
-                    note={item.note}
-                    tone={billTone(item.status)}
-                  />
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Verified payments</CardTitle>
-                <CardDescription>
-                  Settlement mix using `Payment.method` and verification status.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dataset.paymentMethods.map((item) => (
-                  <MeterRow
-                    key={item.method}
-                    label={paymentMethodLabel(item.method)}
-                    value={item.verifiedAmount}
-                    total={totalMethodAmount}
-                    badge={`${item.transactions} posts`}
-                    meta={formatPeso(item.verifiedAmount)}
-                    note={`${item.pendingCount} pending verification${item.pendingCount === 1 ? "" : "s"}`}
-                    tone={paymentMethodTone(item.method)}
-                  />
-                ))}
-              </CardContent>
-            </Card>
+        <TabsContent value="collections" className="space-y-3">
+          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(19rem,.65fr)]">
+            <SemanticBarPanel
+              title="Billing position"
+              description="Selected period"
+              data={financialData}
+              empty="No billing activity found for this reporting window."
+              formatValue={(value) => formatPeso(Number(value))}
+              footer={<StatusSummary data={billData} />}
+            />
+            <RankedListPanel
+              title="Payment mix"
+              description={`${number.format(paymentData.length)} channels`}
+              data={paymentData}
+              empty="No verified payments found for this reporting window."
+            />
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Largest open balances</CardTitle>
-              <CardDescription>
-                High-balance students based on net total, amount paid, and due
-                now from the billing model.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Program</TableHead>
-                    <TableHead>Term</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead className="text-right">Net total</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                    <TableHead className="text-right">Due now</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dataset.topBalances.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={9}
-                        className="text-muted-foreground h-24 text-center"
-                      >
-                        No open balances for this term.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    dataset.topBalances.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{row.studentName}</span>
-                            <span className="text-muted-foreground text-xs">
-                              {row.studentNumber}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span>{programLabel(row.program)}</span>
-                            <span className="text-muted-foreground text-xs">
-                              {row.yearLevel}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span>{`SY ${row.schoolYear}`}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn(BILL_STATUS_META[row.status].className)}
-                          >
-                            {BILL_STATUS_META[row.status].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {row.paymentStatus ? (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                PAYMENT_STATUS_META[row.paymentStatus].className,
-                              )}
-                            >
-                              {PAYMENT_STATUS_META[row.paymentStatus].label}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">
-                              No payments yet
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatPeso(row.netTotal)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatPeso(row.amountPaid)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatPeso(row.balance)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-amber-700 dark:text-amber-300">
-                          {formatPeso(row.amountDue)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <TopBalancesPanel rows={dataset.topBalances} />
         </TabsContent>
 
-        <TabsContent value="enrollment" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Enrollment status snapshot
-                </CardTitle>
-                <CardDescription>
-                  Based on the `Enrollment.status` states used across the admin
-                  workspace.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dataset.enrollmentStatuses.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    No enrollments recorded for this term yet.
-                  </p>
-                ) : (
-                  dataset.enrollmentStatuses.map((item) => (
-                    <MeterRow
-                      key={item.status}
-                      label={ENROLLMENT_STATUS_META[item.status].label}
-                      value={item.count}
-                      total={totalEnrollmentCount}
-                      badge={`${item.count} students`}
-                      meta={
-                        totalEnrollmentCount > 0
-                          ? `${Math.round((item.count / totalEnrollmentCount) * 100)}%`
-                          : "0%"
-                      }
-                      note={item.note}
-                      tone={enrollmentTone(item.status)}
-                    />
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Program mix</CardTitle>
-                <CardDescription>
-                  Student counts grouped by track and year level with billing
-                  coverage.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dataset.programMix.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    No enrollments recorded for this term yet.
-                  </p>
-                ) : (
-                  dataset.programMix.map((row) => (
-                    <div key={`${row.program}-${row.yearLevel}`} className="space-y-2">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium">{programLabel(row.program)}</p>
-                          <p className="text-muted-foreground text-xs">
-                            {row.yearLevel}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">{row.students} students</p>
-                          <p className="text-muted-foreground text-xs">
-                            {row.billed} billed · {row.noDownpayment} no-DP
-                          </p>
-                        </div>
-                      </div>
-                      <div className="bg-muted h-2 rounded-full">
-                        <div
-                          className="bg-primary h-2 rounded-full"
-                          style={{
-                            width: `${Math.max(
-                              (row.students / maxProgramCount) * 100,
-                              10,
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
+        <TabsContent value="enrollment" className="space-y-3">
+          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
+            <SemanticBarPanel
+              title="Enrollment composition"
+              description="Selected period"
+              data={enrollmentData}
+              empty="No enrollments found for this reporting window."
+              formatValue={(value) => number.format(Number(value))}
+            />
+            <RankedListPanel
+              title="Program ranking"
+              description={`${number.format(programData.length)} programs`}
+              data={programData}
+              empty="No enrolled students found for this reporting window."
+            />
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                Recent enrollment activity
-              </CardTitle>
-              <CardDescription>
-                The most recently created enrollments for the selected term and
-                period.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Program</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Billing</TableHead>
-                    <TableHead>No downpayment</TableHead>
-                    <TableHead className="text-right">Enrolled at</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dataset.enrollmentActivity.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className="text-muted-foreground h-24 text-center"
-                      >
-                        No enrollment activity in this window.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    dataset.enrollmentActivity.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{row.studentName}</span>
-                            <span className="text-muted-foreground text-xs">
-                              {row.studentNumber}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span>{programLabel(row.program)}</span>
-                            <span className="text-muted-foreground text-xs">
-                              {row.yearLevel}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              ENROLLMENT_STATUS_META[row.status].className,
-                            )}
-                          >
-                            {ENROLLMENT_STATUS_META[row.status].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={row.hasBill ? "secondary" : "outline"}>
-                            {row.hasBill ? "Bill generated" : "No bill yet"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={row.noDownpayment ? "secondary" : "outline"}>
-                            {row.noDownpayment ? "Allowed" : "Standard"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {formatDate(row.enrolledAt)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <EnrollmentActivityPanel rows={dataset.enrollmentActivity} />
         </TabsContent>
 
-        <TabsContent value="credits" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Voucher utilization</CardTitle>
-                <CardDescription>
-                  Vouchers granted at admission and applied against bills this
-                  term.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dataset.vouchers.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    No vouchers in the catalog yet.
-                  </p>
-                ) : (
-                  dataset.vouchers.map((item) => (
-                    <div key={item.discount.id} className="space-y-3">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium">{item.discount.name}</p>
-                          <p className="text-muted-foreground text-xs">
-                            {discountValueLabel(item.discount)}
-                          </p>
-                        </div>
-                        <Badge variant="outline">{item.recipients} recipients</Badge>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <MiniStat
-                          icon={TagIcon}
-                          label="Applied"
-                          value={formatPeso(item.amountApplied)}
-                        />
-                        <MiniStat
-                          icon={GraduationCapIcon}
-                          label="Recipients"
-                          value={String(item.recipients)}
-                        />
-                        <MiniStat
-                          icon={ArrowUpRightIcon}
-                          label="Utilization"
-                          value={`${item.utilizationRate}%`}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Payment channel audit
-                </CardTitle>
-                <CardDescription>
-                  Channel readiness using QR availability and recent finance
-                  review status.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dataset.channelAudits.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    No payment methods configured yet.
-                  </p>
-                ) : (
-                  dataset.channelAudits.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-xl border border-border/70 p-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{item.label}</p>
-                            <Badge
-                              variant="outline"
-                              className={
-                                item.isActive
-                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
-                                  : undefined
-                              }
-                            >
-                              {item.isActive ? "Active" : "Inactive"}
-                            </Badge>
-                          </div>
-                          <p className="text-muted-foreground text-xs">
-                            {item.accountName}
-                            {item.accountNumber ? ` · ${item.accountNumber}` : ""}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Badge variant={item.hasQr ? "secondary" : "outline"}>
-                            {item.hasQr ? "QR ready" : "No QR"}
-                          </Badge>
-                          <Badge variant="outline">
-                            {item.pendingProofs} pending
-                          </Badge>
-                        </div>
-                      </div>
-                      <Separator className="my-3" />
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <MiniStat
-                          icon={WalletIcon}
-                          label="Verified amount"
-                          value={formatPeso(item.verifiedAmount)}
-                        />
-                        <MiniStat
-                          icon={QrCodeIcon}
-                          label="Last reviewed"
-                          value={formatDate(item.lastReviewed)}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
+        <TabsContent value="credits" className="space-y-3">
+          <CreditTotals
+            voucherCredits={dataset.summary.voucherCredits}
+            incentiveCredits={dataset.summary.incentiveCredits ?? 0}
+          />
+          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
+            <SemanticBarPanel
+              title="Voucher utilization"
+              description="Applied value"
+              data={voucherData}
+              empty="No voucher activity found for this reporting window."
+              formatValue={(value) => formatPeso(Number(value))}
+            />
+            <ChannelReadinessPanel dataset={dataset} />
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent credit activity</CardTitle>
-              <CardDescription>
-                Vouchers and tuition incentives mapped back to bill status for
-                finance follow-up.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Credit</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount applied</TableHead>
-                    <TableHead className="text-right">Posted</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dataset.creditActivity.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="text-muted-foreground h-24 text-center"
-                      >
-                        No credit activity in this window.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    dataset.creditActivity.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{row.studentName}</span>
-                            <span className="text-muted-foreground text-xs">
-                              {row.studentNumber}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span>{row.creditName ?? row.voucherName}</span>
-                            {(row.reasons?.length ?? 0) > 0 && (
-                              <span className="text-muted-foreground text-xs">
-                                {row.reasons?.join(" + ")}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              BILL_STATUS_META[row.billStatus].className,
-                            )}
-                          >
-                            {BILL_STATUS_META[row.billStatus].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatPeso(row.amountApplied)}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {formatDate(row.postedAt)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <CreditActivityPanel rows={dataset.creditActivity} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function HighlightTile({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  icon: typeof ClockIcon;
-}) {
+function ReportFilter({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-background/75 p-2.5 shadow-xs">
-      <div className="bg-muted text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
-        <Icon className="size-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
-          {label}
-        </p>
-        <p className="truncate text-sm font-semibold tracking-tight">{value}</p>
-      </div>
+    <div className="min-w-0 flex-1 space-y-1.5 sm:flex-none">
+      <span className="text-muted-foreground block text-[0.6875rem] font-medium">{label}</span>
+      {children}
     </div>
   );
 }
 
-function MiniStat({
-  icon: Icon,
-  label,
-  value,
+function SemanticBarPanel({
+  title,
+  description,
+  data,
+  empty,
+  formatValue,
+  footer,
 }: {
-  icon: typeof WalletIcon;
-  label: string;
-  value: string;
+  title: string;
+  description: string;
+  data: BreakdownDatum[];
+  empty: string;
+  formatValue: (value: number) => string;
+  footer?: ReactNode;
 }) {
   return (
-    <div className="bg-muted/50 flex items-start gap-3 rounded-lg border border-border/60 p-3">
-      <div className="bg-background text-primary flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70">
-        <Icon className="size-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-muted-foreground text-xs">{label}</p>
-        <p className="font-medium">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function MeterRow({
-  label,
-  value,
-  total,
-  badge,
-  meta,
-  note,
-  tone,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  badge: string;
-  meta: string;
-  note: string;
-  tone: "primary" | "success" | "warning" | "violet";
-}) {
-  const width = total > 0 ? Math.max((value / total) * 100, 6) : 0;
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium">{label}</p>
-            <Badge variant="outline">{badge}</Badge>
+    <DashboardPanel title={title} description={description}>
+      {data.length === 0 ? (
+        <EmptyData>{empty}</EmptyData>
+      ) : (
+        <div className="grid min-h-[19rem] lg:grid-cols-[minmax(0,1fr)_13rem]">
+          <div className="h-64 min-w-0 px-3 py-4">
+            <ChartContainer config={chartConfig}>
+              <BarChart accessibilityLayer data={data} layout="vertical" margin={{ left: 6, right: 16, top: 8, bottom: 8 }}>
+                <CartesianGrid horizontal={false} />
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} width={88} tick={{ fontSize: 11 }} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      hideLabel
+                      formatter={(value) => formatValue(Number(value ?? 0))}
+                    />
+                  }
+                />
+                <Bar dataKey="value" radius={[0, 5, 5, 0]} maxBarSize={26}>
+                  {data.map((item) => <Cell key={item.name} fill={item.color} />)}
+                </Bar>
+              </BarChart>
+            </ChartContainer>
           </div>
-          <p className="text-muted-foreground text-xs">{note}</p>
+          <div className="border-t px-4 lg:border-t-0 lg:border-l">
+            {data.map((item) => (
+              <div key={item.name} className="border-b py-3.5 last:border-b-0">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-4 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
+                  <p className="truncate text-xs font-semibold">{item.name}</p>
+                </div>
+                <p className="mt-1.5 text-sm font-semibold tabular-nums">{item.valueLabel}</p>
+                <p className="text-muted-foreground mt-0.5 text-[0.6875rem]">{item.meta}</p>
+              </div>
+            ))}
+          </div>
+          {footer ? <div className="border-t lg:col-span-2">{footer}</div> : null}
         </div>
-        <p className="font-medium">{meta}</p>
-      </div>
-      <div className="bg-muted h-2 rounded-full">
-        <div
-          className={cn(
-            "h-2 rounded-full",
-            tone === "primary" && "bg-primary",
-            tone === "success" && "bg-emerald-500",
-            tone === "warning" && "bg-amber-500",
-            tone === "violet" && "bg-violet-500",
-          )}
-          style={{ width: `${width}%` }}
-        />
-      </div>
+      )}
+    </DashboardPanel>
+  );
+}
+
+function StatusSummary({ data }: { data: BreakdownDatum[] }) {
+  return (
+    <div className="grid sm:grid-cols-3">
+      {data.map((item) => (
+        <div key={item.name} className="border-b px-4 py-3 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full" style={{ backgroundColor: item.color }} />
+            <span className="text-muted-foreground text-[0.6875rem]">{item.name}</span>
+          </div>
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            <strong className="text-xs tabular-nums">{item.valueLabel}</strong>
+            <span className="text-muted-foreground text-[0.6875rem]">{item.meta}</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function billTone(status: BillStatus) {
-  switch (status) {
-    case "paid":
-      return "success";
-    case "partial":
-      return "primary";
-    case "unpaid":
-      return "warning";
-  }
+const DESKTOP_SCROLL_AREA = "xl:max-h-[19rem] xl:overflow-y-auto xl:overscroll-contain xl:pr-2 xl:[scrollbar-gutter:stable] xl:[&::-webkit-scrollbar-thumb]:rounded-full xl:[&::-webkit-scrollbar-thumb]:bg-border xl:[&::-webkit-scrollbar-track]:bg-transparent xl:[&::-webkit-scrollbar]:w-1.5";
+
+function RankedListPanel({ title, description, data, empty }: { title: string; description: string; data: BreakdownDatum[]; empty: string }) {
+  const maximum = Math.max(...data.map((item) => item.value), 1);
+
+  return (
+    <DashboardPanel title={title} description={description}>
+      {data.length === 0 ? <EmptyData>{empty}</EmptyData> : (
+        <div className={cn("px-4", DESKTOP_SCROLL_AREA)}>
+          {[...data].sort((left, right) => right.value - left.value).map((item) => (
+            <div key={item.name} className="border-b py-4 last:border-b-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold">{item.name}</p>
+                  <p className="text-muted-foreground mt-0.5 truncate text-[0.6875rem]">{item.meta}</p>
+                </div>
+                <strong className="shrink-0 text-xs tabular-nums">{item.valueLabel}</strong>
+              </div>
+              <div className="bg-muted mt-2.5 h-1.5 overflow-hidden rounded-sm">
+                <div className="h-full rounded-sm" style={{ width: `${Math.max((item.value / maximum) * 100, item.value ? 3 : 0)}%`, backgroundColor: item.color }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </DashboardPanel>
+  );
 }
 
-function paymentMethodTone(method: PaymentMethod) {
-  switch (method) {
-    case "cash":
-      return "success";
-    case "gcash":
-      return "primary";
-    case "maya":
-      return "violet";
-    case "bank":
-      return "warning";
-  }
+function CreditTotals({ voucherCredits, incentiveCredits }: { voucherCredits: number; incentiveCredits: number }) {
+  return (
+    <Card className="grid gap-0 py-0 sm:grid-cols-2">
+      <div className="border-b p-4 sm:border-r sm:border-b-0">
+        <span className="text-muted-foreground text-xs">Voucher credits</span>
+        <strong className="mt-1 block text-lg font-semibold tabular-nums">{formatPeso(voucherCredits)}</strong>
+      </div>
+      <div className="p-4">
+        <span className="text-muted-foreground text-xs">Tuition incentive credits</span>
+        <strong className="mt-1 block text-lg font-semibold tabular-nums">{formatPeso(incentiveCredits)}</strong>
+      </div>
+    </Card>
+  );
 }
 
-function enrollmentTone(status: EnrollmentStatus) {
-  switch (status) {
-    case "enrolled":
-      return "success";
-    case "pending":
-      return "warning";
-    case "completed":
-      return "violet";
-    case "dropped":
-    case "withdrawn":
-      return "primary";
-  }
+function TopBalancesPanel({ rows }: { rows: OutstandingBalanceRow[] }) {
+  return (
+    <DashboardPanel title="Largest open balances" description={`${rows.length} records · highest first`}>
+      <div className="overflow-x-auto">
+        <Table className="min-w-[52rem] text-xs">
+          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-9">Student</TableHead><TableHead className="h-9">Status</TableHead><TableHead className="h-9 text-right">Net total</TableHead><TableHead className="h-9 text-right">Paid</TableHead><TableHead className="h-9 text-right">Balance</TableHead><TableHead className="h-9 text-right">Due now</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {rows.length === 0 ? <EmptyTable colSpan={6}>No open balances for this term.</EmptyTable> : rows.map((row) => (
+              <TableRow key={row.id} className="h-11">
+                <TableCell className="py-1.5"><StudentCell name={row.studentName} number={row.studentNumber} context={`${programCodeLabel(row.program)} · ${yearLevelLabel(row.yearLevel)}`} /></TableCell>
+                <TableCell className="py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className={cn(COMPACT_BADGE, BILL_STATUS_META[row.status].className)}>{BILL_STATUS_META[row.status].label}</Badge>
+                    {row.paymentStatus ? <Badge variant="outline" className={cn(COMPACT_BADGE, PAYMENT_STATUS_META[row.paymentStatus].className)}>{PAYMENT_STATUS_META[row.paymentStatus].label}</Badge> : <span className="text-muted-foreground text-[0.6875rem]">No payments</span>}
+                  </div>
+                </TableCell>
+                <TableCell className="py-1.5 text-right tabular-nums">{formatPeso(row.netTotal)}</TableCell>
+                <TableCell className="py-1.5 text-right tabular-nums">{formatPeso(row.amountPaid)}</TableCell>
+                <TableCell className="py-1.5 text-right font-semibold tabular-nums">{formatPeso(row.balance)}</TableCell>
+                <TableCell className="py-1.5 text-right font-semibold text-amber-700 tabular-nums dark:text-amber-300">{formatPeso(row.amountDue)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </DashboardPanel>
+  );
+}
+
+function EnrollmentActivityPanel({ rows }: { rows: EnrollmentActivityRow[] }) {
+  return (
+    <DashboardPanel title="Recent enrollment activity" description={`${rows.length} records · newest first`}>
+      <div className="overflow-x-auto">
+        <Table className="min-w-[40rem] text-xs">
+          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-9">Student</TableHead><TableHead className="h-9">Status</TableHead><TableHead className="h-9">Billing</TableHead><TableHead className="h-9 text-right">Enrolled</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {rows.length === 0 ? <EmptyTable colSpan={4}>No enrollment activity in this window.</EmptyTable> : rows.map((row) => (
+              <TableRow key={row.id} className="h-11">
+                <TableCell className="py-1.5"><StudentCell name={row.studentName} number={row.studentNumber} context={`${programCodeLabel(row.program)} · ${yearLevelLabel(row.yearLevel)}`} /></TableCell>
+                <TableCell className="py-1.5"><Badge variant="outline" className={cn(COMPACT_BADGE, ENROLLMENT_STATUS_META[row.status].className)}>{ENROLLMENT_STATUS_META[row.status].label}</Badge></TableCell>
+                <TableCell className="py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant={row.hasBill ? "secondary" : "outline"} className={COMPACT_BADGE}>{row.hasBill ? "Billed" : "No bill"}</Badge>
+                    <Badge variant={row.noDownpayment ? "secondary" : "outline"} className={COMPACT_BADGE}>{row.noDownpayment ? "No DP" : "Standard"}</Badge>
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground py-1.5 text-right">{formatDate(row.enrolledAt)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </DashboardPanel>
+  );
+}
+
+function ChannelReadinessPanel({ dataset }: { dataset: ReportDataset }) {
+  return (
+    <DashboardPanel
+      title="Payment channel readiness"
+      description={`${number.format(dataset.channelAudits.length)} channels`}
+    >
+      {dataset.channelAudits.length === 0 ? <EmptyData>No payment methods are configured yet.</EmptyData> : (
+        <div className={cn("px-4", DESKTOP_SCROLL_AREA)}>
+          {dataset.channelAudits.map((item) => (
+            <div key={item.id} className="border-b py-4 last:border-b-0">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{item.label}</p><Badge variant={item.isActive ? "secondary" : "outline"}>{item.isActive ? "Active" : "Inactive"}</Badge><Badge variant="outline">{item.hasQr ? "QR ready" : "No QR"}</Badge></div>
+                  <p className="text-muted-foreground mt-1 truncate text-xs">{item.accountName}{item.accountNumber ? ` · ${item.accountNumber}` : ""}</p>
+                </div>
+                <div className="text-right"><p className="font-semibold tabular-nums">{formatPeso(item.verifiedAmount)}</p><p className="text-muted-foreground mt-1 text-xs">{number.format(item.pendingProofs)} pending</p></div>
+              </div>
+              <p className="text-muted-foreground mt-2 text-[0.6875rem]">Last reviewed {formatDate(item.lastReviewed)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </DashboardPanel>
+  );
+}
+
+function CreditActivityPanel({ rows }: { rows: CreditActivityRow[] }) {
+  return (
+    <DashboardPanel title="Recent credit activity" description={`${rows.length} records · latest first`}>
+      <div className="overflow-x-auto">
+        <Table className="min-w-[42rem] text-xs">
+          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-9">Student</TableHead><TableHead className="h-9">Credit</TableHead><TableHead className="h-9">Status</TableHead><TableHead className="h-9 text-right">Amount applied</TableHead><TableHead className="h-9 text-right">Posted</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {rows.length === 0 ? <EmptyTable colSpan={5}>No credit activity in this window.</EmptyTable> : rows.map((row) => (
+              <TableRow key={row.id} className="h-11">
+                <TableCell className="py-1.5"><PersonCell name={row.studentName} detail={row.studentNumber} /></TableCell>
+                <TableCell className="py-1.5"><PersonCell name={row.creditName ?? row.voucherName} detail={row.reasons?.join(" + ")} /></TableCell>
+                <TableCell className="py-1.5"><Badge variant="outline" className={cn(COMPACT_BADGE, BILL_STATUS_META[row.billStatus].className)}>{BILL_STATUS_META[row.billStatus].label}</Badge></TableCell>
+                <TableCell className="py-1.5 text-right font-semibold tabular-nums">{formatPeso(row.amountApplied)}</TableCell>
+                <TableCell className="text-muted-foreground py-1.5 text-right">{formatDate(row.postedAt)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </DashboardPanel>
+  );
+}
+
+const COMPACT_BADGE = "h-5 rounded-md px-1.5 text-[0.625rem] leading-none";
+
+function StudentCell({ name, number: studentNumber, context }: { name: string; number: string; context: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="truncate font-medium">{name}</p>
+      <p className="text-muted-foreground mt-0.5 truncate text-[0.6875rem]">{studentNumber} · {context}</p>
+    </div>
+  );
+}
+
+function yearLevelLabel(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function programCodeLabel(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function PersonCell({ name, detail }: { name: string; detail?: string }) {
+  return <div className="flex min-w-0 flex-col"><span className="truncate font-medium">{name}</span>{detail ? <span className="text-muted-foreground mt-0.5 truncate text-[0.6875rem]">{detail}</span> : null}</div>;
+}
+
+function EmptyData({ children }: { children: string }) {
+  return <p className="text-muted-foreground px-4 py-12 text-center text-sm">{children}</p>;
+}
+
+function EmptyTable({ colSpan, children }: { colSpan: number; children: string }) {
+  return <TableRow><TableCell colSpan={colSpan} className="text-muted-foreground h-24 text-center">{children}</TableCell></TableRow>;
+}
+
+function ReportState({ title, message, retry }: { title: string; message: string; retry?: () => void }) {
+  return (
+    <div className="space-y-4">
+      <DashboardHeader title="Reports" description="Finance and enrollment performance." />
+      <DashboardPanel title={title}>
+        <div className="flex flex-col items-center gap-3 py-16 text-center">
+          <p className="text-muted-foreground max-w-md text-sm">{message}</p>
+          {retry ? <Button variant="outline" onClick={retry}>Try again</Button> : null}
+        </div>
+      </DashboardPanel>
+    </div>
+  );
 }
 
 export default ReportsPage;
