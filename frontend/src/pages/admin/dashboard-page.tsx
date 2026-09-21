@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { BarChart3Icon } from "lucide-react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
 import {
   DashboardAttention,
   DashboardError,
@@ -8,7 +8,6 @@ import {
   DashboardLoading,
   DashboardMetricStrip,
   DashboardPanel,
-  DashboardQueue,
   type DashboardAttentionItem,
   type DashboardMetric,
   type DashboardQueueItem,
@@ -66,23 +65,22 @@ export default function DashboardPage() {
   const financeTrend = data.trend.finance;
   const metrics: DashboardMetric[] = isAdmin
     ? [
-        { label: "Enrolled students", value: number.format(enrolled), detail: "Current academic year", trend: admissionsTrend.map((item) => item.enrolled), tone: "primary" },
-        { label: "Collection rate", value: `${finance.collectionRate}%`, detail: `${formatPeso(finance.collected)} verified`, trend: financeTrend.map((item) => item.collected), tone: "success" },
-        { label: "Outstanding", value: formatPeso(finance.outstanding), detail: `${number.format(openAccounts)} open accounts`, trend: financeTrend.map((item) => item.billed - item.collected), tone: finance.outstanding ? "warning" : "success" },
-        { label: "Application conversion", value: `${conversion}%`, detail: `${number.format(enrolled)} enrolled of ${number.format(applicationTotal)}`, trend: admissionsTrend.map((item) => item.enrolled), tone: "primary" },
+        { label: "Enrolled students", explanation: "Students currently enrolled in the active academic year.", value: number.format(enrolled), detail: "Current academic year", trend: admissionsTrend.map((item) => item.enrolled), tone: "primary" },
+        { label: "Collection rate", explanation: "Verified collections as a percentage of the total billed amount.", value: `${finance.collectionRate}%`, detail: `${formatPeso(finance.collected)} verified`, trend: financeTrend.map((item) => item.collected), tone: "success" },
+        { label: "Outstanding", explanation: "Total unpaid balance across bills in the active academic year.", value: formatPeso(finance.outstanding), detail: `${number.format(openAccounts)} open accounts`, trend: financeTrend.map((item) => item.billed - item.collected), tone: finance.outstanding ? "warning" : "success" },
+        { label: "Application conversion", explanation: "Enrolled students as a percentage of all applications.", value: `${conversion}%`, detail: `${number.format(enrolled)} enrolled of ${number.format(applicationTotal)}`, trend: admissionsTrend.map((item) => item.enrolled), tone: "primary" },
       ]
     : [
         { label: "Collected", value: formatPeso(finance.collected), detail: "Verified payments", trend: financeTrend.map((item) => item.collected), tone: "success" },
-        { label: "Collection rate", value: `${finance.collectionRate}%`, detail: `${formatPeso(finance.billed)} billed`, trend: financeTrend.map((item) => item.collected), tone: "primary" },
-        { label: "Outstanding", value: formatPeso(finance.outstanding), detail: `${number.format(openAccounts)} open accounts`, trend: financeTrend.map((item) => item.billed - item.collected), tone: finance.outstanding ? "warning" : "success" },
+        { label: "Collection rate", explanation: "Verified collections as a percentage of the total billed amount.", value: `${finance.collectionRate}%`, detail: `${formatPeso(finance.billed)} billed`, trend: financeTrend.map((item) => item.collected), tone: "primary" },
+        { label: "Outstanding", explanation: "Total unpaid balance across bills in the active academic year.", value: formatPeso(finance.outstanding), detail: `${number.format(openAccounts)} open accounts`, trend: financeTrend.map((item) => item.billed - item.collected), tone: finance.outstanding ? "warning" : "success" },
         { label: "Bills tracked", value: number.format(finance.bills.total), detail: `${number.format(finance.pendingPayments)} proofs to verify`, tone: finance.pendingPayments ? "warning" : "success" },
       ];
 
   return (
     <div className="space-y-3">
       <DashboardHeader
-        description={isAdmin ? "Admissions, enrollment, and finance at a glance" : "Collections, verification, and billing follow-up at a glance"}
-        actions={<><span className="inline-flex h-9 items-center rounded-md bg-card px-3 text-xs font-semibold shadow-xs ring-1 ring-foreground/10">{data.openTerm ? `SY ${data.openTerm.schoolYear}` : "No active year"}</span><Button variant="outline" onClick={() => navigate("/admin/reports")}><BarChart3Icon />Open reports</Button></>}
+        actions={<><span className="inline-flex h-9 items-center rounded-md bg-card px-3 text-xs font-semibold shadow-xs ring-1 ring-foreground/10">{data.openTerm ? `SY ${data.openTerm.schoolYear}` : "No active year"}</span><Button onClick={() => navigate("/admin/reports")}><BarChart3Icon />Open reports</Button></>}
       />
 
       <DashboardAttention summary={attentionTotal ? `${number.format(attentionTotal)} records` : "All clear"} items={attentionItems} />
@@ -90,13 +88,11 @@ export default function DashboardPage() {
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1.42fr)_minmax(18rem,.78fr)]">
         {isAdmin ? <AdmissionsTrend data={admissionsTrend} conversion={conversion} /> : <FinanceTrend data={financeTrend} rate={finance.collectionRate} />}
-        <DashboardPanel title="Operational queue" action={<button type="button" className="text-primary text-xs font-semibold" onClick={() => navigate(isAdmin ? "/admin/applications" : "/admin/billing")}>View all</button>}>
-          <DashboardQueue items={queueItems} />
-        </DashboardPanel>
+        <BillStatus finance={finance} />
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-2">
-        {isAdmin && enrollment ? <ApplicationFunnel enrollment={enrollment} /> : <BillStatus finance={finance} />}
+      <div className={cn("grid gap-3", isAdmin && "xl:grid-cols-2")}>
+        {isAdmin && enrollment ? <ApplicationFunnel enrollment={enrollment} /> : null}
         <Readiness data={data} />
       </div>
     </div>
@@ -162,8 +158,27 @@ function ApplicationFunnel({ enrollment }: { enrollment: NonNullable<StaffDashbo
 }
 
 function BillStatus({ finance }: { finance: StaffDashboard["finance"] }) {
-  const data = [{ status: "Paid", value: finance.bills.paid }, { status: "Partial", value: finance.bills.partial }, { status: "Unpaid", value: finance.bills.unpaid }];
-  return <DashboardPanel title="Bill status" description={`${number.format(finance.bills.total)} bills`}><div className="h-48 p-4"><ChartContainer config={billConfig}><BarChart accessibilityLayer data={data} layout="vertical" margin={{ left: 2, right: 12 }}><CartesianGrid horizontal={false} /><XAxis type="number" allowDecimals={false} hide /><YAxis type="category" dataKey="status" tickLine={false} axisLine={false} width={54} /><ChartTooltip content={<ChartTooltipContent hideLabel />} /><Bar dataKey="value" fill="var(--color-value)" radius={[0, 4, 4, 0]} maxBarSize={22} /></BarChart></ChartContainer></div></DashboardPanel>;
+  const data = [
+    { name: "Paid", value: finance.bills.paid, color: "var(--color-chart-4)" },
+    { name: "Partially paid", value: finance.bills.partial, color: "var(--color-chart-2)" },
+    { name: "Unpaid", value: finance.bills.unpaid, color: "var(--color-chart-3)" },
+  ];
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  return <DashboardPanel title="Bill status" description={`${number.format(finance.bills.total)} bills`}>
+    <div className="flex flex-1 flex-col justify-center px-4 py-5">
+      <div className="relative h-48" role="img" aria-label={data.map((item) => `${item.name}: ${item.value}`).join(", ")}>
+        <ChartContainer config={billConfig} className="h-full w-full">
+          <PieChart>{total > 0 && <ChartTooltip content={<ChartTooltipContent hideLabel />} />}
+            <Pie data={total ? data : [{ name: "No bills", value: 1, color: "var(--color-muted)" }]} dataKey="value" nameKey="name" startAngle={180} endAngle={0} cy="85%" innerRadius="105%" outerRadius="145%" strokeWidth={2}>
+              {(total ? data : [{ name: "No bills", color: "var(--color-muted)" }]).map((item) => <Cell key={item.name} fill={item.color} />)}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center"><p className="text-3xl font-semibold tabular-nums">{number.format(total)}</p><p className="text-muted-foreground text-xs">Total bills</p></div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">{data.map((item) => <div key={item.name} className="text-center"><p className="text-muted-foreground flex items-center justify-center gap-1.5 text-xs"><span className="size-2 shrink-0 rounded-full" style={{backgroundColor:item.color}} />{item.name}</p><p className="mt-1 font-semibold tabular-nums">{number.format(item.value)}</p></div>)}</div>
+    </div>
+  </DashboardPanel>;
 }
 
 function Readiness({ data }: { data: StaffDashboard }) {

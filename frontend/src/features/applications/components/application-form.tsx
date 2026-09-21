@@ -1,3 +1,4 @@
+import { bannerStyles } from "@/components/ui/banner";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -277,7 +278,7 @@ export function ApplicationForm({
             {stepError && (
               <div
                 role="alert"
-                className="border-destructive/30 bg-destructive/5 text-destructive mb-5 flex items-start gap-3 rounded-lg border px-4 py-3"
+                className={bannerStyles({ tone: "danger", className: "mb-5 flex items-start gap-4" })}
               >
                 <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
                 <div className="space-y-0.5">
@@ -307,7 +308,7 @@ export function ApplicationForm({
             {isReview && submitError && (
               <div
                 role="alert"
-                className="border-destructive/30 bg-destructive/5 text-destructive mt-6 flex items-start gap-3 rounded-lg border px-4 py-3"
+                className={bannerStyles({ tone: "danger", className: "mt-6 flex items-start gap-4" })}
               >
                 <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
                 <div className="space-y-0.5">

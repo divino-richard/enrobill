@@ -1,3 +1,6 @@
+import { RowActions } from "@/components/row-actions";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { CompactProgramLabel } from "@/components/compact-program-label";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -17,12 +20,11 @@ import {
   FunnelXIcon,
   SearchIcon,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { DashboardHeader } from "@/components/dashboard/dashboard-primitives";
+import { TablePanel } from "@/components/table-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { RowActions } from "@/components/row-actions";
 import {
   Select,
   SelectContent,
@@ -102,7 +104,7 @@ function AdminApplicationsPage() {
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   useEffect(() => {
@@ -154,18 +156,13 @@ function AdminApplicationsPage() {
         accessorFn: (row) => row.applicant.name,
         header: ({ column }) => <SortHeader column={column} title="Applicant" />,
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
-              {applicantInitials(row.original.applicant.name)}
-            </div>
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate font-medium">
-                {row.original.applicant.name}
-              </span>
-              <span className="text-muted-foreground truncate text-xs">
-                {row.original.applicant.email}
-              </span>
-            </div>
+          <div className="max-w-80 space-y-0.5 py-1.5">
+            <span className="block truncate font-medium" title={row.original.applicant.name}>
+              {row.original.applicant.name}
+            </span>
+            <span className="text-muted-foreground block truncate text-[0.8125rem]" title={row.original.applicant.email}>
+              {row.original.applicant.email}
+            </span>
           </div>
         ),
         meta: { className: "min-w-[16rem]" },
@@ -175,55 +172,34 @@ function AdminApplicationsPage() {
         header: "Track / Strand",
         enableSorting: false,
         cell: ({ row }) => (
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate font-medium">{row.original.program}</span>
-            <span className="text-muted-foreground text-xs">
-              Code: {row.original.programCode}
-            </span>
-          </div>
+          <CompactProgramLabel label={row.original.program} />
         ),
-        meta: { className: "min-w-[14rem]" },
+        meta: { className: "whitespace-nowrap" },
       },
       {
         accessorKey: "yearLevel",
         header: ({ column }) => <SortHeader column={column} title="Year" />,
         cell: ({ row }) => (
-          <Badge variant="outline" className="bg-background">
+          <span className="text-muted-foreground">
             {labelFor(YEAR_LEVEL_OPTIONS, row.original.yearLevel)}
-          </Badge>
-        ),
-        meta: { className: "whitespace-nowrap" },
-      },
-      {
-        accessorKey: "schoolYear",
-        header: ({ column }) => (
-          <SortHeader column={column} title="School Year" />
-        ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground whitespace-nowrap">
-            {row.original.schoolYear}
           </span>
         ),
+        meta: { className: "whitespace-nowrap" },
       },
       {
         accessorKey: "status",
         header: ({ column }) => <SortHeader column={column} title="Status" />,
         cell: ({ row }) => (
-          <ApplicationStatusBadge status={row.original.status} />
+          <ApplicationStatusBadge status={row.original.status} className="text-xs" />
         ),
       },
       {
         accessorKey: "submittedAt",
         header: ({ column }) => <SortHeader column={column} title="Submitted" />,
         cell: ({ row }) => (
-          <div className="flex flex-col whitespace-nowrap">
-            <span className="text-muted-foreground">
-              {formatDate(row.original.submittedAt)}
-            </span>
-            <span className="text-muted-foreground/80 text-xs">
-              Updated {formatDate(row.original.updatedAt)}
-            </span>
-          </div>
+          <span className="text-muted-foreground whitespace-nowrap">
+            {formatDate(row.original.submittedAt)}
+          </span>
         ),
         meta: { className: "whitespace-nowrap" },
       },
@@ -233,14 +209,7 @@ function AdminApplicationsPage() {
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
-          <RowActions>
-            <DropdownMenuItem
-              onClick={() => navigate(`/admin/applications/${row.original.id}`)}
-            >
-              <EyeIcon />
-              Review
-            </DropdownMenuItem>
-          </RowActions>
+          <RowActions><DropdownMenuItem className="items-start gap-3 py-2.5" onClick={() => navigate(`/admin/applications/${row.original.id}`)}><EyeIcon className="mt-0.5 text-primary" /><span><span className="block font-medium">Review application</span><span className="text-muted-foreground block text-xs">View details and admission decision</span></span></DropdownMenuItem></RowActions>
         ),
       },
     ],
@@ -273,29 +242,22 @@ function AdminApplicationsPage() {
   const meta = query.data?.meta;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Applications</h1>
-          <p className="text-muted-foreground text-sm">
-            Review enrollment applications submitted by aspiring students and
-            keep the decision queue focused.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="bg-background">
-            {meta?.from && meta?.to
-              ? `Showing ${meta.from}–${meta.to} of ${meta.total}`
-              : `${meta?.total ?? 0} total`}
-          </Badge>
-          {query.isFetching && !query.isLoading && (
-            <Badge variant="outline" className="bg-background">
-              Updating…
-            </Badge>
-          )}
-        </div>
-      </div>
+    <div className="space-y-4">
+      <DashboardHeader
+        title="Applications"
+        actions={
+          <div className="flex items-center gap-2 text-[0.8125rem] tabular-nums" aria-live="polite">
+            <span className="bg-card inline-flex h-9 items-center rounded-md px-3 font-semibold shadow-xs ring-1 ring-foreground/10">
+              {meta?.from && meta?.to
+                ? `Showing ${meta.from}–${meta.to} of ${meta.total}`
+                : `${meta?.total ?? 0} total`}
+            </span>
+            {query.isFetching && !query.isLoading && (
+              <span className="text-muted-foreground">Updating…</span>
+            )}
+          </div>
+        }
+      />
 
       {query.isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
@@ -307,15 +269,16 @@ function AdminApplicationsPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
-            <div className="relative w-full">
+        <TablePanel>
+          <div className="grid grid-cols-1 gap-2 border-b p-3 sm:grid-cols-2 xl:grid-cols-[minmax(15rem,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
+            <div className="relative w-full sm:col-span-2 xl:col-span-1">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search reference, name, email, school year…"
-                className="pl-9"
+                aria-label="Search applications"
+                className="h-9 pl-9 text-sm md:text-sm"
               />
             </div>
 
@@ -323,7 +286,7 @@ function AdminApplicationsPage() {
               value={status}
               onValueChange={(value) => setStatus(value as StatusFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="Status">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -340,7 +303,7 @@ function AdminApplicationsPage() {
               value={schoolYear}
                 onValueChange={(value) => setSchoolYear(value as SchoolYearFilter)}
               >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="School year">
                 <SelectValue placeholder="All school years" />
               </SelectTrigger>
               <SelectContent>
@@ -357,7 +320,7 @@ function AdminApplicationsPage() {
               value={yearLevel}
               onValueChange={(value) => setYearLevel(value as YearLevelFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="Year level">
                 <SelectValue placeholder="All year levels" />
               </SelectTrigger>
               <SelectContent>
@@ -374,7 +337,7 @@ function AdminApplicationsPage() {
               value={programCode}
               onValueChange={(value) => setProgramCode(value as ProgramFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="Track or strand">
                 <SelectValue placeholder="All tracks / strands" />
               </SelectTrigger>
               <SelectContent>
@@ -396,6 +359,7 @@ function AdminApplicationsPage() {
               <Button
                 variant="outline"
                 size="icon"
+                className="size-9"
                 onClick={clearFilters}
                 aria-label="Clear filters"
                 title="Clear filters"
@@ -407,6 +371,7 @@ function AdminApplicationsPage() {
 
           <DataTable
             table={table}
+            compact
             isLoading={query.isLoading}
             emptyMessage={
               hasFilters
@@ -414,19 +379,10 @@ function AdminApplicationsPage() {
                 : "No applications yet."
             }
           />
-        </div>
+        </TablePanel>
       )}
     </div>
   );
-}
-
-function applicantInitials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
 }
 
 export default AdminApplicationsPage;

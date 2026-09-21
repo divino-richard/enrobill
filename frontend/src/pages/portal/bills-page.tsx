@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronRightIcon,
@@ -226,7 +227,7 @@ function BillsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <Skeleton className="h-9 w-40 rounded-md" />
         <Skeleton className="h-9 w-72 rounded-md" />
         <Skeleton className="h-64 w-full rounded-xl" />
@@ -235,13 +236,10 @@ function BillsPage() {
   }
 
   return (
-    <div className="space-y-6 mx-auto max-w-7xl">
+    <div className="space-y-4 mx-auto max-w-7xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">My Bills</h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          Select a bill to view the full breakdown, pay the current term, and
-          download receipts.
-        </p>
+        <PageHeader title="My Bills" description={<>Select a bill to view the full breakdown, pay the current term, and
+          download receipts.</>} />
       </div>
 
       {bills.length === 0 ? (

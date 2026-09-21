@@ -30,7 +30,7 @@ export function TimePicker({ id, label, value, onValueChange, disabled }: TimePi
   }
 
   return (
-    <div role="group" aria-label={label} className="flex min-w-0 items-center gap-1.5">
+    <div role="group" aria-label={label} className="bg-card flex min-w-0 items-center gap-0.5 rounded-md border p-1 shadow-xs [&_[data-slot=select-trigger]]:border-0 [&_[data-slot=select-trigger]]:shadow-none [&_[data-slot=select-trigger]]:h-8">
       <Select value={hour12} disabled={disabled} onValueChange={(hour) => update(hour, minutes, period)}>
         <SelectTrigger id={id} aria-label={`${label}, hour`} className="min-w-0 flex-1 tabular-nums">
           <SelectValue />

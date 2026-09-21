@@ -1,3 +1,4 @@
+import { bannerStyles } from "@/components/ui/banner";
 import { useState } from "react";
 import { ArrowRightIcon, CheckIcon, CopyIcon, LoaderCircleIcon, UsersRoundIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -91,14 +92,14 @@ export function StudentReferralCard({ showWhenUnavailable = false }: { showWhenU
 
   return (
     <Sheet>
-      <section aria-label="Referral tuition incentive" className="border-primary/20 bg-primary/5 dark:border-primary/35 dark:bg-primary/10 flex flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <section aria-label="Referral tuition incentive" className={bannerStyles({ className: "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" })}>
         <div className="flex min-w-0 items-start gap-3">
-          <UsersRoundIcon aria-hidden="true" className="text-primary dark:text-primary-foreground mt-0.5 size-5 shrink-0" />
+          <UsersRoundIcon aria-hidden="true" className="text-current mt-0.5 size-6 shrink-0" />
           <div className="min-w-0 space-y-1">
-            <h2 className="text-primary dark:text-primary-foreground text-sm font-semibold">
+            <h2 className="text-current text-base font-semibold">
               {unavailableReason ? "Referral tuition incentive" : "Invite a student. Unlock your tuition benefit."}
             </h2>
-            <p className="text-foreground/80 text-xs leading-relaxed">
+            <p className="text-current text-sm leading-relaxed">
               {unavailableReason ?? "Refer a Grade 11 applicant. You may both qualify for free tuition with your own vouchers."}
             </p>
           </div>

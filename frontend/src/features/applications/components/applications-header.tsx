@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,16 +37,7 @@ export function ApplicationsHeader({
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {canCreate ? "Applications" : "Admission"}
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {canCreate
-            ? "Submit and track your enrollment applications."
-            : "Your admission application and history."}
-        </p>
-      </div>
+      <PageHeader title={canCreate ? "Applications" : "Admission"} />
 
       {canCreate &&
         (disabled ? (

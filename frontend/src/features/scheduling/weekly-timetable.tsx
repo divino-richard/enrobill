@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { Clock3Icon, MapPinIcon, PencilIcon, PlusIcon, UserIcon } from "lucide-react";
+import { Clock3Icon, MapPinIcon, PencilIcon, PlusIcon, Trash2Icon, UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SCHEDULE_DAYS, classMinutes, scheduleDuration, scheduleTime, type ClassEntry } from "./types";
@@ -7,12 +7,13 @@ import { SCHEDULE_DAYS, classMinutes, scheduleDuration, scheduleTime, type Class
 type WeeklyTimetableProps = {
   entries: ClassEntry[];
   onEdit?: (entry: ClassEntry) => void;
+  onRemove?: (entry: ClassEntry) => void;
   onAdd?: (day: number) => void;
   disabled?: boolean;
   summary?: ReactNode;
 };
 
-export function WeeklyTimetable({ entries, onEdit, onAdd, disabled, summary }: WeeklyTimetableProps) {
+export function WeeklyTimetable({ entries, onEdit, onAdd, onRemove, disabled, summary }: WeeklyTimetableProps) {
   const [selectedDay, setSelectedDay] = useState(1);
   const [weekend, setWeekend] = useState(false);
   const id = useId();
@@ -20,7 +21,7 @@ export function WeeklyTimetable({ entries, onEdit, onAdd, disabled, summary }: W
   const activeDay = days.some((day) => SCHEDULE_DAYS.indexOf(day) + 1 === selectedDay) ? selectedDay : 1;
 
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="bg-card min-w-0 space-y-3 rounded-xl border p-3">
       {(summary || onAdd) && <div className="flex flex-wrap items-center justify-between gap-2">
         {summary}
         {onAdd && <Button type="button" variant="ghost" size="sm" aria-pressed={weekend} onClick={() => setWeekend(!weekend)}>
@@ -61,11 +62,11 @@ export function WeeklyTimetable({ entries, onEdit, onAdd, disabled, summary }: W
                     <span className="text-primary flex items-center gap-1.5 text-xs font-medium tabular-nums"><Clock3Icon aria-hidden="true" className="size-3.5 shrink-0" />{scheduleTime(entry.startTime)} – {scheduleTime(entry.endTime)}</span>
                     <span className="my-3 flex items-start justify-between gap-2"><span className="min-w-0 break-words font-semibold leading-snug">{entry.subject}</span>{onEdit && <PencilIcon aria-hidden="true" className="text-muted-foreground mt-0.5 size-3.5 shrink-0" />}</span>
                     <span className="text-muted-foreground flex items-start gap-1.5 text-xs"><UserIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{entry.teacher}</span></span>
-                    <span className="text-muted-foreground mt-1.5 flex items-start gap-1.5 text-xs"><MapPinIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{entry.room}</span></span>
+                    <span className="text-muted-foreground mt-1.5 mr-6 flex items-start gap-1.5 text-xs"><MapPinIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{entry.room}</span></span>
                   </>;
                   const className = "bg-background block w-full rounded-lg border p-3 text-left text-sm";
                   return onEdit
-                    ? <button key={entry.id} type="button" disabled={disabled} onClick={() => onEdit(entry)} aria-label={`Edit ${entry.subject}, ${day}, ${scheduleTime(entry.startTime)}`} className={cn(className, "hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-ring transition-colors focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-60")}>{content}</button>
+                    ? <div key={entry.id} className="relative"><button type="button" disabled={disabled} onClick={() => onEdit(entry)} aria-label={`Edit ${entry.subject}, ${day}, ${scheduleTime(entry.startTime)}`} className={cn(className, "hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-ring transition-colors focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-60")}>{content}</button>{onRemove && <Button type="button" variant="ghost" size="icon-sm" className="absolute bottom-1 right-1 text-muted-foreground hover:text-destructive" disabled={disabled} aria-label={`Remove ${entry.subject}, ${day}, ${scheduleTime(entry.startTime)}`} onClick={() => onRemove(entry)}><Trash2Icon className="size-3.5" /></Button>}</div>
                     : <div key={entry.id} className={className}>{content}</div>;
                 })}
               </div>

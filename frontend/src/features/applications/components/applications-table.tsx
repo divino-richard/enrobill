@@ -1,3 +1,4 @@
+import { CompactProgramLabel } from "@/components/compact-program-label";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -38,7 +39,7 @@ export function ApplicationsTable({
             <TableCell className="font-medium">
               {application.reference}
             </TableCell>
-            <TableCell>{application.program}</TableCell>
+            <TableCell><CompactProgramLabel label={application.program} /></TableCell>
             <TableCell className="text-muted-foreground">
               {application.schoolYear}
             </TableCell>

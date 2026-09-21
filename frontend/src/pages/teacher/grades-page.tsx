@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import { useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import {
@@ -232,14 +233,11 @@ export default function TeacherGradesPage() {
   }, [query.data?.sections, search]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">My students</h1>
-          <p className="text-muted-foreground text-sm">
-            Students in sections where you are the assigned adviser
-            {query.data?.schoolYear ? ` · SY ${query.data.schoolYear}` : ""}.
-          </p>
+          <PageHeader title="My students" description={<>Students in sections where you are the assigned adviser
+            {query.data?.schoolYear ? ` · SY ${query.data.schoolYear}` : ""}.</>} />
         </div>
         <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[10rem_18rem]">
           <Select
@@ -293,7 +291,7 @@ export default function TeacherGradesPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {sections.map((section) => (
             <Card key={section.id}>
               <CardHeader className="border-b">

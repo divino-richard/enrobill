@@ -1,3 +1,4 @@
+import { bannerStyles } from "@/components/ui/banner";
 import { useMemo, useState } from "react";
 import {
   BookOpenIcon,
@@ -389,7 +390,7 @@ export function StudentEditForm({ student, onSaved }: StudentEditFormProps) {
       {update.isError && (
         <div
           role="alert"
-          className="border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-3 rounded-lg border px-4 py-3"
+          className={bannerStyles({ tone: "danger", className: "flex items-start gap-4" })}
         >
           <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
           <p className="text-sm">{getErrorMessage(update.error)}</p>

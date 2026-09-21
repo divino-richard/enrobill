@@ -1,3 +1,5 @@
+import { PageHeader } from "@/components/page-header";
+import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,6 +20,7 @@ import {
   Loader2Icon,
   PlusIcon,
   SearchIcon,
+  FunnelXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +43,6 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RowActions } from "@/components/row-actions";
-import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { UserRoleBadge } from "@/features/users/components/user-role-badge";
 import { useCreateUser, useUsers } from "@/features/users/hooks";
@@ -297,18 +299,20 @@ function UsersPage() {
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const [verified, setVerified] = useState("all");
+  const [joined, setJoined] = useState("all");
   const [role, setRole] = useState<RoleFilter>("all");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "name", desc: false },
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [debouncedSearch, role]);
+  }, [debouncedSearch, role, verified, joined]);
 
   const sortState = sorting[0];
   const query = useUsers({
@@ -318,6 +322,8 @@ function UsersPage() {
     dir: sortState?.desc ? "desc" : "asc",
     role: role === "all" ? undefined : role,
     search: debouncedSearch || undefined,
+    verified: verified === "all" ? undefined : verified,
+    joined: joined === "all" ? undefined : joined,
   });
 
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
@@ -331,9 +337,9 @@ function UsersPage() {
         accessorKey: "name",
         header: ({ column }) => <SortHeader column={column} title="Name" />,
         cell: ({ row }) => (
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-0.5 py-1.5">
             <span className="font-medium">{row.original.name}</span>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-muted-foreground text-[0.8125rem]">
               {row.original.email}
             </span>
           </div>
@@ -412,16 +418,13 @@ function UsersPage() {
     })),
   ];
 
-  const hasFilters = Boolean(debouncedSearch) || role !== "all";
+  const hasFilters = Boolean(search) || role !== "all" || verified !== "all" || joined !== "all";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-          <p className="text-muted-foreground text-sm">
-            Monitor accounts and provision administrators, cashiers, and teachers.
-          </p>
+          <PageHeader title="Users" />
         </div>
         <Button onClick={() => setCreatingUser(true)}>
           <PlusIcon />
@@ -439,9 +442,9 @@ function UsersPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-xs">
+        <TablePanel>
+          <TableToolbar className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+            <div className="relative w-full sm:min-w-56 sm:flex-1">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 value={search}
@@ -450,27 +453,20 @@ function UsersPage() {
                 className="pl-9"
               />
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {filterPills.map((pill) => {
-                const active = role === pill.value;
-                return (
-                  <button
-                    key={pill.value}
-                    type="button"
-                    onClick={() => setRole(pill.value)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                      active
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {pill.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            <Select value={role} onValueChange={(value) => setRole(value as RoleFilter)}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Filter by role"><SelectValue /></SelectTrigger>
+              <SelectContent>{filterPills.map((item) => <SelectItem key={item.value} value={item.value}>{item.value === "all" ? "All roles" : item.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={verified} onValueChange={setVerified}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Email verification"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All email statuses</SelectItem><SelectItem value="verified">Verified email</SelectItem><SelectItem value="unverified">Unverified email</SelectItem></SelectContent>
+            </Select>
+            <Select value={joined} onValueChange={setJoined}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Joined date"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Any join date</SelectItem><SelectItem value="7">Last 7 days</SelectItem><SelectItem value="30">Last 30 days</SelectItem><SelectItem value="90">Last 90 days</SelectItem></SelectContent>
+            </Select>
+            {hasFilters && <Button variant="outline" size="icon" className="size-9" aria-label="Clear filters" title="Clear filters" onClick={() => {setSearch("");setRole("all");setVerified("all");setJoined("all");}}><FunnelXIcon /></Button>}
+          </TableToolbar>
 
           <DataTable
             table={table}
@@ -479,7 +475,7 @@ function UsersPage() {
               hasFilters ? "No users match your filters." : "No users yet."
             }
           />
-        </div>
+        </TablePanel>
       )}
       <CreateUserDialog
         open={creatingUser}

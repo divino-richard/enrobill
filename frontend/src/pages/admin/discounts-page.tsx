@@ -1,3 +1,5 @@
+import { PageHeader } from "@/components/page-header";
+import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useEffect, useMemo, useState } from "react";
 import {
   getCoreRowModel,
@@ -158,7 +160,7 @@ function DiscountsPage() {
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   useEffect(() => {
@@ -280,14 +282,10 @@ function DiscountsPage() {
   const hasFilters = Boolean(debouncedSearch);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Vouchers</h1>
-          <p className="text-muted-foreground text-sm">
-            Reusable vouchers (a fixed peso credit) the cashier can apply to
-            student bills.
-          </p>
+          <PageHeader title="Vouchers" />
         </div>
         <Button onClick={openNew}>
           <PlusIcon />
@@ -305,7 +303,8 @@ function DiscountsPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
+        <TablePanel>
+          <TableToolbar>
           <div className="relative w-full sm:max-w-xs">
             <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
@@ -315,6 +314,7 @@ function DiscountsPage() {
               className="pl-9"
             />
           </div>
+          </TableToolbar>
 
           <DataTable
             table={table}
@@ -325,7 +325,7 @@ function DiscountsPage() {
                 : "No vouchers yet."
             }
           />
-        </div>
+        </TablePanel>
       )}
 
       {dialogOpen && (
@@ -356,6 +356,7 @@ function DiscountsPage() {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
               disabled={remove.isPending}
               onClick={(event) => {
                 event.preventDefault();

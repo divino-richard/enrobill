@@ -38,6 +38,9 @@ class UserController extends Controller
                 in_array($request->string('role')->value(), $roles, true),
                 fn ($query) => $query->where('role', $request->string('role')->value()),
             )
+            ->when($request->string('verified')->value() === 'verified', fn ($query) => $query->whereNotNull('email_verified_at'))
+            ->when($request->string('verified')->value() === 'unverified', fn ($query) => $query->whereNull('email_verified_at'))
+            ->when(in_array($request->string('joined')->value(), ['7', '30', '90'], true), fn ($query) => $query->where('created_at', '>=', now()->subDays($request->integer('joined'))))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search')->value().'%';
                 $query->where(function ($sub) use ($term) {

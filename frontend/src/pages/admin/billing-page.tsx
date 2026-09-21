@@ -1,3 +1,6 @@
+import { CompactProgramLabel } from "@/components/compact-program-label";
+import { PageHeader } from "@/components/page-header";
+import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -70,7 +73,7 @@ function BillingPage() {
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   useEffect(() => {
@@ -111,11 +114,11 @@ function BillingPage() {
         header: ({ column }) => <SortHeader column={column} title="Student" />,
         meta: { className: "min-w-56" },
         cell: ({ row }) => (
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-0.5 py-1.5">
             <span className="font-medium">
               {row.original.student?.name ?? "—"}
             </span>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-muted-foreground text-[0.8125rem]">
               {row.original.student?.studentNumber ?? "—"}
             </span>
           </div>
@@ -127,12 +130,12 @@ function BillingPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.student
+            <CompactProgramLabel label={row.original.student
               ? programLabel(
                   row.original.student.track,
                   row.original.student.yearLevel,
                 )
-              : "—"}
+              : "—"} />
           </span>
         ),
       },
@@ -260,13 +263,9 @@ function BillingPage() {
     trackingState !== "all";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
-        <p className="text-muted-foreground text-sm">
-          Every bill across school years. Generate new bills from the
-          Enrollments page, then track balances and submitted payments here.
-        </p>
+        <PageHeader title="Billing" />
       </div>
 
       {query.isError ? (
@@ -279,8 +278,8 @@ function BillingPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))_auto]">
+        <TablePanel>
+          <TableToolbar className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))_auto]">
             <div className="relative w-full">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
@@ -349,7 +348,7 @@ function BillingPage() {
                 <FunnelXIcon />
               </Button>
             )}
-          </div>
+          </TableToolbar>
 
           <DataTable
             table={table}
@@ -360,7 +359,7 @@ function BillingPage() {
                 : "No bills yet. Generate bills from the Enrollments page."
             }
           />
-        </div>
+        </TablePanel>
       )}
     </div>
   );

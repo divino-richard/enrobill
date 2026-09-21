@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import { useState } from "react";
 import { CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import type { AccountProfile } from "@/features/account/types";
 
 function SuccessAlert({ message }: { message: string }) {
   return (
-    <Alert className="border-primary bg-primary-foreground text-primary">
+    <Alert>
       <CheckCircle2Icon className="size-4 shrink-0" />
       <AlertTitle>Saved</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
@@ -32,7 +33,7 @@ function SuccessAlert({ message }: { message: string }) {
 
 function ErrorAlert({ error }: { error: unknown }) {
   return (
-    <Alert className="border-destructive bg-red-50 text-destructive">
+    <Alert variant="destructive">
       <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
       <AlertTitle>Something went wrong</AlertTitle>
       <AlertDescription>{getErrorMessage(error)}</AlertDescription>
@@ -216,12 +217,9 @@ function AccountPage() {
   const { data: profile, isLoading, isError, refetch } = useAccount();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
-        <p className="text-muted-foreground text-sm">
-          Manage your profile and password.
-        </p>
+        <PageHeader title="Account" />
       </div>
 
       {isLoading ? (

@@ -48,7 +48,7 @@ function BillDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-4">
         <Skeleton className="h-8 w-32 rounded-md" />
         <Skeleton className="h-28 w-full rounded-xl" />
         <Skeleton className="h-44 w-full rounded-xl" />
@@ -66,7 +66,7 @@ function BillDetailPage() {
 
   if (!bill) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-4">
         {backLink}
         <Card>
           <CardContent>
@@ -85,7 +85,7 @@ function BillDetailPage() {
   const payments = bill.payments ?? [];
 
   return (
-    <div className="space-y-5 mx-auto max-w-7xl">
+    <div className="space-y-4 mx-auto max-w-7xl">
       {backLink}
 
       <BillActionPanel bill={bill} currentBill={currentBill ?? null} />

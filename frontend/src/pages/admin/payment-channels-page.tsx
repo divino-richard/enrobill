@@ -1,3 +1,5 @@
+import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
+import { PageHeader } from "@/components/page-header";
 import { useRef, useState } from "react";
 import {
   PencilIcon,
@@ -8,7 +10,6 @@ import {
   UploadIcon,
   WalletIcon,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,13 +72,13 @@ function ChannelCard({
   const isBank = isBankLike(channel);
 
   return (
-    <Card className={cn(!configured && "border-dashed")}>
-      <CardContent className="space-y-4">
+    <Card className={cn("gap-0 py-4", !configured && "border-dashed")}>
+      <CardContent className="space-y-3 px-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
             <p className="truncate font-medium">{channel.label}</p>
             <p className="text-muted-foreground text-xs">
-              {isBank ? "Bank transfer" : "Scan to pay"}
+              {isBank ? "Bank transfer" : channel.hasQr ? "Scan to pay" : "Account transfer"}
             </p>
           </div>
           {configured ? (
@@ -119,7 +120,7 @@ function ChannelCard({
               <dt className="text-muted-foreground text-xs">
                 {isBank ? "Bank name" : "Account name"}
               </dt>
-              <dd className="truncate text-sm font-medium">
+              <dd className="break-all text-sm font-medium">
                 {channel.accountName || "—"}
               </dd>
             </div>
@@ -127,7 +128,7 @@ function ChannelCard({
               <dt className="text-muted-foreground text-xs">
                 {isBank ? "Account number" : "Account / mobile number"}
               </dt>
-              <dd className="truncate text-sm font-medium">
+              <dd className="break-all text-sm font-medium">
                 {channel.accountNumber || "—"}
               </dd>
             </div>
@@ -491,15 +492,10 @@ function PaymentChannelsPage() {
   ).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Payment Methods
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            The accounts and QR codes students pay their bills to.
-          </p>
+          <PageHeader title="Payment Methods" />
         </div>
         {!isReadOnly && channels.length > 0 && (
           <Button onClick={() => setAddOpen(true)}>
@@ -509,47 +505,16 @@ function PaymentChannelsPage() {
         )}
       </div>
 
-      {isReadOnly && (
-        <Alert className="border-border/70 bg-muted/30">
-          <AlertTitle>Read-only for admins</AlertTitle>
-          <AlertDescription>
-            Cashiers manage payment method details and QR uploads. Admins can
-            review the configured methods here.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* One line telling the cashier whether students can actually pay. */}
-      {!isLoading && !isError && channels.length > 0 && (
-        <div
-          className={cn(
-            "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm",
-            liveCount === 0
-              ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
-              : "border-muted-foreground/20 bg-muted text-muted-foreground",
-          )}
-        >
-          <WalletIcon className="size-4 shrink-0" />
-          {liveCount === 0 ? (
-            <span>
-              No payment method is visible to students yet — they can't pay a
-              bill until one is set up and shown.
-            </span>
-          ) : (
-            <span>
-              <span className="font-medium">
-                {liveCount} of {channels.length}
-              </span>{" "}
-              {liveCount === 1 ? "method is" : "methods are"} visible to
-              students
-              {needsSetup.length > 0 &&
-                ` · ${needsSetup.length} still ${
-                  needsSetup.length === 1 ? "needs" : "need"
-                } setup`}
-              .
-            </span>
-          )}
-        </div>
+      {!isLoading && !isError && (
+        <DashboardMetricStrip
+          metrics={[
+            { label: "Payment methods", value: channels.length, detail: "All configured and unconfigured methods" },
+            { label: "Visible to students", value: liveCount, detail: "Active methods ready to accept payments" },
+            { label: "Needs setup", value: needsSetup.length, detail: "Methods missing account details" },
+            { label: "Access", value: isReadOnly ? "View only" : "Manage", detail: "Your access to payment methods" },
+          ]}
+          footer={<div className="flex flex-wrap items-center justify-between gap-2"><span>{isReadOnly ? "Cashiers manage account details and QR codes." : "Manage account details, QR codes, and student visibility."}</span>{liveCount === 0 && <span className="text-amber-700 dark:text-amber-300">No payment method is visible to students yet.</span>}</div>}
+        />
       )}
 
       {isLoading ? (

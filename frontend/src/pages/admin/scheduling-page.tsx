@@ -1,12 +1,11 @@
+import { bannerStyles } from "@/components/ui/banner";
 import { useState, type ReactNode } from "react";
 import {
   CheckCircle2Icon,
-  Clock3Icon,
   EyeOffIcon,
   MoreHorizontalIcon,
   PlusIcon,
   SendIcon,
-  Trash2Icon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,7 +69,9 @@ export default function SchedulingPage() {
     sections.data?.[0];
   const selectionControls = (
     <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap">
-      <div className="min-w-0 sm:w-44">
+      <div className="grid min-w-0 max-w-full sm:w-max">
+        <span aria-hidden="true" className="invisible pointer-events-none col-start-1 row-start-1 whitespace-nowrap pr-10 pl-3 text-sm">Select school year</span>
+        {terms.data?.map((item) => <span key={item.id} aria-hidden="true" className="invisible pointer-events-none col-start-1 row-start-1 whitespace-nowrap pr-10 pl-3 text-sm">SY {item.schoolYear}{item.isActive ? " · Active" : ""}</span>)}
         <Label htmlFor="schedule-year" className="sr-only">
           School year
         </Label>
@@ -82,7 +83,7 @@ export default function SchedulingPage() {
           }}
           disabled={terms.isLoading || terms.isError}
         >
-          <SelectTrigger id="schedule-year" className="w-full">
+          <SelectTrigger id="schedule-year" className="col-start-1 row-start-1 w-full">
             <SelectValue placeholder="Select school year" />
           </SelectTrigger>
           <SelectContent>
@@ -121,7 +122,7 @@ export default function SchedulingPage() {
 
   return (
     <div className="min-w-0 space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="text-2xl font-semibold tracking-[-0.025em]">
         Class scheduling
       </h1>
       {(terms.isError ||
@@ -182,6 +183,7 @@ function SectionSchedule({
     dir: "asc",
   });
   const [draft, setDraft] = useState<ClassEntry | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ClassEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [initialDraft, setInitialDraft] = useState<ClassEntry | null>(null);
   const [confirm, setConfirm] = useState<
@@ -253,13 +255,13 @@ function SectionSchedule({
     }
     try {
       if (confirm === "remove") {
-        if (!draft) return;
+        if (!removeTarget) return;
         await change.mutateAsync({
           action: "save",
           version: expectedVersion,
-          entries: schedule.entries.filter((entry) => entry.id !== draft.id),
+          entries: schedule.entries.filter((entry) => entry.id !== removeTarget.id),
         });
-        setDraft(null);
+        setRemoveTarget(null);
         setNotice(
           "Class removed from the draft. Publish to update the student schedule.",
         );
@@ -386,7 +388,7 @@ function SectionSchedule({
           </div>
         </div>
         <div className="space-y-3">
-          <div role="status" className={notice ? undefined : "sr-only"}>
+          <div role="status" className={notice ? bannerStyles() : "sr-only"}>
             {notice && (
               <p className="flex items-start gap-2 text-sm">
                 <CheckCircle2Icon
@@ -401,6 +403,12 @@ function SectionSchedule({
           <WeeklyTimetable
             entries={schedule.entries}
             onEdit={startEdit}
+            onRemove={(entry) => {
+              change.reset();
+              setExpectedVersion(schedule.version);
+              setRemoveTarget(entry);
+              setConfirm("remove");
+            }}
             onAdd={(day) => startEdit(undefined, day)}
             disabled={change.isPending}
             summary={
@@ -526,29 +534,6 @@ function SectionSchedule({
                     }
                   />
                 </div>
-                <div className="bg-muted/40 col-span-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm">
-                  <Clock3Icon
-                    aria-hidden="true"
-                    className="text-muted-foreground size-4 shrink-0"
-                  />
-                  <p>
-                    {draft.endTime > draft.startTime ? (
-                      <>
-                        <span className="font-medium">
-                          {scheduleDuration(classMinutes(draft))}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {" "}
-                          · {SCHEDULE_DAYS[draft.day - 1]} ·{" "}
-                          {scheduleTime(draft.startTime)} –{" "}
-                          {scheduleTime(draft.endTime)}
-                        </span>
-                      </>
-                    ) : (
-                      "Choose an end time after the start time."
-                    )}
-                  </p>
-                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="class-teacher">Teacher</Label>
                   <Select
@@ -596,10 +581,6 @@ function SectionSchedule({
                   />
                 </div>
               </fieldset>
-              <p className="text-muted-foreground text-xs">
-                Grade access begins after this schedule is published. Scheduling
-                conflicts are checked when you save.
-              </p>
               {draft.endTime <= draft.startTime && (
                 <p role="alert" className="text-destructive text-sm">
                   End time must be after start time.
@@ -607,21 +588,6 @@ function SectionSchedule({
               )}
               {!confirm && error}
               <DialogFooter className="gap-2 border-t pt-4">
-                {editing && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="text-destructive sm:mr-auto"
-                    disabled={change.isPending}
-                    onClick={() => {
-                      change.reset();
-                      setConfirm("remove");
-                    }}
-                  >
-                    <Trash2Icon />
-                    Remove
-                  </Button>
-                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -683,13 +649,13 @@ function SectionSchedule({
             </DialogDescription>
           </DialogHeader>
           {confirm !== "discard" && error}
-          {confirm === "remove" && draft && (
+          {confirm === "remove" && removeTarget && (
             <p className="bg-muted/40 rounded-lg p-3 text-sm">
-              <span className="font-medium">{draft.subject}</span>
+              <span className="font-medium">{removeTarget.subject}</span>
               <br />
               <span className="text-muted-foreground">
-                {SCHEDULE_DAYS[draft.day - 1]} · {scheduleTime(draft.startTime)}{" "}
-                – {scheduleTime(draft.endTime)}
+                {SCHEDULE_DAYS[removeTarget.day - 1]} · {scheduleTime(removeTarget.startTime)}{" "}
+                – {scheduleTime(removeTarget.endTime)}
               </span>
             </p>
           )}

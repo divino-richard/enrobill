@@ -1,3 +1,5 @@
+import { PageHeader } from "@/components/page-header";
+import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useEffect, useMemo, useState } from "react";
 import {
   getCoreRowModel,
@@ -200,7 +202,7 @@ function ProgramsPage() {
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   useEffect(() => {
@@ -330,13 +332,10 @@ function ProgramsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Programs</h1>
-          <p className="text-muted-foreground text-sm">
-            The tracks and strands offered, and their availability for selection.
-          </p>
+          <PageHeader title="Programs" />
         </div>
         <Button onClick={openNew}>
           <PlusIcon />
@@ -354,8 +353,8 @@ function ProgramsPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))_auto]">
+        <TablePanel>
+          <TableToolbar className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))_auto]">
             <div className="relative w-full">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
@@ -408,7 +407,7 @@ function ProgramsPage() {
                 <FunnelXIcon />
               </Button>
             )}
-          </div>
+          </TableToolbar>
 
           <DataTable
             table={table}
@@ -419,7 +418,7 @@ function ProgramsPage() {
                 : "No programs yet."
             }
           />
-        </div>
+        </TablePanel>
       )}
 
       <ProgramDialog
@@ -453,6 +452,7 @@ function ProgramsPage() {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
               disabled={remove.isPending}
               onClick={(event) => {
                 event.preventDefault();

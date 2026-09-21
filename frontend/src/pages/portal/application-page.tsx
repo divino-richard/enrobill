@@ -26,7 +26,7 @@ function ApplicationPage() {
   const admissionsClosed = !isStudent && openTerm === null;
 
   return (
-    <div className="space-y-8 mx-auto max-w-7xl">
+    <div className="space-y-4 mx-auto max-w-7xl">
       <ApplicationsHeader
         hasActiveApplication={hasActiveApplication}
         onNewApplication={startNewApplication}
@@ -48,7 +48,7 @@ function ApplicationPage() {
       ) : applications.length === 0 ? (
         <ApplicationsEmptyState admissionsClosed={admissionsClosed} />
       ) : (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-hidden rounded-xl bg-card shadow-xs ring-1 ring-foreground/10">
           <ApplicationsTable
             applications={applications}
             onView={(id) => navigate(`/portal/application/${id}`)}

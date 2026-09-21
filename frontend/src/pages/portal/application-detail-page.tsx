@@ -77,7 +77,7 @@ function ApplicationDetailPage() {
   const resubmitBlocked = hasOtherActive || hasAccepted;
 
   return (
-    <div className="space-y-6 mx-auto max-w-7xl">
+    <div className="space-y-4 mx-auto max-w-7xl">
       <Button
         variant="ghost"
         size="sm"
@@ -106,11 +106,7 @@ function ApplicationDetailPage() {
         </Card>
       ) : (
         <>
-          <Card
-            className={
-              isRejected ? "border-l-destructive border-l-4" : "border-l-primary border-l-4"
-            }
-          >
+          <Card>
             <CardHeader>
               <CardDescription className="text-xs font-medium tracking-wide uppercase">
                 {application.reference}

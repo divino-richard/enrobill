@@ -1,3 +1,4 @@
+import { bannerStyles } from "@/components/ui/banner";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,12 +16,12 @@ import {
   ChevronUpIcon,
   ChevronsUpDownIcon,
   FunnelXIcon,
-  GraduationCapIcon,
   SearchIcon,
   SquarePenIcon,
   EyeIcon,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { DashboardHeader } from "@/components/dashboard/dashboard-primitives";
+import { TablePanel } from "@/components/table-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
@@ -99,7 +100,7 @@ function StudentsPage() {
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   // Any change to the filters returns to the first page.
@@ -153,10 +154,10 @@ function StudentsPage() {
         accessorFn: (row) => studentFullName(row),
         header: ({ column }) => <SortHeader column={column} title="Name" />,
         cell: ({ row }) => (
-          <div className="flex flex-col">
-            <span className="font-medium">{studentFullName(row.original)}</span>
+          <div className="max-w-80 space-y-0.5 py-1.5">
+            <span className="block truncate font-medium" title={studentFullName(row.original)}>{studentFullName(row.original)}</span>
             {row.original.email && (
-              <span className="text-muted-foreground text-xs">
+              <span className="text-muted-foreground block truncate text-[0.8125rem]" title={row.original.email}>
                 {row.original.email}
               </span>
             )}
@@ -178,7 +179,7 @@ function StudentsPage() {
         header: "Track / Strand",
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="text-muted-foreground uppercase">
+          <span className="font-medium uppercase">
             {row.original.trackOrStrand ?? "—"}
           </span>
         ),
@@ -188,26 +189,15 @@ function StudentsPage() {
         header: "Year Level",
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="text-muted-foreground whitespace-nowrap">
+          <span className="text-muted-foreground capitalize whitespace-nowrap">
             {row.original.yearLevel?.replace("_", " ") ?? "—"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "schoolYear",
-        header: ({ column }) => (
-          <SortHeader column={column} title="School Year" />
-        ),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground whitespace-nowrap">
-            {row.original.schoolYear ? `SY ${row.original.schoolYear}` : "—"}
           </span>
         ),
       },
       {
         accessorKey: "status",
         header: ({ column }) => <SortHeader column={column} title="Status" />,
-        cell: ({ row }) => <StudentStatusBadge status={row.original.status} />,
+        cell: ({ row }) => <StudentStatusBadge status={row.original.status} className="text-xs" />,
       },
       {
         accessorKey: "createdAt",
@@ -270,40 +260,35 @@ function StudentsPage() {
     setTrackOrStrand("all");
   };
 
+  const meta = query.data?.meta;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Students</h1>
-          <p className="text-muted-foreground text-sm">
-            Manage admitted and enrolled student records.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <DashboardHeader
+        title="Students"
+        actions={
+          <div className="flex items-center gap-2 text-[0.8125rem] tabular-nums" aria-live="polite">
+            <span className="bg-card inline-flex h-9 items-center rounded-md px-3 font-semibold shadow-xs ring-1 ring-foreground/10">
+              {meta?.from && meta?.to
+                ? `Showing ${meta.from}–${meta.to} of ${meta.total}`
+                : `${meta?.total ?? 0} total`}
+            </span>
+            {query.isFetching && !query.isLoading && (
+              <span className="text-muted-foreground">Updating…</span>
+            )}
+          </div>
+        }
+      />
 
       {progressionOpen && isAdmin && (
-        <Alert className="border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-200">
-          <GraduationCapIcon className="size-4 shrink-0" />
-          <AlertTitle>
-            Year-end progression is open
-            {activeYear ? ` for SY ${activeYear.schoolYear}` : ""}
-          </AlertTitle>
-          <AlertDescription className="text-violet-800/90 dark:text-violet-200/90 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              {pendingDecisions > 0
-                ? `${pendingDecisions} ${pendingDecisions === 1 ? "student" : "students"} still need a year-end decision.`
-                : "Every student has a decision — review or undo them on the Progression page."}
-            </span>
-            <Button
-              size="sm"
-              className="shrink-0"
-              onClick={() => navigate("/admin/progression")}
-            >
-              Open Progression
-              <ArrowRightIcon />
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <section aria-label="Year-end progression" className={bannerStyles({ className: "flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4" })}>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-semibold">Year-end progression <span className="text-primary font-normal">{activeYear ? `· SY ${activeYear.schoolYear}` : ""}</span></p>
+            <p className="text-primary mt-1 text-sm">{pendingDecisions > 0 ? `${pendingDecisions} ${pendingDecisions === 1 ? "student needs" : "students need"} a year-end decision.` : "All year-end decisions are complete."}</p>
+          </div>
+          <Button size="sm" onClick={() => navigate("/admin/progression")}>Open progression<ArrowRightIcon /></Button>
+        </section>
       )}
 
       {query.isError ? (
@@ -316,15 +301,16 @@ function StudentsPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
-            <div className="relative w-full">
+        <TablePanel>
+          <div className="grid grid-cols-1 gap-2 border-b p-3 sm:grid-cols-2 xl:grid-cols-[minmax(15rem,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
+            <div className="relative w-full sm:col-span-2 xl:col-span-1">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name, number, or email…"
-                className="pl-9"
+                aria-label="Search students"
+                className="h-9 pl-9 text-sm md:text-sm"
               />
             </div>
 
@@ -332,7 +318,7 @@ function StudentsPage() {
               value={status}
               onValueChange={(value) => setStatus(value as StatusFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="Status">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -349,7 +335,7 @@ function StudentsPage() {
               value={schoolYear}
               onValueChange={(value) => setSchoolYear(value as SchoolYearFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="School year">
                 <SelectValue placeholder="All school years" />
               </SelectTrigger>
               <SelectContent>
@@ -366,7 +352,7 @@ function StudentsPage() {
               value={yearLevel}
               onValueChange={(value) => setYearLevel(value as YearLevelFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="Year level">
                 <SelectValue placeholder="All year levels" />
               </SelectTrigger>
               <SelectContent>
@@ -383,7 +369,7 @@ function StudentsPage() {
               value={trackOrStrand}
               onValueChange={(value) => setTrackOrStrand(value as TrackFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-sm" aria-label="Track or strand">
                 <SelectValue placeholder="All tracks / strands" />
               </SelectTrigger>
               <SelectContent>
@@ -405,6 +391,7 @@ function StudentsPage() {
               <Button
                 variant="outline"
                 size="icon"
+                className="size-9"
                 onClick={clearFilters}
                 aria-label="Clear filters"
                 title="Clear filters"
@@ -416,12 +403,13 @@ function StudentsPage() {
 
           <DataTable
             table={table}
+            compact
             isLoading={query.isLoading}
             emptyMessage={
               hasFilters ? "No students match your filters." : "No students yet."
             }
           />
-        </div>
+        </TablePanel>
       )}
     </div>
   );

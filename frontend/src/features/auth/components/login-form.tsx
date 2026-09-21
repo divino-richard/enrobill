@@ -1,3 +1,4 @@
+import { bannerStyles } from "@/components/ui/banner";
 import type { ReactNode } from "react";
 import axios from "axios";
 import { useForm } from "@tanstack/react-form";
@@ -117,7 +118,7 @@ export function LoginForm({
 
         {login.isError &&
           (isUnverifiedError(login.error) ? (
-            <div className="space-y-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/40">
+            <div className={bannerStyles({ tone: "warning", className: "space-y-2.5" })}>
               <p className="text-sm text-amber-800 dark:text-amber-200">
                 {getErrorMessage(login.error)}
               </p>

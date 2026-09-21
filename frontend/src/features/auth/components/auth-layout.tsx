@@ -20,15 +20,10 @@ export function AuthLayout({
   contentClassName,
 }: AuthLayoutProps) {
   return (
-    <div className="relative flex min-h-svh flex-col items-center justify-center gap-4 overflow-hidden bg-linear-to-b from-primary/5 via-background to-background p-4">
-      {/* Dotted texture across the whole page. */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--color-border)_1px,transparent_0)] bg-size-[22px_22px]" />
-      {/* Soft brand-orange glow up top to echo the logo's accent. */}
-      <div className="bg-brand-accent/20 pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full blur-3xl" />
-
+    <div className="relative flex min-h-svh flex-col items-center justify-center gap-4 overflow-hidden bg-background p-4">
       <Card
         className={cn(
-          "relative z-10 grid w-full gap-0 overflow-hidden p-0 shadow-lg md:grid-cols-2",
+          "relative z-10 grid w-full gap-0 overflow-hidden p-0 md:grid-cols-2",
           contentClassName ?? "max-w-3xl",
         )}
       >

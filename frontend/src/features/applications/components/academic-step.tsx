@@ -1,3 +1,4 @@
+import { bannerStyles } from "@/components/ui/banner";
 import { CheckCircle2, GraduationCap, ShieldCheck, UserCheck } from "lucide-react";
 import { FormSection } from "./form-section";
 import { DocumentUploadSection } from "./document-upload-section";
@@ -252,7 +253,7 @@ export function AcademicStep({ form }: AcademicStepProps) {
             <DocumentUploadSection form={form} />
           ) : (
             <FormSection title="Previous School Verification" icon={ShieldCheck}>
-              <div className="border-primary/30 bg-primary/5 flex items-start gap-3 rounded-lg border p-4">
+              <div className={bannerStyles({ className: "flex items-start gap-4" })}>
                 <CheckCircle2 className="text-primary mt-0.5 size-5 shrink-0" />
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium">

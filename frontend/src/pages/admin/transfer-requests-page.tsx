@@ -1,3 +1,6 @@
+import { CompactProgramLabel } from "@/components/compact-program-label";
+import { PageHeader } from "@/components/page-header";
+import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
@@ -222,7 +225,7 @@ function AdminTransferRequestsPage() {
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   useEffect(() => {
@@ -290,7 +293,7 @@ function AdminTransferRequestsPage() {
             <span className="truncate font-medium">
               {row.original.studentName}
             </span>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-muted-foreground text-[0.8125rem]">
               {row.original.studentNumber}
             </span>
           </div>
@@ -303,11 +306,11 @@ function AdminTransferRequestsPage() {
         cell: ({ row }) => (
           <div className="flex items-center gap-1.5 text-sm">
             <span className="truncate">
-              {programLabel(row.original.fromProgramCode)}
+              <CompactProgramLabel label={programLabel(row.original.fromProgramCode)} />
             </span>
             <ArrowRightIcon className="text-muted-foreground size-3.5 shrink-0" />
             <span className="truncate font-medium">
-              {programLabel(row.original.toProgramCode)}
+              <CompactProgramLabel label={programLabel(row.original.toProgramCode)} />
             </span>
           </div>
         ),
@@ -393,7 +396,7 @@ function AdminTransferRequestsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <Skeleton className="h-10 w-64 rounded-md" />
         <Skeleton className="h-96 w-full rounded-xl" />
       </div>
@@ -402,8 +405,8 @@ function AdminTransferRequestsPage() {
 
   if (isError) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="space-y-4">
+        <h1 className="text-2xl font-semibold tracking-[-0.025em]">
           Transfer Requests
         </h1>
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
@@ -419,24 +422,17 @@ function AdminTransferRequestsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Transfer Requests
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Students asking to move to a different track or strand.
-          </p>
+          <PageHeader title="Transfer Requests" />
         </div>
 
-        <Badge variant="outline" className="bg-background">
-          {filtered.length} {filtered.length === 1 ? "result" : "results"}
-        </Badge>
+        <div className="bg-card rounded-lg border px-3 py-2 text-sm font-medium tabular-nums">{filtered.length} {filtered.length === 1 ? "request" : "requests"}</div>
       </div>
 
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))_auto]">
+      <TablePanel>
+        <TableToolbar className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))_auto]">
           <div className="relative w-full">
             <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
@@ -497,7 +493,7 @@ function AdminTransferRequestsPage() {
               <FunnelXIcon />
             </Button>
           )}
-        </div>
+        </TableToolbar>
 
         <DataTable
           table={table}
@@ -507,7 +503,7 @@ function AdminTransferRequestsPage() {
               : "No transfer requests yet."
           }
         />
-      </div>
+      </TablePanel>
 
       <ViewRequestDialog
         request={viewing}

@@ -1,40 +1,13 @@
-import { ArrowRightIcon } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { ArrowRightIcon, InfoIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-export function DashboardHeader({
-  title = "Dashboard",
-  description,
-  context,
-  actions,
-}: {
-  title?: string;
-  description: string;
-  context?: ReactNode;
-  actions?: ReactNode;
-}) {
-  return (
-    <header className="flex flex-col gap-4 pb-1 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-[-0.025em]">
-            {title}
-          </h1>
-          {context}
-        </div>
-        <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-          {description}
-        </p>
-      </div>
-      {actions ? (
-        <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
-      ) : null}
-    </header>
-  );
-}
+export { PageHeader as DashboardHeader } from "@/components/page-header";
+import { PageHeader as DashboardHeader } from "@/components/page-header";
 
 export type DashboardAttentionItem = {
   label: string;
@@ -58,7 +31,7 @@ export function DashboardAttention({
   return (
     <Card className="grid gap-0 py-0 lg:grid-cols-[8.75rem_repeat(3,minmax(0,1fr))]">
       <div className="bg-primary px-4 py-3 text-primary-foreground">
-        <span className="block text-[0.6875rem] font-medium tracking-[0.08em] uppercase opacity-75">
+        <span className="block text-[0.8125rem] font-medium tracking-[0.08em] uppercase opacity-75">
           {label}
         </span>
         <strong className="mt-1 block text-sm font-semibold">{summary}</strong>
@@ -79,10 +52,10 @@ export function DashboardAttention({
                 {item.value}
               </span>
               <span className="min-w-0 text-left">
-                <span className="block truncate text-xs font-semibold">
+                <span className="block truncate text-sm font-semibold">
                   {item.label}
                 </span>
-                <span className="text-muted-foreground mt-0.5 block truncate text-[0.6875rem]">
+                <span className="text-muted-foreground mt-0.5 block truncate text-[0.8125rem]">
                   {item.detail}
                 </span>
               </span>
@@ -111,7 +84,7 @@ export function DashboardAttention({
           );
         })
       ) : (
-        <div className="text-muted-foreground flex min-h-16 items-center px-4 text-xs lg:col-span-3 lg:border-l">
+        <div className="text-muted-foreground flex min-h-16 items-center px-4 text-sm lg:col-span-3 lg:border-l">
           Nothing requires immediate action.
         </div>
       )}
@@ -134,33 +107,30 @@ export type DashboardMetric = {
   label: string;
   value: ReactNode;
   detail: string;
+  explanation?: string;
   trend?: number[];
   tone?: "primary" | "success" | "warning" | "danger";
 };
 
-const detailTone = {
-  primary: "text-primary",
-  success: "text-emerald-700 dark:text-emerald-300",
-  warning: "text-amber-700 dark:text-amber-300",
-  danger: "text-destructive",
-};
-
 export function DashboardMetricStrip({
   metrics,
+  footer,
 }: {
   metrics: DashboardMetric[];
+  footer?: ReactNode;
 }) {
   return (
     <Card className="grid gap-0 py-0 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric) => (
         <div
           key={metric.label}
-          className="border-b p-4 last:border-b-0 sm:border-r sm:[&:nth-child(2n)]:border-r-0 sm:[&:nth-last-child(-n+2)]:border-b-0 xl:border-b-0 xl:[&:nth-child(2n)]:border-r xl:last:border-r-0"
+          className="border-b px-4 py-3 last:border-b-0 sm:border-r sm:[&:nth-child(2n)]:border-r-0 sm:[&:nth-last-child(-n+2)]:border-b-0 xl:border-b-0 xl:[&:nth-child(2n)]:border-r xl:last:border-r-0"
         >
           <div className="flex items-center justify-between gap-3">
-            <p className="text-muted-foreground truncate text-xs font-medium">
-              {metric.label}
-            </p>
+            <div className="flex min-w-0 items-center gap-1">
+              <p className="text-muted-foreground truncate text-sm font-medium">{metric.label}</p>
+              {metric.explanation && <Tooltip><TooltipTrigger asChild><button type="button" aria-label={`About ${metric.label.toLowerCase()}`} className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-6 shrink-0 items-center justify-center rounded focus-visible:ring-2"><InfoIcon className="size-3.5" /></button></TooltipTrigger><TooltipContent className="max-w-64 leading-relaxed">{metric.explanation} {metric.detail}.</TooltipContent></Tooltip>}
+            </div>
             {metric.trend?.length ? (
               <MetricTrend values={metric.trend} tone={metric.tone} />
             ) : null}
@@ -168,16 +138,9 @@ export function DashboardMetricStrip({
           <p className="mt-1.5 truncate text-2xl font-semibold tracking-[-0.025em] tabular-nums">
             {metric.value}
           </p>
-          <p
-            className={cn(
-              "mt-1 truncate text-xs",
-              detailTone[metric.tone ?? "primary"],
-            )}
-          >
-            {metric.detail}
-          </p>
         </div>
       ))}
+      {footer ? <div className="col-span-full border-t px-4 py-3 text-sm text-muted-foreground">{footer}</div> : null}
     </Card>
   );
 }
@@ -237,12 +200,12 @@ export function DashboardPanel({
 }) {
   return (
     <Card className={cn("min-w-0 gap-0 py-0", className)}>
-      <header className="flex min-h-12 items-center justify-between gap-3 border-b px-4 py-2.5">
+      <header className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
         <h2 className="min-w-0 truncate text-sm font-semibold">{title}</h2>
         {action ? (
           <div className="shrink-0">{action}</div>
         ) : description ? (
-          <p className="text-muted-foreground shrink-0 text-right text-[0.6875rem] font-medium tracking-wide uppercase">
+          <p className="text-muted-foreground max-w-full text-[0.8125rem] font-medium tracking-wide uppercase">
             {description}
           </p>
         ) : null}
@@ -277,7 +240,7 @@ export function DashboardQueue({ items }: { items: DashboardQueueItem[] }) {
           className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b py-3 last:border-b-0"
         >
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold">
+            <p className="truncate text-sm font-semibold">
               {item.label}
               {item.value !== undefined ? (
                 <span className="text-muted-foreground font-normal">
@@ -286,14 +249,14 @@ export function DashboardQueue({ items }: { items: DashboardQueueItem[] }) {
                 </span>
               ) : null}
             </p>
-            <p className="text-muted-foreground mt-1 truncate text-[0.6875rem]">
+            <p className="text-muted-foreground mt-1 truncate text-[0.8125rem]">
               {item.detail}
             </p>
           </div>
           <button
             type="button"
             className={cn(
-              "text-primary focus-visible:ring-ring inline-flex items-center gap-1 text-xs font-semibold hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:outline-none",
+              "text-primary focus-visible:ring-ring inline-flex items-center gap-1 text-sm font-semibold hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:outline-none",
               item.tone === "warning" && "text-amber-700 dark:text-amber-300",
               item.tone === "danger" && "text-destructive",
             )}

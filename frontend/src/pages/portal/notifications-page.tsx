@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import { useMemo, useState } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
@@ -101,16 +102,10 @@ function NotificationsPage() {
   }
 
   return (
-    <div className="space-y-6 mx-auto max-w-7xl">
+    <div className="space-y-4 mx-auto max-w-7xl">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Notifications
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm">
-            Updates on your billing, enrollment, clearance, transfer and
-            application activity.
-          </p>
+          <PageHeader title="Notifications" />
         </div>
 
         <div className="flex items-center gap-2">

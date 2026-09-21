@@ -1,3 +1,5 @@
+import { bannerStyles } from "@/components/ui/banner";
+import { PageHeader } from "@/components/page-header";
 import { useState } from "react";
 import { addMonths, differenceInMonths, format } from "date-fns";
 import {
@@ -153,14 +155,14 @@ function PolicyFields({
   const count = Number(policy.count);
 
   return (
-    <div className="space-y-3 rounded-lg border p-3 sm:col-span-2">
-      <p className="text-sm font-medium">Installment policy</p>
-      <p className="text-muted-foreground text-xs">
-        Every bill is paid by installment: a downpayment plus equal monthly
-        payments. Paying more than the downpayment lowers the monthly amount.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="space-y-1.5 sm:col-span-2">
+    <div className="bg-card space-y-4 rounded-lg border p-4 sm:col-span-2">
+      <p className="text-sm font-medium">Payment setup</p>
+      <details className="text-muted-foreground text-sm">
+        <summary className="cursor-pointer">How installments work</summary>
+        <p className="mt-2">The balance after the downpayment is split into equal monthly payments. A larger downpayment lowers the monthly amount.</p>
+      </details>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
           <FieldLabel>Downpayment type</FieldLabel>
           <Select
             value={policy.type}
@@ -226,7 +228,7 @@ function PolicyDialog({
           <DialogTitle>Installment policy</DialogTitle>
           <DialogDescription>
             {term
-              ? `How ${termLabel(term)} is paid. The downpayment and monthly schedule are generated from this.`
+              ? `Payment schedule for ${termLabel(term)}.`
               : ""}
           </DialogDescription>
         </DialogHeader>
@@ -811,15 +813,10 @@ function TermsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Academic Years
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Set the active school year, then open or close its admissions window.
-          </p>
+          <PageHeader title="Academic Years" />
         </div>
         <Button onClick={() => setNewTermOpen(true)}>
           <PlusIcon />
@@ -829,18 +826,13 @@ function TermsPage() {
 
       {!isLoading && !isError && (
         <div
-          className={cn(
-            "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm",
-            admissionsOpen
-              ? "border-primary/50 bg-primary-foreground text-primary"
-              : "border-muted-foreground/20 bg-muted text-muted-foreground",
-          )}
+          className={bannerStyles({ tone: admissionsOpen ? "info" : "warning", className: "flex items-center gap-4" })}
         >
-          <CalendarDaysIcon className="size-4 shrink-0" />
+          <CalendarDaysIcon className="size-6 shrink-0" />
           {activeTerm ? (
             <span>
-              <span className="font-medium">{termLabel(activeTerm)}</span> is the
-              active school year — admissions are{" "}
+              <span className="block text-base font-semibold">{termLabel(activeTerm)} is the active school year</span>
+              Admissions are{" "}
               <span className="font-medium">
                 {admissionsOpen ? "open" : "closed"}
               </span>
@@ -874,7 +866,7 @@ function TermsPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-xl bg-card shadow-xs ring-1 ring-foreground/10">
           <Table>
             <TableHeader>
               <TableRow>
@@ -900,7 +892,7 @@ function TermsPage() {
                     {policySummary(term)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap items-start gap-3 py-1">
                       <Badge
                         variant="outline"
                         className={cn(
@@ -912,41 +904,12 @@ function TermsPage() {
                         {term.isActive ? "Active" : "Inactive"}
                       </Badge>
                       {term.isActive && (
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            term.admissionOpen
-                              ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"
-                              : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
-                          )}
-                        >
-                          {term.admissionOpen
-                            ? "Admissions open"
-                            : "Admissions closed"}
-                        </Badge>
+                        <div className="space-y-1 text-[0.8125rem] text-muted-foreground">
+                          <p>Admissions <span className={cn("font-medium", term.admissionOpen ? "text-emerald-700 dark:text-emerald-300" : "text-foreground")}>{term.admissionOpen ? "open" : "closed"}</span></p>
+                          {term.progressionOpen && <p>Progression <span className="font-medium text-foreground">open</span> · {term.progressionOverride === null ? "automatic" : "manual"}</p>}
+                          {!term.progressionOpen && term.progressionOverride === false && term.progressionAuto && <p>Progression held</p>}
+                        </div>
                       )}
-                      {term.isActive && term.progressionOpen && (
-                        <Badge
-                          variant="outline"
-                          className="border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300"
-                        >
-                          Progression on
-                          {term.progressionOverride === null
-                            ? " · auto"
-                            : " · manual"}
-                        </Badge>
-                      )}
-                      {term.isActive &&
-                        !term.progressionOpen &&
-                        term.progressionOverride === false &&
-                        term.progressionAuto && (
-                          <Badge
-                            variant="outline"
-                            className="border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-                          >
-                            Progression held
-                          </Badge>
-                        )}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">

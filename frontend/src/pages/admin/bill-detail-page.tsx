@@ -1,3 +1,5 @@
+import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
+import { PageHeader } from "@/components/page-header";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, DownloadIcon, PlusIcon, Trash2Icon } from "lucide-react";
@@ -275,7 +277,7 @@ function BillDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-4">
+      <div className="w-full space-y-4">
         <Skeleton className="h-8 w-48 rounded-md" />
         <Skeleton className="h-64 w-full rounded-md" />
       </div>
@@ -313,7 +315,7 @@ function BillDetailPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-4">
       <div>
         <Button variant="ghost" size="sm" asChild className="-ml-2 mb-2">
           <Link to="/admin/billing">
@@ -323,16 +325,11 @@ function BillDetailPage() {
         </Button>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {bill.student?.name ?? `Bill #${bill.id}`}
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              {bill.student?.studentNumber ? `${bill.student.studentNumber} · ` : ""}
+            <PageHeader title={<>{bill.student?.name ?? `Bill #${bill.id}`}</>} description={<>{bill.student?.studentNumber ? `${bill.student.studentNumber} · ` : ""}
               {bill.student
                 ? `${programLabel(bill.student.track, bill.student.yearLevel)} · `
                 : ""}
-              {termLabel}
-            </p>
+              {termLabel}</>} />
           </div>
           <div className="flex items-center gap-2">
             <Badge
@@ -400,14 +397,20 @@ function BillDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <DashboardMetricStrip metrics={[
+        {label: "Net bill", value: formatPeso(bill.netTotal), detail: `${bill.items.length} fee items`, tone: "primary"},
+        {label: "Credits applied", value: formatPeso(bill.discountTotal), detail: `${adjustments.length} applied credits`, tone: "success"},
+        {label: "Paid", value: formatPeso(bill.amountPaid), detail: "Verified payments", tone: "success"},
+        {label: "Outstanding", value: formatPeso(bill.balance), detail: BILL_STATUS_META[bill.status].label, tone: bill.balance > 0 ? "warning" : "success"},
+      ]} />
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)]">
         {/* Summary */}
-        <Card className="self-start lg:sticky lg:top-6 lg:col-span-1">
+        <Card className="gap-0">
           <CardHeader>
-            <CardTitle className="text-base">Summary</CardTitle>
+            <CardTitle className="text-base">Bill summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <dl className="space-y-2">
+            <details className="py-3"><summary className="cursor-pointer text-sm font-medium">Fee breakdown · {bill.items.length} items</summary><dl className="mt-4 space-y-2">
               {bill.items.map((item) => (
                 <SummaryRow
                   key={item.id}
@@ -415,7 +418,7 @@ function BillDetailPage() {
                   value={formatPeso(item.amount)}
                 />
               ))}
-            </dl>
+            </dl></details>
             <div className="space-y-2 border-t pt-3">
               <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
               {bill.discountTotal > 0 && (
@@ -438,7 +441,7 @@ function BillDetailPage() {
           </CardContent>
         </Card>
 
-        <div className="space-y-6 lg:col-span-2">
+        <div className="min-w-0 space-y-4">
           {/* Credits */}
           <Card>
             <CardHeader>
@@ -554,7 +557,7 @@ function BillDetailPage() {
             </CardHeader>
             <CardContent>
               {isPaymentReadOnly && (
-                <Alert className="mb-4 border-border/70 bg-muted/30">
+                <Alert className="mb-4">
                   <AlertTitle>Read-only for admins</AlertTitle>
                   <AlertDescription>
                     Admins can review payment records here, but only cashiers can

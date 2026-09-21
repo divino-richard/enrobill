@@ -1,6 +1,9 @@
-import { useMemo, useState, type ComponentType } from "react";
+import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
+import { CompactProgramLabel } from "@/components/compact-program-label";
+import { PageHeader } from "@/components/page-header";
+import { useMemo, useState } from "react";
 import {
-  ArmchairIcon,
+  MoreVerticalIcon,
   ArrowRightLeftIcon,
   LayoutGridIcon,
   PencilIcon,
@@ -54,6 +57,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import {
   Select,
@@ -86,49 +92,6 @@ import type {
 } from "@/features/sections/types";
 
 type Selection = number | "unsectioned" | null;
-
-function StatTile({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  value: string | number;
-  hint?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="bg-card flex items-center gap-3 rounded-xl border p-4">
-      <div
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-lg",
-          accent
-            ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-            : "bg-muted text-muted-foreground",
-        )}
-      >
-        <Icon className="size-4.5" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          {label}
-        </p>
-        <p
-          className={cn(
-            "text-lg leading-tight font-semibold tabular-nums",
-            accent && "text-amber-600 dark:text-amber-400",
-          )}
-        >
-          {value}
-        </p>
-        {hint && <p className="text-muted-foreground truncate text-xs">{hint}</p>}
-      </div>
-    </div>
-  );
-}
 
 function OccupancyBar({
   used,
@@ -436,15 +399,15 @@ function SectionListItem({
       type="button"
       onClick={onSelect}
       className={cn(
-        "w-full rounded-lg border p-3 text-left transition-colors",
+        "w-full rounded-lg border border-l-4 border-l-chart-3 p-3 text-left transition-colors",
         selected
-          ? "border-primary bg-primary/5"
-          : "hover:bg-muted/50 border-border",
+          ? "border-primary border-l-chart-3 bg-primary/5"
+          : "bg-card hover:bg-muted/50 border-border border-l-chart-3",
       )}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-medium">
-          {programLabel(section.program)} — {section.name}
+          <CompactProgramLabel label={programLabel(section.program)} /> · {section.name}
         </span>
         <span
           className={cn(
@@ -459,7 +422,7 @@ function SectionListItem({
         {labelFor(YEAR_LEVEL_OPTIONS, section.yearLevel)}
       </p>
       <p className="text-muted-foreground mt-0.5 truncate text-xs">
-        Adviser: {section.adviser?.name ?? "Not assigned"}
+        {section.adviser?.name ?? "No adviser"}
       </p>
       <OccupancyBar
         used={section.assignedCount}
@@ -504,75 +467,35 @@ function SectionDetail({
       : 0;
 
   return (
-    <Card>
-      <CardHeader className="gap-3">
+    <Card className="gap-0 overflow-hidden rounded-none border-0 py-0 shadow-none">
+      <CardHeader className="gap-2 border-b px-4 py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="text-base">
-              {programLabel(section.program)} — {section.name}
+              <CompactProgramLabel label={programLabel(section.program)} /> · {section.name}
             </CardTitle>
             <CardDescription>
               {labelFor(YEAR_LEVEL_OPTIONS, section.yearLevel)} ·{" "}
-              {section.assignedCount} of {section.capacity} seats filled ({pct}%)
+              {section.assignedCount}/{section.capacity} seats · {pct}% full
             </CardDescription>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Adviser: <span className="text-foreground font-medium">{section.adviser?.name ?? "Not assigned"}</span>
-            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                asChild
-                disabled={!hasSpace || addable.length === 0 || assign.isPending}
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!hasSpace || addable.length === 0}
-                >
-                  <UserPlusIcon />
-                  Add students
-                  {addable.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 font-normal">
-                      {addable.length}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-56 w-fit">
-                <DropdownMenuLabel>Add to {section.name}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {addable.map((student) => (
-                  <DropdownMenuItem
-                    key={student.enrollmentId}
-                    onClick={() =>
-                      assign.mutate({
-                        enrollmentId: student.enrollmentId,
-                        sectionId: section.id,
-                      })
-                    }
-                  >
-                    {student.name}
-                    <span className="text-muted-foreground ml-auto text-xs">
-                      {student.studentNumber ?? "—"}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="outline" size="icon-sm" onClick={onEdit}>
-              <PencilIcon />
-              <span className="sr-only">Edit section</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={onDelete}
-            >
-              <Trash2Icon />
-              <span className="sr-only">Delete section</span>
-            </Button>
+          <div className="ml-auto flex min-w-0 items-center gap-4">
+            <div className="min-w-0 text-right"><p className="text-muted-foreground text-xs">Section adviser</p><p className="mt-0.5 break-words text-sm font-medium">{section.adviser?.name ?? "Not assigned"}</p></div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label="Section actions"><MoreVerticalIcon /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={!hasSpace || addable.length === 0 || assign.isPending}><UserPlusIcon className="mr-2 size-4" />Add students</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
+                  <DropdownMenuLabel>Add to {section.name}</DropdownMenuLabel>
+                  {addable.map((student) => <DropdownMenuItem key={student.enrollmentId} onClick={() => assign.mutate({ enrollmentId: student.enrollmentId, sectionId: section.id })}>{student.name}<span className="text-muted-foreground ml-3 text-xs">{student.studentNumber ?? "—"}</span></DropdownMenuItem>)}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem onClick={onEdit}><PencilIcon />Edit section</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onDelete} className="text-destructive"><Trash2Icon />Delete section</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           </div>
         </div>
       </CardHeader>
@@ -844,14 +767,10 @@ function SectionsPage() {
   const isEmpty = !isLoading && sections.length === 0 && unsectioned.length === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sections</h1>
-          <p className="text-muted-foreground text-sm">
-            Class sections per program and grade. Students are placed
-            automatically when they enroll; move them as needed.
-          </p>
+          <PageHeader title="Sections" />
         </div>
         <Button onClick={openCreate} disabled={!schoolYearId}>
           <PlusIcon />
@@ -859,41 +778,16 @@ function SectionsPage() {
         </Button>
       </div>
 
-      {/* At-a-glance */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile
-          icon={LayoutGridIcon}
-          label="Sections"
-          value={sections.length}
-          hint="in this scope"
-        />
-        <StatTile
-          icon={ArmchairIcon}
-          label="Seats"
-          value={totals.capacity}
-          hint="total capacity"
-        />
-        <StatTile
-          icon={UsersIcon}
-          label="Assigned"
-          value={totals.assigned}
-          hint={
-            totals.capacity > 0
-              ? `${Math.round((totals.assigned / totals.capacity) * 100)}% of capacity`
-              : "—"
-          }
-        />
-        <StatTile
-          icon={UserMinusIcon}
-          label="Unsectioned"
-          value={unsectioned.length}
-          hint="awaiting a section"
-          accent={unsectioned.length > 0}
-        />
-      </div>
+      <DashboardMetricStrip metrics={[
+        { label: "Sections", value: sections.length, detail: "In the selected scope" },
+        { label: "Seats", value: totals.capacity, detail: "Total capacity" },
+        { label: "Assigned", value: totals.assigned, detail: "Students assigned to sections" },
+        { label: "Unsectioned", value: unsectioned.length, detail: "Students awaiting a section" },
+      ]} />
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Section workspace */}
+      <div className="bg-card overflow-hidden rounded-xl border">
+      <div className="flex flex-wrap items-center gap-3 border-b p-3">
         <Select
           value={schoolYearId ? String(schoolYearId) : ""}
           onValueChange={(v) => setPickedSchoolYearId(Number(v))}
@@ -972,9 +866,9 @@ function SectionsPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-[320px_1fr]">
+        <div className="grid items-stretch lg:grid-cols-[280px_minmax(0,1fr)]">
           {/* Sections list */}
-          <div className="space-y-2">
+          <div className="space-y-2 border-b bg-muted/20 p-3 lg:border-r lg:border-b-0">
             {unsectioned.length > 0 && (
               <button
                 type="button"
@@ -1037,6 +931,8 @@ function SectionsPage() {
           </div>
         </div>
       )}
+
+      </div>
 
       <SectionFormDialog
         open={formOpen}

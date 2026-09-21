@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -35,6 +36,7 @@ interface DataTableProps<TData> {
   isLoading?: boolean;
   emptyMessage?: string;
   pageSizeOptions?: number[];
+  compact?: boolean;
 }
 
 // Presentational data table built on @tanstack/react-table + the shadcn Table
@@ -45,6 +47,7 @@ export function DataTable<TData>({
   isLoading = false,
   emptyMessage = "No results.",
   pageSizeOptions = [15, 30, 50],
+  compact = true,
 }: DataTableProps<TData>) {
   const columnCount = table.getAllLeafColumns().length;
   const { pageIndex, pageSize } = table.getState().pagination;
@@ -53,10 +56,10 @@ export function DataTable<TData>({
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="min-w-0 max-w-full space-y-4">
-      <div className="min-w-0 max-w-full overflow-x-auto rounded-lg border">
-        <Table className="min-w-max">
-          <TableHeader>
+    <div className={cn("min-w-0 max-w-full space-y-4", compact && "space-y-0")}>
+      <div className={cn("min-w-0 max-w-full overflow-x-auto rounded-lg border", compact && "rounded-none border-0")}>
+        <Table className={cn("min-w-max", compact && "text-sm [&_th]:h-10 [&_th]:px-3 [&_th]:text-[0.8125rem] [&_th]:text-muted-foreground [&_td]:px-3 [&_td]:py-0.5")} >
+          <TableHeader className={cn(compact && "bg-muted/40")}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -81,14 +84,14 @@ export function DataTable<TData>({
                 <TableRow key={rowIndex}>
                   {Array.from({ length: columnCount }).map((_, cellIndex) => (
                     <TableCell key={cellIndex}>
-                      <Skeleton className="h-5 w-full" />
+                      <Skeleton className={cn("h-5 w-full", compact && "h-10")} />
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : rows.length > 0 ? (
               rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} className={cn(compact && "h-14")}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -113,19 +116,19 @@ export function DataTable<TData>({
         </Table>
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+      <div className={cn("flex flex-col items-center justify-between gap-3 sm:flex-row", compact && "gap-3 border-t px-3 py-3 [&_p]:text-[0.8125rem] [&_span]:text-[0.8125rem]")}>
         <p className="text-muted-foreground text-sm">
           {total} {total === 1 ? "result" : "results"}
         </p>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-sm">Rows</span>
             <Select
               value={String(pageSize)}
               onValueChange={(value) => table.setPageSize(Number(value))}
             >
-              <SelectTrigger size="sm" className="w-[4.5rem]">
+              <SelectTrigger size={compact ? "default" : "sm"} className="w-[4.5rem]" aria-label="Rows per page">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -146,7 +149,7 @@ export function DataTable<TData>({
             <Button
               variant="outline"
               size="icon"
-              className="size-8"
+              className={cn("size-8", compact && "size-9")}
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
@@ -156,7 +159,7 @@ export function DataTable<TData>({
             <Button
               variant="outline"
               size="icon"
-              className="size-8"
+              className={cn("size-8", compact && "size-9")}
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >

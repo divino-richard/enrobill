@@ -1,3 +1,5 @@
+import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
+import { PageHeader } from "@/components/page-header";
 import { Fragment, useMemo, useState } from "react";
 import {
   CoinsIcon,
@@ -329,14 +331,10 @@ function FeesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Fees</h1>
-          <p className="text-muted-foreground text-sm">
-            The global fee schedule for a school year, by year level. Bills are
-            generated from these.
-          </p>
+          <PageHeader title="Fees" />
         </div>
         <div className="flex items-end gap-2">
           <div className="space-y-1.5">
@@ -345,14 +343,14 @@ function FeesPage() {
               value={effectiveId ? String(effectiveId) : ""}
               onValueChange={(v) => setSelectedId(Number(v))}
             >
-              <SelectTrigger className="min-w-44 w-fit">
+              <SelectTrigger className="h-9 min-w-44 w-full bg-card" aria-label="School year">
                 <SelectValue placeholder="Select year" />
               </SelectTrigger>
               <SelectContent>
                 {schoolYears.map((sy) => (
                   <SelectItem key={sy.id} value={String(sy.id)}>
                     SY {sy.schoolYear}
-                    {sy.isActive ? " - active" : ""}
+                    {sy.isActive ? " · Active" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -365,6 +363,12 @@ function FeesPage() {
         </div>
       </div>
 
+      {effectiveId !== null && !isLoading && !isError && <DashboardMetricStrip metrics={[
+        {label: "Grade 11 fees", value: formatPeso(totals.grade11), detail: "Full schedule per student", tone: "primary"},
+        {label: "Grade 12 fees", value: formatPeso(totals.grade12), detail: "Full schedule per student", tone: "primary"},
+        {label: "Fee items", value: fees.length, detail: "In the selected school year", tone: "primary"},
+        {label: "Categories", value: groups.length, detail: "Tuition and additional fees", tone: "primary"},
+      ]} />}
       {effectiveId === null ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <p className="font-medium">No school year selected</p>
@@ -394,7 +398,7 @@ function FeesPage() {
           </p>
         </div>
       ) : (
-        <Card className="overflow-hidden py-0">
+        <Card className="overflow-hidden gap-0 py-0">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -410,8 +414,8 @@ function FeesPage() {
                 const Icon = meta.icon;
                 return (
                   <Fragment key={group.value}>
-                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableCell colSpan={2} className="px-4 py-2">
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableCell colSpan={2} className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Icon className="text-muted-foreground size-4" />
                           <span className="font-semibold">{group.label}</span>
@@ -447,7 +451,7 @@ function FeesPage() {
                           {formatPeso(fee.amount)}
                         </TableCell>
                         <TableCell className="px-4">
-                          <div className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                          <div className="flex items-center justify-end gap-0.5">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -533,6 +537,7 @@ function FeesPage() {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
               disabled={remove.isPending}
               onClick={(event) => {
                 event.preventDefault();

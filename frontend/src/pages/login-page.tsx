@@ -1,3 +1,4 @@
+import { bannerStyles } from "@/components/ui/banner";
 import { Link, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/features/auth/components/auth-layout";
 import { LoginForm } from "@/features/auth/components/login-form";
@@ -15,12 +16,12 @@ function LoginPage() {
   return (
     <AuthLayout subtitle="Enrollment & Tuition Portal">
       {justVerified && (
-        <div className="w-full max-w-sm rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 mb-4">
+        <div className={bannerStyles({ tone: "success", className: "mb-4 w-full max-w-sm" })}>
           Your email is verified. You can now sign in.
         </div>
       )}
       {justRegistered && (
-        <div className="border-brand/20 bg-brand/5 text-foreground w-full max-w-sm rounded-md border px-4 py-3 text-xs mb-4">
+        <div className={bannerStyles({ className: "mb-4 w-full max-w-sm" })}>
           Registration successful — please check your email to verify your
           account before signing in.
         </div>

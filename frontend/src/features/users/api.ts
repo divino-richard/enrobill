@@ -12,7 +12,7 @@ interface Wrapped<T> {
   data: T;
 }
 
-export type UserListParams = ListParams;
+export type UserListParams = ListParams & { verified?: string; joined?: string };
 
 export interface UsersPage {
   rows: User[];
@@ -22,7 +22,7 @@ export interface UsersPage {
 // Paginated / searchable / sortable list of users (admin only).
 export async function fetchUsers(params: UserListParams): Promise<UsersPage> {
   const { data } = await api.get<LaravelPaginated<User>>("/users", {
-    params: listParamsToQuery(params),
+    params: { ...listParamsToQuery(params), verified: params.verified, joined: params.joined },
   });
 
   return { rows: data.data, meta: toPageMeta(data.meta) };

@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { ReceiptTextIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,7 +28,7 @@ export function BillCard({ studentId }: BillCardProps) {
       <CardHeader>
         <CardTitle className="text-base">Billing</CardTitle>
         <CardDescription>
-          The student's bill for the open enrollment term.
+          {bill ? `SY ${bill.schoolYear} · Bill #${bill.id}` : "Current enrollment billing"}
         </CardDescription>
         {bill && (
           <CardAction>
@@ -44,13 +46,14 @@ export function BillCard({ studentId }: BillCardProps) {
           <Skeleton className="h-40 w-full rounded-md" />
         ) : bill ? (
           <div className="space-y-4">
-            <p className="text-muted-foreground text-xs">
-              SY {bill.schoolYear}
-            </p>
-
-            <dl className="space-y-2 text-sm">
+            <div className="grid gap-4 border-y py-4 sm:grid-cols-3">
+              {[{label: "Net total", value: bill.netTotal}, {label: "Verified payments", value: bill.amountPaid}, {label: "Outstanding balance", value: bill.balance}].map((item) => <div key={item.label}><p className="text-muted-foreground text-sm">{item.label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatPeso(item.value)}</p></div>)}
+            </div>
+            <Button asChild variant="outline"><Link to={`/admin/billing/${bill.id}`}>View bill and installment plan</Link></Button>
+            <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">Fee breakdown · {bill.items.length} items</summary>
+            <dl className="mt-4 divide-y text-sm">
               {bill.items.map((item) => (
-                <div key={item.id} className="flex justify-between gap-4">
+                <div key={item.id} className="flex justify-between gap-4 py-2">
                   <dt className="text-muted-foreground">{item.name}</dt>
                   <dd className="font-medium">{formatPeso(item.amount)}</dd>
                 </div>
@@ -58,7 +61,7 @@ export function BillCard({ studentId }: BillCardProps) {
               {bill.items.length === 0 && (
                 <p className="text-muted-foreground">No fee items.</p>
               )}
-            </dl>
+            </dl></details>
 
             <div className="space-y-2 border-t pt-3 text-sm">
               <div className="flex justify-between">

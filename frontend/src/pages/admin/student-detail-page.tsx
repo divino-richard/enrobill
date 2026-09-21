@@ -1,16 +1,11 @@
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  CalendarDaysIcon,
-  GraduationCapIcon,
   PencilIcon,
-  UserRoundIcon,
-  WalletIcon,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,8 +33,6 @@ import {
 } from "@/features/applications/types";
 import { formatDate } from "@/features/applications/utils";
 import { BillCard } from "@/features/bills/components/bill-card";
-import { useStudentBill } from "@/features/bills/hooks";
-import { BILL_STATUS_META } from "@/features/bills/types";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { StudentEditForm } from "@/features/students/components/student-edit-form";
 import { EnrollmentStatusBadge } from "@/features/students/components/enrollment-status-badge";
@@ -47,7 +40,6 @@ import { StudentEnrollmentsCard } from "@/features/students/components/student-e
 import { StudentStatusBadge } from "@/features/students/components/student-status-badge";
 import { useStudent, useStudentEnrollments } from "@/features/students/hooks";
 import { studentFullName, type Student } from "@/features/students/types";
-import { formatPeso } from "@/lib/money";
 
 type StudentDetailTab = "overview" | "enrollments" | "billing";
 
@@ -64,42 +56,6 @@ function capitalize(value: string | null): string {
 function studentDisplayName(student: Student): string {
   const name = studentFullName(student);
   return student.extension ? `${name}, ${student.extension}` : name;
-}
-
-function studentInitials(student: Student): string {
-  const initials = `${student.firstName?.[0] ?? ""}${student.lastName?.[0] ?? ""}`;
-  return initials.toUpperCase() || "?";
-}
-
-function StatTile({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  value: ReactNode;
-  hint?: ReactNode;
-}) {
-  return (
-    <div className="bg-card flex items-start gap-3 rounded-xl border p-4">
-      <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-        <Icon className="size-4.5" />
-      </div>
-      <div className="min-w-0 space-y-1">
-        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          {label}
-        </p>
-        <div className="truncate text-sm font-semibold">{value}</div>
-        {hint && (
-          <p className="text-muted-foreground truncate text-xs font-normal">
-            {hint}
-          </p>
-        )}
-      </div>
-    </div>
-  );
 }
 
 function DetailItem({
@@ -144,7 +100,6 @@ function StudentDetailPage() {
   const { data: student, isLoading, isError, refetch } = useStudent(studentId);
   const { data: enrollments, isLoading: enrollmentsLoading } =
     useStudentEnrollments(studentId);
-  const { data: bill, isLoading: billLoading } = useStudentBill(studentId);
   const programLabel = useProgramLabel();
   const { getProvinceName, getCityName, getBarangayName } = useAddress({
     provinceCode: student?.addressProvince ?? undefined,
@@ -165,7 +120,7 @@ function StudentDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-4">
         {backButton}
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-10 w-72 rounded-xl" />
@@ -176,7 +131,7 @@ function StudentDetailPage() {
 
   if (isError || !student) {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-4">
         {backButton}
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
@@ -194,7 +149,7 @@ function StudentDetailPage() {
 
   const currentEnrollment = enrollments?.find((record) => record.isCurrent);
   const summary = [
-    student.trackOrStrand ? programLabel(student.trackOrStrand) : null,
+    student.trackOrStrand ? programLabel(student.trackOrStrand).replace(/\s*\([^)]*\)/g, "").trim() : null,
     student.yearLevel ? labelFor(YEAR_LEVEL_OPTIONS, student.yearLevel) : null,
     student.schoolYear ? `SY ${student.schoolYear}` : null,
   ]
@@ -219,22 +174,17 @@ function StudentDetailPage() {
     : "—";
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-4">
       {backButton}
 
       <Card>
-        <CardHeader className="gap-4">
-          <div className="flex flex-1 items-start gap-4">
-            <Avatar size="lg" className="size-14">
-              <AvatarFallback className="bg-primary/10 text-primary text-base font-semibold">
-                {studentInitials(student)}
-              </AvatarFallback>
-            </Avatar>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 items-center gap-3">
             <div className="min-w-0 space-y-1.5">
               <CardDescription className="text-xs font-medium tracking-wide uppercase">
                 {student.studentNumber}
               </CardDescription>
-              <CardTitle className="text-2xl">
+              <CardTitle className="text-xl">
                 {studentDisplayName(student)}
               </CardTitle>
               <div className="flex flex-wrap items-center gap-2">
@@ -268,66 +218,15 @@ function StudentDetailPage() {
         </CardHeader>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile
-          icon={GraduationCapIcon}
-            label="Current enrollment"
-            value={
-              enrollmentsLoading ? (
-                <Skeleton className="h-4 w-24 rounded" />
-              ) : currentEnrollment ? (
-                <EnrollmentStatusBadge status={currentEnrollment.status} />
-              ) : (
-                "None"
-              )
-            }
-            hint={
-              currentEnrollment
-                ? currentEnrollment.schoolYear
-                  ? `SY ${currentEnrollment.schoolYear}`
-                  : "Open term"
-                : "No active enrollment"
-            }
-          />
-          <StatTile
-            icon={WalletIcon}
-            label="Outstanding balance"
-            value={
-              billLoading ? (
-                <Skeleton className="h-4 w-20 rounded" />
-              ) : bill ? (
-                formatPeso(bill.balance)
-              ) : (
-                "Not billed"
-              )
-            }
-            hint={
-              bill ? BILL_STATUS_META[bill.status].label : "No bill on file"
-            }
-          />
-          <StatTile
-            icon={UserRoundIcon}
-            label="Year level"
-            value={yearLevelLabel}
-            hint={programLabel(student.trackOrStrand)}
-          />
-          <StatTile
-            icon={CalendarDaysIcon}
-            label="School year"
-            value={student.schoolYear ?? "—"}
-            hint={`Updated ${formatDate(student.updatedAt)}`}
-          />
-      </div>
-
       <Tabs
         value={tab}
         onValueChange={(value) => setTab(value as StudentDetailTab)}
-        className="space-y-4"
+        className="gap-3"
       >
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="enrollments">Enrollments</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl bg-card p-1 shadow-xs ring-1 ring-foreground/10 sm:w-fit">
+            <TabsTrigger className="px-4" value="overview">Overview</TabsTrigger>
+            <TabsTrigger className="px-4" value="enrollments">Enrollments</TabsTrigger>
+            <TabsTrigger className="px-4" value="billing">Billing</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -338,7 +237,7 @@ function StudentDetailPage() {
                   The essential student information, without the noise.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 <DetailSection title="Academic">
                   <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <DetailItem label="Student No." value={student.studentNumber} />

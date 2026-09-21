@@ -1,3 +1,9 @@
+import { RowActions } from "@/components/row-actions";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Link } from "react-router-dom";
+import { TablePanel, TableToolbar } from "@/components/table-panel";
+import { CompactProgramLabel } from "@/components/compact-program-label";
+import { PageHeader } from "@/components/page-header";
 import { useState } from "react";
 import {
   ArrowRightIcon,
@@ -11,7 +17,6 @@ import {
   MoveUpIcon,
   RotateCcwIcon,
   SearchIcon,
-  SlidersHorizontalIcon,
   Undo2Icon,
   UsersIcon,
   XIcon,
@@ -84,7 +89,7 @@ import {
   type Semester,
 } from "@/features/progression/types";
 
-const PER_PAGE = 10;
+const PER_PAGE = 30;
 const ALL = "all"; // Radix Select can't hold an empty-string value.
 
 const SEMESTER_LABEL: Record<Semester, string> = {
@@ -182,16 +187,10 @@ function ProgressionPage() {
   const progressionOpen = summary?.progressionOpen ?? false;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Progression</h1>
-          <p className="text-muted-foreground text-sm">
-            Year-end close-out
-            {summary?.activeYear ? ` for SY ${summary.activeYear.schoolYear}` : ""}
-            . A student can be promoted or graduated once both semesters are
-            cleared and passed.
-          </p>
+          <PageHeader title="Progression" />
         </div>
         {progressionOpen && summary?.readyToEnroll ? (
           <Button
@@ -243,8 +242,8 @@ function ProgressionPage() {
           }
         />
       ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
+        <TablePanel>
+          <TableToolbar className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-56 flex-1">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
               <Input
@@ -314,7 +313,7 @@ function ProgressionPage() {
                 Clear
               </Button>
             )}
-          </div>
+          </TableToolbar>
 
           <RosterTable
             rows={roster}
@@ -324,7 +323,7 @@ function ProgressionPage() {
           />
 
           {meta && meta.total > 0 && (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t px-3 py-3">
               <p className="text-muted-foreground text-sm">
                 {(meta.page - 1) * meta.perPage + 1}–
                 {Math.min(meta.page * meta.perPage, meta.total)} of {meta.total}
@@ -356,7 +355,7 @@ function ProgressionPage() {
               </div>
             </div>
           )}
-        </>
+        </TablePanel>
       )}
 
       <StudentSheet
@@ -388,7 +387,6 @@ function FilterSelect({
       onValueChange={(v) => onChange(v === ALL ? "" : v)}
     >
       <SelectTrigger className="w-auto min-w-32">
-        <SlidersHorizontalIcon className="text-muted-foreground size-3.5" />
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -445,7 +443,7 @@ function RosterTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="overflow-x-auto bg-card">
       <Table>
         <TableHeader>
           <TableRow>
@@ -459,7 +457,7 @@ function RosterTable({
         </TableHeader>
         <TableBody>
           {rows.map((s) => (
-            <TableRow key={s.studentId}>
+            <TableRow key={s.studentId} className="h-14">
               <TableCell>
                 <div className="flex flex-col">
                   <span className="font-medium">{s.name}</span>
@@ -469,7 +467,7 @@ function RosterTable({
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {programLabel(s.track)}
+                <CompactProgramLabel label={programLabel(s.track)} />
               </TableCell>
               <TableCell className="text-muted-foreground whitespace-nowrap">
                 {labelFor(YEAR_LEVEL_OPTIONS, s.yearLevel ?? "")}
@@ -481,13 +479,7 @@ function RosterTable({
                 <StatusBadge student={s} />
               </TableCell>
               <TableCell className="text-right">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onSelect(s.studentId)}
-                >
-                  {s.status === "pending" ? "Review" : "Details"}
-                </Button>
+                <RowActions><DropdownMenuItem onClick={() => onSelect(s.studentId)}>{s.status === "pending" ? "Review progression" : "View details"}</DropdownMenuItem></RowActions>
               </TableCell>
             </TableRow>
           ))}
@@ -631,13 +623,13 @@ function StudentReview({ student }: { student: RosterStudent }) {
         </SheetDescription>
       </SheetHeader>
 
-      <div className="flex-1 space-y-5 px-4 py-5">
+      <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
         {SEMESTERS.map((semester) => (
           <section key={semester} className="space-y-2">
             <h3 className="text-sm font-semibold">
               {SEMESTER_LABEL[semester]}
             </h3>
-            <div className="divide-y rounded-lg border">
+            <div className="bg-card divide-y rounded-lg border">
               {REQUIREMENTS.map((req) => {
                 const doc =
                   (student.documents ?? []).find(
@@ -695,7 +687,7 @@ function StudentReview({ student }: { student: RosterStudent }) {
                             Return
                           </Button>
                         </div>
-                      ) : (
+                      ) : doc ? (
                         <div className="flex items-center gap-2">
                           <Button
                             variant="outline"
@@ -717,7 +709,7 @@ function StudentReview({ student }: { student: RosterStudent }) {
                             Accept
                           </Button>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                     {note && (
                       <p className="text-amber-800 dark:text-amber-200 text-xs">
@@ -899,7 +891,7 @@ function DecidedPanel({
 
 function ResultAlert({ verb, count }: { verb: string; count: number }) {
   return (
-    <Alert className="border-primary bg-primary-foreground text-primary">
+    <Alert>
       <CheckCircle2Icon className="size-4 shrink-0" />
       <AlertTitle>{verb}</AlertTitle>
       <AlertDescription>
@@ -913,7 +905,7 @@ function ResultAlert({ verb, count }: { verb: string; count: number }) {
 
 function ErrorAlert({ title, error }: { title: string; error: unknown }) {
   return (
-    <Alert className="border-destructive bg-red-50 text-destructive">
+    <Alert variant="destructive">
       <CircleAlertIcon className="mt-0.5 size-5 shrink-0" />
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>{getErrorMessage(error)}</AlertDescription>
@@ -933,8 +925,8 @@ function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center",
-        compact ? "py-10" : "py-16",
+        "bg-card flex flex-col items-center justify-center gap-3 rounded-lg border px-5 text-center",
+        compact ? "py-8" : "py-10",
       )}
     >
       <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
@@ -946,6 +938,7 @@ function EmptyState({
           {message}
         </p>
       </div>
+      {!compact && <Button asChild variant="outline"><Link to="/admin/terms">Manage academic years<ArrowRightIcon /></Link></Button>}
     </div>
   );
 }

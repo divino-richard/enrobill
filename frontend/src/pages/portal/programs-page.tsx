@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import { useState } from "react";
 import { format } from "date-fns";
 import {
@@ -87,7 +88,7 @@ function ProgramsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 mx-auto max-w-7xl">
+      <div className="space-y-4 mx-auto max-w-7xl">
         <Skeleton className="h-9 w-44 rounded-md" />
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-64 w-full rounded-xl" />
@@ -97,8 +98,8 @@ function ProgramsPage() {
 
   if (isError || !student) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">My Program</h1>
+      <div className="space-y-4">
+        <h1 className="text-2xl font-semibold tracking-[-0.025em]">My Program</h1>
         <EmptyTab
           icon={GraduationCapIcon}
           title="Not enrolled yet"
@@ -122,10 +123,7 @@ function ProgramsPage() {
     <div className="space-y-4 mx-auto min-w-0 max-w-7xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">My Program</h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          The program, level and class schedule you're enrolled in.
-        </p>
+        <PageHeader title="My Program" />
       </div>
 
       {/* Headline — current term */}

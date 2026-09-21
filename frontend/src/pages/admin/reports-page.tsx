@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { BarChart3Icon, CalendarRangeIcon, ReceiptTextIcon } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import {
   DashboardHeader,
   DashboardLoading,
@@ -11,12 +10,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
 import {
   Select,
   SelectContent,
@@ -62,10 +55,6 @@ const PERIOD_OPTIONS: { value: ReportPeriod; label: string }[] = [
 ];
 
 const number = new Intl.NumberFormat("en-PH");
-const chartConfig = {
-  value: { label: "Value", color: "var(--color-primary)" },
-} satisfies ChartConfig;
-
 type BreakdownDatum = {
   name: string;
   value: number;
@@ -138,6 +127,7 @@ function ReportsPage() {
   const metrics: DashboardMetric[] = [
     {
       label: "Total billed",
+      explanation: "Fees billed during the selected reporting period.",
       value: formatPeso(dataset.summary.totalBilled),
       detail: `${number.format(dataset.summary.billsGenerated)} bills · ${formatPeso(averageBill)} average`,
       tone: "primary",
@@ -155,7 +145,7 @@ function ReportsPage() {
       tone: dataset.summary.totalOutstanding ? "warning" : "success",
     },
     {
-      label: "Pending reviews",
+      label: "Payment reviews",
       value: number.format(dataset.summary.pendingPayments),
       detail: "Payment proofs awaiting review",
       tone: dataset.summary.pendingPayments ? "warning" : "success",
@@ -208,7 +198,7 @@ function ReportsPage() {
     name: paymentMethodLabel(item.method),
     value: item.verifiedAmount,
     valueLabel: formatPeso(item.verifiedAmount),
-    meta: `${number.format(item.transactions)} posts · ${number.format(item.pendingCount)} pending`,
+    meta: `${number.format(item.transactions)} ${item.transactions === 1 ? "post" : "posts"} · ${number.format(item.pendingCount)} pending`,
     color: paymentColors[index % paymentColors.length],
   }));
   const enrollmentData: BreakdownDatum[] = dataset.enrollmentStatuses.map(
@@ -216,7 +206,7 @@ function ReportsPage() {
       name: ENROLLMENT_STATUS_META[item.status].label,
       value: item.count,
       valueLabel: number.format(item.count),
-      meta: `${number.format(item.count)} students`,
+      meta: `${number.format(item.count)} ${item.count === 1 ? "student" : "students"}`,
       note: item.note,
       color:
         item.status === "enrolled"
@@ -229,7 +219,7 @@ function ReportsPage() {
     }),
   );
   const programData: BreakdownDatum[] = dataset.programMix.map((item, index) => ({
-    name: `${programLabel(item.program)} · ${yearLevelLabel(item.yearLevel)}`,
+    name: `${programLabel(item.program).replace(/\s*\([^)]*\)/g, "").trim()} · ${yearLevelLabel(item.yearLevel)}`,
     value: item.students,
     valueLabel: number.format(item.students),
     meta: `${number.format(item.billed)} billed · ${number.format(item.noDownpayment)} no-DP`,
@@ -239,26 +229,26 @@ function ReportsPage() {
     name: item.discount.name,
     value: item.amountApplied,
     valueLabel: formatPeso(item.amountApplied),
-    meta: `${number.format(item.recipients)} recipients · ${item.utilizationRate}% used`,
+    meta: `${number.format(item.recipients)} recipients`,
     note: discountValueLabel(item.discount),
     color: "var(--color-chart-1)",
   }));
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <DashboardHeader
         title="Reports"
-        description="A focused view of collections, enrollment, and applied credits."
         context={selectedTerm?.isActive ? <Badge variant="secondary">Active term</Badge> : null}
       />
 
-      <Card className="gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-end">
+      <Card className="gap-4 px-5 py-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="mr-4 sm:self-center"><p className="text-sm font-semibold">Report scope</p><p className="text-muted-foreground mt-1 text-xs">{periodLabel}</p></div>
         <ReportFilter label="Academic year">
           <Select
             value={selectedTerm ? String(selectedTerm.id) : undefined}
             onValueChange={setSelectedTermId}
           >
-            <SelectTrigger className="w-full min-w-44 bg-background sm:w-auto">
+            <SelectTrigger className="w-full min-w-44 bg-card sm:w-auto">
               <CalendarRangeIcon className="text-muted-foreground size-4" />
               <SelectValue placeholder="School year" />
             </SelectTrigger>
@@ -276,7 +266,7 @@ function ReportsPage() {
             value={period}
             onValueChange={(value) => setPeriod(value as ReportPeriod)}
           >
-            <SelectTrigger className="w-full min-w-40 bg-background sm:w-auto">
+            <SelectTrigger className="w-full min-w-40 bg-card sm:w-auto">
               <BarChart3Icon className="text-muted-foreground size-4" />
               <SelectValue placeholder="Period" />
             </SelectTrigger>
@@ -289,7 +279,7 @@ function ReportsPage() {
             </SelectContent>
           </Select>
         </ReportFilter>
-        <div className="text-muted-foreground min-w-0 text-xs sm:ml-auto sm:pb-2">
+        <div className="text-muted-foreground min-w-0 text-sm sm:ml-auto sm:pb-2">
           Updated <span className="font-medium text-foreground">{formatDate(dataset.updatedAt)}</span>
         </div>
         <Button
@@ -320,14 +310,14 @@ function ReportsPage() {
           <TabsTrigger className="w-full px-2 sm:w-auto sm:px-4" value="credits">Credits</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="collections" className="space-y-3">
-          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(19rem,.65fr)]">
-            <SemanticBarPanel
+        <TabsContent value="collections" className="space-y-4">
+          <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(19rem,.65fr)]">
+            <ReportBreakdown
               title="Billing position"
               description="Selected period"
               data={financialData}
+              comparison
               empty="No billing activity found for this reporting window."
-              formatValue={(value) => formatPeso(Number(value))}
               footer={<StatusSummary data={billData} />}
             />
             <RankedListPanel
@@ -340,14 +330,13 @@ function ReportsPage() {
           <TopBalancesPanel rows={dataset.topBalances} />
         </TabsContent>
 
-        <TabsContent value="enrollment" className="space-y-3">
-          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
-            <SemanticBarPanel
+        <TabsContent value="enrollment" className="space-y-4">
+          <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
+            <ReportBreakdown
               title="Enrollment composition"
               description="Selected period"
               data={enrollmentData}
               empty="No enrollments found for this reporting window."
-              formatValue={(value) => number.format(Number(value))}
             />
             <RankedListPanel
               title="Program ranking"
@@ -359,18 +348,17 @@ function ReportsPage() {
           <EnrollmentActivityPanel rows={dataset.enrollmentActivity} />
         </TabsContent>
 
-        <TabsContent value="credits" className="space-y-3">
+        <TabsContent value="credits" className="space-y-4">
           <CreditTotals
             voucherCredits={dataset.summary.voucherCredits}
             incentiveCredits={dataset.summary.incentiveCredits ?? 0}
           />
-          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
-            <SemanticBarPanel
-              title="Voucher utilization"
+          <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
+            <VoucherCreditsPanel
+              title="Voucher credits"
               description="Applied value"
               data={voucherData}
               empty="No voucher activity found for this reporting window."
-              formatValue={(value) => formatPeso(Number(value))}
             />
             <ChannelReadinessPanel dataset={dataset} />
           </div>
@@ -384,70 +372,67 @@ function ReportsPage() {
 function ReportFilter({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0 flex-1 space-y-1.5 sm:flex-none">
-      <span className="text-muted-foreground block text-[0.6875rem] font-medium">{label}</span>
+      <span className="text-muted-foreground block text-[0.8125rem] font-medium">{label}</span>
       {children}
     </div>
   );
 }
 
-function SemanticBarPanel({
+function ReportBreakdown({
   title,
   description,
   data,
   empty,
-  formatValue,
   footer,
+  comparison = false,
 }: {
   title: string;
   description: string;
   data: BreakdownDatum[];
   empty: string;
-  formatValue: (value: number) => string;
   footer?: ReactNode;
+  comparison?: boolean;
 }) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
   return (
     <DashboardPanel title={title} description={description}>
-      {data.length === 0 ? (
-        <EmptyData>{empty}</EmptyData>
-      ) : (
-        <div className="grid min-h-[19rem] lg:grid-cols-[minmax(0,1fr)_13rem]">
-          <div className="h-64 min-w-0 px-3 py-4">
-            <ChartContainer config={chartConfig}>
-              <BarChart accessibilityLayer data={data} layout="vertical" margin={{ left: 6, right: 16, top: 8, bottom: 8 }}>
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} width={88} tick={{ fontSize: 11 }} />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      hideLabel
-                      formatter={(value) => formatValue(Number(value ?? 0))}
-                    />
-                  }
-                />
-                <Bar dataKey="value" radius={[0, 5, 5, 0]} maxBarSize={26}>
-                  {data.map((item) => <Cell key={item.name} fill={item.color} />)}
-                </Bar>
-              </BarChart>
-            </ChartContainer>
-          </div>
-          <div className="border-t px-4 lg:border-t-0 lg:border-l">
-            {data.map((item) => (
-              <div key={item.name} className="border-b py-3.5 last:border-b-0">
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-4 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
-                  <p className="truncate text-xs font-semibold">{item.name}</p>
-                </div>
-                <p className="mt-1.5 text-sm font-semibold tabular-nums">{item.valueLabel}</p>
-                <p className="text-muted-foreground mt-0.5 text-[0.6875rem]">{item.meta}</p>
-              </div>
-            ))}
-          </div>
-          {footer ? <div className="border-t lg:col-span-2">{footer}</div> : null}
-        </div>
+      {data.length === 0 ? <EmptyData>{empty}</EmptyData> : (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="px-4">{comparison ? "Billing summary" : "Enrollment status"}</TableHead>
+                <TableHead className="text-right">{comparison ? "Amount" : "Students"}</TableHead>
+                <TableHead className="px-4 text-right">{comparison ? "Details" : "Share"}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((item) => (
+                <TableRow key={item.name}>
+                  <TableCell className="px-4 py-5 font-medium whitespace-normal">{item.name}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">{item.valueLabel}</TableCell>
+                  <TableCell className="text-muted-foreground px-4 text-right text-xs whitespace-normal tabular-nums">{comparison ? item.meta : total > 0 ? `${((item.value / total) * 100).toFixed(1)}%` : "—"}</TableCell>
+                </TableRow>
+              ))}
+              {!comparison && <TableRow className="bg-muted/30"><TableCell className="px-4 py-4 font-semibold">Total enrollments</TableCell><TableCell className="text-right font-semibold tabular-nums">{number.format(total)}</TableCell><TableCell className="text-muted-foreground px-4 text-right text-xs">{total > 0 ? "100%" : "—"}</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+          {footer ? <div className="mt-auto border-t">{footer}</div> : null}
+        </>
       )}
     </DashboardPanel>
   );
+}
+
+function VoucherCreditsPanel({ title, description, data, empty }: { title: string; description: string; data: BreakdownDatum[]; empty: string }) {
+  return <DashboardPanel title={title} description={description}>
+    {data.length === 0 ? <EmptyData>{empty}</EmptyData> : <div className="divide-y px-4">{data.map((item) => (
+      <div key={item.name} className="flex flex-wrap items-center justify-between gap-3 py-4">
+        <div><p className="font-semibold">{item.name}</p><p className="text-muted-foreground mt-1 text-sm">{item.meta}{item.note ? ` · ${item.note}` : ""}</p></div>
+        <div className="text-right"><p className="font-semibold tabular-nums">{item.valueLabel}</p><p className="text-muted-foreground text-xs">Applied credits</p></div>
+      </div>
+    ))}</div>}
+  </DashboardPanel>;
 }
 
 function StatusSummary({ data }: { data: BreakdownDatum[] }) {
@@ -457,11 +442,11 @@ function StatusSummary({ data }: { data: BreakdownDatum[] }) {
         <div key={item.name} className="border-b px-4 py-3 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
           <div className="flex items-center gap-2">
             <span className="size-2 rounded-full" style={{ backgroundColor: item.color }} />
-            <span className="text-muted-foreground text-[0.6875rem]">{item.name}</span>
+            <span className="text-muted-foreground text-[0.8125rem]">{item.name}</span>
           </div>
           <div className="mt-1 flex items-baseline justify-between gap-2">
-            <strong className="text-xs tabular-nums">{item.valueLabel}</strong>
-            <span className="text-muted-foreground text-[0.6875rem]">{item.meta}</span>
+            <strong className="text-sm tabular-nums">{item.valueLabel}</strong>
+            <span className="text-muted-foreground text-[0.8125rem]">{item.meta}</span>
           </div>
         </div>
       ))}
@@ -482,10 +467,10 @@ function RankedListPanel({ title, description, data, empty }: { title: string; d
             <div key={item.name} className="border-b py-4 last:border-b-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold">{item.name}</p>
-                  <p className="text-muted-foreground mt-0.5 truncate text-[0.6875rem]">{item.meta}</p>
+                  <p className="truncate text-sm font-semibold">{item.name}</p>
+                  <p className="text-muted-foreground mt-0.5 truncate text-[0.8125rem]">{item.meta}</p>
                 </div>
-                <strong className="shrink-0 text-xs tabular-nums">{item.valueLabel}</strong>
+                <strong className="shrink-0 text-sm tabular-nums">{item.valueLabel}</strong>
               </div>
               <div className="bg-muted mt-2.5 h-1.5 overflow-hidden rounded-sm">
                 <div className="h-full rounded-sm" style={{ width: `${Math.max((item.value / maximum) * 100, item.value ? 3 : 0)}%`, backgroundColor: item.color }} />
@@ -502,11 +487,11 @@ function CreditTotals({ voucherCredits, incentiveCredits }: { voucherCredits: nu
   return (
     <Card className="grid gap-0 py-0 sm:grid-cols-2">
       <div className="border-b p-4 sm:border-r sm:border-b-0">
-        <span className="text-muted-foreground text-xs">Voucher credits</span>
+        <span className="text-muted-foreground text-sm">Voucher credits</span>
         <strong className="mt-1 block text-lg font-semibold tabular-nums">{formatPeso(voucherCredits)}</strong>
       </div>
       <div className="p-4">
-        <span className="text-muted-foreground text-xs">Tuition incentive credits</span>
+        <span className="text-muted-foreground text-sm">Tuition incentive credits</span>
         <strong className="mt-1 block text-lg font-semibold tabular-nums">{formatPeso(incentiveCredits)}</strong>
       </div>
     </Card>
@@ -517,16 +502,16 @@ function TopBalancesPanel({ rows }: { rows: OutstandingBalanceRow[] }) {
   return (
     <DashboardPanel title="Largest open balances" description={`${rows.length} records · highest first`}>
       <div className="overflow-x-auto">
-        <Table className="min-w-[52rem] text-xs">
-          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-9">Student</TableHead><TableHead className="h-9">Status</TableHead><TableHead className="h-9 text-right">Net total</TableHead><TableHead className="h-9 text-right">Paid</TableHead><TableHead className="h-9 text-right">Balance</TableHead><TableHead className="h-9 text-right">Due now</TableHead></TableRow></TableHeader>
+        <Table className="min-w-[52rem] text-sm">
+          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-10">Student</TableHead><TableHead className="h-10">Status</TableHead><TableHead className="h-10 text-right">Net total</TableHead><TableHead className="h-10 text-right">Paid</TableHead><TableHead className="h-10 text-right">Balance</TableHead><TableHead className="h-10 text-right">Due now</TableHead></TableRow></TableHeader>
           <TableBody>
             {rows.length === 0 ? <EmptyTable colSpan={6}>No open balances for this term.</EmptyTable> : rows.map((row) => (
-              <TableRow key={row.id} className="h-11">
+              <TableRow key={row.id} className="h-14">
                 <TableCell className="py-1.5"><StudentCell name={row.studentName} number={row.studentNumber} context={`${programCodeLabel(row.program)} · ${yearLevelLabel(row.yearLevel)}`} /></TableCell>
                 <TableCell className="py-1.5">
                   <div className="flex items-center gap-1.5">
                     <Badge variant="outline" className={cn(COMPACT_BADGE, BILL_STATUS_META[row.status].className)}>{BILL_STATUS_META[row.status].label}</Badge>
-                    {row.paymentStatus ? <Badge variant="outline" className={cn(COMPACT_BADGE, PAYMENT_STATUS_META[row.paymentStatus].className)}>{PAYMENT_STATUS_META[row.paymentStatus].label}</Badge> : <span className="text-muted-foreground text-[0.6875rem]">No payments</span>}
+                    {row.paymentStatus ? <Badge variant="outline" className={cn(COMPACT_BADGE, PAYMENT_STATUS_META[row.paymentStatus].className)}>{PAYMENT_STATUS_META[row.paymentStatus].label}</Badge> : <span className="text-muted-foreground text-[0.8125rem]">No payments</span>}
                   </div>
                 </TableCell>
                 <TableCell className="py-1.5 text-right tabular-nums">{formatPeso(row.netTotal)}</TableCell>
@@ -546,11 +531,11 @@ function EnrollmentActivityPanel({ rows }: { rows: EnrollmentActivityRow[] }) {
   return (
     <DashboardPanel title="Recent enrollment activity" description={`${rows.length} records · newest first`}>
       <div className="overflow-x-auto">
-        <Table className="min-w-[40rem] text-xs">
-          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-9">Student</TableHead><TableHead className="h-9">Status</TableHead><TableHead className="h-9">Billing</TableHead><TableHead className="h-9 text-right">Enrolled</TableHead></TableRow></TableHeader>
+        <Table className="min-w-[40rem] text-sm">
+          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-10">Student</TableHead><TableHead className="h-10">Status</TableHead><TableHead className="h-10">Billing</TableHead><TableHead className="h-10 text-right">Enrolled</TableHead></TableRow></TableHeader>
           <TableBody>
             {rows.length === 0 ? <EmptyTable colSpan={4}>No enrollment activity in this window.</EmptyTable> : rows.map((row) => (
-              <TableRow key={row.id} className="h-11">
+              <TableRow key={row.id} className="h-14">
                 <TableCell className="py-1.5"><StudentCell name={row.studentName} number={row.studentNumber} context={`${programCodeLabel(row.program)} · ${yearLevelLabel(row.yearLevel)}`} /></TableCell>
                 <TableCell className="py-1.5"><Badge variant="outline" className={cn(COMPACT_BADGE, ENROLLMENT_STATUS_META[row.status].className)}>{ENROLLMENT_STATUS_META[row.status].label}</Badge></TableCell>
                 <TableCell className="py-1.5">
@@ -582,11 +567,10 @@ function ChannelReadinessPanel({ dataset }: { dataset: ReportDataset }) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{item.label}</p><Badge variant={item.isActive ? "secondary" : "outline"}>{item.isActive ? "Active" : "Inactive"}</Badge><Badge variant="outline">{item.hasQr ? "QR ready" : "No QR"}</Badge></div>
-                  <p className="text-muted-foreground mt-1 truncate text-xs">{item.accountName}{item.accountNumber ? ` · ${item.accountNumber}` : ""}</p>
+                  <p className="text-muted-foreground mt-1 truncate text-sm">{item.accountName}{item.accountNumber ? ` · ${item.accountNumber}` : ""}</p>
                 </div>
-                <div className="text-right"><p className="font-semibold tabular-nums">{formatPeso(item.verifiedAmount)}</p><p className="text-muted-foreground mt-1 text-xs">{number.format(item.pendingProofs)} pending</p></div>
+                <div className="text-right"><p className="font-semibold tabular-nums">{formatPeso(item.verifiedAmount)}</p><p className="text-muted-foreground mt-1 text-sm">{number.format(item.pendingProofs)} pending</p></div>
               </div>
-              <p className="text-muted-foreground mt-2 text-[0.6875rem]">Last reviewed {formatDate(item.lastReviewed)}</p>
             </div>
           ))}
         </div>
@@ -599,11 +583,11 @@ function CreditActivityPanel({ rows }: { rows: CreditActivityRow[] }) {
   return (
     <DashboardPanel title="Recent credit activity" description={`${rows.length} records · latest first`}>
       <div className="overflow-x-auto">
-        <Table className="min-w-[42rem] text-xs">
-          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-9">Student</TableHead><TableHead className="h-9">Credit</TableHead><TableHead className="h-9">Status</TableHead><TableHead className="h-9 text-right">Amount applied</TableHead><TableHead className="h-9 text-right">Posted</TableHead></TableRow></TableHeader>
+        <Table className="min-w-[42rem] text-sm">
+          <TableHeader className="bg-muted/40"><TableRow><TableHead className="h-10">Student</TableHead><TableHead className="h-10">Credit</TableHead><TableHead className="h-10">Status</TableHead><TableHead className="h-10 text-right">Amount applied</TableHead><TableHead className="h-10 text-right">Posted</TableHead></TableRow></TableHeader>
           <TableBody>
             {rows.length === 0 ? <EmptyTable colSpan={5}>No credit activity in this window.</EmptyTable> : rows.map((row) => (
-              <TableRow key={row.id} className="h-11">
+              <TableRow key={row.id} className="h-14">
                 <TableCell className="py-1.5"><PersonCell name={row.studentName} detail={row.studentNumber} /></TableCell>
                 <TableCell className="py-1.5"><PersonCell name={row.creditName ?? row.voucherName} detail={row.reasons?.join(" + ")} /></TableCell>
                 <TableCell className="py-1.5"><Badge variant="outline" className={cn(COMPACT_BADGE, BILL_STATUS_META[row.billStatus].className)}>{BILL_STATUS_META[row.billStatus].label}</Badge></TableCell>
@@ -618,13 +602,13 @@ function CreditActivityPanel({ rows }: { rows: CreditActivityRow[] }) {
   );
 }
 
-const COMPACT_BADGE = "h-5 rounded-md px-1.5 text-[0.625rem] leading-none";
+const COMPACT_BADGE = "h-5 rounded-md px-1.5 text-xs leading-none";
 
 function StudentCell({ name, number: studentNumber, context }: { name: string; number: string; context: string }) {
   return (
     <div className="min-w-0">
       <p className="truncate font-medium">{name}</p>
-      <p className="text-muted-foreground mt-0.5 truncate text-[0.6875rem]">{studentNumber} · {context}</p>
+      <p className="text-muted-foreground mt-0.5 truncate text-[0.8125rem]">{studentNumber} · {context}</p>
     </div>
   );
 }
@@ -638,7 +622,7 @@ function programCodeLabel(value: string) {
 }
 
 function PersonCell({ name, detail }: { name: string; detail?: string }) {
-  return <div className="flex min-w-0 flex-col"><span className="truncate font-medium">{name}</span>{detail ? <span className="text-muted-foreground mt-0.5 truncate text-[0.6875rem]">{detail}</span> : null}</div>;
+  return <div className="flex min-w-0 flex-col"><span className="truncate font-medium">{name}</span>{detail ? <span className="text-muted-foreground mt-0.5 truncate text-[0.8125rem]">{detail}</span> : null}</div>;
 }
 
 function EmptyData({ children }: { children: string }) {

@@ -1,3 +1,6 @@
+import { CompactProgramLabel } from "@/components/compact-program-label";
+import { PageHeader } from "@/components/page-header";
+import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -120,7 +123,7 @@ function BillingInfoDialog({
 
   // When not ready, surface the single blocking reason (in priority order).
   const reason = readyForBilling
-    ? "No blockers — you can generate a bill for this enrollment."
+    ? "This enrollment is ready for a cashier to generate its bill."
     : hasGeneratedBill
       ? "A bill has already been generated for this enrollment."
       : !canGenerateBill
@@ -138,6 +141,7 @@ function BillingInfoDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          <dl className="grid grid-cols-2 gap-4 border-y py-3 text-sm"><div><dt className="text-muted-foreground">Enrollment</dt><dd className="mt-1 font-medium">{statusLabel}</dd></div><div><dt className="text-muted-foreground">Existing open bills</dt><dd className="mt-1 font-medium tabular-nums">{openBillCount}</dd></div></dl>
           <Alert
             className={cn(
               readyForBilling
@@ -147,7 +151,7 @@ function BillingInfoDialog({
           >
             {readyForBilling ? <CheckCircle2Icon /> : <CircleAlertIcon />}
             <AlertTitle>
-              {readyForBilling ? "Ready for billing" : "Not ready for billing"}
+              {readyForBilling ? "Ready for billing" : hasGeneratedBill ? "Bill generated" : "Action required"}
             </AlertTitle>
             <AlertDescription
               className={cn(
@@ -161,9 +165,9 @@ function BillingInfoDialog({
           </Alert>
 
           {readyForBilling && enrollment.feePreview != null && (
-            <div className="flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm">
+            <div className="bg-muted/40 flex items-center justify-between rounded-xl px-4 py-4 text-sm">
               <span className="text-muted-foreground">Estimated bill</span>
-              <span className="font-medium tabular-nums">
+              <span className="text-xl font-semibold tabular-nums">
                 {formatPeso(enrollment.feePreview)}
               </span>
             </div>
@@ -284,7 +288,7 @@ function EnrollmentsPage() {
   ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15,
+    pageSize: 30,
   });
 
   useEffect(() => {
@@ -322,9 +326,9 @@ function EnrollmentsPage() {
           const student = row.original.student;
 
           return (
-            <div className="space-y-1">
+            <div className="space-y-0.5 py-1.5">
               <div className="font-medium">{student?.name ?? "—"}</div>
-              <div className="text-muted-foreground text-xs">
+              <div className="text-muted-foreground text-[0.8125rem]">
                 {student?.studentNumber ?? "No student number"}
               </div>
             </div>
@@ -337,11 +341,11 @@ function EnrollmentsPage() {
         enableSorting: false,
         meta: { className: "min-w-64" },
         cell: ({ row }) => (
-          <div className="space-y-1">
+          <div className="space-y-0.5 py-1.5">
             <div className="font-medium">
-              {programLabel(row.original.program)}
+              <CompactProgramLabel label={programLabel(row.original.program)} />
             </div>
-            <div className="text-muted-foreground text-xs">
+            <div className="text-muted-foreground text-[0.8125rem]">
               {labelFor(YEAR_LEVEL_OPTIONS, row.original.yearLevel ?? "") || "No year level"}
             </div>
           </div>
@@ -355,7 +359,7 @@ function EnrollmentsPage() {
           const billingSnapshot = getEnrollmentBillingSnapshot(row.original);
 
           return (
-            <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
               <Badge
                 variant="outline"
                 className={cn(
@@ -366,17 +370,17 @@ function EnrollmentsPage() {
               </Badge>
 
               {billingSnapshot.openBillCount > 0 ? (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-muted-foreground text-[0.8125rem]">
                   {billingSnapshot.openBillCount} unpaid bill
                   {billingSnapshot.openBillCount === 1 ? "" : "s"}
                 </p>
               ) : row.original.hasBill ? (
-                <p className="text-muted-foreground text-xs">
-                  Bill already created
+                <p className="text-muted-foreground text-[0.8125rem]">
+                  Billed
                 </p>
               ) : billingSnapshot.canGenerateBill ? (
-                <p className="text-muted-foreground text-xs">
-                  Ready for billing
+                <p className="text-muted-foreground text-[0.8125rem]">
+                  Awaiting bill
                 </p>
               ) : null}
             </div>
@@ -432,19 +436,9 @@ function EnrollmentsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Enrollments</h1>
-        <p className="text-muted-foreground text-sm">
-          Every enrollment across school years. Generate a bill for pending
-          enrollments — applying the student's voucher, discounts or freebie.
-        </p>
-        {!isCashier && (
-          <p className="text-muted-foreground mt-2 text-sm">
-            Bill generation is cashier-only. Admins can review enrollments here
-            without generating bills.
-          </p>
-        )}
+        <PageHeader title="Enrollments" />
       </div>
 
       {query.isError ? (
@@ -454,8 +448,8 @@ function EnrollmentsPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
+        <TablePanel>
+          <TableToolbar className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
             <div className="relative w-full">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
@@ -548,7 +542,7 @@ function EnrollmentsPage() {
                 <FunnelXIcon />
               </Button>
             )}
-          </div>
+          </TableToolbar>
 
           <DataTable
             table={table}
@@ -559,7 +553,7 @@ function EnrollmentsPage() {
                 : "No enrollments yet."
             }
           />
-        </div>
+        </TablePanel>
       )}
 
       {billing && (

@@ -27,7 +27,7 @@ export function StaffLayout() {
                 : "Admin Console"}
           </span>
         </header>
-        <main className="min-w-0 flex-1 bg-background p-4 sm:p-6">
+        <main className="min-w-0 flex-1 bg-background p-4 text-sm leading-relaxed sm:p-6">
           <Outlet />
         </main>
       </SidebarInset>
