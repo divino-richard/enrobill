@@ -252,7 +252,7 @@ export function StudentDashboard() {
         </DashboardPanel>
       </div>
 
-      <StudentReferralCard showWhenUnavailable={student.yearLevel === "grade_11" || student.yearLevel === "grade_12"} />
+      <StudentReferralCard compact showWhenUnavailable={student.yearLevel === "grade_11" || student.yearLevel === "grade_12"} />
     </div>
   );
 }

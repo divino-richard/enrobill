@@ -39,7 +39,7 @@ const BENEFIT_DETAILS: Record<string, { label: string; description: string }> = 
   },
 };
 
-export function StudentReferralCard({ showWhenUnavailable = false }: { showWhenUnavailable?: boolean }) {
+export function StudentReferralCard({ showWhenUnavailable = false, compact = false }: { showWhenUnavailable?: boolean; compact?: boolean }) {
   const summaryQuery = useMyReferrals();
   const createCode = useCreateMyReferralCode();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
@@ -73,7 +73,7 @@ export function StudentReferralCard({ showWhenUnavailable = false }: { showWhenU
       : summary.code?.isActive === false
         ? "This code is inactive. Contact Northlink before sharing it."
         : !summary.eligibleToRefer && !summary.code
-          ? "You need an enrolled Grade 11 record in the immediately preceding school year to create a code."
+          ? "To create a referral code, you must have been enrolled in Grade 11 in the previous school year."
           : null;
 
   async function copyCode() {
@@ -92,27 +92,29 @@ export function StudentReferralCard({ showWhenUnavailable = false }: { showWhenU
 
   return (
     <Sheet>
-      <section aria-label="Referral tuition incentive" className={bannerStyles({ className: "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" })}>
-        <div className="flex min-w-0 items-start gap-3">
-          <UsersRoundIcon aria-hidden="true" className="text-current mt-0.5 size-6 shrink-0" />
-          <div className="min-w-0 space-y-1">
-            <h2 className="text-current text-base font-semibold">
-              {unavailableReason ? "Referral tuition incentive" : "Invite a student. Unlock your tuition benefit."}
+      <section aria-label="Referral tuition incentive" className={compact
+        ? "border-primary/15 bg-primary/5 flex flex-col gap-5 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-7 sm:py-6"
+        : bannerStyles({ className: "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" })}>
+        <div className="flex min-w-0 items-start gap-4">
+          <UsersRoundIcon aria-hidden="true" className={compact ? "text-primary dark:text-foreground mt-0.5 size-6 shrink-0" : "text-current mt-0.5 size-6 shrink-0"} />
+          <div className="min-w-0 space-y-1.5">
+            <h2 className={compact ? "text-foreground text-base font-semibold" : "text-current text-base font-semibold"}>
+              {compact || unavailableReason ? "Referral tuition incentive" : "Invite a student. Unlock your tuition benefit."}
             </h2>
-            <p className="text-current text-sm leading-relaxed">
+            <p className={compact ? "text-foreground/75 max-w-prose text-sm leading-relaxed" : "text-current text-sm leading-relaxed"}>
               {unavailableReason ?? "Refer a Grade 11 applicant. You may both qualify for free tuition with your own vouchers."}
             </p>
           </div>
         </div>
         <SheetTrigger asChild>
           <Button
-            variant={unavailableReason ? "outline" : "default"}
+            variant={compact || unavailableReason ? "outline" : "default"}
             size="sm"
-            className={unavailableReason
+            className={compact ? "text-primary dark:text-foreground border-primary/20 h-11 w-full gap-2 px-4 shadow-none motion-reduce:transition-none sm:w-auto sm:self-center" : unavailableReason
               ? "self-start sm:self-auto"
               : "self-start motion-reduce:transition-none sm:self-auto"}
           >
-            {unavailableReason ? "View referral" : canShareCode ? "Share your code" : canCreateCode ? "Start referring" : "View referral"}
+            {unavailableReason ? (compact && campaignEnabled && targetSchoolYear && !summary.eligibleToRefer && !summary.code ? "View requirements" : "View referral") : canShareCode ? "Share your code" : canCreateCode ? "Start referring" : "View referral"}
             <ArrowRightIcon aria-hidden="true" className="motion-safe:transition-transform motion-safe:group-hover/button:translate-x-0.5" />
           </Button>
         </SheetTrigger>
