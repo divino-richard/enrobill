@@ -21,6 +21,7 @@ class SchoolYearFeeResource extends JsonResource
             'schoolYearId' => $this->school_year_id,
             'yearLevel' => $this->year_level,
             'category' => $this->category,
+            'droppingComponent' => $this->dropping_component,
             'name' => $this->name,
             'type' => $this->type,
             'amount' => (float) $this->amount,

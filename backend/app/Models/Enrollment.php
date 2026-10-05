@@ -3,17 +3,39 @@
 namespace App\Models;
 
 use App\Actions\ReferralLifecycle;
+use App\Services\StudentCreditService;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Validation\ValidationException;
 
 #[Fillable([
-    'student_id', 'school_year_id', 'section_id', 'discount_id', 'track', 'year_level', 'no_downpayment', 'status', 'enrolled_at', 'created_by',
+    'student_id', 'school_year_id', 'section_id', 'discount_id', 'track', 'year_level', 'no_downpayment', 'status', 'enrolled_at', 'created_by', 'returning_from_enrollment_id', 'dropping_category',
 ])]
 class Enrollment extends Model
 {
+    protected static function booted(): void
+    {
+        static::updating(function (self $enrollment): void {
+            if ($enrollment->isDirty('status') && $enrollment->status === 'enrolled'
+                && ! $enrollment->canActivate()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Meet this enrollment’s payment requirement and settle previous balances or record an approved payment arrangement first.',
+                ]);
+            }
+        });
+    }
+
+    public function canActivate(): bool
+    {
+        $bill = $this->bill()->first();
+
+        return $bill !== null && $bill->enrollmentDownpaymentMet()
+            && app(StudentCreditService::class)->priorDebtClear($this);
+    }
+
     /**
      * @return array<string, string>
      */
@@ -103,7 +125,7 @@ class Enrollment extends Model
      */
     public function markEnrolled(): void
     {
-        if ($this->status === 'pending') {
+        if ($this->status === 'pending' && $this->canActivate()) {
             $this->update(['status' => 'enrolled', 'enrolled_at' => now()]);
 
             // Referral success is tied to the actual Grade 11 enrollment

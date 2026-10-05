@@ -10,8 +10,11 @@ use App\Http\Resources\BillResource;
 use App\Models\Bill;
 use App\Models\BillAdjustment;
 use App\Models\Discount;
+use App\Models\Enrollment;
 use App\Models\IncentiveAward;
+use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -19,16 +22,38 @@ class BillAdjustmentController extends Controller
 {
     public function __construct(private NotifyStudent $notify) {}
 
+    public function store(Request $request, Bill $bill, GenerateInstallmentSchedule $generate, ReconcileEnrollmentIncentives $reconcile): BillResource
+    {
+        return $this->locked($bill, fn ($locked) => $this->storeLocked($request, $locked, $generate, $reconcile));
+    }
+
+    public function destroy(Bill $bill, BillAdjustment $adjustment, GenerateInstallmentSchedule $generate, ReconcileEnrollmentIncentives $reconcile): BillResource
+    {
+        return $this->locked($bill, fn ($locked) => $this->destroyLocked($locked, $adjustment, $generate, $reconcile));
+    }
+
+    private function locked(Bill $bill, callable $action): BillResource
+    {
+        return DB::transaction(function () use ($bill, $action) {
+            Student::whereKey($bill->student_id)->lockForUpdate()->firstOrFail();
+            if ($bill->enrollment_id) {
+                Enrollment::whereKey($bill->enrollment_id)->lockForUpdate()->firstOrFail();
+            }
+
+            return $action(Bill::whereKey($bill->id)->lockForUpdate()->firstOrFail());
+        });
+    }
+
     /**
      * Apply a catalog discount to a bill, snapshotting its resolved peso credit.
      */
-    public function store(
+    private function storeLocked(
         Request $request,
         Bill $bill,
         GenerateInstallmentSchedule $generate,
         ReconcileEnrollmentIncentives $reconcile,
-    ): BillResource
-    {
+    ): BillResource {
+        $bill->assertMutableAssessment();
         $validated = $request->validate([
             'discountId' => [
                 'required', 'integer', 'exists:discounts,id',
@@ -83,14 +108,14 @@ class BillAdjustmentController extends Controller
     /**
      * Remove an applied discount from a bill.
      */
-    public function destroy(
+    private function destroyLocked(
         Bill $bill,
         BillAdjustment $adjustment,
         GenerateInstallmentSchedule $generate,
         ReconcileEnrollmentIncentives $reconcile,
-    ): BillResource
-    {
+    ): BillResource {
         abort_if($adjustment->bill_id !== $bill->id, 404);
+        $bill->assertMutableAssessment();
 
         if ($adjustment->incentive_key !== null) {
             throw ValidationException::withMessages([

@@ -15,6 +15,7 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class BillController extends Controller
 {
@@ -52,12 +53,7 @@ class BillController extends Controller
                 fn ($q) => $q->where('status', $request->string('status')->value()),
             )
             ->when($trackingState === 'with_balance', fn ($q) => $q->where('status', '!=', 'paid'))
-            ->when(
-                $trackingState === 'due_now',
-                fn ($q) => $q
-                    ->where('status', '!=', 'paid')
-                    ->whereHas('installments', fn ($i) => $i->whereDate('due_date', '<=', now()->toDateString())),
-            )
+            ->when($trackingState === 'due_now', fn ($q) => $q->where('status', '!=', 'paid'))
             ->when(
                 $trackingState === 'pending_payment',
                 fn ($q) => $q->whereHas('payments', fn ($p) => $p->where('status', 'pending')),
@@ -71,6 +67,13 @@ class BillController extends Controller
                 });
             })
             ->with(['student', 'schoolYear', 'items', 'adjustments', 'installments']);
+
+        if ($trackingState === 'due_now') {
+            // Arrangement dates replace the original schedule. Paid installments
+            // must not cause a bill to remain in the due-now queue.
+            $dueIds = (clone $query)->get()->filter(fn (Bill $bill) => $bill->hasAmountDueBy(now('Asia/Manila')->toDateString()))->modelKeys();
+            $query->whereKey($dueIds);
+        }
 
         if ($sortKey === 'student') {
             $query->orderBy(
@@ -128,9 +131,15 @@ class BillController extends Controller
      */
     public function destroy(Bill $bill): Response
     {
-        abort_unless($bill->isVoidable(), 422, 'This bill has payments and cannot be voided.');
-
-        $bill->delete();
+        DB::transaction(function () use ($bill) {
+            Student::whereKey($bill->student_id)->lockForUpdate()->firstOrFail();
+            if ($bill->enrollment_id) {
+                Enrollment::whereKey($bill->enrollment_id)->lockForUpdate()->firstOrFail();
+            }
+            $bill = Bill::whereKey($bill->id)->lockForUpdate()->firstOrFail();
+            abort_unless($bill->isVoidable(), 422, 'This bill has payment, credit or dropping history and cannot be voided.');
+            $bill->delete();
+        });
 
         return response()->noContent();
     }

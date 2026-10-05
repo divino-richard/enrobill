@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['school_year_id', 'year_level', 'category', 'name', 'type', 'amount', 'sequence'])]
+#[Fillable(['school_year_id', 'year_level', 'category', 'name', 'type', 'dropping_component', 'amount', 'sequence'])]
 class SchoolYearFee extends Model
 {
     /** Whether a fee item is a base charge or an extra add-on (e.g. Grade 12). */

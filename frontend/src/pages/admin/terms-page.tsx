@@ -1,3 +1,4 @@
+import { DroppingPolicyDialog } from '@/features/dropping-finance/policy-dialog';
 import { bannerStyles } from "@/components/ui/banner";
 import { PageHeader } from "@/components/page-header";
 import { useState } from "react";
@@ -769,6 +770,7 @@ function TermsPage() {
   const remove = useDeleteTerm();
 
   const [newTermOpen, setNewTermOpen] = useState(false);
+  const [droppingPolicyTerm, setDroppingPolicyTerm] = useState<Term | null>(null);
   const [policyTerm, setPolicyTerm] = useState<Term | null>(null);
   const [freebieTerm, setFreebieTerm] = useState<Term | null>(null);
   const [referralFreebieTerm, setReferralFreebieTerm] =
@@ -814,6 +816,7 @@ function TermsPage() {
 
   return (
     <div className="space-y-4">
+      <DroppingPolicyDialog term={droppingPolicyTerm} onClose={() => setDroppingPolicyTerm(null)} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <PageHeader title="Academic Years" />
@@ -974,6 +977,7 @@ function TermsPage() {
                           Follow end-date schedule
                         </DropdownMenuItem>
                       )}
+                      <DropdownMenuItem onClick={() => setDroppingPolicyTerm(term)}><WalletIcon />Dropping charges</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setPolicyTerm(term)}>
                         <WalletIcon />
                         Installment policy

@@ -8,10 +8,12 @@ use App\Http\Resources\SectionResource;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
 use App\Models\Section;
+use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -29,7 +31,7 @@ class SectionController extends Controller
             ->when($schoolYearId, fn ($q) => $q->where('school_year_id', $schoolYearId))
             ->when($request->filled('program'), fn ($q) => $q->where('program', $request->string('program')->value()))
             ->when($request->filled('yearLevel'), fn ($q) => $q->where('year_level', $request->string('yearLevel')->value()))
-            ->with(['adviser', 'enrollments' => fn ($q) => $q->with('student')->orderBy('id')])
+            ->with(['adviser', 'enrollments' => fn ($q) => $q->where('status', 'enrolled')->with('student')->orderBy('id')])
             ->orderBy('program')
             ->orderBy('year_level')
             ->orderBy('name')
@@ -132,8 +134,12 @@ class SectionController extends Controller
 
     public function destroy(Section $section): Response
     {
-        // Enrolled students are unassigned (section_id nulled) by the FK.
-        $section->delete();
+        DB::transaction(function () use ($section) {
+            $section = Section::lockForUpdate()->findOrFail($section->id);
+            abort_if($section->enrollments()->where('status', 'dropped')->lockForUpdate()->exists(),
+                422, 'This section contains a historical dropped enrollment and cannot be deleted.');
+            $section->delete();
+        }, 3);
 
         return response()->noContent();
     }
@@ -142,6 +148,17 @@ class SectionController extends Controller
      * Place (or move/unassign) an enrollment in a section.
      */
     public function assign(Request $request, Enrollment $enrollment, NotifyStudent $notify): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $enrollment, $notify) {
+            Student::lockForUpdate()->findOrFail($enrollment->student_id);
+            $enrollment = Enrollment::lockForUpdate()->findOrFail($enrollment->id);
+            abort_if($enrollment->status === 'dropped', 422, 'The section of a dropped enrollment is part of its history and cannot be changed.');
+
+            return $this->assignLocked($request, $enrollment, $notify);
+        }, 3);
+    }
+
+    private function assignLocked(Request $request, Enrollment $enrollment, NotifyStudent $notify): JsonResponse
     {
         $validated = $request->validate([
             'sectionId' => ['present', 'nullable', 'integer', 'exists:sections,id'],
@@ -165,7 +182,7 @@ class SectionController extends Controller
             ]);
         }
 
-        $occupied = $section->enrollments()->whereKeyNot($enrollment->id)->count();
+        $occupied = $section->enrollments()->where('status', 'enrolled')->whereKeyNot($enrollment->id)->count();
         if ($occupied >= $section->capacity) {
             throw ValidationException::withMessages([
                 'sectionId' => 'That section is already full.',

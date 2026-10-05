@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Actions\SeedFeeScheduleFromTemplate;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SchoolYearResource;
+use App\Models\DroppingPolicy;
 use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -232,6 +233,8 @@ class SchoolYearController extends Controller
      */
     public function destroy(SchoolYear $schoolYear): Response
     {
+        abort_if(DroppingPolicy::where('school_year_id', $schoolYear->id)->exists(), 422,
+            'This school year has a dropping policy history and cannot be deleted.');
         $hasEnrollments = $schoolYear->enrollments()->exists();
         $hasBills = $schoolYear->bills()->exists();
 

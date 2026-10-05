@@ -86,7 +86,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
       return `
         <tr>
           <td>${escapeHtml(adjustment.label)}${reasons}</td>
-          <td class="amount discount">− ${formatPeso(adjustment.amount)}</td>
+          <td class="amount">${bill.droppingAssessment ? "" : "− "}${formatPeso(adjustment.amount)}</td>
         </tr>`;
     })
     .join("");
@@ -201,7 +201,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
     ${
       adjustmentRows
         ? `<table>
-      <caption>Credits applied</caption>
+      <caption>${bill.droppingAssessment ? "Historical vouchers and incentives (not deducted again)" : "Credits applied"}</caption>
       <thead><tr><th>Credit</th><th class="amount">Amount</th></tr></thead>
       <tbody>${adjustmentRows}</tbody>
     </table>`
@@ -221,13 +221,15 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
     </table>
 
     <div class="totals">
-      <div class="row"><span class="muted">Gross total</span><span>${formatPeso(bill.total)}</span></div>
+      <div class="row"><span class="muted">${bill.droppingAssessment ? "Original assessment" : "Gross total"}</span><span>${formatPeso(bill.total)}</span></div>
       ${
-        bill.discountTotal > 0
+        !bill.droppingAssessment && bill.discountTotal > 0
           ? `<div class="row discount"><span>Credits</span><span>− ${formatPeso(bill.discountTotal)}</span></div>`
           : ""
       }
-      <div class="row"><span class="muted">Net total</span><span>${formatPeso(bill.netTotal)}</span></div>
+      <div class="row"><span class="muted">${bill.droppingAssessment ? "Final dropping charge" : "Net total"}</span><span>${formatPeso(bill.netTotal)}</span></div>
+      ${(bill.creditApplied ?? 0) > 0 ? `<div class="row"><span>Student credit used</span><span>${formatPeso(bill.creditApplied ?? 0)}</span></div>` : ""}
+      ${(bill.creditIssued ?? 0) > 0 ? `<div class="row"><span>Credit issued for future enrollment</span><span>${formatPeso(bill.creditIssued ?? 0)}</span></div>` : ""}
       <div class="row"><span class="muted">Total paid</span><span>${formatPeso(totalReceived)}</span></div>
       <div class="row grand"><span>Balance</span><span>${formatPeso(bill.balance)}</span></div>
     </div>

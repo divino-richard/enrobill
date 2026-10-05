@@ -6,9 +6,17 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['bill_id', 'name', 'category', 'amount'])]
+#[Fillable(['bill_id', 'name', 'category', 'dropping_component', 'amount'])]
 class BillItem extends Model
 {
+    public const DROPPING_COMPONENTS = ['registration', 'miscellaneous', 'laboratory', 'tuition', 'other'];
+
+    protected static function booted(): void
+    {
+        static::saving(fn (BillItem $item) => $item->bill?->assertMutableAssessment());
+        static::deleting(fn (BillItem $item) => $item->bill?->assertMutableAssessment());
+    }
+
     /**
      * @return array<string, string>
      */

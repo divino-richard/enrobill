@@ -7,10 +7,12 @@ use App\Http\Controllers\Admin\BillController as AdminBillController;
 use App\Http\Controllers\Admin\ClassScheduleController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
+use App\Http\Controllers\Admin\DroppingPolicyController;
 use App\Http\Controllers\Admin\EnrollmentController as AdminEnrollmentController;
 use App\Http\Controllers\Admin\EnrollmentIncentiveController as AdminEnrollmentIncentiveController;
 use App\Http\Controllers\Admin\FeeController as AdminFeeController;
 use App\Http\Controllers\Admin\FreebieController as AdminFreebieController;
+use App\Http\Controllers\Admin\PaymentArrangementController;
 use App\Http\Controllers\Admin\PaymentChannelController as AdminPaymentChannelController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProgramController as AdminProgramController;
@@ -18,12 +20,14 @@ use App\Http\Controllers\Admin\ProgramTransferRequestController as AdminProgramT
 use App\Http\Controllers\Admin\ProgressionController as AdminProgressionController;
 use App\Http\Controllers\Admin\ReferralController as AdminReferralController;
 use App\Http\Controllers\Admin\ReportsController as AdminReportsController;
+use App\Http\Controllers\Admin\ReturningEnrollmentController;
 use App\Http\Controllers\Admin\SchoolYearController as AdminSchoolYearController;
 use App\Http\Controllers\Admin\SectionController as AdminSectionController;
 use App\Http\Controllers\Admin\StudentController as AdminStudentController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DroppingRequestController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentChannelController;
@@ -88,6 +92,31 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    Route::middleware('role:student,admin')->group(function () {
+        Route::get('/dropping-requests/form', [DroppingRequestController::class, 'form']);
+        Route::get('/dropping-requests/{dropping}/assessment', [DroppingRequestController::class, 'assessment']);
+        Route::get('/dropping-requests/{dropping}', [DroppingRequestController::class, 'show']);
+        Route::get('/dropping-requests/{dropping}/files/{fileId}', [DroppingRequestController::class, 'file']);
+        Route::get('/dropping-requests/{dropping}/acknowledgment', [DroppingRequestController::class, 'acknowledgment']);
+    });
+    Route::middleware('role:student')->group(function () {
+        Route::get('/me/dropping-requests', [DroppingRequestController::class, 'index']);
+        Route::post('/me/dropping-requests', [DroppingRequestController::class, 'store']);
+        Route::post('/me/dropping-requests/{dropping}/submit', [DroppingRequestController::class, 'submit'])->middleware('throttle:10,1');
+        Route::post('/me/dropping-requests/{dropping}/cancel', [DroppingRequestController::class, 'cancel']);
+    });
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/admin/school-years/{schoolYear}/dropping-policy', [DroppingPolicyController::class, 'show']);
+        Route::put('/admin/school-years/{schoolYear}/dropping-policy', [DroppingPolicyController::class, 'update']);
+        Route::put('/admin/bills/{bill}/dropping-classification', [DroppingPolicyController::class, 'classification']);
+        Route::put('/admin/enrollments/{enrollment}/dropping-category', [DroppingPolicyController::class, 'category']);
+        Route::get('/admin/students/{student}/returning-summary', [ReturningEnrollmentController::class, 'summary']);
+        Route::post('/admin/students/{student}/returning-enrollments', [ReturningEnrollmentController::class, 'store']);
+        Route::get('/admin/dropping-requests', [DroppingRequestController::class, 'index']);
+        Route::post('/admin/dropping-requests/{dropping}/decision', [DroppingRequestController::class, 'decision']);
+        Route::post('/admin/dropping-requests/{dropping}/confirm', [DroppingRequestController::class, 'confirm']);
+    });
+
     // The current authenticated user (any role may read their own record).
     Route::get('/me', fn (Request $request) => new UserResource($request->user()));
 
@@ -132,6 +161,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/enrollments', [StudentBillController::class, 'enrollments']);
     Route::post('/me/bill/payments/presign', [StudentBillController::class, 'presign']);
     Route::post('/me/bill/payments', [StudentBillController::class, 'storePayment']);
+    Route::post('/me/bills/{bill}/payments', [StudentBillController::class, 'storeBillPayment']);
+    Route::put('/admin/bills/{bill}/payment-arrangement', [PaymentArrangementController::class, 'update'])->middleware('role:admin,cashier');
 
     // Active payment channels (QR codes) students can pay to.
     Route::get('/payment-channels', [PaymentChannelController::class, 'index']);

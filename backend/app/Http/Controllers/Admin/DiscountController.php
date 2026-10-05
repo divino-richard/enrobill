@@ -85,6 +85,8 @@ class DiscountController extends Controller
      */
     public function destroy(Discount $discount): Response
     {
+        abort_if(BillAdjustment::where('discount_id', $discount->id)->whereHas('bill.droppingAssessment')->exists(), 422,
+            'This voucher is part of an approved dropping assessment and must be retained.');
         if ($this->isLockedByAppliedIncentive($discount)) {
             throw ValidationException::withMessages([
                 'discount' => 'This voucher unlocked a permanent tuition incentive and cannot be deleted.',

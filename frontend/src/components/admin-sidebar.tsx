@@ -133,6 +133,13 @@ const navGroups: NavGroup[] = [
         roles: ["admin"],
       },
       {
+        title: "Dropping Requests",
+        roles: ["admin"],
+        url: "/admin/dropping-requests",
+        icon: ClipboardListIcon,
+        ready: true,
+      },
+      {
         title: "Transfer Requests",
         url: "/admin/transfer-requests",
         icon: ArrowRightLeftIcon,

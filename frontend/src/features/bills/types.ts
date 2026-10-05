@@ -1,3 +1,4 @@
+import type { DroppingAssessment, DroppingCategory, DroppingComponent, PaymentArrangement } from '@/features/dropping-finance/api';
 export type BillStatus = "unpaid" | "partial" | "paid";
 
 export type BillTrackingState =
@@ -54,6 +55,7 @@ export const PAYMENT_STATUS_META: Record<
 };
 
 export interface BillItem {
+  droppingComponent?: DroppingComponent | null;
   id?: number;
   name: string;
   category: string;
@@ -86,6 +88,7 @@ export interface BillInstallment {
 }
 
 export interface BillPayment {
+  creditProtected?: boolean;
   id: number;
   amount: number;
   method: PaymentMethod;
@@ -107,6 +110,15 @@ export interface BillStudent {
 }
 
 export interface Bill {
+  enrollmentId?: number | null;
+  enrollmentStatus?: string | null;
+  droppingCategory?: DroppingCategory | null;
+  droppingAssessment?: DroppingAssessment | null;
+  creditApplied?: number; creditIssued?: number; availableCredit?: number; previousBalance?: number;
+  assessmentOriginalTotal?: number; effectivePaymentTotal?: number;
+  paymentArrangement?: PaymentArrangement | null;
+  creditHistory?: { id: number; sourceBillId: number; amount: number; allocated: number; remaining: number; allocations: { id: number; billId: number; amount: number; releasedAmount: number }[] }[];
+
   id: number;
   studentId: number;
   schoolYearId: number;

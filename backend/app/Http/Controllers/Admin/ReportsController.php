@@ -88,11 +88,8 @@ class ReportsController extends Controller
             fn ($q) => $q->whereRaw('1 = 0'),
         );
 
-        $gross = (float) (clone $bills)->sum('total');
-        $collected = round((float) (clone $bills)->sum('amount_paid'), 2);
-        $discounts = (float) BillAdjustment::query()
-            ->whereIn('bill_id', (clone $bills)->select('id'))
-            ->sum('amount');
+        $records = (clone $bills)->with(['adjustments', 'droppingAssessment', 'creditAllocations'])->get();
+        $collected = round($records->sum('amount_paid'), 2);
         $voucherCredits = (float) BillAdjustment::query()
             ->whereIn('bill_id', (clone $bills)->select('id'))
             ->whereHas('discount', fn ($q) => $q->where('category', 'voucher'))
@@ -102,8 +99,8 @@ class ReportsController extends Controller
             ->whereNotNull('incentive_key')
             ->sum('amount');
 
-        $billed = round(max($gross - $discounts, 0), 2);
-        $outstanding = round(max($billed - $collected, 0), 2);
+        $billed = round($records->sum(fn (Bill $bill) => $bill->netTotal()), 2);
+        $outstanding = round($records->sum(fn (Bill $bill) => $bill->balance()), 2);
 
         $pendingPayments = Payment::query()
             ->where('status', 'pending')
@@ -141,28 +138,15 @@ class ReportsController extends Controller
             fn ($q) => $q->whereRaw('1 = 0'),
         );
 
-        $byStatus = (clone $bills)
-            ->selectRaw('status, count(*) as count, sum(total) as gross')
-            ->groupBy('status')
-            ->get()
-            ->keyBy('status');
+        $byStatus = (clone $bills)->with(['adjustments', 'droppingAssessment'])->get()->groupBy('status');
 
-        $discountsByStatus = BillAdjustment::query()
-            ->join('bills', 'bills.id', '=', 'bill_adjustments.bill_id')
-            ->whereIn('bills.id', (clone $bills)->select('id'))
-            ->selectRaw('bills.status as status, sum(bill_adjustments.amount) as discounts')
-            ->groupBy('bills.status')
-            ->pluck('discounts', 'status');
-
-        return collect(self::BILL_STATUSES)->map(function (string $status) use ($byStatus, $discountsByStatus) {
-            $row = $byStatus->get($status);
-            $gross = (float) ($row->gross ?? 0);
-            $discounts = (float) ($discountsByStatus[$status] ?? 0);
+        return collect(self::BILL_STATUSES)->map(function (string $status) use ($byStatus) {
+            $rows = $byStatus->get($status, collect());
 
             return [
                 'status' => $status,
-                'count' => (int) ($row->count ?? 0),
-                'total' => round(max($gross - $discounts, 0), 2),
+                'count' => $rows->count(),
+                'total' => round($rows->sum(fn (Bill $bill) => $bill->netTotal()), 2),
                 'note' => self::BILL_STATUS_NOTES[$status],
             ];
         })->values()->all();
@@ -231,14 +215,14 @@ class ReportsController extends Controller
                     'id' => $bill->id,
                     'studentName' => trim($bill->student->first_name.' '.$bill->student->last_name),
                     'studentNumber' => $bill->student->student_number,
-                    'program' => $bill->student->track_or_strand,
-                    'yearLevel' => $bill->student->year_level,
+                    'program' => $bill->enrollment?->track ?? $bill->student->track_or_strand,
+                    'yearLevel' => $bill->enrollment?->year_level ?? $bill->student->year_level,
                     'schoolYear' => $bill->schoolYear?->school_year,
                     'status' => $bill->status,
                     'paymentStatus' => $latestPayment?->status,
                     'netTotal' => $netTotal,
                     'amountPaid' => $paid,
-                    'balance' => round(max($netTotal - $paid, 0), 2),
+                    'balance' => $bill->balance(),
                     'amountDue' => $bill->amountDue(),
                 ];
             })

@@ -7,7 +7,6 @@ use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\Bill;
-use App\Models\BillAdjustment;
 use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\SchoolYear;
@@ -15,6 +14,7 @@ use App\Models\Student;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class DashboardController extends Controller
 {
@@ -74,14 +74,10 @@ class DashboardController extends Controller
             fn ($query) => $query->whereRaw('1 = 0'),
         );
 
-        $gross = (float) (clone $bills)->sum('total');
-        $collected = round((float) (clone $bills)->sum('amount_paid'), 2);
-        $discounts = (float) BillAdjustment::query()
-            ->whereIn('bill_id', (clone $bills)->select('id'))
-            ->sum('amount');
-
-        $billed = round(max($gross - $discounts, 0), 2);
-        $outstanding = round(max($billed - $collected, 0), 2);
+        $records = (clone $bills)->with(['adjustments', 'droppingAssessment', 'creditAllocations'])->get();
+        $collected = round($records->sum('amount_paid'), 2);
+        $billed = round($records->sum(fn (Bill $bill) => $bill->netTotal()), 2);
+        $outstanding = round($records->sum(fn (Bill $bill) => $bill->balance()), 2);
 
         $byStatus = (clone $bills)
             ->selectRaw('status, count(*) as count')
@@ -269,10 +265,7 @@ class DashboardController extends Controller
                 )
                 ->whereBetween('created_at', [$start, $end]);
 
-            $gross = (float) (clone $bills)->sum('total');
-            $discounts = (float) BillAdjustment::query()
-                ->whereIn('bill_id', (clone $bills)->select('id'))
-                ->sum('amount');
+            $billed = round((clone $bills)->with(['adjustments', 'droppingAssessment'])->get()->sum(fn (Bill $bill) => $bill->netTotal()), 2);
 
             $collected = round((float) Payment::query()
                 ->where('status', 'verified')
@@ -288,7 +281,7 @@ class DashboardController extends Controller
 
             return [
                 'month' => $start->format('M'),
-                'billed' => round(max($gross - $discounts, 0), 2),
+                'billed' => $billed,
                 'collected' => $collected,
             ];
         })->all();
@@ -297,7 +290,7 @@ class DashboardController extends Controller
     /**
      * The last $months months, oldest first, ending with the current one.
      *
-     * @return \Illuminate\Support\Collection<int, CarbonImmutable>
+     * @return Collection<int, CarbonImmutable>
      */
     private function recentMonths(int $months)
     {

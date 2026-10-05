@@ -92,6 +92,11 @@ class YearEndCloseout
         return DB::transaction(function () use ($students, $year, $decision, $userId) {
             $done = 0;
             foreach ($students as $student) {
+                // Recheck under the same enrollment lock used by official dropping.
+                $source = $student->enrollments()->where('school_year_id', $year->id)->lockForUpdate()->first();
+                if ($source?->status !== 'enrolled') {
+                    continue;
+                }
                 $this->applyDecision($student, $year, $decision, $userId);
                 $done++;
             }
@@ -123,6 +128,12 @@ class YearEndCloseout
         return DB::transaction(function () use ($pending, $next, $year, $userId) {
             $done = 0;
             foreach ($pending as $decision) {
+                // A decision made before an official drop must not enroll that
+                // student automatically. Returning students need a new enrollment.
+                $source = $decision->student->enrollments()->where('school_year_id', $year->id)->lockForUpdate()->first();
+                if ($source?->status !== 'enrolled') {
+                    continue;
+                }
                 // A voucher granted on admission covers the student's whole senior
                 // high run, and progression has no accept step to re-grant it, so
                 // it rides along to the new year's enrollment.
@@ -327,7 +338,7 @@ class YearEndCloseout
             $student->enrollments()
                 ->where('school_year_id', $year->id)
                 ->where('status', 'completed')
-                ->update(['status' => 'enrolled']);
+                ->get()->each(fn (Enrollment $enrollment) => $enrollment->update(['status' => 'enrolled']));
         } else {
             // Drop the (unbilled) next-year enrollment and restore the grade and
             // current-standing school year to the ending year they revert to.

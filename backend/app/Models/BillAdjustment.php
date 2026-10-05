@@ -10,6 +10,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['bill_id', 'discount_id', 'incentive_key', 'label', 'type', 'value', 'amount'])]
 class BillAdjustment extends Model
 {
+    protected static function booted(): void
+    {
+        static::saving(fn (BillAdjustment $adjustment) => $adjustment->bill?->assertMutableAssessment());
+        static::deleting(fn (BillAdjustment $adjustment) => $adjustment->bill?->assertMutableAssessment());
+    }
+
     /** One shared credit per bill, regardless of how many awards qualified. */
     public const INCENTIVE_KEY_ZERO_TUITION = 'zero_tuition';
 

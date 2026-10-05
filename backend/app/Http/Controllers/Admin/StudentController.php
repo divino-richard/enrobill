@@ -111,6 +111,13 @@ class StudentController extends Controller
             'status' => ['required', Rule::in(self::STATUSES)],
         ]);
 
+        if ($validated['status'] === 'enrolled') {
+            $latest = $student->enrollments()->with('schoolYear')->get()
+                ->sortByDesc(fn ($enrollment) => $enrollment->schoolYear?->school_year)->first();
+            abort_if($latest?->returning_from_enrollment_id && $latest->status !== 'enrolled',
+                422, 'Activate the returning enrollment after its payment requirements are met.');
+        }
+
         $student->update([
             'first_name' => $validated['firstName'],
             'middle_name' => $validated['middleName'] ?? null,

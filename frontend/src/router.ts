@@ -1,3 +1,4 @@
+import DroppingPage from './features/dropping/dropping-page'
 import { createBrowserRouter } from 'react-router-dom'
 import {
   AdminGuard,
@@ -90,6 +91,9 @@ export const router = createBrowserRouter([
           {
             Component: AdminGuard,
             children: [
+              { path: 'dropping-requests', Component: DroppingPage },
+              { path: 'dropping-requests/:id', Component: DroppingPage },
+
               { path: 'applications', Component: AdminApplicationsPage },
               { path: 'referrals', Component: AdminReferralsPage },
               {
@@ -126,6 +130,8 @@ export const router = createBrowserRouter([
           { path: 'account', Component: AccountPage },
           { path: 'notifications', Component: PortalNotificationsPage },
           { path: 'bills', Component: PortalBillsPage },
+          { path: 'dropping-requests', Component: DroppingPage },
+          { path: 'dropping-requests/:id', Component: DroppingPage },
           { path: 'bills/:id', Component: PortalBillDetailPage },
           { path: 'programs', Component: PortalProgramsPage },
           { path: 'application', Component: ApplicationPage },

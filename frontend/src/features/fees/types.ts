@@ -1,3 +1,4 @@
+import type { DroppingComponent } from '@/features/dropping-finance/api';
 export type FeeYearLevel = "all" | "grade_11" | "grade_12";
 
 export type FeeType = "default" | "add_on";
@@ -10,6 +11,7 @@ export interface SchoolYearFee {
   schoolYearId: number;
   yearLevel: FeeYearLevel;
   category: FeeCategory;
+  droppingComponent?: DroppingComponent | null;
   name: string;
   type: FeeType;
   amount: number;
@@ -21,6 +23,7 @@ export interface FeeInput {
   schoolYearId?: number; // required on create, ignored on update
   yearLevel: FeeYearLevel;
   category: FeeCategory;
+  droppingComponent?: DroppingComponent | null;
   name: string;
   type: FeeType;
   amount: number;

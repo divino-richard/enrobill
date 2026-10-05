@@ -41,6 +41,7 @@ class FeeController extends Controller
             'school_year_id' => $validated['schoolYearId'],
             'year_level' => $validated['yearLevel'],
             'category' => $validated['category'],
+            'dropping_component' => $validated['droppingComponent'] ?? null,
             'name' => $validated['name'],
             'type' => $validated['type'],
             'amount' => $validated['amount'],
@@ -60,6 +61,7 @@ class FeeController extends Controller
         $fee->update([
             'year_level' => $validated['yearLevel'],
             'category' => $validated['category'],
+            'dropping_component' => array_key_exists('droppingComponent', $validated) ? $validated['droppingComponent'] : $fee->dropping_component,
             'name' => $validated['name'],
             'type' => $validated['type'],
             'amount' => $validated['amount'],
@@ -105,6 +107,7 @@ class FeeController extends Controller
                 $source->fees->map(fn (SchoolYearFee $fee) => [
                     'year_level' => $fee->year_level,
                     'category' => $fee->category,
+                    'dropping_component' => $fee->dropping_component,
                     'name' => $fee->name,
                     'type' => $fee->type,
                     'amount' => $fee->amount,
@@ -142,6 +145,7 @@ class FeeController extends Controller
                 : []),
             'yearLevel' => ['required', Rule::in(SchoolYearFee::YEAR_LEVELS)],
             'category' => ['required', Rule::in(SchoolYearFee::CATEGORIES)],
+            'droppingComponent' => ['nullable', Rule::in(['registration', 'miscellaneous', 'laboratory', 'tuition', 'other'])],
             'name' => ['required', 'string', 'max:100'],
             'type' => ['required', Rule::in(SchoolYearFee::TYPES)],
             'amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],

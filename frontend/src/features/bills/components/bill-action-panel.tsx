@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import {
   CalendarClockIcon,
@@ -265,7 +264,7 @@ function PayDialog({
     value: channel.code,
     label: channel.label,
   }));
-  const submit = useSubmitMyPayment();
+  const submit = useSubmitMyPayment(bill.id);
   const nextDue = nextOutstandingInstallment(bill.installments ?? []);
   const hasImmediateDue = bill.amountDue > 0;
   const minimumAmount = hasImmediateDue ? bill.amountDue : Math.min(0.01, bill.balance);
@@ -606,11 +605,11 @@ export function BillActionPanel({
   const dueOverdue = isOverdue(nextDue?.dueDate ?? null);
   const paidPct =
     bill.netTotal > 0
-      ? Math.min(100, Math.round((bill.amountPaid / bill.netTotal) * 100))
+      ? Math.min(100, Math.round(((bill.effectivePaymentTotal ?? bill.amountPaid) / bill.netTotal) * 100))
       : 100;
   const paymentSummary = `${formatPeso(bill.amountPaid)} paid of ${formatPeso(
     bill.netTotal,
-  )}`;
+  )}${(bill.creditApplied ?? 0) > 0 ? ` · ${formatPeso(bill.creditApplied ?? 0)} student credit applied` : ""}`;
   const completionSummary =
     paidPct >= 100 ? "Fully settled" : `${paidPct}% complete`;
   const primaryLabel =
@@ -634,13 +633,9 @@ export function BillActionPanel({
             nextDue.dueDate ? ` on ${formatDate(nextDue.dueDate)}` : ""
           }`
         : "No installment due date is scheduled.";
-  const actionSummary = isCurrentBill
-    ? bill.amountDue > 0
-      ? "Pay online and submit proof for verification."
-      : "Advance payment is available on this bill."
-    : currentBill
-      ? "Online payment is available on the current term bill only."
-      : "Contact the cashier to settle this balance.";
+  const actionSummary = bill.amountDue > 0
+    ? "Pay this bill and submit proof for verification."
+    : "Advance payment is available on this bill.";
   const cardTone = bill.balance <= 0 ? "border-emerald-200/70" : "border-border";
 
   if (bill.balance <= 0) {
@@ -759,23 +754,13 @@ export function BillActionPanel({
             <p className="text-muted-foreground text-xs">{actionSummary}</p>
 
             <div className="flex flex-col gap-2">
-              {isCurrentBill ? (
-                <PayDialog
-                  bill={bill}
-                  channels={channels ?? []}
-                  disabled={hasPending}
-                  triggerClassName="w-full"
-                  triggerLabel={bill.amountDue > 0 ? "Pay now" : "Prepay now"}
-                />
-              ) : (
-                currentBill && (
-                  <Button asChild variant="outline" size="sm" className="w-full">
-                    <Link to={`/portal/bills/${currentBill.id}`}>
-                      Open current bill
-                    </Link>
-                  </Button>
-                )
-              )}
+              <PayDialog
+                bill={bill}
+                channels={channels ?? []}
+                disabled={hasPending}
+                triggerClassName="w-full"
+                triggerLabel={bill.amountDue > 0 ? "Pay now" : "Prepay now"}
+              />
               {bill.amountPaid > 0 && (
                 <Button
                   variant="outline"

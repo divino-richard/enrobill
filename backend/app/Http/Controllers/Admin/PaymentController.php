@@ -6,8 +6,13 @@ use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
+use App\Models\Enrollment;
 use App\Models\Payment;
+use App\Models\Student;
+use App\Services\Currency;
+use App\Services\PaymentArrangementService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -17,146 +22,114 @@ class PaymentController extends Controller
 
     public function __construct(private NotifyStudent $notify) {}
 
-    /**
-     * Record a verified payment against a bill and recompute its balance and
-     * status. (Cashier-recorded payments — e.g. cash at the window — are trusted
-     * and count immediately.)
-     */
     public function store(Request $request, Bill $bill): BillResource
     {
-        $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
+        $input = $request->validate([
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:99999999.99'],
             'method' => ['required', Rule::in(self::METHODS)],
             'reference' => ['nullable', 'string', 'max:100'],
             'paidAt' => ['required', 'date'],
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $balance = round($bill->netTotal() - (float) $bill->amount_paid, 2);
-
-        if ($validated['amount'] > $balance + 0.01) {
-            throw ValidationException::withMessages([
-                'amount' => "The payment exceeds the outstanding balance of {$balance}.",
+        return $this->locked($bill, function (Bill $bill) use ($request, $input) {
+            abort_if($bill->payments()->where('status', 'pending')->exists(), 422, 'Review the pending payment before recording another payment.');
+            $this->validateAmount($bill, (float) $input['amount']);
+            $bill->payments()->create([
+                'amount' => $input['amount'], 'method' => $input['method'], 'status' => 'verified',
+                'reference' => $input['reference'] ?? null, 'paid_at' => $input['paidAt'],
+                'note' => $input['note'] ?? null, 'recorded_by' => $request->user()->id,
             ]);
-        }
-
-        $bill->payments()->create([
-            'amount' => $validated['amount'],
-            'method' => $validated['method'],
-            'status' => 'verified',
-            'reference' => $validated['reference'] ?? null,
-            'paid_at' => $validated['paidAt'],
-            'note' => $validated['note'] ?? null,
-            'recorded_by' => $request->user()?->id,
-        ]);
-
-        $bill->recalculate();
-        $bill->settleEnrollment();
-
-        if ($bill->student !== null) {
-            ($this->notify)(
-                $bill->student,
-                'billing',
-                'Payment received',
-                'A payment of ₱'.number_format((float) $validated['amount'], 2).' was recorded on your bill.',
-                ctaLabel: 'View bill',
-                ctaUrl: '/portal/bills',
-            );
-        }
-
-        return $this->billResource($bill);
+            $this->settle($bill);
+            $this->notifyPayment($bill, 'Payment received', 'A payment of ₱'.number_format((float) $input['amount'], 2).' was recorded on your bill.');
+        });
     }
 
-    /**
-     * Finalize a student-submitted payment — verify it so it counts toward the
-     * balance.
-     */
     public function verify(Bill $bill, Payment $payment): BillResource
     {
         abort_if($payment->bill_id !== $bill->id, 404);
 
-        $balance = round($bill->netTotal() - (float) $bill->amount_paid, 2);
-
-        if ($payment->status !== 'verified' && (float) $payment->amount > $balance + 0.01) {
-            throw ValidationException::withMessages([
-                'payment' => "Verifying this payment would exceed the outstanding balance of {$balance}.",
-            ]);
-        }
-
-        $payment->update(['status' => 'verified']);
-        $bill->recalculate();
-        $bill->settleEnrollment();
-
-        if ($bill->student !== null) {
-            ($this->notify)(
-                $bill->student,
-                'billing',
-                'Payment verified',
-                'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' has been verified.',
-                ctaLabel: 'View bill',
-                ctaUrl: '/portal/bills',
-            );
-        }
-
-        return $this->billResource($bill);
+        return $this->locked($bill, function (Bill $bill) use ($payment) {
+            $payment = $bill->payments()->lockForUpdate()->findOrFail($payment->id);
+            if ($payment->status === 'verified') {
+                return;
+            }
+            abort_unless($payment->status === 'pending', 422, 'Only a pending payment can be verified.');
+            $this->validateAmount($bill, (float) $payment->amount);
+            $payment->update(['status' => 'verified']);
+            $this->settle($bill);
+            $this->notifyPayment($bill, 'Payment verified', 'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' has been verified.');
+        });
     }
 
-    /**
-     * Reject a student-submitted payment (e.g. invalid proof).
-     */
     public function reject(Bill $bill, Payment $payment): BillResource
     {
         abort_if($payment->bill_id !== $bill->id, 404);
 
-        $payment->update(['status' => 'rejected']);
-        $bill->recalculate();
-
-        if ($bill->student !== null) {
-            ($this->notify)(
-                $bill->student,
-                'billing',
-                'Payment rejected',
-                'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' was rejected. Please resubmit.',
-                ctaLabel: 'View bill',
-                ctaUrl: '/portal/bills',
-                actionRequired: true,
-            );
-        }
-
-        return $this->billResource($bill);
+        return $this->locked($bill, function (Bill $bill) use ($payment) {
+            $payment = $bill->payments()->lockForUpdate()->findOrFail($payment->id);
+            if ($payment->status === 'rejected') {
+                return;
+            }
+            $this->protectFinalizedPayment($bill, $payment);
+            $payment->update(['status' => 'rejected']);
+            $bill->recalculate();
+            $this->notifyPayment($bill, 'Payment rejected', 'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' was rejected. Please resubmit.', true);
+        });
     }
 
-    /**
-     * Void a recorded payment and recompute the bill.
-     */
     public function destroy(Bill $bill, Payment $payment): BillResource
     {
         abort_if($payment->bill_id !== $bill->id, 404);
 
-        $amount = (float) $payment->amount;
-        $student = $bill->student;
-
-        $payment->delete();
-        $bill->recalculate();
-
-        if ($student !== null) {
-            ($this->notify)(
-                $student,
-                'billing',
-                'Payment reversed',
-                'A payment of ₱'.number_format($amount, 2).' on your bill was voided.',
-                ctaLabel: 'View bill',
-                ctaUrl: '/portal/bills',
-            );
-        }
-
-        return $this->billResource($bill);
+        return $this->locked($bill, function (Bill $bill) use ($payment) {
+            $payment = $bill->payments()->lockForUpdate()->findOrFail($payment->id);
+            $this->protectFinalizedPayment($bill, $payment);
+            $amount = (float) $payment->amount;
+            $payment->delete();
+            $bill->recalculate();
+            $this->notifyPayment($bill, 'Payment reversed', 'A payment of ₱'.number_format($amount, 2).' on your bill was voided.');
+        });
     }
 
-    private function billResource(Bill $bill): BillResource
+    private function protectFinalizedPayment(Bill $bill, Payment $payment): void
     {
-        return new BillResource(
-            $bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
-        );
+        abort_if($payment->status === 'verified' && ($bill->droppingAssessment()->exists()
+            || DB::table('student_credits')->where('source_bill_id', $bill->id)->exists()),
+            422, 'This verified payment is part of a finalized dropping assessment or student credit and cannot be reversed.');
+    }
+
+    private function validateAmount(Bill $bill, float $amount): void
+    {
+        if (Currency::cents($amount) > Currency::cents($bill->balance())) {
+            throw ValidationException::withMessages(['amount' => 'The payment exceeds the remaining balance of '.number_format($bill->balance(), 2, '.', '').'.']);
+        }
+    }
+
+    private function settle(Bill $bill): void
+    {
+        $bill->recalculate();
+        $bill->settleEnrollment();
+        app(PaymentArrangementService::class)->settleReturns($bill);
+    }
+
+    private function notifyPayment(Bill $bill, string $title, string $message, bool $actionRequired = false): void
+    {
+        if ($bill->student !== null) {
+            ($this->notify)($bill->student, 'billing', $title, $message,
+                ctaLabel: 'View bill', ctaUrl: '/portal/bills/'.$bill->id, actionRequired: $actionRequired);
+        }
+    }
+
+    private function locked(Bill $bill, callable $action): BillResource
+    {
+        return DB::transaction(function () use ($bill, $action) {
+            Student::lockForUpdate()->findOrFail($bill->student_id);
+            Enrollment::whereKey($bill->enrollment_id)->lockForUpdate()->first();
+            $bill = Bill::lockForUpdate()->findOrFail($bill->id);
+            $action($bill);
+
+            return new BillResource($bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']));
+        }, 3);
     }
 }

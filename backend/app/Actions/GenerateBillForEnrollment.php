@@ -5,6 +5,8 @@ namespace App\Actions;
 use App\Models\Bill;
 use App\Models\Discount;
 use App\Models\Enrollment;
+use App\Models\Student;
+use App\Services\StudentCreditService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -26,6 +28,16 @@ class GenerateBillForEnrollment
      */
     public function __invoke(Enrollment $enrollment): Bill
     {
+        return DB::transaction(function () use ($enrollment) {
+            Student::whereKey($enrollment->student_id)->lockForUpdate()->firstOrFail();
+            $enrollment = Enrollment::whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
+
+            return $this->generateLocked($enrollment);
+        });
+    }
+
+    private function generateLocked(Enrollment $enrollment): Bill
+    {
         $enrollment->loadMissing(['student', 'schoolYear']);
         $schoolYear = $enrollment->schoolYear;
         $student = $enrollment->student;
@@ -38,6 +50,7 @@ class GenerateBillForEnrollment
             ->first();
 
         if ($existing !== null) {
+            $existing->assertMutableAssessment();
             ($this->reconcileIncentives)($enrollment);
 
             return $existing->fresh();
@@ -78,6 +91,7 @@ class GenerateBillForEnrollment
                 $fees->map(fn ($fee) => [
                     'name' => $fee->name,
                     'category' => $fee->category,
+                    'dropping_component' => $fee->dropping_component,
                     'amount' => $fee->amount,
                 ])->all(),
             );
@@ -111,6 +125,11 @@ class GenerateBillForEnrollment
             // Materialize all earned reasons and post at most one shared
             // zero-tuition adjustment after vouchers and ordinary discounts.
             ($this->reconcileIncentives)($enrollment->fresh());
+
+            \app(StudentCreditService::class)->applyToBill($bill);
+            $bill = $bill->fresh();
+            $bill->recalculate();
+            $bill->settleEnrollment();
 
             return $bill->fresh();
         });

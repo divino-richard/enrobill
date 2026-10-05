@@ -163,12 +163,13 @@ export function useMyBills() {
   });
 }
 
-export function useSubmitMyPayment() {
+export function useSubmitMyPayment(billId?: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: SubmitPaymentInput) => submitMyPayment(input),
+    mutationFn: (input: SubmitPaymentInput) => submitMyPayment(input, billId),
     onSuccess: (bill) => {
-      queryClient.setQueryData(myBillQueryKey, bill);
+      queryClient.setQueryData<Bill | undefined>(myBillQueryKey, current => current?.id === bill.id ? bill : current);
+      void queryClient.invalidateQueries({ queryKey: myBillQueryKey });
       queryClient.setQueryData<Bill[] | undefined>(myBillsQueryKey, (current) => {
         if (!current) return current;
         const index = current.findIndex((item) => item.id === bill.id);

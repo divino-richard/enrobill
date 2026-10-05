@@ -3,8 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Actions\NotifyStudent;
-use App\Models\BillInstallment;
+use App\Models\Bill;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 
 /**
  * Daily reminder for installments coming due soon. `dedupeKey` on
@@ -21,39 +22,29 @@ class NotifyUpcomingInstallments extends Command
 
     public function handle(NotifyStudent $notify): int
     {
-        $today = now()->toDateString();
-        $windowEnd = now()->addDays(self::DAYS_AHEAD)->toDateString();
-
-        $installments = BillInstallment::query()
-            ->whereDate('due_date', '>=', $today)
-            ->whereDate('due_date', '<=', $windowEnd)
-            ->whereHas('bill', fn ($q) => $q->where('status', '!=', 'paid'))
-            ->with('bill.student')
-            ->get();
-
+        $today = now('Asia/Manila')->toDateString();
+        $windowEnd = now('Asia/Manila')->addDays(self::DAYS_AHEAD)->toDateString();
         $notified = 0;
-
-        foreach ($installments as $installment) {
-            $student = $installment->bill?->student;
-
-            if ($student === null) {
+        $bills = Bill::where('status', '!=', 'paid')->with(['student', 'installments', 'droppingAssessment', 'adjustments'])->lazyById();
+        foreach ($bills as $bill) {
+            if (! $bill->student || $bill->balance() <= 0) {
                 continue;
             }
-
-            $result = $notify(
-                $student,
-                'billing',
-                'Installment due soon',
-                "Your \"{$installment->label}\" installment of ₱".number_format((float) $installment->amount, 2)
-                    .' is due on '.$installment->due_date->format('M j, Y').'.',
-                ctaLabel: 'View bill',
-                ctaUrl: '/portal/bills',
-                actionRequired: true,
-                dedupeKey: "installment-due:{$installment->id}",
-            );
-
-            if ($result->wasRecentlyCreated) {
-                $notified++;
+            foreach ($bill->installmentSchedule() as $row) {
+                if ($row['balance'] <= 0 || ! $row['dueDate'] || $row['dueDate'] < $today || $row['dueDate'] > $windowEnd) {
+                    continue;
+                }
+                $dueDate = Carbon::parse($row['dueDate'])->format('M j, Y');
+                $key = $row['id'] < 0 ? "arrangement-due:{$bill->id}:{$row['id']}:{$row['dueDate']}" : "installment-due:{$row['id']}";
+                $result = $notify(
+                    $bill->student, 'billing', 'Installment due soon',
+                    "Your \"{$row['label']}\" installment has ₱".number_format($row['balance'], 2).' due on '.$dueDate.'.',
+                    ctaLabel: 'View bill', ctaUrl: '/portal/bills/'.$bill->id,
+                    actionRequired: true, dedupeKey: $key,
+                );
+                if ($result->wasRecentlyCreated) {
+                    $notified++;
+                }
             }
         }
 

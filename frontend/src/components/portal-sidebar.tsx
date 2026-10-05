@@ -48,6 +48,7 @@ const APPLICANT_NAV: NavItem[] = [
 const STUDENT_NAV: NavItem[] = [
   { title: "Dashboard", url: "/portal", icon: LayoutDashboardIcon, end: true },
   { title: "My Program", url: "/portal/programs", icon: GraduationCapIcon },
+  { title: "Dropping Requests", url: "/portal/dropping-requests", icon: FileTextIcon },
   { title: "My Bills", url: "/portal/bills", icon: ReceiptTextIcon },
   { title: "Admission", url: "/portal/application", icon: FileTextIcon },
   {

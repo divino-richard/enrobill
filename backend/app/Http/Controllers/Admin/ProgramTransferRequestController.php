@@ -10,6 +10,7 @@ use App\Models\Program;
 use App\Models\ProgramTransferRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ProgramTransferRequestController extends Controller
@@ -46,16 +47,19 @@ class ProgramTransferRequestController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $transferRequest->update([
-            'status' => $validated['status'],
-            'decision_note' => $validated['note'] ?? null,
-            'decided_by' => $request->user()->id,
-            'decided_at' => now(),
-        ]);
+        DB::transaction(function () use ($transferRequest, $validated, $request) {
+            $transferRequest->update([
+                'status' => $validated['status'],
+                'decision_note' => $validated['note'] ?? null,
+                'decided_by' => $request->user()->id,
+                'decided_at' => now(),
+            ]);
 
-        if ($validated['status'] === 'approved') {
-            ($this->executeTransfer)($transferRequest);
-        }
+            if ($validated['status'] === 'approved') {
+                ($this->executeTransfer)($transferRequest);
+            }
+
+        });
 
         if ($transferRequest->student !== null) {
             $approved = $validated['status'] === 'approved';

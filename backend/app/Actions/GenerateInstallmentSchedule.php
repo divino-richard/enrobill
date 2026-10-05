@@ -16,6 +16,7 @@ class GenerateInstallmentSchedule
      */
     public function __invoke(Bill $bill): void
     {
+        $bill->assertMutableAssessment();
         $schoolYear = $bill->schoolYear;
         $net = $bill->netTotal();
         $count = max(1, (int) ($schoolYear?->installment_count ?? 1));

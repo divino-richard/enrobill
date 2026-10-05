@@ -42,7 +42,7 @@ export function DashboardAttention({
             <>
               <span
                 className={cn(
-                  "bg-primary/10 text-primary inline-flex size-7 shrink-0 items-center justify-center rounded font-semibold tabular-nums",
+                  "bg-primary/10 text-primary inline-flex min-h-7 min-w-7 shrink-0 items-center justify-center whitespace-nowrap rounded px-2 py-1 text-sm font-semibold tabular-nums",
                   item.tone === "warning" &&
                     "bg-amber-500/10 text-amber-700 dark:text-amber-300",
                   item.tone === "danger" &&

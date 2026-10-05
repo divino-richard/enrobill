@@ -1,3 +1,4 @@
+import { BillFinanceSummary } from '@/features/dropping-finance/bill-finance';
 import { Link, useParams } from "react-router-dom";
 import {
   CalendarClockIcon,
@@ -89,6 +90,7 @@ function BillDetailPage() {
       {backLink}
 
       <BillActionPanel bill={bill} currentBill={currentBill ?? null} />
+      <BillFinanceSummary bill={bill} />
 
       <Tabs defaultValue="summary">
         <TabsList className="h-auto w-full flex-wrap justify-start">

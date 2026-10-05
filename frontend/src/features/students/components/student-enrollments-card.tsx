@@ -1,12 +1,13 @@
+import { ReturningEnrollmentDialog } from '@/features/dropping-finance/returning-dialog';
 import {
   CheckCircle2Icon,
-  CircleSlashIcon,
   LogOutIcon,
   RotateCcwIcon,
 } from "lucide-react";
 import {
   Card,
   CardContent,
+  CardAction,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -33,7 +34,6 @@ const ACTIONS: {
 }[] = [
   // { status: "enrolled", label: "Mark as enrolled", icon: CheckCircle2Icon },
   // { status: "completed", label: "Mark as completed", icon: GraduationCapIcon },
-  { status: "dropped", label: "Mark as dropped", icon: CircleSlashIcon },
   { status: "withdrawn", label: "Mark as withdrawn", icon: LogOutIcon },
   { status: "pending", label: "Reset to pending", icon: RotateCcwIcon },
 ];
@@ -57,10 +57,11 @@ export function StudentEnrollmentsCard({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Enrollments</CardTitle>
+        {!readOnly && enrollments?.some(e => e.status === "dropped") && <CardAction><ReturningEnrollmentDialog studentId={studentId} /></CardAction>}
         <CardDescription>
           The student's program, level and status per term.
           {!readOnly &&
-            " Changing a status updates the student's overall standing."}
+            " Official drops must be confirmed through Dropping Requests."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -106,7 +107,7 @@ export function StudentEnrollmentsCard({
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <EnrollmentStatusBadge status={record.status} />
-                  {!readOnly && (
+                  {!readOnly && record.status !== "dropped" && (
                     <RowActions>
                       {ACTIONS.filter((a) => a.status !== record.status).map(
                         (action) => (

@@ -7,6 +7,7 @@ use App\Actions\NotifyStudent;
 use App\Actions\ReferralLifecycle;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
+use App\Models\DroppingRequest;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
 use App\Models\Student;
@@ -122,6 +123,12 @@ class EnrollmentController extends Controller
         ]);
 
         $fresh = DB::transaction(function () use ($enrollment, $validated, $referrals) {
+            $student = Student::lockForUpdate()->findOrFail($enrollment->student_id);
+            $enrollment = Enrollment::lockForUpdate()->findOrFail($enrollment->id);
+            $enrollment->bill()->lockForUpdate()->first();
+            abort_if($validated['status'] === 'dropped', 422, 'Use the official dropping request workflow to confirm a drop.');
+            abort_if($enrollment->status === 'dropped' || DroppingRequest::where('enrollment_id', $enrollment->id)->where('status', 'confirmed')->exists(), 422, 'A confirmed drop is historical. Create a new enrollment for a returning student.');
+
             $enrollment->update([
                 'status' => $validated['status'],
                 // Stamp the enrollment date the first time it becomes enrolled.

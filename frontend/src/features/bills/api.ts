@@ -169,8 +169,9 @@ export interface SubmitPaymentInput {
 // Submit a payment for admin verification.
 export async function submitMyPayment(
   input: SubmitPaymentInput,
+  billId?: number,
 ): Promise<Bill> {
-  const { data } = await api.post<Wrapped<Bill>>("/me/bill/payments", input);
+  const { data } = await api.post<Wrapped<Bill>>(billId ? `/me/bills/${billId}/payments` : "/me/bill/payments", input);
   return data.data;
 }
 

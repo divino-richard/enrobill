@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { useState } from "react";
 import { format } from "date-fns";
@@ -146,6 +148,7 @@ function ProgramsPage() {
             )}
           </CardAction>
         </CardHeader>
+        {current?.status === "enrolled" && <CardContent className="pt-0"><Button asChild variant="outline" size="sm"><Link to="/portal/dropping-requests">Request to drop</Link></Button></CardContent>}
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

@@ -195,17 +195,17 @@ export function BillStatement({ bill }: { bill: Bill }) {
           ))}
 
           <section className="space-y-2 bg-muted/20 p-4">
-            <MobileValueRow label="Subtotal" value={formatPeso(bill.total)} />
+            <MobileValueRow label={bill.droppingAssessment ? "Original assessment" : "Subtotal"} value={formatPeso(bill.total)} />
             {adjustments.length > 0
               ? adjustments.map((adjustment) => (
                   <MobileValueRow
                     key={adjustment.id}
-                    label={discountLabel(adjustment)}
-                    value={`- ${formatPeso(adjustment.amount)}`}
+                    label={bill.droppingAssessment ? `${discountLabel(adjustment)} (history)` : discountLabel(adjustment)}
+                    value={`${bill.droppingAssessment ? "" : "- "}${formatPeso(adjustment.amount)}`}
                     muted
                   />
                 ))
-              : bill.discountTotal > 0 && (
+              : !bill.droppingAssessment && bill.discountTotal > 0 && (
                   <MobileValueRow
                     label="Credit"
                     value={`- ${formatPeso(bill.discountTotal)}`}
@@ -213,10 +213,11 @@ export function BillStatement({ bill }: { bill: Bill }) {
                   />
                 )}
             <MobileValueRow
-              label="Net total"
+              label={bill.droppingAssessment ? "Final dropping charge" : "Net total"}
               value={formatPeso(bill.netTotal)}
               strong
             />
+            {(bill.creditApplied ?? 0) > 0 && <MobileValueRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
             <MobileValueRow label="Paid" value={formatPeso(bill.amountPaid)} />
             <MobileValueRow
               label="Balance due"
@@ -264,17 +265,17 @@ export function BillStatement({ bill }: { bill: Bill }) {
             ))}
           </TableBody>
           <TableFooter className="bg-transparent">
-            <TotalRow label="Subtotal" value={formatPeso(bill.total)} divide />
+            <TotalRow label={bill.droppingAssessment ? "Original assessment" : "Subtotal"} value={formatPeso(bill.total)} divide />
             {adjustments.length > 0
               ? adjustments.map((adjustment) => (
                   <TotalRow
                     key={adjustment.id}
-                    label={discountLabel(adjustment)}
-                    value={`- ${formatPeso(adjustment.amount)}`}
+                    label={bill.droppingAssessment ? `${discountLabel(adjustment)} (history)` : discountLabel(adjustment)}
+                    value={`${bill.droppingAssessment ? "" : "- "}${formatPeso(adjustment.amount)}`}
                     muted
                   />
                 ))
-              : bill.discountTotal > 0 && (
+              : !bill.droppingAssessment && bill.discountTotal > 0 && (
                   <TotalRow
                     label="Credit"
                     value={`- ${formatPeso(bill.discountTotal)}`}
@@ -282,10 +283,11 @@ export function BillStatement({ bill }: { bill: Bill }) {
                   />
                 )}
             <TotalRow
-              label="Net total"
+              label={bill.droppingAssessment ? "Final dropping charge" : "Net total"}
               value={formatPeso(bill.netTotal)}
               divide
             />
+            {(bill.creditApplied ?? 0) > 0 && <TotalRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
             <TotalRow label="Paid" value={formatPeso(bill.amountPaid)} />
             <TotalRow
               label="Balance due"

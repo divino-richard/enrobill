@@ -1,3 +1,4 @@
+import { BillFinanceSummary, ClassificationDialog, PaymentArrangementDialog } from '@/features/dropping-finance/bill-finance';
 import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
 import { PageHeader } from "@/components/page-header";
 import { useMemo, useState } from "react";
@@ -331,7 +332,9 @@ function BillDetailPage() {
                 : ""}
               {termLabel}</>} />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {role === "admin" && !bill.droppingAssessment && <ClassificationDialog bill={bill} />}
+            {(bill.droppingAssessment || bill.enrollmentStatus === "dropped") && <PaymentArrangementDialog bill={bill} />}
             <Badge
               variant="outline"
               className={BILL_STATUS_META[bill.status].className}
@@ -397,9 +400,10 @@ function BillDetailPage() {
         </div>
       </div>
 
+      <BillFinanceSummary bill={bill} staff />
       <DashboardMetricStrip metrics={[
         {label: "Net bill", value: formatPeso(bill.netTotal), detail: `${bill.items.length} fee items`, tone: "primary"},
-        {label: "Credits applied", value: formatPeso(bill.discountTotal), detail: `${adjustments.length} applied credits`, tone: "success"},
+        {label: "Student credit used", value: formatPeso(bill.creditApplied ?? 0), detail: "From previous payments", tone: "success"},
         {label: "Paid", value: formatPeso(bill.amountPaid), detail: "Verified payments", tone: "success"},
         {label: "Outstanding", value: formatPeso(bill.balance), detail: BILL_STATUS_META[bill.status].label, tone: bill.balance > 0 ? "warning" : "success"},
       ]} />
@@ -420,15 +424,16 @@ function BillDetailPage() {
               ))}
             </dl></details>
             <div className="space-y-2 border-t pt-3">
-              <SummaryRow label="Gross total" value={formatPeso(bill.total)} />
-              {bill.discountTotal > 0 && (
+              <SummaryRow label={bill.droppingAssessment ? "Original assessment" : "Gross total"} value={formatPeso(bill.total)} />
+              {!bill.droppingAssessment && bill.discountTotal > 0 && (
                 <SummaryRow
                   label="Credits"
                   value={`− ${formatPeso(bill.discountTotal)}`}
                   muted
                 />
               )}
-              <SummaryRow label="Net total" value={formatPeso(bill.netTotal)} />
+              <SummaryRow label={bill.droppingAssessment ? "Final dropping charge" : "Net total"} value={formatPeso(bill.netTotal)} />
+              {(bill.creditApplied ?? 0) > 0 && <SummaryRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
               <SummaryRow label="Paid" value={formatPeso(bill.amountPaid)} />
             </div>
             <div className="border-t pt-3">
@@ -445,10 +450,9 @@ function BillDetailPage() {
           {/* Credits */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Applied credits</CardTitle>
+              <CardTitle className="text-base">{bill.droppingAssessment ? "Original vouchers and incentives" : "Vouchers and incentives"}</CardTitle>
               <CardDescription>
-                Vouchers and tuition incentives captured when this bill was
-                generated.
+                {bill.droppingAssessment ? "Historical awards retained for reference. They do not reduce the final dropping charge." : "Benefits captured when this bill was generated."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -479,9 +483,9 @@ function BillDetailPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">Applied</Badge>
+                        <Badge variant="outline">{bill.droppingAssessment ? "Historical" : "Applied"}</Badge>
                         <span className="text-sm font-medium text-emerald-600 tabular-nums dark:text-emerald-400">
-                          − {formatPeso(adjustment.amount)}
+                          {bill.droppingAssessment ? "" : "− "}{formatPeso(adjustment.amount)}
                         </span>
                       </div>
                     </li>
@@ -496,7 +500,7 @@ function BillDetailPage() {
             <CardHeader>
               <CardTitle className="text-base">Installment plan</CardTitle>
               <CardDescription>
-                {bill.noDownpayment
+                {bill.paymentArrangement ? "Remaining payments follow the approved arrangement." : bill.droppingAssessment ? "Remaining amounts reflect the final dropping charge. Original due dates are retained." : bill.noDownpayment
                   ? "Downpayment waived — spread evenly over the school year."
                   : "Downpayment plus equal monthly payments, from the school year's policy."}
               </CardDescription>
@@ -629,7 +633,7 @@ function BillDetailPage() {
                             </Button>
                           </>
                         )}
-                        {!isPaymentReadOnly && payment.status !== "pending" && (
+                        {!isPaymentReadOnly && payment.status !== "pending" && !payment.creditProtected && (
                           <Button
                             variant="ghost"
                             size="icon"

@@ -3,10 +3,10 @@
 namespace App\Http\Resources;
 
 use App\Models\Bill;
+use App\Models\StudentCredit;
+use App\Services\StudentCreditService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -21,7 +21,7 @@ class BillResource extends JsonResource
     {
         $gross = (float) $this->total;
         $discountTotal = $this->discountTotal();
-        $netTotal = round(max($gross - $discountTotal, 0), 2);
+        $netTotal = $this->netTotal();
         $paid = (float) $this->amount_paid;
 
         return [
@@ -29,6 +29,7 @@ class BillResource extends JsonResource
             'studentId' => $this->student_id,
             'schoolYearId' => $this->school_year_id,
             'schoolYear' => $this->schoolYear?->school_year,
+            'enrollmentStatus' => $this->enrollment?->status,
             'status' => $this->status,
             'noDownpayment' => (bool) ($this->whenLoaded('enrollment', fn () => $this->enrollment?->no_downpayment, false)),
             'installmentPolicy' => $this->schoolYear ? [
@@ -44,14 +45,39 @@ class BillResource extends JsonResource
             // What the student actually owes after credits.
             'netTotal' => $netTotal,
             'amountPaid' => $paid,
+            'assessmentOriginalTotal' => $gross,
+            'droppingAssessment' => $this->droppingAssessment?->snapshot,
+            'creditApplied' => $this->creditApplied(),
+            'creditIssued' => (float) ($this->issuedCredit?->amount ?? 0),
+            'effectivePaymentTotal' => $this->effectivePaymentTotal(),
+            'availableCredit' => app(StudentCreditService::class)->availableFor($this->student_id),
+            'previousBalance' => $this->enrollment ? app(StudentCreditService::class)->previousBalance($this->enrollment) : 0,
+            'paymentArrangement' => $this->paymentArrangement ? [
+                'remarks' => $this->paymentArrangement->remarks,
+                'approvedBy' => $this->paymentArrangement->approved_by,
+                'startingPaid' => (float) $this->paymentArrangement->starting_paid,
+                'installments' => $this->paymentArrangement->installments,
+                'approvedAt' => $this->paymentArrangement->updated_at?->toIso8601String(),
+            ] : null,
+            'creditHistory' => StudentCredit::where('student_id', $this->student_id)->with('allocations')->get()->map(fn ($credit) => [
+                'id' => $credit->id, 'sourceBillId' => $credit->source_bill_id,
+                'amount' => (float) $credit->amount, 'remaining' => $credit->remaining(),
+                'allocated' => round((float) $credit->amount - $credit->remaining(), 2),
+                'allocations' => $credit->allocations->map(fn ($allocation) => [
+                    'id' => $allocation->id, 'billId' => $allocation->bill_id,
+                    'amount' => (float) $allocation->amount,
+                    'releasedAmount' => (float) $allocation->released_amount,
+                ]),
+            ]),
             // Late discounts/incentives never turn prior payments into a refund.
-            'balance' => round(max($netTotal - $paid, 0), 2),
+            'balance' => $this->balance(),
             // What a student should pay now (next installment, else balance).
             'amountDue' => $this->amountDue(),
             'items' => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'name' => $item->name,
                 'category' => $item->category,
+                'droppingComponent' => $item->dropping_component,
                 'amount' => (float) $item->amount,
             ])->values(),
             'adjustments' => $this->whenLoaded('adjustments', fn () => $this->adjustments->map(fn ($adjustment) => [
@@ -72,13 +98,14 @@ class BillResource extends JsonResource
                     })
                     ->unique()
                     ->values(),
-                'locked' => $adjustment->incentive_key !== null,
+                'locked' => $this->hasDroppingAssessment() || $adjustment->incentive_key !== null,
             ])->values()),
-            'installments' => $this->whenLoaded('installments', fn () => $this->installmentSchedule($paid)),
+            'installments' => $this->whenLoaded('installments', fn () => $this->resource->installmentSchedule()),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments
                 ->sortByDesc('paid_at')
                 ->map(fn ($payment) => [
                     'id' => $payment->id,
+                    'creditProtected' => $payment->status === 'verified' && ($this->droppingAssessment !== null || $this->issuedCredit !== null),
                     'amount' => (float) $payment->amount,
                     'method' => $payment->method,
                     'status' => $payment->status,
@@ -96,49 +123,10 @@ class BillResource extends JsonResource
                 'id' => $this->student->id,
                 'studentNumber' => $this->student->student_number,
                 'name' => trim($this->student->first_name.' '.$this->student->last_name),
-                'track' => $this->student->track_or_strand,
-                'yearLevel' => $this->student->year_level,
+                'track' => $this->enrollment?->track ?? $this->student->track_or_strand,
+                'yearLevel' => $this->enrollment?->year_level ?? $this->student->year_level,
             ]),
             'createdAt' => $this->created_at?->toIso8601String(),
         ];
-    }
-
-    /**
-     * Build the installment schedule, allocating the amount paid across
-     * installments in due order so each row reports how much it has covered.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function installmentSchedule(float $paid): Collection
-    {
-        $remaining = $paid;
-        $today = Carbon::today();
-
-        return $this->installments->map(function ($installment) use (&$remaining, $today) {
-            $amount = (float) $installment->amount;
-            $applied = round(min($remaining, $amount), 2);
-            $remaining = round($remaining - $applied, 2);
-
-            $status = match (true) {
-                $applied <= 0 => 'unpaid',
-                $applied >= $amount => 'paid',
-                default => 'partial',
-            };
-
-            $overdue = $status !== 'paid'
-                && $installment->due_date !== null
-                && $installment->due_date->lt($today);
-
-            return [
-                'id' => $installment->id,
-                'sequence' => $installment->sequence,
-                'label' => $installment->label,
-                'amount' => $amount,
-                'amountPaid' => $applied,
-                'balance' => round($amount - $applied, 2),
-                'dueDate' => $installment->due_date?->toDateString(),
-                'status' => $overdue ? 'overdue' : $status,
-            ];
-        })->values();
     }
 }

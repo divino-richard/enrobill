@@ -27,6 +27,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.17.0",
+    "pdfjs-dist": "^6.3.289",
     "radix-ui": "^1.5.0",
     "react": "^19.2.6",
     "react-day-picker": "^10.0.1",

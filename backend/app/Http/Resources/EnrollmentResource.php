@@ -22,6 +22,9 @@ class EnrollmentResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'schoolYearId' => $this->school_year_id,
+            'droppingCategory' => $this->dropping_category,
+            'returningFromEnrollmentId' => $this->returning_from_enrollment_id,
             'schoolYear' => $this->schoolYear?->school_year,
             'program' => $this->track,
             'yearLevel' => $this->year_level,
@@ -101,6 +104,6 @@ class EnrollmentResource extends JsonResource
 
     private function billBalance(Bill $bill): float
     {
-        return round(max($bill->netTotal() - (float) $bill->amount_paid, 0), 2);
+        return $bill->balance();
     }
 }

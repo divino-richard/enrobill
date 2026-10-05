@@ -28,9 +28,9 @@ class SectionResource extends JsonResource
             'adviser' => $this->relationLoaded('adviser') && $this->adviser
                 ? ['id' => $this->adviser->id, 'name' => $this->adviser->name]
                 : null,
-            'assignedCount' => $this->relationLoaded('enrollments') ? $this->enrollments->count() : 0,
+            'assignedCount' => $this->relationLoaded('enrollments') ? $this->enrollments->where('status', 'enrolled')->count() : 0,
             'students' => $this->relationLoaded('enrollments')
-                ? $this->enrollments->map(fn ($enrollment) => [
+                ? $this->enrollments->where('status', 'enrolled')->map(fn ($enrollment) => [
                     'enrollmentId' => $enrollment->id,
                     'studentId' => $enrollment->student_id,
                     'studentNumber' => $enrollment->student?->student_number,

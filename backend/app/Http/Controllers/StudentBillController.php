@@ -7,9 +7,11 @@ use App\Http\Resources\EnrollmentResource;
 use App\Models\Bill;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
+use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -111,8 +113,18 @@ class StudentBillController extends Controller
      */
     public function storePayment(Request $request): BillResource
     {
-        $bill = $this->resolveBill($request);
+        return $this->submitPayment($request, $this->resolveBill($request));
+    }
 
+    public function storeBillPayment(Request $request, Bill $bill): BillResource
+    {
+        abort_unless($request->user()->student?->id === $bill->student_id, 404);
+
+        return $this->submitPayment($request, $bill);
+    }
+
+    private function submitPayment(Request $request, Bill $bill): BillResource
+    {
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
             'method' => ['required', Rule::in(self::SUBMIT_METHODS)],
@@ -122,59 +134,65 @@ class StudentBillController extends Controller
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
-        // Only one payment may be under review at a time — the student must wait
-        // for it to be verified or rejected before submitting another.
-        if ($bill->payments()->where('status', 'pending')->exists()) {
-            throw ValidationException::withMessages([
-                'payment' => 'You already have a payment awaiting verification. Please wait for it to be reviewed before submitting another.',
+        return DB::transaction(function () use ($request, $bill, $validated) {
+            Student::lockForUpdate()->findOrFail($bill->student_id);
+            Enrollment::whereKey($bill->enrollment_id)->lockForUpdate()->first();
+            $bill = Bill::lockForUpdate()->findOrFail($bill->id);
+
+            // Only one payment may be under review at a time — the student must wait
+            // for it to be verified or rejected before submitting another.
+            if ($bill->payments()->where('status', 'pending')->exists()) {
+                throw ValidationException::withMessages([
+                    'payment' => 'You already have a payment awaiting verification. Please wait for it to be reviewed before submitting another.',
+                ]);
+            }
+
+            $due = $bill->amountDue();
+            $balance = $bill->balance();
+
+            if ($balance <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'This bill has no outstanding amount due.',
+                ]);
+            }
+
+            $amount = round((float) $validated['amount'], 2);
+
+            if ($amount <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => $due > 0
+                        ? "Please pay at least the amount due of {$due}."
+                        : 'Please enter an amount greater than 0.',
+                ]);
+            }
+
+            if ($amount < $due - 0.01) {
+                throw ValidationException::withMessages([
+                    'amount' => "Please pay at least the amount due of {$due}.",
+                ]);
+            }
+
+            if ($amount > $balance + 0.01) {
+                throw ValidationException::withMessages([
+                    'amount' => "The payment exceeds the outstanding balance of {$balance}.",
+                ]);
+            }
+
+            $bill->payments()->create([
+                'amount' => min($amount, $balance),
+                'method' => $validated['method'],
+                'status' => 'pending',
+                'reference' => $validated['reference'] ?? null,
+                'proof_key' => $validated['proofKey'],
+                'paid_at' => $validated['paidAt'],
+                'note' => $validated['note'] ?? null,
+                'submitted_by' => $request->user()->id,
             ]);
-        }
 
-        $due = $bill->amountDue();
-        $balance = round($bill->netTotal() - (float) $bill->amount_paid, 2);
-
-        if ($balance <= 0) {
-            throw ValidationException::withMessages([
-                'amount' => 'This bill has no outstanding amount due.',
-            ]);
-        }
-
-        $amount = round((float) $validated['amount'], 2);
-
-        if ($amount <= 0) {
-            throw ValidationException::withMessages([
-                'amount' => $due > 0
-                    ? "Please pay at least the amount due of {$due}."
-                    : 'Please enter an amount greater than 0.',
-            ]);
-        }
-
-        if ($amount < $due - 0.01) {
-            throw ValidationException::withMessages([
-                'amount' => "Please pay at least the amount due of {$due}.",
-            ]);
-        }
-
-        if ($amount > $balance + 0.01) {
-            throw ValidationException::withMessages([
-                'amount' => "The payment exceeds the outstanding balance of {$balance}.",
-            ]);
-        }
-
-        $bill->payments()->create([
-            'amount' => min($amount, $balance),
-            'method' => $validated['method'],
-            'status' => 'pending',
-            'reference' => $validated['reference'] ?? null,
-            'proof_key' => $validated['proofKey'],
-            'paid_at' => $validated['paidAt'],
-            'note' => $validated['note'] ?? null,
-            'submitted_by' => $request->user()->id,
-        ]);
-
-        return new BillResource(
-            $bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
-        );
+            return new BillResource(
+                $bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']),
+            );
+        }, 3);
     }
 
     /**

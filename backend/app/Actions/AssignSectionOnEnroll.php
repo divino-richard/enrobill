@@ -28,7 +28,7 @@ class AssignSectionOnEnroll
                 ->where('school_year_id', $enrollment->school_year_id)
                 ->where('program', $enrollment->track)
                 ->where('year_level', $enrollment->year_level)
-                ->withCount('enrollments')
+                ->withCount(['enrollments' => fn ($q) => $q->where('status', 'enrolled')])
                 ->orderBy('name')
                 ->lockForUpdate()
                 ->get();

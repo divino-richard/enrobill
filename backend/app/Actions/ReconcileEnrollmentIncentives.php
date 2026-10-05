@@ -7,6 +7,8 @@ use App\Models\BillAdjustment;
 use App\Models\Enrollment;
 use App\Models\Freebie;
 use App\Models\IncentiveAward;
+use App\Models\Student;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -27,6 +29,7 @@ class ReconcileEnrollmentIncentives
     public function __invoke(Enrollment $enrollment): ?BillAdjustment
     {
         return DB::transaction(function () use ($enrollment) {
+            Student::whereKey($enrollment->student_id)->lockForUpdate()->firstOrFail();
             $enrollment = Enrollment::query()
                 ->whereKey($enrollment->id)
                 ->with(['student', 'schoolYear'])
@@ -43,7 +46,7 @@ class ReconcileEnrollmentIncentives
                 ->lockForUpdate()
                 ->first();
 
-            if ($bill === null) {
+            if ($bill === null || $bill->hasDroppingAssessment()) {
                 return null;
             }
 
@@ -160,7 +163,7 @@ class ReconcileEnrollmentIncentives
      */
     private function notifyRedemption(
         Enrollment $enrollment,
-        \Illuminate\Support\Collection $awards,
+        Collection $awards,
         float $amount,
         bool $noBalance = false,
         bool $alreadyCredited = false,

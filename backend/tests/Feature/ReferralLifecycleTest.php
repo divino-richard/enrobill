@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\ReferralLifecycle;
 use App\Enums\Role;
 use App\Models\Application;
+use App\Models\Bill;
 use App\Models\Enrollment;
 use App\Models\Freebie;
 use App\Models\IncentiveAward;
@@ -129,6 +130,7 @@ class ReferralLifecycleTest extends TestCase
             'status' => IncentiveAward::STATUS_ELIGIBLE,
         ]);
 
+        Bill::create(['student_id' => $firstEnrollment->student_id, 'enrollment_id' => $firstEnrollment->id, 'school_year_id' => $firstEnrollment->school_year_id, 'total' => 0, 'amount_paid' => 0, 'status' => 'paid']);
         $firstEnrollment->update(['status' => 'enrolled', 'enrolled_at' => now()]);
         $successful = $lifecycle->markEnrollmentSuccessful($firstEnrollment->fresh());
         $lifecycle->markEnrollmentSuccessful($firstEnrollment->fresh());
@@ -154,6 +156,7 @@ class ReferralLifecycleTest extends TestCase
         [$secondApplication, $secondStudent, $secondEnrollment] = $this->createReferredApplicant($targetYear);
         $lifecycle->syncApplication($secondApplication, $code->code, $secondApplication->user);
         $lifecycle->acceptApplication($secondApplication, $secondEnrollment);
+        Bill::create(['student_id' => $secondEnrollment->student_id, 'enrollment_id' => $secondEnrollment->id, 'school_year_id' => $secondEnrollment->school_year_id, 'total' => 0, 'amount_paid' => 0, 'status' => 'paid']);
         $secondEnrollment->update(['status' => 'enrolled', 'enrolled_at' => now()]);
         $lifecycle->markEnrollmentSuccessful($secondEnrollment->fresh());
 
