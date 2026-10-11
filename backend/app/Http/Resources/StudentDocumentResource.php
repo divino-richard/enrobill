@@ -18,6 +18,7 @@ class StudentDocumentResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'schoolYear' => $this->schoolYear?->school_year,
             'semester' => $this->semester,
             'type' => $this->type,
             'fileName' => $this->file_name,

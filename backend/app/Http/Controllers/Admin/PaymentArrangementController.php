@@ -29,6 +29,7 @@ class PaymentArrangementController extends Controller
             Student::lockForUpdate()->findOrFail($bill->student_id);
             Enrollment::whereKey($bill->enrollment_id)->lockForUpdate()->first();
             $bill = Bill::lockForUpdate()->findOrFail($bill->id);
+            abort_if($bill->isDroppingBill(), 422, 'Dropping balances are payable upon re-enrollment. Payment arrangements cannot replace full settlement.');
             abort_unless($bill->enrollment?->status === 'dropped', 422, 'Payment arrangements are available for a dropped enrollment’s bill.');
             abort_unless($bill->balance() > 0, 422, 'This bill has no remaining balance.');
             abort_if($bill->payments()->where('status', 'pending')->exists(), 422, 'Review pending payments before making an arrangement.');

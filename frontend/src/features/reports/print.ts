@@ -1,3 +1,4 @@
+import { COLLECTION_LABELS } from '@/features/bills/collection';
 import {
   BILL_STATUS_META,
   PAYMENT_STATUS_META,
@@ -113,7 +114,7 @@ export function buildReportHtml(
           <td class="amount">${formatPeso(row.netTotal)}</td>
           <td class="amount">${formatPeso(row.amountPaid)}</td>
           <td class="amount">${formatPeso(row.balance)}</td>
-          <td class="amount">${formatPeso(row.amountDue)}</td>
+          <td class="amount">${formatPeso(row.amountDue)}${row.collectionState && row.collectionState !== "standard" ? `<br><small>${COLLECTION_LABELS[row.collectionState]}</small>` : ""}</td>
         </tr>`,
         )
         .join("")

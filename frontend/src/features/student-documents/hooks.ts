@@ -5,10 +5,10 @@ import type { Semester, StudentDocumentType } from "./types";
 export const myDocumentsQueryKey = ["me", "documents"] as const;
 
 // The student's own clearance / grade slips for the active school year.
-export function useMyDocuments() {
+export function useMyDocuments(history = false) {
   return useQuery({
-    queryKey: myDocumentsQueryKey,
-    queryFn: fetchMyDocuments,
+    queryKey: history ? [...myDocumentsQueryKey, "history"] : myDocumentsQueryKey,
+    queryFn: () => fetchMyDocuments(history),
   });
 }
 

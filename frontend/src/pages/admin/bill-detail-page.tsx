@@ -1,4 +1,6 @@
-import { BillFinanceSummary, ClassificationDialog, PaymentArrangementDialog } from '@/features/dropping-finance/bill-finance';
+import { billStatusMeta, collectionLabel, isDroppingBill } from '@/features/bills/collection';
+import { BillCollectionNotice, DroppingSchedule } from '@/features/dropping-finance/collection-notice';
+import { BillFinanceSummary, ClassificationDialog } from '@/features/dropping-finance/bill-finance';
 import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
 import { PageHeader } from "@/components/page-header";
 import { useMemo, useState } from "react";
@@ -162,7 +164,7 @@ function RecordPaymentDialog({ bill }: { bill: Bill }) {
         <DialogHeader>
           <DialogTitle>Record payment</DialogTitle>
           <DialogDescription>
-            Outstanding balance: {formatPeso(bill.balance)}.
+            Outstanding balance: {formatPeso(bill.balance)}. {isDroppingBill(bill) && `${collectionLabel(bill)}. Partial payments are accepted.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -299,6 +301,7 @@ function BillDetailPage() {
   }
 
   const adjustments = bill.adjustments ?? [];
+  const dropping = isDroppingBill(bill);
   const installments = bill.installments ?? [];
   const payments = bill.payments ?? [];
   // A bill with no verified/pending payments can be voided (returns the student
@@ -333,13 +336,12 @@ function BillDetailPage() {
               {termLabel}</>} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {role === "admin" && !bill.droppingAssessment && <ClassificationDialog bill={bill} />}
-            {(bill.droppingAssessment || bill.enrollmentStatus === "dropped") && <PaymentArrangementDialog bill={bill} />}
+            {role === "admin" && !dropping && <ClassificationDialog bill={bill} />}
             <Badge
               variant="outline"
-              className={BILL_STATUS_META[bill.status].className}
+              className={billStatusMeta(bill).className}
             >
-              {BILL_STATUS_META[bill.status].label}
+              {billStatusMeta(bill).label}
             </Badge>
             <Button
               variant="outline"
@@ -400,12 +402,13 @@ function BillDetailPage() {
         </div>
       </div>
 
+      <BillCollectionNotice bill={bill} />
       <BillFinanceSummary bill={bill} staff />
       <DashboardMetricStrip metrics={[
         {label: "Net bill", value: formatPeso(bill.netTotal), detail: `${bill.items.length} fee items`, tone: "primary"},
         {label: "Student credit used", value: formatPeso(bill.creditApplied ?? 0), detail: "From previous payments", tone: "success"},
         {label: "Paid", value: formatPeso(bill.amountPaid), detail: "Verified payments", tone: "success"},
-        {label: "Outstanding", value: formatPeso(bill.balance), detail: BILL_STATUS_META[bill.status].label, tone: bill.balance > 0 ? "warning" : "success"},
+        {label: "Outstanding", value: formatPeso(bill.balance), detail: dropping ? collectionLabel(bill) : BILL_STATUS_META[bill.status].label, tone: bill.balance > 0 ? (dropping ? undefined : "warning") : "success"},
       ]} />
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)]">
         {/* Summary */}
@@ -425,7 +428,7 @@ function BillDetailPage() {
             </dl></details>
             <div className="space-y-2 border-t pt-3">
               <SummaryRow label={bill.droppingAssessment ? "Original assessment" : "Gross total"} value={formatPeso(bill.total)} />
-              {!bill.droppingAssessment && bill.discountTotal > 0 && (
+              {!isDroppingBill(bill) && bill.discountTotal > 0 && (
                 <SummaryRow
                   label="Credits"
                   value={`− ${formatPeso(bill.discountTotal)}`}
@@ -500,13 +503,13 @@ function BillDetailPage() {
             <CardHeader>
               <CardTitle className="text-base">Installment plan</CardTitle>
               <CardDescription>
-                {bill.paymentArrangement ? "Remaining payments follow the approved arrangement." : bill.droppingAssessment ? "Remaining amounts reflect the final dropping charge. Original due dates are retained." : bill.noDownpayment
+                {dropping ? "Historical dates are kept for reference." : bill.noDownpayment
                   ? "Downpayment waived — spread evenly over the school year."
                   : "Downpayment plus equal monthly payments, from the school year's policy."}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {installments.length === 0 ? (
+              {dropping ? <DroppingSchedule bill={bill} /> : installments.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
                   No installment plan yet.
                 </p>

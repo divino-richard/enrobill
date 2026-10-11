@@ -92,6 +92,7 @@ class GenerateBillForEnrollment
                     'name' => $fee->name,
                     'category' => $fee->category,
                     'dropping_component' => $fee->dropping_component,
+                    'source_fee_id' => $fee->id,
                     'amount' => $fee->amount,
                 ])->all(),
             );

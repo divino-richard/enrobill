@@ -55,6 +55,7 @@ export const PAYMENT_STATUS_META: Record<
 };
 
 export interface BillItem {
+  sourceFeeId?: number | null;
   droppingComponent?: DroppingComponent | null;
   id?: number;
   name: string;
@@ -109,7 +110,20 @@ export interface BillStudent {
   yearLevel: string;
 }
 
+export interface ReturnRequirements {
+  effectiveDroppingDate: string | null;
+  returnDeadline: string | null;
+  eligible: boolean;
+  blockers: string[];
+  canActivate?: boolean;
+  previousBalance?: number;
+  newEnrollmentPayment?: number | null;
+}
+
 export interface Bill {
+  collectionState?: 'standard' | 'deferred_until_reenrollment' | 'required_for_reenrollment';
+  returnRequirements?: ReturnRequirements | null;
+  historicalInstallments?: { id: number; label: string; amount: number; dueDate: string | null }[];
   enrollmentId?: number | null;
   enrollmentStatus?: string | null;
   droppingCategory?: DroppingCategory | null;

@@ -17,7 +17,9 @@ class DroppingRequestResource extends JsonResource
             'studentId' => $this->student_id, 'snapshot' => $this->snapshot, 'status' => $this->status,
             'packetVersion' => count($this->submissions), 'reason' => $this->reason, 'balance' => $bill?->balance() ?? 0,
             'billId' => $bill?->id,
-            'droppingCategory' => $this->enrollment->dropping_category,
+            'droppingCategory' => $this->status === 'confirmed' && ! $bill?->droppingAssessment
+                ? $this->enrollment->dropping_category
+                : $bill?->droppingCategory(),
             'droppingAssessment' => $bill?->droppingAssessment?->snapshot,
             'financialSummary' => $bill?->droppingAssessment ? [
                 'verifiedPayments' => (float) $bill->amount_paid,

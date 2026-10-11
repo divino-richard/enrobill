@@ -1,5 +1,6 @@
+import { STUDENT_RETURN_PATH } from './features/re-enrollment/presentation'
 import DroppingPage from './features/dropping/dropping-page'
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, redirect } from 'react-router-dom'
 import {
   AdminGuard,
   AdminCashierGuard,
@@ -26,6 +27,7 @@ import AdminEnrollmentsPage from './pages/admin/enrollments-page'
 import AdminUsersPage from './pages/admin/users-page'
 import AdminUserDetailPage from './pages/admin/user-detail-page'
 import AdminTermsPage from './pages/admin/terms-page'
+import AdminTermDetailPage from './pages/admin/term-detail-page'
 import AdminProgramsPage from './pages/admin/programs-page'
 import AdminFeesPage from './pages/admin/fees-page'
 import AdminDiscountsPage from './pages/admin/discounts-page'
@@ -110,6 +112,7 @@ export const router = createBrowserRouter([
               { path: 'users', Component: AdminUsersPage },
               { path: 'users/:id', Component: AdminUserDetailPage },
               { path: 'terms', Component: AdminTermsPage },
+              { path: 'terms/:id', Component: AdminTermDetailPage },
               { path: 'programs', Component: AdminProgramsPage },
             ],
           },
@@ -134,6 +137,7 @@ export const router = createBrowserRouter([
           { path: 'dropping-requests/:id', Component: DroppingPage },
           { path: 'bills/:id', Component: PortalBillDetailPage },
           { path: 'programs', Component: PortalProgramsPage },
+          { path: 're-enrollment', loader: () => redirect(STUDENT_RETURN_PATH) },
           { path: 'application', Component: ApplicationPage },
           { path: 'application/new', Component: ApplicationNewPage },
           { path: 'application/:id', Component: ApplicationDetailPage },

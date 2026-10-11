@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['bill_id', 'name', 'category', 'dropping_component', 'amount'])]
+#[Fillable(['bill_id', 'name', 'category', 'dropping_component', 'source_fee_id', 'amount'])]
 class BillItem extends Model
 {
     public const DROPPING_COMPONENTS = ['registration', 'miscellaneous', 'laboratory', 'tuition', 'other'];
@@ -24,6 +24,7 @@ class BillItem extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'source_fee_id' => 'integer',
         ];
     }
 

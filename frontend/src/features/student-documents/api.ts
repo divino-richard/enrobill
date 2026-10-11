@@ -13,8 +13,8 @@ interface PresignResponse {
 }
 
 // The authenticated student's uploaded documents for the active school year.
-export async function fetchMyDocuments(): Promise<StudentDocument[]> {
-  const { data } = await api.get<Wrapped<StudentDocument[]>>("/me/documents");
+export async function fetchMyDocuments(history = false): Promise<StudentDocument[]> {
+  const { data } = await api.get<Wrapped<StudentDocument[]>>("/me/documents", { params: history ? {history: 1} : undefined });
   return data.data;
 }
 

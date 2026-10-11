@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Bill;
 use App\Models\StudentCredit;
+use App\Services\ReturningEnrollmentRules;
 use App\Services\StudentCreditService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -31,6 +32,9 @@ class BillResource extends JsonResource
             'schoolYear' => $this->schoolYear?->school_year,
             'enrollmentStatus' => $this->enrollment?->status,
             'status' => $this->status,
+            'collectionState' => $this->collectionState(),
+            'returnRequirements' => app(ReturningEnrollmentRules::class)->billReturnRequirements($this->resource),
+            'historicalInstallments' => $this->historicalInstallments(),
             'noDownpayment' => (bool) ($this->whenLoaded('enrollment', fn () => $this->enrollment?->no_downpayment, false)),
             'installmentPolicy' => $this->schoolYear ? [
                 'downpaymentType' => $this->schoolYear->downpayment_type,
@@ -78,6 +82,7 @@ class BillResource extends JsonResource
                 'name' => $item->name,
                 'category' => $item->category,
                 'droppingComponent' => $item->dropping_component,
+                'sourceFeeId' => $item->source_fee_id,
                 'amount' => (float) $item->amount,
             ])->values(),
             'adjustments' => $this->whenLoaded('adjustments', fn () => $this->adjustments->map(fn ($adjustment) => [
@@ -98,14 +103,14 @@ class BillResource extends JsonResource
                     })
                     ->unique()
                     ->values(),
-                'locked' => $this->hasDroppingAssessment() || $adjustment->incentive_key !== null,
+                'locked' => $this->isDroppingBill() || $adjustment->incentive_key !== null,
             ])->values()),
             'installments' => $this->whenLoaded('installments', fn () => $this->resource->installmentSchedule()),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments
                 ->sortByDesc('paid_at')
                 ->map(fn ($payment) => [
                     'id' => $payment->id,
-                    'creditProtected' => $payment->status === 'verified' && ($this->droppingAssessment !== null || $this->issuedCredit !== null),
+                    'creditProtected' => $payment->status === 'verified' && ($this->isDroppingBill() || $this->issuedCredit !== null),
                     'amount' => (float) $payment->amount,
                     'method' => $payment->method,
                     'status' => $payment->status,

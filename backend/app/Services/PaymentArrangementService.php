@@ -12,6 +12,9 @@ class PaymentArrangementService
     /** Display and payment validation share the same replacement schedule. */
     public function schedule(Bill $bill): ?Collection
     {
+        if ($bill->isDroppingBill()) {
+            return null;
+        }
         $arrangement = PaymentArrangement::where('bill_id', $bill->id)->first();
         if (! $arrangement) {
             return null;
@@ -39,6 +42,9 @@ class PaymentArrangementService
             return true;
         }
 
+        if ($bill->isDroppingBill()) {
+            return false;
+        }
         $arrangement = PaymentArrangement::where('bill_id', $bill->id)->first();
         if ($arrangement === null) {
             return false;
@@ -71,7 +77,6 @@ class PaymentArrangementService
     {
         $enrollments = $bill->student->enrollments()
             ->where('status', 'pending')
-            ->whereNotNull('returning_from_enrollment_id')
             ->orderBy('id')->lockForUpdate()->get();
 
         foreach ($enrollments as $enrollment) {

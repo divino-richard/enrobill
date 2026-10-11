@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { SCHEDULE_DAYS, classMinutes, scheduleDuration, scheduleTime, type ClassEntry } from "./types";
 
 type WeeklyTimetableProps = {
+  className?: string;
   entries: ClassEntry[];
   onEdit?: (entry: ClassEntry) => void;
   onRemove?: (entry: ClassEntry) => void;
@@ -13,7 +14,7 @@ type WeeklyTimetableProps = {
   summary?: ReactNode;
 };
 
-export function WeeklyTimetable({ entries, onEdit, onAdd, onRemove, disabled, summary }: WeeklyTimetableProps) {
+export function WeeklyTimetable({ entries, onEdit, onAdd, onRemove, disabled, summary, className }: WeeklyTimetableProps) {
   const [selectedDay, setSelectedDay] = useState(1);
   const [weekend, setWeekend] = useState(false);
   const id = useId();
@@ -21,7 +22,7 @@ export function WeeklyTimetable({ entries, onEdit, onAdd, onRemove, disabled, su
   const activeDay = days.some((day) => SCHEDULE_DAYS.indexOf(day) + 1 === selectedDay) ? selectedDay : 1;
 
   return (
-    <div className="bg-card min-w-0 space-y-3 rounded-xl border p-3">
+    <div className={cn("bg-card min-w-0 space-y-3 rounded-xl border p-3", className)}>
       {(summary || onAdd) && <div className="flex flex-wrap items-center justify-between gap-2">
         {summary}
         {onAdd && <Button type="button" variant="ghost" size="sm" aria-pressed={weekend} onClick={() => setWeekend(!weekend)}>

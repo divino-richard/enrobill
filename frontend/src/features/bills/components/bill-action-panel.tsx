@@ -1,3 +1,4 @@
+import { collectionLabel, isDroppingBill } from '@/features/bills/collection';
 import { useState, type ReactNode } from "react";
 import {
   CalendarClockIcon,
@@ -266,7 +267,8 @@ function PayDialog({
   }));
   const submit = useSubmitMyPayment(bill.id);
   const nextDue = nextOutstandingInstallment(bill.installments ?? []);
-  const hasImmediateDue = bill.amountDue > 0;
+  const dropping = isDroppingBill(bill);
+  const hasImmediateDue = !dropping && bill.amountDue > 0;
   const minimumAmount = hasImmediateDue ? bill.amountDue : Math.min(0.01, bill.balance);
   const suggestedAmount = hasImmediateDue
     ? bill.amountDue
@@ -364,9 +366,9 @@ function PayDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Pay your bill</DialogTitle>
+          <DialogTitle>{dropping ? (bill.collectionState === "required_for_reenrollment" ? "Pay toward re-enrollment" : "Make a voluntary payment") : "Pay your bill"}</DialogTitle>
           <DialogDescription>
-            {hasImmediateDue
+            {dropping ? "Partial payments are welcome. Only verified payments reduce the balance; full settlement is required before re-enrollment becomes active." : hasImmediateDue
               ? "Choose how to pay, settle the amount due, then upload your receipt for review."
               : "Nothing is due right now, but you can prepay your next installment or settle the remaining balance."}
           </DialogDescription>
@@ -377,8 +379,8 @@ function PayDialog({
             <p className="text-muted-foreground text-xs">
               Tap an amount, or type your own below.
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
+            <div className={cn("grid gap-2", !dropping && "grid-cols-2")}>
+              {!dropping && <button
                 type="button"
                 onClick={() => setAmount(String(suggestedAmount))}
                 className={cn(
@@ -392,7 +394,7 @@ function PayDialog({
                 <p className="font-semibold tabular-nums">
                   {formatPeso(suggestedAmount)}
                 </p>
-              </button>
+              </button>}
               <button
                 type="button"
                 onClick={() => setAmount(String(bill.balance))}
@@ -411,6 +413,7 @@ function PayDialog({
             </div>
             <Input
               id="pay-amount"
+              aria-label="Amount to pay"
               type="number"
               min={minimumAmount}
               max={bill.balance}
@@ -430,7 +433,7 @@ function PayDialog({
               <p className="text-muted-foreground text-xs">
                 {hasImmediateDue
                   ? "Pay the amount due, or more to lower your future monthly payments."
-                  : "You can prepay part of your balance or settle the bill in full."}
+                  : dropping ? "Pay any amount up to the balance. Your payment will be reviewed before it counts." : "You can prepay part of your balance or settle the bill in full."}
               </p>
             )}
           </Step>
@@ -600,7 +603,8 @@ export function BillActionPanel({
     .reduce((sum, payment) => sum + payment.amount, 0);
   const nextDue = nextOutstandingInstallment(bill.installments ?? []);
 
-  const status = BILL_STATUS_META[bill.status];
+  const dropping = isDroppingBill(bill);
+  const status = dropping && bill.balance > 0 ? { label: 'Balance recorded', className: 'border-border bg-muted text-muted-foreground' } : BILL_STATUS_META[bill.status];
   const hasPending = pendingTotal > 0;
   const dueOverdue = isOverdue(nextDue?.dueDate ?? null);
   const paidPct =
@@ -615,17 +619,17 @@ export function BillActionPanel({
   const primaryLabel =
     bill.balance <= 0
       ? "Bill status"
-      : bill.amountDue > 0
+      : dropping ? "Dropping balance" : bill.amountDue > 0
         ? "Amount due now"
         : "Balance remaining";
   const primaryValue = bill.amountDue > 0 ? bill.amountDue : bill.balance;
   const primaryValueClassName =
-    bill.amountDue > 0
+    !dropping && bill.amountDue > 0
       ? dueOverdue
         ? "text-red-600 dark:text-red-400"
         : "text-amber-700 dark:text-amber-300"
       : "text-foreground";
-  const dueLine =
+  const dueLine = dropping ? collectionLabel(bill) :
     bill.amountDue > 0 && nextDue?.dueDate
       ? `${dueOverdue ? "Overdue since" : "Due"} ${formatDate(nextDue.dueDate)}`
       : nextDue
@@ -633,7 +637,7 @@ export function BillActionPanel({
             nextDue.dueDate ? ` on ${formatDate(nextDue.dueDate)}` : ""
           }`
         : "No installment due date is scheduled.";
-  const actionSummary = bill.amountDue > 0
+  const actionSummary = dropping ? "Partial or full payments are accepted. Verification is required." : bill.amountDue > 0
     ? "Pay this bill and submit proof for verification."
     : "Advance payment is available on this bill.";
   const cardTone = bill.balance <= 0 ? "border-emerald-200/70" : "border-border";
@@ -649,8 +653,8 @@ export function BillActionPanel({
             statusClassName={status.className}
             settled
           />
-          <div className="grid gap-px border-t bg-border lg:grid-cols-[minmax(0,1.4fr)_11rem_11rem_11rem_16rem]">
-            <div className="space-y-2 bg-card px-4 py-4">
+          <div className="grid gap-px border-t bg-border grid-cols-3 xl:grid-cols-[minmax(0,1.4fr)_8rem_8rem_8rem_16rem]">
+            <div className="col-span-3 space-y-2 bg-card px-4 py-4 xl:col-span-1">
               <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                 {primaryLabel}
               </p>
@@ -669,7 +673,7 @@ export function BillActionPanel({
             <HeroStat label="Paid" value={formatPeso(bill.amountPaid)} />
             <HeroStat label="Balance" value={formatPeso(bill.balance)} strong />
 
-            <div className="flex flex-col gap-2 bg-card px-4 py-3">
+            <div className="col-span-3 flex flex-col gap-2 bg-card px-4 py-3 xl:col-span-1">
               <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                 Actions
               </p>
@@ -702,8 +706,8 @@ export function BillActionPanel({
           statusLabel={status.label}
           statusClassName={status.className}
         />
-        <div className="grid gap-px border-t bg-border lg:grid-cols-[minmax(0,1.4fr)_11rem_11rem_11rem_16rem]">
-          <div className="space-y-2 bg-card px-4 py-4">
+        <div className="grid gap-px border-t bg-border grid-cols-3 xl:grid-cols-[minmax(0,1.4fr)_8rem_8rem_8rem_16rem]">
+          <div className="col-span-3 space-y-2 bg-card px-4 py-4 xl:col-span-1">
             <div className="space-y-1.5">
               <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                 {primaryLabel}
@@ -747,7 +751,7 @@ export function BillActionPanel({
           <HeroStat label="Paid" value={formatPeso(bill.amountPaid)} />
           <HeroStat label="Balance" value={formatPeso(bill.balance)} strong />
 
-          <div className="flex flex-col gap-2 bg-card px-4 py-3">
+          <div className="col-span-3 flex flex-col gap-2 bg-card px-4 py-3 xl:col-span-1">
             <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
               Actions
             </p>
@@ -759,7 +763,7 @@ export function BillActionPanel({
                 channels={channels ?? []}
                 disabled={hasPending}
                 triggerClassName="w-full"
-                triggerLabel={bill.amountDue > 0 ? "Pay now" : "Prepay now"}
+                triggerLabel={dropping ? (bill.collectionState === "required_for_reenrollment" ? "Make a payment" : "Make a voluntary payment") : bill.amountDue > 0 ? "Pay now" : "Prepay now"}
               />
               {bill.amountPaid > 0 && (
                 <Button

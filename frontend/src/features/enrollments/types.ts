@@ -36,6 +36,7 @@ export interface EnrollmentVoucher {
 
 // An enrollment row in the global (read-only) list.
 export interface Enrollment {
+  returnRequirements?: import("@/features/bills/types").ReturnRequirements | null;
   id: number;
   schoolYear: string | null;
   program: string | null;

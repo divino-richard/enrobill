@@ -6,6 +6,7 @@ use App\Actions\AssignSectionOnEnroll;
 use App\Actions\NotifyStudent;
 use App\Services\Currency;
 use App\Services\PaymentArrangementService;
+use App\Services\ReturningEnrollmentRules;
 use App\Services\StudentCreditService;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -45,6 +46,37 @@ class Bill extends Model
         return $this->droppingAssessment()->exists();
     }
 
+    public function isDroppingBill(): bool
+    {
+        return $this->hasDroppingAssessment() || $this->enrollment?->status === 'dropped'
+            || ($this->enrollment_id && DroppingRequest::where('enrollment_id', $this->enrollment_id)->where('status', 'confirmed')->exists());
+    }
+
+    /** Prefer the frozen pre-approval schedule over rows changed by an older release. */
+    public function historicalInstallments(): Collection
+    {
+        if (! $this->isDroppingBill()) {
+            return collect();
+        }
+        $snapshot = $this->droppingAssessment?->snapshot;
+        if (isset($snapshot['originalInstallments'])) {
+            return collect($snapshot['originalInstallments'])->map(fn ($row) => [
+                'id' => $row['id'], 'label' => $row['label'], 'amount' => (float) $row['amount'],
+                'dueDate' => isset($row['due_date']) ? substr($row['due_date'], 0, 10) : null,
+            ])->values();
+        }
+
+        return $this->installments()->get()->map(fn ($row) => [
+            'id' => $row->id, 'label' => $row->label, 'amount' => (float) $row->amount,
+            'dueDate' => $row->due_date?->toDateString(),
+        ])->values();
+    }
+
+    public function collectionState(): string
+    {
+        return app(ReturningEnrollmentRules::class)->collectionState($this);
+    }
+
     public function creditApplied(): float
     {
         return Currency::pesos($this->creditAllocations()->get()->sum(fn ($row) => Currency::cents($row->amount) - Currency::cents($row->released_amount)));
@@ -62,7 +94,7 @@ class Bill extends Model
 
     public function assertMutableAssessment(): void
     {
-        if ($this->hasDroppingAssessment()) {
+        if ($this->isDroppingBill()) {
             throw ValidationException::withMessages(['bill' => 'The approved dropping assessment cannot be changed.']);
         }
     }
@@ -169,6 +201,13 @@ class Bill extends Model
             ->exists();
     }
 
+    /** Use the approved category when available, otherwise the voucher on this bill. */
+    public function droppingCategory(): string
+    {
+        return $this->droppingAssessment?->snapshot['category']
+            ?? ($this->hasVoucher() ? 'voucher_esc' : 'paying');
+    }
+
     /** Whether a currently active voucher is available to unlock a new award. */
     public function hasActiveVoucher(): bool
     {
@@ -228,6 +267,9 @@ class Bill extends Model
     public function amountDue(): float
     {
         $outstanding = $this->balance();
+        if ($this->collectionState() === 'deferred_until_reenrollment') {
+            return 0.0;
+        }
 
         if ($outstanding <= 0) {
             return 0.0;
@@ -241,6 +283,9 @@ class Bill extends Model
     /** Effective installment amounts shared by bills, payment validation and reminders. */
     public function installmentSchedule(): Collection
     {
+        if ($this->isDroppingBill()) {
+            return collect();
+        }
         $arrangement = app(PaymentArrangementService::class)->schedule($this);
         if ($arrangement !== null) {
             return $arrangement;
@@ -270,6 +315,10 @@ class Bill extends Model
     /** Whether the effective schedule still has money due on or before this date. */
     public function hasAmountDueBy(string $date): bool
     {
+        if ($this->isDroppingBill()) {
+            return $this->balance() > 0 && $this->collectionState() === 'required_for_reenrollment';
+        }
+
         return $this->balance() > 0 && $this->installmentSchedule()->contains(fn ($row) => $row['balance'] > 0 && $row['dueDate'] && $row['dueDate'] <= $date);
     }
 
@@ -308,8 +357,8 @@ class Bill extends Model
      */
     public function redistributeInstallments(): void
     {
-        if ($this->hasDroppingAssessment()) {
-            $this->redistributeDroppingInstallments();
+        if ($this->isDroppingBill()) {
+            // Approved drops retain their original schedule as history only.
 
             return;
         }
@@ -396,28 +445,19 @@ class Bill extends Model
      */
     public function enrollmentDownpaymentMet(): bool
     {
-        // Nothing left to pay (e.g. a freebie zeroed the balance) — already met.
-        if ($this->balance() <= 0) {
-            return true;
+        return $this->enrollmentPaymentRemaining() <= 0;
+    }
+
+    public function enrollmentPaymentRemaining(): float
+    {
+        if ($this->balance() <= 0 || $this->enrollment?->no_downpayment) {
+            return 0.0;
         }
+        $first = $this->orderedInstallments()->first();
+        $required = $first ? (float) $first->amount : $this->netTotal();
 
-        if ($this->enrollment?->no_downpayment) {
-            return true;
-        }
-
-        $paid = $this->effectivePaymentTotal();
-
-        if ($paid <= 0) {
-            return false;
-        }
-
-        $installments = $this->orderedInstallments();
-
-        if ($installments->isEmpty()) {
-            return $paid >= $this->netTotal() - 0.01;
-        }
-
-        return $paid >= (float) $installments->first()->amount - 0.01;
+        return Currency::pesos(max(min(Currency::cents($required), Currency::cents($this->netTotal()))
+            - Currency::cents($this->effectivePaymentTotal()), 0));
     }
 
     /**
@@ -427,7 +467,7 @@ class Bill extends Model
      */
     public function isVoidable(): bool
     {
-        return ! $this->hasDroppingAssessment()
+        return ! $this->isDroppingBill()
             && ! $this->creditAllocations()->exists()
             && ! $this->issuedCredit()->exists()
             && (float) $this->amount_paid <= 0
@@ -476,53 +516,6 @@ class Bill extends Model
         if ($student !== null && $student->status === 'admitted') {
             $student->update(['status' => 'enrolled']);
         }
-    }
-
-    /** Preserve due dates and paid portions, including an unpaid downpayment. */
-    private function redistributeDroppingInstallments(): void
-    {
-        $installments = $this->installments()->get();
-        if ($installments->isEmpty()) {
-            // A fully waived original bill can have no due dates to retain.
-            // Make its new charge payable on the recorded effective date.
-            if ($this->netTotal() > 0) {
-                $this->installments()->create(['sequence' => 1, 'label' => 'Dropping charge',
-                    'amount' => $this->netTotal(), 'due_date' => $this->droppingAssessment->snapshot['effectiveDate']]);
-            }
-            $this->unsetRelation('installments');
-
-            return;
-        }
-        $paidRemaining = min(Currency::cents($this->effectivePaymentTotal()), Currency::cents($this->netTotal()));
-        $outstanding = Currency::cents($this->balance());
-        $covered = [];
-        $unpaid = [];
-        foreach ($installments as $row) {
-            $amount = Currency::cents($row->amount);
-            $applied = min($paidRemaining, $amount);
-            $paidRemaining -= $applied;
-            $covered[$row->id] = $applied;
-            if ($applied < $amount) {
-                $unpaid[] = $row->id;
-            }
-        }
-        // An earlier benefit may have reduced the schedule below cash received.
-        // Retain that paid portion so it cannot consume the new outstanding rows.
-        if ($paidRemaining > 0) {
-            $covered[$installments->last()->id] += $paidRemaining;
-        }
-        // A higher final charge can exceed a formerly settled assessment.
-        if ($outstanding > 0 && $unpaid === []) {
-            $unpaid[] = $installments->last()->id;
-        }
-        $count = count($unpaid);
-        $base = $count ? intdiv($outstanding, $count) : 0;
-        $remainder = $count ? $outstanding % $count : 0;
-        foreach ($installments as $row) {
-            $extra = in_array($row->id, $unpaid, true) ? $base + ($remainder-- > 0 ? 1 : 0) : 0;
-            $row->update(['amount' => Currency::pesos($covered[$row->id] + $extra)]);
-        }
-        $this->unsetRelation('installments');
     }
 
     /**

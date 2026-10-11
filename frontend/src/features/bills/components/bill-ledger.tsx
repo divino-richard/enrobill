@@ -220,7 +220,7 @@ export function BillStatement({ bill }: { bill: Bill }) {
             {(bill.creditApplied ?? 0) > 0 && <MobileValueRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
             <MobileValueRow label="Paid" value={formatPeso(bill.amountPaid)} />
             <MobileValueRow
-              label="Balance due"
+              label="Outstanding balance"
               value={formatPeso(bill.balance)}
               strong
             />
@@ -290,7 +290,7 @@ export function BillStatement({ bill }: { bill: Bill }) {
             {(bill.creditApplied ?? 0) > 0 && <TotalRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
             <TotalRow label="Paid" value={formatPeso(bill.amountPaid)} />
             <TotalRow
-              label="Balance due"
+              label="Outstanding balance"
               value={formatPeso(bill.balance)}
               strong
               divide

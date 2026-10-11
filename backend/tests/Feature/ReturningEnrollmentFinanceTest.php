@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Models\Bill;
 use App\Models\Discount;
+use App\Models\DroppingRequest;
 use App\Models\Enrollment;
+use App\Models\PaymentArrangement;
 use App\Models\Program;
 use App\Models\SchoolYear;
 use App\Models\Student;
@@ -40,6 +42,7 @@ class ReturningEnrollmentFinanceTest extends TestCase
             'is_active' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
         $old = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $oldYear->id,
             'status' => 'dropped', 'track' => 'stem', 'year_level' => 'grade_11']);
+        DroppingRequest::create(['student_id' => $student->id, 'enrollment_id' => $old->id, 'status' => 'confirmed', 'effective_date' => '2026-06-01', 'snapshot' => [], 'events' => [], 'submissions' => []]);
         $bill = Bill::create(['student_id' => $student->id, 'enrollment_id' => $old->id, 'school_year_id' => $oldYear->id,
             'total' => $oldDebt, 'amount_paid' => 0, 'status' => $oldDebt > 0 ? 'unpaid' : 'paid']);
         Program::firstOrCreate(['code' => 'abm'], ['name' => 'Accountancy', 'category' => 'academic', 'is_active' => true]);
@@ -52,7 +55,7 @@ class ReturningEnrollmentFinanceTest extends TestCase
 
     private function payload(SchoolYear $year): array
     {
-        return ['schoolYearId' => $year->id, 'program' => 'abm', 'yearLevel' => 'grade_11', 'discountId' => null, 'droppingCategory' => 'paying'];
+        return ['schoolYearId' => $year->id, 'program' => 'abm', 'yearLevel' => 'grade_11', 'discountId' => null];
     }
 
     public function test_return_is_idempotent_keeps_history_and_requires_both_balances_for_activation(): void
@@ -60,7 +63,8 @@ class ReturningEnrollmentFinanceTest extends TestCase
         extract($this->setupReturn());
         $url = "/api/admin/students/$student->id/returning-enrollments";
         $this->actingAs($student->user)->postJson($url, $this->payload($year))->assertForbidden();
-        $response = $this->actingAs($admin)->postJson($url, $this->payload($year))->assertSuccessful()->assertJsonPath('data.status', 'pending');
+        $response = $this->actingAs($admin)->postJson($url, $this->payload($year))->assertSuccessful()
+            ->assertJsonPath('data.status', 'pending')->assertJsonPath('data.droppingCategory', 'paying');
         $id = $response->json('data.id');
         $this->postJson($url, $this->payload($year))->assertSuccessful()->assertJsonPath('data.id', $id);
         $this->assertEquals(2, $student->enrollments()->count());
@@ -80,56 +84,41 @@ class ReturningEnrollmentFinanceTest extends TestCase
         $this->putJson("/api/admin/students/$student->id", ['firstName' => 'Returning', 'lastName' => 'Student', 'status' => 'enrolled'])->assertUnprocessable();
         $this->actingAs($cashier)->putJson("/api/admin/bills/$bill->id/payment-arrangement", [
             'remarks' => 'Approved monthly payment', 'installments' => [['dueDate' => '2027-06-15', 'amount' => 100]],
-        ])->assertSuccessful();
+        ])->assertUnprocessable();
+        $this->assertSame('pending', $return->fresh()->status);
+        $this->postJson("/api/admin/bills/$bill->id/payments", ['amount' => 100, 'method' => 'cash', 'paidAt' => '2027-06-01'])->assertSuccessful();
         $this->assertSame('enrolled', $return->fresh()->status);
         $this->assertSame('dropped', $old->fresh()->status);
-        $this->assertSame(100.0, $bill->fresh()->balance());
+        $this->assertSame(0.0, $bill->fresh()->balance());
         $this->travelTo(Carbon::parse('2027-06-16', 'Asia/Manila'));
-        $this->assertFalse(app(PaymentArrangementService::class)->covers($bill->fresh()));
+        $this->assertTrue(app(PaymentArrangementService::class)->covers($bill->fresh()));
         $this->assertSame('enrolled', $return->fresh()->status);
     }
 
-    public function test_arrangements_require_full_balance_and_overdue_installments_must_be_paid(): void
+    public function test_historical_arrangements_do_not_collect_or_authorize_returns(): void
     {
         extract($this->setupReturn(100));
-        $this->actingAs($admin)->putJson("/api/admin/bills/$bill->id/payment-arrangement", [
-            'remarks' => 'Insufficient', 'installments' => [['dueDate' => '2027-06-02', 'amount' => 99]],
+        PaymentArrangement::create(['bill_id' => $bill->id, 'approved_by' => $admin->id, 'remarks' => 'Historical', 'starting_paid' => 0,
+            'installments' => [['dueDate' => '2027-06-02', 'amount' => 100]]]);
+        $this->assertFalse(app(PaymentArrangementService::class)->covers($bill));
+        $this->assertSame(0.0, $bill->amountDue());
+        $this->actingAs($student->user)->getJson('/api/me/bills')->assertOk()->assertJsonCount(0, 'data.0.installments');
+        $this->actingAs($cashier)->putJson("/api/admin/bills/$bill->id/payment-arrangement", [
+            'remarks' => 'Replacement', 'installments' => [['dueDate' => '2027-06-03', 'amount' => 100]],
         ])->assertUnprocessable();
-        $this->putJson("/api/admin/bills/$bill->id/payment-arrangement", [
-            'remarks' => 'Two installments', 'installments' => [['dueDate' => '2027-06-02', 'amount' => 40], ['dueDate' => '2027-06-20', 'amount' => 60]],
-        ])->assertSuccessful();
-        $this->assertTrue(app(PaymentArrangementService::class)->covers($bill->fresh()));
-        $this->assertSame(40.0, $bill->fresh()->amountDue());
-        $this->actingAs($student->user)->getJson('/api/me/bills')->assertOk()
-            ->assertJsonPath('data.0.installments.0.dueDate', '2027-06-02')
-            ->assertJsonPath('data.0.installments.0.balance', 40);
-        $this->actingAs($admin);
-        $this->travelTo(Carbon::parse('2027-06-03', 'Asia/Manila'));
-        $this->assertFalse(app(PaymentArrangementService::class)->covers($bill->fresh()));
-        $bill->payments()->create(['amount' => 40, 'method' => 'cash', 'status' => 'verified', 'paid_at' => now()]);
-        $bill->recalculate();
-        $this->assertTrue(app(PaymentArrangementService::class)->covers($bill->fresh()));
-        $this->assertSame(60.0, $bill->fresh()->amountDue());
+        $this->assertSame('Historical', $bill->paymentArrangement->remarks);
     }
 
-    public function test_due_queue_uses_the_arrangement_and_ignores_fully_paid_installments(): void
+    public function test_due_queue_only_includes_dropping_debt_during_an_eligible_pending_return(): void
     {
         extract($this->setupReturn(100));
         $bill->installments()->create(['label' => 'Original', 'sequence' => 1, 'amount' => 100, 'due_date' => '2026-08-01']);
-        $this->actingAs($admin)->getJson('/api/admin/bills?tracking_state=due_now')->assertOk()->assertJsonCount(1, 'data');
-        $this->putJson("/api/admin/bills/$bill->id/payment-arrangement", [
-            'remarks' => 'Two installments', 'installments' => [['dueDate' => '2027-06-02', 'amount' => 40], ['dueDate' => '2027-06-20', 'amount' => 60]],
-        ])->assertSuccessful();
-        $this->getJson('/api/admin/bills?tracking_state=due_now')->assertOk()->assertJsonCount(0, 'data');
-        $this->travelTo(Carbon::parse('2027-06-03', 'Asia/Manila'));
-        $this->getJson('/api/admin/bills?tracking_state=due_now')->assertOk()->assertJsonCount(1, 'data');
-        $this->actingAs($cashier)->postJson("/api/admin/bills/$bill->id/payments", ['amount' => 40, 'method' => 'cash', 'paidAt' => '2027-06-03'])->assertSuccessful();
-        $this->getJson('/api/admin/bills?tracking_state=due_now')->assertOk()->assertJsonCount(0, 'data');
-        $bill->paymentArrangement()->delete();
-        $bill->installments()->delete();
-        $bill->installments()->create(['label' => 'Paid', 'sequence' => 1, 'amount' => 40, 'due_date' => '2027-06-01']);
-        $bill->installments()->create(['label' => 'Future', 'sequence' => 2, 'amount' => 60, 'due_date' => '2027-06-20']);
-        $this->getJson('/api/admin/bills?tracking_state=due_now')->assertOk()->assertJsonCount(0, 'data');
+        $this->actingAs($admin)->getJson('/api/admin/bills?tracking_state=due_now')->assertOk()->assertJsonCount(0, 'data');
+        $this->postJson("/api/admin/students/$student->id/returning-enrollments", $this->payload($year))->assertSuccessful();
+        $this->assertTrue($bill->fresh()->hasAmountDueBy('2027-06-01'));
+        $this->travelTo(Carbon::parse('2028-06-02', 'Asia/Manila'));
+        $this->assertFalse($bill->fresh()->hasAmountDueBy('2028-06-02'));
+        $this->assertSame(100.0, $bill->fresh()->balance());
     }
 
     public function test_fully_settled_bill_meets_payment_requirement_after_benefits_reduce_the_downpayment(): void
@@ -180,7 +169,7 @@ class ReturningEnrollmentFinanceTest extends TestCase
         $this->assertSame(1, $return->bill->creditAllocations()->count());
     }
 
-    public function test_same_year_return_and_implicit_voucher_classification_are_blocked(): void
+    public function test_same_year_return_is_blocked_and_voucher_needs_no_separate_classification(): void
     {
         extract($this->setupReturn());
         $payload = $this->payload($old->schoolYear);
@@ -188,10 +177,9 @@ class ReturningEnrollmentFinanceTest extends TestCase
         $this->actingAs($admin)->postJson($url, $payload)->assertUnprocessable();
         $voucher = Discount::create(['name' => 'New voucher', 'category' => 'voucher', 'type' => 'fixed', 'value' => 100, 'is_active' => true]);
         $payload = [...$this->payload($year), 'discountId' => $voucher->id];
-        $this->postJson($url, $payload)->assertUnprocessable();
-        $payload['droppingCategory'] = 'voucher_esc';
-        $response = $this->postJson($url, $payload)->assertSuccessful();
+        $response = $this->postJson($url, $payload)->assertSuccessful()->assertJsonPath('data.droppingCategory', 'voucher_esc');
         $return = Enrollment::findOrFail($response->json('data.id'));
+        $this->postJson($url, $payload)->assertSuccessful()->assertJsonPath('data.id', $return->id);
         $this->assertTrue($return->no_downpayment);
         $this->assertSame('pending', $return->status); // Voucher waiver cannot bypass old debt.
     }

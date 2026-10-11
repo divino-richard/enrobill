@@ -91,6 +91,7 @@ function useBillMutation<TArgs>(
   return useMutation({
     mutationFn,
     onSuccess: (bill) => {
+      void queryClient.invalidateQueries({ queryKey: ["me", "re-enrollment"] });
       queryClient.setQueryData(billQueryKey(billId), bill);
       queryClient.invalidateQueries({ queryKey: billsQueryKey });
       queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
@@ -168,6 +169,7 @@ export function useSubmitMyPayment(billId?: number) {
   return useMutation({
     mutationFn: (input: SubmitPaymentInput) => submitMyPayment(input, billId),
     onSuccess: (bill) => {
+      void queryClient.invalidateQueries({ queryKey: ["me", "re-enrollment"] });
       queryClient.setQueryData<Bill | undefined>(myBillQueryKey, current => current?.id === bill.id ? bill : current);
       void queryClient.invalidateQueries({ queryKey: myBillQueryKey });
       queryClient.setQueryData<Bill[] | undefined>(myBillsQueryKey, (current) => {

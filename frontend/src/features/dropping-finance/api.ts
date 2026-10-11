@@ -14,22 +14,32 @@ export const PERIODS = [
   { key: 'quarter_4', label: 'Final quarter', paying: 'Total assessment', voucher: '50% of total assessment' },
 ] as const;
 export type PeriodKey = typeof PERIODS[number]['key'];
+export interface AssessmentBlocker {
+  category: 'policy' | 'bill' | 'fees' | 'payments' | 'date' | 'eligibility' | 'legacy';
+  messages: string[];
+}
 export interface DroppingAssessment {
   ready: boolean; issues: string[]; fingerprint: string | null; policyVersion: number | null;
+  blockingIssues?: AssessmentBlocker[];
   period: PeriodKey | null; category: DroppingCategory | null; effectiveDate: string;
   originalTotal: number; finalCharge: number | null; verifiedPayments: number; balance: number; credit: number | null;
   feeBreakdown: Partial<Record<DroppingComponent, number>>; finalized?: boolean; legacy?: boolean; creditApplied?: number;
+  feeCharges?: { feeId: number; billItemId: number; name: string; percent: number; originalAmount: number }[];
 }
+export type FeeRule = { feeId: number; percent: number; name?: string; category?: string; yearLevel?: string };
+export type FeeRules = Record<DroppingCategory, Record<PeriodKey, FeeRule[]>>;
 export interface DroppingPolicy {
-  id?: number; schoolYearId: number; version: number; enabled: boolean;
+  id?: number | null; schoolYearId: number; version: number; enabled: boolean;
   periods: Record<PeriodKey, { startsOn: string; endsOn: string }>;
+  feeRules?: FeeRules | null;
 }
 export interface ReturningSummary {
+  effectiveDroppingDate: string | null; returnDeadline: string | null;
   previousBalance: number; availableCredit: number; eligible: boolean; blockers: string[];
   latestSchoolYearId: number | null; latestSchoolYear: string | null;
 }
 export interface ReturningInput {
-  schoolYearId: number; program: string; yearLevel: string; discountId: number | null; droppingCategory: DroppingCategory;
+  schoolYearId: number; program: string; yearLevel: string; discountId: number | null;
 }
 export interface PaymentArrangement {
   remarks: string; installments: { dueDate: string; amount: number }[];
@@ -41,14 +51,17 @@ export async function fetchAssessment(id: number, effectiveDate: string) {
 export async function fetchPolicy(id: number) {
   return (await api.get<{ data: DroppingPolicy | null }>(`/admin/school-years/${id}/dropping-policy`)).data.data;
 }
-export async function savePolicy(id: number, input: Pick<DroppingPolicy, 'enabled' | 'periods'>) {
+export async function savePolicy(id: number, input: Pick<DroppingPolicy, 'enabled' | 'periods' | 'feeRules'>) {
   return (await api.put(`/admin/school-years/${id}/dropping-policy`, input)).data;
 }
-export async function saveClassification(id: number, items: { id: number; component: DroppingComponent }[]) {
-  return (await api.put(`/admin/bills/${id}/dropping-classification`, { items })).data;
+export type PeriodUpdateInput =
+  | { startsOn: string; endsOn: string; feeRules?: Partial<Record<DroppingCategory, FeeRule[]>> }
+  | { startsOn?: never; endsOn?: never; feeRules: Partial<Record<DroppingCategory, FeeRule[]>> };
+export async function savePolicyPeriod(id: number, period: PeriodKey, input: PeriodUpdateInput) {
+  return (await api.put<{ data: DroppingPolicy }>(`/admin/school-years/${id}/dropping-policy/periods/${period}`, input)).data.data;
 }
-export async function saveCategory(id: number, category: DroppingCategory) {
-  return (await api.put(`/admin/enrollments/${id}/dropping-category`, { category })).data;
+export async function saveClassification(id: number, items: { id: number; component: DroppingComponent | null; sourceFeeId?: number | null }[]) {
+  return (await api.put(`/admin/bills/${id}/dropping-classification`, { items })).data;
 }
 export async function fetchReturningSummary(id: number) {
   return (await api.get<{ data: ReturningSummary }>(`/admin/students/${id}/returning-summary`)).data.data;

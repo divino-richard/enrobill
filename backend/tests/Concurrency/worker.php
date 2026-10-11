@@ -1,9 +1,13 @@
 <?php
 
+use App\Actions\GenerateBillForEnrollment;
 use App\Http\Controllers\Admin\PaymentController;
+use App\Http\Controllers\Admin\ReturningEnrollmentController;
 use App\Http\Controllers\DroppingRequestController;
 use App\Models\Bill;
 use App\Models\DroppingRequest;
+use App\Models\Payment;
+use App\Models\Student;
 use App\Models\User;
 use App\Services\StudentCreditService;
 use Illuminate\Contracts\Console\Kernel;
@@ -42,6 +46,12 @@ try {
         app(DroppingRequestController::class)->confirm($request, DroppingRequest::findOrFail($input['id']));
     } elseif ($input['action'] === 'pay') {
         app(PaymentController::class)->store($request, Bill::findOrFail($input['id']));
+    } elseif ($input['action'] === 'verify') {
+        app(PaymentController::class)->verify(Bill::findOrFail($input['id']), Payment::findOrFail($input['paymentId']));
+    } elseif ($input['action'] === 'return') {
+        app(ReturningEnrollmentController::class)->store($request, Student::findOrFail($input['id']), app(GenerateBillForEnrollment::class));
+    } elseif ($input['action'] === 'student-return') {
+        app(\App\Http\Controllers\StudentReturningEnrollmentController::class)->store($request, app(\App\Services\StudentReturningEnrollment::class));
     } elseif ($input['action'] === 'allocate') {
         app(StudentCreditService::class)->applyToBill(Bill::findOrFail($input['id']), $user->id);
     } else {

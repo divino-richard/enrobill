@@ -16,6 +16,9 @@ class GenerateInstallmentSchedule
      */
     public function __invoke(Bill $bill): void
     {
+        if ($bill->isDroppingBill()) {
+            return; // Preserve the historical schedule; no active dropping installments.
+        }
         $bill->assertMutableAssessment();
         $schoolYear = $bill->schoolYear;
         $net = $bill->netTotal();

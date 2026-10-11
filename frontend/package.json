@@ -9,8 +9,11 @@
     "type-check": "tsc -b",
     "test:incentives": "node --experimental-strip-types --test tests/incentive-preview.test.mjs",
     "test:referral-ui": "node --test tests/student-referral-banner.test.mjs",
+    "test:dropping-ui": "node --test tests/dropping-review.test.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:academic-year-ui": "node --test tests/academic-year-ui.test.mjs",
+    "test:dropping-policy": "node --test tests/dropping-policy-builder.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

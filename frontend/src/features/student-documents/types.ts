@@ -9,6 +9,7 @@ export type StudentDocumentType = "clearance" | "grades";
 export type ReviewStatus = "pending" | "accepted" | "returned";
 
 export interface StudentDocument {
+  schoolYear?: string | null;
   id: number;
   semester: Semester;
   type: StudentDocumentType;

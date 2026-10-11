@@ -166,7 +166,7 @@ class StudentBillController extends Controller
                 ]);
             }
 
-            if ($amount < $due - 0.01) {
+            if (! $bill->isDroppingBill() && $amount < $due - 0.01) {
                 throw ValidationException::withMessages([
                     'amount' => "Please pay at least the amount due of {$due}.",
                 ]);

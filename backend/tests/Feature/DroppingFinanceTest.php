@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Actions\GenerateBillForEnrollment;
 use App\Actions\GenerateInstallmentSchedule;
 use App\Enums\Role;
 use App\Models\Bill;
+use App\Models\Discount;
 use App\Models\DroppingPolicy;
 use App\Models\DroppingRequest;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearFee;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\DroppingFinance;
@@ -29,8 +32,12 @@ class DroppingFinanceTest extends TestCase
         $user = User::factory()->create(['role' => Role::Student]);
         $student = Student::create(['user_id' => $user->id, 'student_number' => 'F-'.$user->id, 'status' => 'enrolled', 'first_name' => 'Test', 'last_name' => 'Student']);
         $year = SchoolYear::create(['school_year' => '2026-2027', 'start_date' => '2026-06-01', 'end_date' => '2027-03-31']);
-        $enrollment = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $year->id, 'status' => 'enrolled', 'track' => 'stem', 'year_level' => 'grade_11', 'dropping_category' => $category, 'enrolled_at' => '2026-04-30']);
+        $enrollment = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $year->id, 'status' => 'enrolled', 'track' => 'stem', 'year_level' => 'grade_11', 'enrolled_at' => '2026-04-30']);
         $bill = Bill::create(['student_id' => $student->id, 'school_year_id' => $year->id, 'enrollment_id' => $enrollment->id, 'total' => '11000.03', 'amount_paid' => $paid, 'status' => $paid ? 'partial' : 'unpaid']);
+        if ($category === 'voucher_esc') {
+            $voucher = Discount::create(['name' => 'School voucher', 'category' => 'voucher', 'type' => 'fixed', 'value' => 1000, 'is_active' => true]);
+            $bill->adjustments()->create(['discount_id' => $voucher->id, 'label' => $voucher->name, 'type' => 'fixed', 'value' => 1000, 'amount' => 1000]);
+        }
         foreach (['registration' => '1000.00', 'miscellaneous' => '2000.01', 'laboratory' => '1000.00', 'tuition' => '6000.01', 'other' => '1000.01'] as $component => $amount) {
             $bill->items()->create(['name' => $component, 'category' => 'other', 'dropping_component' => $component, 'amount' => $amount]);
         }
@@ -47,6 +54,24 @@ class DroppingFinanceTest extends TestCase
         $admin = User::factory()->create(['role' => Role::Admin]);
 
         return [$request, $bill, $admin, $policy];
+    }
+
+    public function test_editing_one_period_keeps_legacy_calculations_and_classification_checks_for_other_periods(): void
+    {
+        [$request, $bill, $admin, $policy] = $this->fixture();
+        $fee = SchoolYearFee::create(['school_year_id' => $bill->school_year_id, 'year_level' => 'all', 'category' => 'other', 'type' => 'default', 'name' => 'registration', 'amount' => 1000]);
+        $this->actingAs($admin)->putJson("/api/admin/school-years/{$bill->school_year_id}/dropping-policy/periods/enrollment", [
+            ...$policy->periods['enrollment'], 'feeRules' => ['paying' => [['feeId' => $fee->id, 'percent' => 50]]],
+        ])->assertOk();
+        $finance = app(DroppingFinance::class);
+        $changed = $finance->preview($request, '2026-05-01');
+        $this->assertTrue($changed['ready'], implode(' ', $changed['issues']));
+        $this->assertEquals(500, $changed['finalCharge']);
+        $unchanged = $finance->preview($request, '2026-06-01');
+        $this->assertTrue($unchanged['ready'], implode(' ', $unchanged['issues']));
+        $this->assertEquals(3000.01, $unchanged['finalCharge']);
+        $bill->items()->where('name', 'miscellaneous')->update(['dropping_component' => null]);
+        $this->assertFalse($finance->preview($request, '2026-06-01')['ready']);
     }
 
     public static function cases(): array
@@ -82,7 +107,7 @@ class DroppingFinanceTest extends TestCase
     }
 
     #[DataProvider('payments')]
-    public function test_final_balance_matches_installments_and_preserves_due_dates(float $paid): void
+    public function test_final_balance_is_deferred_and_original_installments_are_preserved(float $paid): void
     {
         [$request, $bill, $admin] = $this->fixture('paying', $paid);
         $dates = $bill->installments()->pluck('due_date')->map->toDateString()->all();
@@ -94,7 +119,9 @@ class DroppingFinanceTest extends TestCase
         $this->assertEquals(max($paid - 1000, 0), $final['credit']);
         $this->assertEquals($dates, $bill->installments()->pluck('due_date')->map->toDateString()->all());
         $this->assertEquals($original, $final['originalInstallments']);
-        $this->assertEquals($bill->balance(), max(round($bill->installments()->sum('amount') - $bill->effectivePaymentTotal(), 2), 0));
+        $this->assertEquals($original, $bill->installments()->get()->toArray());
+        $this->assertSame(0.0, $bill->amountDue());
+        $this->assertCount(0, $bill->installmentSchedule());
     }
 
     public function test_credit_allocates_once_to_later_year_and_releases_after_new_benefits(): void
@@ -120,14 +147,15 @@ class DroppingFinanceTest extends TestCase
         $this->assertEquals(2000, $target->creditAllocations()->first()->released_amount);
     }
 
-    public function test_fully_waived_original_bill_still_receives_a_payable_final_schedule(): void
+    public function test_fully_waived_original_bill_keeps_final_balance_without_a_new_schedule(): void
     {
         [$request, $bill, $admin] = $this->fixture();
         $bill->installments()->delete();
         $bill->adjustments()->create(['label' => 'Original full benefit', 'type' => 'fixed', 'value' => 11000.03, 'amount' => 11000.03]);
         DB::transaction(fn () => app(DroppingFinance::class)->finalize($request, '2026-05-20', $admin->id));
         $this->assertEquals(1000, $bill->fresh()->balance());
-        $this->assertEquals(1000, $bill->installments()->sum('amount'));
+        $this->assertCount(0, $bill->installments);
+        $this->assertSame(0.0, $bill->fresh()->amountDue());
     }
 
     public function test_prior_benefit_cannot_hide_final_balance_when_payments_exceed_the_old_schedule(): void
@@ -142,14 +170,119 @@ class DroppingFinanceTest extends TestCase
         $bill->refresh();
         $this->assertEquals(6000.02, $bill->netTotal());
         $this->assertEquals(2000.02, $bill->balance());
-        $this->assertEquals($bill->balance(), $bill->installmentSchedule()->sum('balance'));
-        $this->assertEquals($bill->netTotal(), $bill->installments()->sum('amount'));
+        $this->assertCount(0, $bill->installmentSchedule());
+        $this->assertSame(0.0, $bill->amountDue());
+        $this->assertEquals(3000.03, $bill->installments()->sum('amount'));
         $this->assertEquals($dates, $bill->installments()->pluck('due_date')->map->toDateString()->all());
 
         $bill->payments()->create(['amount' => 500, 'status' => 'verified', 'method' => 'cash', 'paid_at' => now()]);
         $bill->recalculate();
         $this->assertEquals(1500.02, $bill->balance());
-        $this->assertEquals($bill->balance(), $bill->installmentSchedule()->sum('balance'));
+        $this->assertCount(0, $bill->installmentSchedule());
+        $this->assertSame(0.0, $bill->amountDue());
         $this->assertEquals($dates, $bill->installments()->pluck('due_date')->map->toDateString()->all());
+    }
+
+    public function test_selected_fees_use_original_bill_amounts_and_automatic_category_and_remain_frozen(): void
+    {
+        [$request, $bill, $admin, $policy] = $this->fixture('voucher_esc');
+        $item = $bill->items()->where('name', 'tuition')->firstOrFail();
+        $item->update(['source_fee_id' => 123, 'name' => 'Original tuition', 'dropping_component' => null]);
+        $rule = ['feeId' => 123, 'percent' => 50, 'name' => 'Current tuition', 'category' => 'tuition', 'yearLevel' => 'all'];
+        $rules = array_fill_keys(['paying', 'voucher_esc'], array_fill_keys(DroppingPolicy::PERIODS, [$rule]));
+        $rules['paying']['enrollment'][0]['percent'] = 100;
+        $policy->update(['fee_rules' => $rules]);
+        $preview = app(DroppingFinance::class)->preview($request, '2026-05-20');
+        $this->assertTrue($preview['ready'], implode(' ', $preview['issues']));
+        $this->assertEquals(3000.01, $preview['finalCharge']);
+        $this->assertEquals('Original tuition', $preview['feeCharges'][0]['name']);
+        $this->assertEquals(6000.01, $preview['feeCharges'][0]['originalAmount']);
+        $final = DB::transaction(fn () => app(DroppingFinance::class)->finalize($request, '2026-05-20', $admin->id));
+        $rules['voucher_esc']['enrollment'][0]['percent'] = 100;
+        $policy->update(['fee_rules' => $rules]);
+        $this->assertEquals($final, app(DroppingFinance::class)->preview($request, '2026-05-20'));
+    }
+
+    public function test_legacy_bill_matches_must_be_exact_and_unambiguous_and_grade_specific_fees_are_excluded(): void
+    {
+        [$request, $bill, , $policy] = $this->fixture();
+        $rule = ['feeId' => 123, 'percent' => 50, 'name' => 'tuition', 'category' => 'other', 'yearLevel' => 'all'];
+        $grade12 = ['feeId' => 124, 'percent' => 100, 'name' => 'Grade 12 add-on', 'category' => 'other', 'yearLevel' => 'grade_12'];
+        $rules = array_fill_keys(['paying', 'voucher_esc'], array_fill_keys(DroppingPolicy::PERIODS, [$rule, $grade12]));
+        $policy->update(['fee_rules' => $rules]);
+        $preview = app(DroppingFinance::class)->preview($request, '2026-05-20');
+        $this->assertTrue($preview['ready'], implode(' ', $preview['issues']));
+        $this->assertEquals(3000.01, $preview['finalCharge']);
+        $this->assertCount(1, $preview['feeCharges']);
+        $bill->items()->where('name', 'other')->firstOrFail()->update(['name' => 'tuition']);
+        $preview = app(DroppingFinance::class)->preview($request, '2026-05-20');
+        $this->assertFalse($preview['ready']);
+        $this->assertStringContainsString('Link the original bill fee', implode(' ', $preview['issues']));
+        $bill->items()->where('dropping_component', 'tuition')->firstOrFail()->update(['source_fee_id' => 123]);
+        // An unlinked duplicate is still ambiguous; explicitly link both lines.
+        $bill->items()->where('dropping_component', 'other')->firstOrFail()->update(['source_fee_id' => 999]);
+        $this->assertTrue(app(DroppingFinance::class)->preview($request, '2026-05-20')['ready']);
+    }
+
+    public function test_changed_or_missing_bill_fee_links_invalidate_the_approval_preview(): void
+    {
+        [$request, $bill, , $policy] = $this->fixture();
+        $rule = ['feeId' => 123, 'percent' => 50, 'name' => 'tuition', 'category' => 'other', 'yearLevel' => 'all'];
+        $policy->update(['fee_rules' => array_fill_keys(['paying', 'voucher_esc'], array_fill_keys(DroppingPolicy::PERIODS, [$rule]))]);
+        $before = app(DroppingFinance::class)->preview($request, '2026-05-20');
+        $bill->items()->where('name', 'tuition')->firstOrFail()->update(['source_fee_id' => 999]);
+        $after = app(DroppingFinance::class)->preview($request, '2026-05-20');
+        $this->assertFalse($after['ready']);
+        $this->assertNotSame($before['fingerprint'], $after['fingerprint']);
+    }
+
+    public function test_a_policy_with_no_applicable_grade_fees_cannot_silently_approve_a_zero_charge(): void
+    {
+        [$request, , , $policy] = $this->fixture();
+        $rule = ['feeId' => 123, 'percent' => 100, 'name' => 'Grade 12 fee', 'category' => 'other', 'yearLevel' => 'grade_12'];
+        $policy->update(['fee_rules' => array_fill_keys(['paying', 'voucher_esc'], array_fill_keys(DroppingPolicy::PERIODS, [$rule]))]);
+        $preview = app(DroppingFinance::class)->preview($request, '2026-05-20');
+        $this->assertFalse($preview['ready']);
+        $this->assertStringContainsString('grade level', implode(' ', $preview['issues']));
+    }
+
+    public function test_bill_fee_links_reject_other_years_grades_and_duplicate_sources(): void
+    {
+        [, $bill, $admin] = $this->fixture();
+        $this->actingAs($admin);
+        $fee = SchoolYearFee::create(['school_year_id' => $bill->school_year_id, 'year_level' => 'all', 'category' => 'other', 'type' => 'default', 'name' => 'Registration', 'amount' => 1000]);
+        $items = $bill->items()->take(2)->get();
+        $url = "/api/admin/bills/{$bill->id}/dropping-classification";
+        $input = ['items' => [['id' => $items[0]->id, 'component' => null, 'sourceFeeId' => $fee->id]]];
+        $this->putJson($url, $input)->assertOk();
+        $this->assertEquals($fee->id, $items[0]->fresh()->source_fee_id);
+        $input['items'][] = ['id' => $items[1]->id, 'component' => 'other', 'sourceFeeId' => $fee->id];
+        $this->putJson($url, $input)->assertUnprocessable();
+        $this->assertNull($items[1]->fresh()->source_fee_id);
+        $fee->update(['year_level' => 'grade_12']);
+        $input['items'] = [$input['items'][1]];
+        $this->putJson($url, $input)->assertUnprocessable();
+        $other = SchoolYear::create(['school_year' => '2027-2028']);
+        $fee->update(['school_year_id' => $other->id, 'year_level' => 'all']);
+        $this->putJson($url, $input)->assertUnprocessable();
+        $fee->delete();
+        // An unchanged historical identity survives catalog removal.
+        $input['items'][0]['id'] = $items[0]->id;
+        $this->putJson($url, $input)->assertOk();
+    }
+
+    public function test_new_bill_items_retain_their_catalog_identity_and_original_amount(): void
+    {
+        [, $original] = $this->fixture();
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'downpayment_type' => 'fixed', 'downpayment_value' => 100, 'installment_count' => 2]);
+        $fee = SchoolYearFee::create(['school_year_id' => $year->id, 'year_level' => 'all', 'category' => 'tuition', 'type' => 'default', 'name' => 'Tuition', 'amount' => 1500]);
+        $enrollment = Enrollment::create(['student_id' => $original->student_id, 'school_year_id' => $year->id, 'status' => 'pending', 'track' => 'stem', 'year_level' => 'grade_11']);
+        $bill = app(GenerateBillForEnrollment::class)($enrollment);
+        $item = $bill->items()->firstOrFail();
+        $this->assertEquals($fee->id, $item->source_fee_id);
+        $fee->update(['amount' => 2500]);
+        $this->assertEquals(1500, $item->fresh()->amount);
+        $fee->delete();
+        $this->assertEquals($item->source_fee_id, $item->fresh()->source_fee_id);
     }
 }

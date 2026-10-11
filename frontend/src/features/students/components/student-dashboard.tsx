@@ -1,3 +1,5 @@
+import { useStudentReturn } from '@/features/re-enrollment/api';
+import { PostDropDashboard } from '@/features/re-enrollment/post-drop-dashboard';
 import { format } from "date-fns";
 import axios from "axios";
 import { Link } from "react-router-dom";
@@ -56,6 +58,7 @@ function PanelError({ label, retry, busy }: { label: string; retry: () => void; 
 
 export function StudentDashboard() {
   const studentQuery = useMyStudent();
+  const returnQuery = useStudentReturn();
   const billQuery = useMyBill();
   const scheduleQuery = useMyClassSchedule();
   const documentsQuery = useMyDocuments();
@@ -79,6 +82,9 @@ export function StudentDashboard() {
   }
 
   const student = studentQuery.data;
+  if (student.status === "dropped" || (returnQuery.data?.source && returnQuery.data.state !== "enrolled")) {
+    return <PostDropDashboard student={student} />;
+  }
   const bill = billQuery.data;
   const schedule = scheduleQuery.data;
   const nextDue = nextOutstandingInstallment(bill?.installments ?? []);

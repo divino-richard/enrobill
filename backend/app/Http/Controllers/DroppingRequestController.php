@@ -164,7 +164,7 @@ class DroppingRequestController extends Controller
             $dropping->fill(['status' => 'confirmed', 'active_enrollment_id' => null, 'confirmed_by' => $request->user()->id,
                 'confirmed_at' => now(), 'effective_date' => $input['effectiveDate'], 'final_remarks' => ($input['remarks'] ?? null)]);
             $dropping->record('confirmed', $request->user(), ($input['remarks'] ?? null));
-            $this->notify($dropping, 'Your dropping request is approved effective '.$input['effectiveDate'].'. Any unpaid bills still need to be paid.');
+            $this->notify($dropping, 'Your dropping request is approved effective '.$input['effectiveDate'].'. Any remaining dropping balance is payable upon re-enrollment. No immediate payment or clearance is required.');
         });
     }
 

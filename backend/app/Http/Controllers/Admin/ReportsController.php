@@ -224,6 +224,7 @@ class ReportsController extends Controller
                     'amountPaid' => $paid,
                     'balance' => $bill->balance(),
                     'amountDue' => $bill->amountDue(),
+                    'collectionState' => $bill->collectionState(),
                 ];
             })
             ->sortByDesc('balance')

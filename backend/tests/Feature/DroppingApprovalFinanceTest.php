@@ -14,6 +14,7 @@ use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DroppingApprovalFinanceTest extends TestCase
@@ -58,6 +59,66 @@ class DroppingApprovalFinanceTest extends TestCase
         return $this->postJson("/api/admin/dropping-requests/{$drop->id}/confirm", ['version' => 1, 'effectiveDate' => '2026-09-30', 'assessmentFingerprint' => $preview['fingerprint']]);
     }
 
+    public static function voucherCases(): array
+    {
+        return [
+            'no voucher or manual category' => [false, false, true, null, 'paying', 6000],
+            'applied voucher without manual category' => [true, true, true, null, 'voucher_esc', 2000],
+            'voucher added directly to bill' => [true, false, true, 'paying', 'voucher_esc', 2000],
+            'retired but already applied voucher' => [true, true, false, 'paying', 'voucher_esc', 2000],
+            'removed voucher overrides enrollment eligibility' => [false, true, true, 'voucher_esc', 'paying', 6000],
+            'stale manual voucher category' => [false, false, true, 'voucher_esc', 'paying', 6000],
+        ];
+    }
+
+    #[DataProvider('voucherCases')]
+    public function test_bill_voucher_automatically_determines_preview_and_approval_category(
+        bool $applied, bool $assigned, bool $active, ?string $manualCategory, string $expectedCategory, int $expectedCharge,
+    ): void {
+        [$drop, $bill, $enrollment] = $this->requestWithBill();
+        $voucher = Discount::create(['name' => 'School voucher', 'category' => 'voucher', 'type' => 'fixed', 'value' => 1000, 'is_active' => $active]);
+        $enrollment->update(['discount_id' => $assigned ? $voucher->id : null, 'dropping_category' => $manualCategory]);
+        if ($applied) {
+            $bill->adjustments()->create(['discount_id' => $voucher->id, 'label' => $voucher->name, 'type' => 'fixed', 'value' => 1000, 'amount' => 1000]);
+        }
+        // An unrelated benefit must not make a student a voucher recipient.
+        $bill->adjustments()->create(['label' => 'Tuition incentive', 'type' => 'fixed', 'value' => 500, 'amount' => 500]);
+
+        $this->getJson("/api/dropping-requests/{$drop->id}")->assertOk()->assertJsonPath('data.droppingCategory', $expectedCategory);
+        $preview = $this->preview($drop);
+        $this->assertTrue($preview['ready'], implode(' ', $preview['issues']));
+        $this->assertSame($expectedCategory, $preview['category']);
+        $this->assertEquals($expectedCharge, $preview['finalCharge']);
+        $this->approve($drop, $preview)->assertOk()
+            ->assertJsonPath('data.droppingAssessment.category', $expectedCategory)
+            ->assertJsonPath('data.droppingAssessment.finalCharge', $expectedCharge);
+        $this->assertSame(0.0, $bill->fresh()->amountDue());
+        $this->assertCount(0, $bill->fresh()->installmentSchedule());
+        $this->assertEquals(11000, $bill->installments()->sum('amount'));
+        $this->artisan('notifications:installments-due')->assertSuccessful();
+        $this->assertSame(0, $bill->student->notifications()->where('dedupe_key', 'like', 'installment-due:%')->count());
+    }
+
+    public function test_voucher_changes_require_a_fresh_preview_and_approved_category_is_preserved(): void
+    {
+        [$drop, $bill] = $this->requestWithBill();
+        $paying = $this->preview($drop);
+        $voucher = Discount::create(['name' => 'School voucher', 'category' => 'voucher', 'type' => 'fixed', 'value' => 1000, 'is_active' => true]);
+        $adjustment = $bill->adjustments()->create(['discount_id' => $voucher->id, 'label' => $voucher->name, 'type' => 'fixed', 'value' => 1000, 'amount' => 1000]);
+        $this->approve($drop, $paying)->assertConflict();
+        $voucherPreview = $this->preview($drop);
+        $this->assertSame('voucher_esc', $voucherPreview['category']);
+        $adjustment->delete();
+        $this->approve($drop, $voucherPreview)->assertConflict();
+        $this->approve($drop, $this->preview($drop))->assertOk()->assertJsonPath('data.droppingAssessment.category', 'paying');
+
+        // A legacy manual category must not override the approved snapshot.
+        $drop->enrollment->update(['dropping_category' => 'voucher_esc']);
+        $this->getJson("/api/dropping-requests/{$drop->id}")->assertOk()->assertJsonPath('data.droppingCategory', 'paying');
+        $this->assertSame('paying', $this->preview($drop)['category']);
+        $this->assertEquals(6000, $this->preview($drop)['finalCharge']);
+    }
+
     public function test_changed_payments_block_stale_approval_and_duplicate_approval_issues_credit_once(): void
     {
         [$drop, $bill, $e] = $this->requestWithBill(7000);
@@ -90,14 +151,35 @@ class DroppingApprovalFinanceTest extends TestCase
         $this->assertFalse($preview['ready']);
         $this->approve($drop, $preview)->assertUnprocessable();
         $this->putJson("/api/admin/bills/{$bill->id}/dropping-classification", ['items' => [['id' => $item->id, 'component' => 'registration']]])->assertOk();
-        $this->putJson("/api/admin/enrollments/{$e->id}/dropping-category", ['category' => 'voucher_esc'])->assertOk();
         $payment->update(['status' => 'rejected']);
         $preview = $this->preview($drop);
         $this->assertTrue($preview['ready']);
-        $this->assertEquals(2000, $preview['finalCharge']);
+        $this->assertEquals(6000, $preview['finalCharge']);
         $this->approve($drop, $preview)->assertOk();
         $this->putJson("/api/admin/bills/{$bill->id}/dropping-classification", ['items' => [['id' => $item->id, 'component' => 'other']]])->assertUnprocessable();
-        $this->putJson("/api/admin/enrollments/{$e->id}/dropping-category", ['category' => 'paying'])->assertUnprocessable();
+    }
+
+    public function test_unavailable_estimate_groups_issues_by_the_action_needed_to_resolve_them(): void
+    {
+        [$drop, $bill, $enrollment] = $this->requestWithBill();
+        DroppingPolicy::where('school_year_id', $enrollment->school_year_id)->delete();
+        $bill->items()->first()->update(['dropping_component' => null]);
+        $preview = $this->preview($drop);
+
+        $this->assertFalse($preview['ready']);
+        $groups = collect($preview['blockingIssues'])->keyBy('category');
+        $this->assertCount(3, $groups->get('policy')['messages']);
+        $this->assertCount(1, $groups->get('fees')['messages']);
+        $this->assertCount(1, $groups->get('date')['messages']);
+        $this->assertEqualsCanonicalizing($preview['issues'], $groups->pluck('messages')->flatten()->all());
+    }
+
+    public function test_an_out_of_period_date_does_not_report_valid_policy_setup_as_broken(): void
+    {
+        [$drop] = $this->requestWithBill();
+        $preview = $this->getJson("/api/dropping-requests/{$drop->id}/assessment?effectiveDate=2026-04-30")->assertOk()->json('data');
+        $this->assertFalse($preview['ready']);
+        $this->assertSame(['date'], array_column($preview['blockingIssues'], 'category'));
     }
 
     public function test_preview_is_owner_authorized_and_final_snapshot_survives_policy_changes(): void
@@ -126,7 +208,7 @@ class DroppingApprovalFinanceTest extends TestCase
         $voucher = Discount::create(['name' => 'Original voucher', 'category' => 'voucher', 'type' => 'fixed', 'value' => 11000, 'is_active' => true]);
         $adjustment = $bill->adjustments()->create(['discount_id' => $voucher->id, 'label' => $voucher->name, 'type' => 'fixed', 'value' => 11000, 'amount' => 11000]);
         $this->approve($drop, $this->preview($drop))->assertOk();
-        $this->assertEquals(6000, $bill->fresh()->netTotal());
+        $this->assertEquals(2000, $bill->fresh()->netTotal());
         $this->deleteJson("/api/admin/bills/{$bill->id}/adjustments/{$adjustment->id}")->assertUnprocessable();
         $this->deleteJson("/api/admin/bills/{$bill->id}")->assertUnprocessable();
         $this->deleteJson("/api/admin/discounts/{$voucher->id}")->assertUnprocessable();
@@ -135,7 +217,7 @@ class DroppingApprovalFinanceTest extends TestCase
         $payment = $bill->payments()->first();
         $this->deleteJson("/api/admin/bills/{$bill->id}/payments/{$payment->id}")->assertUnprocessable();
         $this->assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'verified']);
-        $this->assertDatabaseHas('student_credits', ['source_bill_id' => $bill->id, 'amount' => 1000]);
+        $this->assertDatabaseHas('student_credits', ['source_bill_id' => $bill->id, 'amount' => 5000]);
     }
 
     public function test_failed_finalization_rolls_back_assessment_credit_and_enrollment_together(): void

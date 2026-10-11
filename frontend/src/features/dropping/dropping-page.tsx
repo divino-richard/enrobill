@@ -1,16 +1,20 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { ReturnEntry } from '@/features/re-enrollment/return-entry';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon, ChevronRightIcon, DownloadIcon, FileTextIcon, Loader2Icon } from 'lucide-react';
+import { ArrowLeftIcon, ArrowUpRightIcon, ChevronRightIcon, CircleCheckIcon, DownloadIcon, Loader2Icon, MoreHorizontalIcon, RefreshCwIcon } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/features/auth/store';
 import { fetchMyEnrollments } from '@/features/students/api';
@@ -18,9 +22,10 @@ import { useProgramLabel } from '@/features/programs/hooks';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { formatPeso } from '@/lib/money';
 import { STATUS_LABELS, createDroppingRequest, downloadDroppingFile, droppingAction, droppingBlob, fetchDroppingRequest, fetchDroppingRequests, type DroppingRequest, type DropStatus } from './api';
+import { SubmittedDocument } from './submitted-document';
 
 import { AssessmentSummary, RequestAssessment } from '@/features/dropping-finance/assessment-summary';
-import { fetchAssessment, philippinesToday, saveCategory, type DroppingCategory } from '@/features/dropping-finance/api';
+import { fetchAssessment, philippinesToday } from '@/features/dropping-finance/api';
 
 const PdfPreview = lazy(() => import('@/components/pdf-preview'));
 
@@ -58,7 +63,8 @@ function DroppingList({ staff }: { staff: boolean }) {
   const currentPage = Math.min(page, pageCount);
   const pageRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return <div className="mx-auto max-w-6xl space-y-4">
-    <PageHeader title="Dropping requests" description={staff ? undefined : 'Download the official form, collect signatures, and track your request here.'} />
+    <PageHeader title="Dropping requests" description={staff ? undefined : 'Track your requests and keep a copy of your dropping approval.'} />
+    {!staff && <ReturnEntry />}
     {!staff && <ErrorText error={create.error || enrollments.error} />}
     <div className="bg-card overflow-hidden rounded-xl border">
       <div className="flex flex-wrap items-center gap-3 border-b p-4">
@@ -100,11 +106,16 @@ function DroppingList({ staff }: { staff: boolean }) {
 function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admin: boolean }) {
   const cache = useQueryClient();
   const query = useQuery({ queryKey: ['dropping', id], queryFn: () => fetchDroppingRequest(id) });
+  const today = philippinesToday();
+  const estimate = useQuery({ queryKey: ['dropping-assessment', id, today], queryFn: () => fetchAssessment(id, today), enabled: !!query.data && !query.data.droppingAssessment && openStatuses.includes(query.data.status) });
   const [fileError, setFileError] = useState<unknown>(null);
   const [fileBusy, setFileBusy] = useState(false);
   const [preview, setPreview] = useState<{ url: string; name: string; mime: string } | null>(null);
+  const previewSequence = useRef(0);
+  const previewTrigger = useRef<HTMLButtonElement | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ action: string; payload: Record<string, unknown>; title: string; description: string } | null>(null);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
+  useEffect(() => () => { previewSequence.current += 1; }, []);
   const mutation = useMutation({
     mutationFn: ({ action, payload }: { action: string; payload?: Record<string, unknown> | FormData }) => droppingAction(id, action, staff, payload instanceof FormData ? payload : { version: query.data?.packetVersion, ...payload }),
     onSuccess: data => { cache.setQueryData(['dropping', id], data); cache.invalidateQueries(); setConfirmAction(null); },
@@ -113,73 +124,90 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
     setFileError(null); setFileBusy(true);
     try { await downloadDroppingFile(path, name); } catch (e) { setFileError(e); } finally { setFileBusy(false); }
   };
-  const view = async (file: { id: string; name: string; mime: string }) => {
-    setFileError(null); setFileBusy(true);
-    try { const blob = await droppingBlob(`/dropping-requests/${id}/files/${file.id}`); setPreview({ url: URL.createObjectURL(blob), name: file.name, mime: file.mime }); } catch (e) { setFileError(e); } finally { setFileBusy(false); }
+  const handlePreview = async (file: { id: string; name: string; mime: string }, trigger: HTMLButtonElement | null) => {
+    const sequence = ++previewSequence.current;
+    const blob = await droppingBlob(`/dropping-requests/${id}/files/${file.id}`);
+    // A slow response must not replace a more recently selected document.
+    if (sequence !== previewSequence.current) return;
+    previewTrigger.current = trigger;
+    setPreview({ url: URL.createObjectURL(blob), name: file.name, mime: file.mime });
   };
   const back = `${staff ? '/admin' : '/portal'}/dropping-requests`;
-  if (query.isPending) return <p role="status">Loading dropping request…</p>;
-  if (!query.data) return <div className="space-y-3"><Button asChild variant="outline"><Link to={back}>Back to requests</Link></Button><ErrorText error={query.error} /><Button onClick={() => query.refetch()}>Try again</Button></div>;
+  const backLink = <Link to={back} className="inline-flex min-h-9 items-center gap-2 rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"><ArrowLeftIcon className="size-4" aria-hidden="true" />Dropping requests</Link>;
+  if (query.isPending) return <div className="mx-auto max-w-6xl space-y-6" role="status"><span className="sr-only">Loading dropping request…</span>{backLink}<Skeleton className="h-9 w-64" /><div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_23rem]"><Skeleton className="h-96 w-full rounded-xl" /><Skeleton className="h-80 w-full rounded-xl" /></div></div>;
+  if (!query.data) return <div className="mx-auto max-w-6xl space-y-6">{backLink}<section className="space-y-3 rounded-xl border bg-card p-6"><h1 className="text-lg font-semibold">Unable to load this request</h1><ErrorText error={query.error} /><Button variant="outline" onClick={() => query.refetch()}><RefreshCwIcon />Try again</Button></section></div>;
   const r = query.data;
   const reviewable = r.status === 'submitted';
   const editable = !staff && ['draft', 'needs_correction'].includes(r.status);
   const lastNote = [...r.events].reverse().find(e => ['needs_correction', 'rejected'].includes(e.action));
-  const documents = <>{r.submissions.length > 0 && <section aria-label="Submitted documents" className="space-y-5">
-    {[...r.submissions].reverse().map((submission, index) => <div key={submission.version} className="space-y-4 border-t pt-5">
-      <div className="space-y-2"><h2 className="text-sm font-semibold">{index === 0 ? 'Reason for dropping' : 'Earlier reason for dropping'}</h2><p className="whitespace-pre-wrap break-words rounded-lg bg-muted/50 p-3 text-sm leading-relaxed">{submission.reason}</p></div>
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold">{index === 0 ? 'Submitted documents' : 'Earlier documents'} <span className="text-muted-foreground font-normal">({submission.files.length})</span></h2><time className="text-muted-foreground text-xs" dateTime={submission.submittedAt}>{dateLabel(submission.submittedAt)}</time></div>
-        <ul className="divide-y rounded-lg bg-muted/40 px-3">{submission.files.map(file => <li key={file.id} className="flex flex-wrap items-center gap-3 py-3">
-          <FileTextIcon className="text-primary size-5 shrink-0" aria-hidden="true" />
-          <div className="min-w-0 flex-1 basis-40"><p className="break-all text-sm font-medium">{file.name}</p><p className="text-muted-foreground mt-1 text-xs">{file.mime === 'application/pdf' ? 'PDF document' : 'Image'} · {(file.size / 1024 / 1024).toFixed(1)} MB</p></div>
-          <div className="flex shrink-0 items-center gap-1"><Button size="sm" variant="outline" disabled={fileBusy} onClick={() => view(file)} aria-label={`Preview ${file.name}`}>Preview</Button><Button size="icon" variant="ghost" disabled={fileBusy} onClick={() => download(`/dropping-requests/${id}/files/${file.id}`, file.name)} aria-label={`Download ${file.name}`}><DownloadIcon /></Button></div>
-        </li>)}</ul>
-      </div>
-    </div>)}
-  </section>}</>;
-  const history = <>{r.events.length > 0 && <section className="space-y-4"><h2 className="text-lg font-semibold">Request history</h2>
-    <ol className="divide-y">{[...r.events].reverse().map((event, index) => <li key={index} className="space-y-2 py-4 first:pt-0 last:pb-0">
-      <p className="text-sm font-semibold">{event.action === 'submitted' ? 'Documents submitted' : event.action === 'created' ? 'Request created' : event.action in STATUS_LABELS ? STATUS_LABELS[event.action as DropStatus] : event.action.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase())}</p>
-      <time dateTime={event.at} className="text-muted-foreground block text-xs tabular-nums">{dateLabel(event.at)} · {new Date(event.at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</time>
-      <p className="text-sm break-words">{event.actorName}</p>
-      {event.remarks && event.action !== 'submitted' && <p className="rounded-md bg-muted/50 p-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words">{event.remarks.replace(/Packet version \d+ submitted\./g, 'Documents submitted.').replace(/\bpacket\b/gi, 'documents')}</p>}
-    </li>)}</ol>
-  </section>}</>;
-  return <div className="mx-auto max-w-6xl space-y-5">
-    <Button asChild variant="ghost" size="sm"><Link to={back}><ArrowLeftIcon />Dropping requests</Link></Button>
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
-    <div className="min-w-0 space-y-5 rounded-xl border bg-card p-5 sm:p-6">
-    <PageHeader title={r.reference} context={<Status status={r.status} />} description={`${r.snapshot.studentName} · ${r.snapshot.studentNumber}`} actions={<>
-      {r.status === 'confirmed' && (!staff || admin) && <Button disabled={fileBusy} onClick={() => download(`/dropping-requests/${id}/acknowledgment`, `${r.reference}-acknowledgment.html`)}><DownloadIcon />Download approval</Button>}
-    </>} />
-    <ErrorText error={mutation.error || fileError} />
-    <div className="grid gap-4 border-t pt-5 text-sm sm:grid-cols-2">
-      <div><p className="text-muted-foreground">Enrollment</p><p className="mt-1 font-medium">SY {r.snapshot.schoolYear} · {r.snapshot.program.toUpperCase()} · {r.snapshot.yearLevel.replaceAll('_', ' ')}</p></div>
-      <div><p className="text-muted-foreground">Current balance</p><p className="mt-1 font-semibold tabular-nums">{formatPeso(r.balance)}</p>{r.billId && <Link className="text-primary underline underline-offset-4" to={staff ? `/admin/billing/${r.billId}` : `/portal/bills/${r.billId}`}>View bill</Link>}</div>
-
-    </div>
-    {r.status === 'confirmed' ? <div className="bg-muted rounded-lg p-4 text-sm"><p className="font-semibold">Officially dropped effective {dateLabel(r.effectiveDate!)}</p><p className="mt-1 whitespace-pre-wrap">{r.finalRemarks}</p><p className="mt-2">Your records and account remain available. Outstanding balances remain payable; returning next school year requires a new enrollment.</p></div> : null}
-    {(r.status === 'needs_correction' || r.status === 'rejected') && lastNote && <div role="status" className="bg-muted rounded-lg p-4 text-sm"><p className="font-semibold">{r.status === 'needs_correction' ? 'Please update your documents' : 'Request rejected'}</p><p className="mt-1 whitespace-pre-wrap">{lastNote.remarks}</p></div>}
-
-    {reviewable && !staff && <p className="bg-muted rounded-lg p-4 text-sm">Your request is waiting for approval. We’ll notify you when there’s an update.</p>}
-    <RequestAssessment requestId={r.id} final={r.droppingAssessment} current={r.financialSummary} staff={staff} billId={r.billId} active={openStatuses.includes(r.status)} />
-    {admin && reviewable && <CategoryEditor request={r} />}
-    {documents}
-    {admin && reviewable && <FinalDecision requestId={r.id} key={`${r.id}-${r.packetVersion}`} busy={mutation.isPending} onDecision={(action, payload) => mutation.mutateAsync({ action, payload: { ...payload, version: r.packetVersion } })} />}
-    {editable && <UploadDocuments key={r.submissions.length} request={r} busy={mutation.isPending} onSubmit={payload => mutation.mutate({ action: 'submit', payload })}
-      formDownload={<Button type="button" variant="outline" size="sm" disabled={fileBusy} onClick={() => download('/dropping-requests/form', 'official-dropping-form.pdf')}><DownloadIcon />Official form</Button>}
-      onCancel={() => setConfirmAction({ action: 'cancel', payload: {}, title: 'Cancel this dropping request?', description: 'Your enrollment and bills will stay unchanged. This request and its submitted documents will remain in history.' })} />}
-    {!staff && r.status === 'submitted' && <div className="border-t pt-4"><Button variant="ghost" disabled={mutation.isPending} onClick={() => setConfirmAction({ action: 'cancel', payload: {}, title: 'Cancel this dropping request?', description: 'Your enrollment and bills will stay unchanged. Your submitted documents will remain in history.' })}>Cancel request</Button></div>}
-
-    </div>
-    {r.events.length > 0 && <aside className="min-w-0 space-y-6 rounded-xl border bg-card p-5 sm:p-6">
-      {editable && <section className="space-y-3 border-b pb-5"><h2 className="font-semibold">Before you submit</h2><ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground"><li>Complete the official form in three copies and collect all applicable signatures.</li><li>Attach your reason letter and confirmation / enrolled-subjects form.</li><li>Upload clear copies of all pages and keep the originals.</li></ul></section>}
-      {history}
-    </aside>}
-    </div>
-    <Dialog open={!!preview} onOpenChange={open => { if (!open) setPreview(null); }}><DialogContent aria-describedby={undefined} className="max-h-[90dvh] w-[calc(100%-2rem)] sm:max-w-4xl"><DialogHeader><DialogTitle className="break-all pr-6">{preview?.name}</DialogTitle></DialogHeader>{preview?.mime === 'application/pdf' ? <Suspense fallback={<p role="status">Loading PDF…</p>}><PdfPreview url={preview.url} name={preview.name} /></Suspense> : preview && <img alt={preview.name} src={preview.url} className="max-h-[65dvh] w-full object-contain" />}</DialogContent></Dialog>
-    <Dialog open={!!confirmAction} onOpenChange={open => { if (!open && !mutation.isPending) setConfirmAction(null); }}><DialogContent showCloseButton={!mutation.isPending} className="w-[calc(100%-2rem)]"><DialogHeader><DialogTitle>{confirmAction?.title}</DialogTitle></DialogHeader><p className="text-muted-foreground text-sm">{confirmAction?.description}</p><ErrorText error={mutation.error} /><div className="flex justify-end gap-2"><Button variant="outline" disabled={mutation.isPending} onClick={() => setConfirmAction(null)}>Go back</Button><Button disabled={mutation.isPending} onClick={() => confirmAction && mutation.mutate(confirmAction)}>{mutation.isPending ? 'Saving…' : 'Confirm'}</Button></div></DialogContent></Dialog>
+  const latestSubmission = r.submissions.at(-1);
+  const setupBlocked = estimate.isError || (!!estimate.data && !estimate.data.ready && (!estimate.data.blockingIssues?.length || estimate.data.blockingIssues.some(issue => issue.category !== 'date')));
+  const cancelRequest = () => setConfirmAction({ action: 'cancel', payload: {}, title: 'Cancel this dropping request?', description: 'Your enrollment and bills will stay unchanged. This request and its submitted documents will remain in history.' });
+  const documentList = (submission: DroppingRequest['submissions'][number]) => <div className="space-y-8">
+    <section className="space-y-2" aria-label="Reason for dropping">
+      <div className="flex min-h-10 flex-wrap items-center justify-between gap-x-4 gap-y-1"><h2 className="text-sm font-semibold">Reason for dropping</h2><time dateTime={submission.submittedAt} className="text-xs text-muted-foreground"><span className="sr-only">Submitted </span>{dateLabel(submission.submittedAt)}</time></div>
+      <blockquote className="border-s border-border py-1 ps-4"><p className="max-w-prose whitespace-pre-wrap text-sm leading-7 text-foreground/85 [overflow-wrap:anywhere]">{submission.reason}</p></blockquote>
+    </section>
+    <section className="space-y-3" aria-label="Submitted documents">
+      <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold">Documents <span className="ml-1 font-normal text-muted-foreground">({submission.files.length})</span></h2>{submission.version > 1 && <span className="text-xs text-muted-foreground">Version {submission.version}</span>}</div>
+      {submission.files.length > 0 ? <ul className="divide-y border-y">{submission.files.map(file => <SubmittedDocument key={file.id} file={file} onPreview={handlePreview} onDownload={() => downloadDroppingFile(`/dropping-requests/${id}/files/${file.id}`, file.name)} />)}</ul> : <p className="text-sm text-muted-foreground">No documents were included in this submission.</p>}
+    </section>
   </div>;
+  return <Sheet><div className="mx-auto max-w-6xl space-y-7 pb-4 selection:bg-primary/15 [--muted-foreground:#626c7d] dark:[--muted-foreground:#aeb4c3]">
+    <header className="space-y-5">
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-x-3 text-sm">{backLink}<span className="text-muted-foreground/60" aria-hidden="true">/</span><span className="text-muted-foreground" aria-current="page">{r.reference}</span></nav>
+      <div className="flex flex-wrap items-center justify-between gap-5">
+        <div className="min-w-0 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2"><h1 className="break-words text-2xl font-semibold tracking-tight">{r.snapshot.studentName}</h1><Status status={r.status} /></div>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            {staff ? <Link to={`/admin/students/${r.studentId}`} className="inline-flex items-center gap-1 rounded-sm underline-offset-4 hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring" aria-label={`Student record for ${r.snapshot.studentName}`}>{r.snapshot.studentNumber}<ArrowUpRightIcon className="size-3.5" aria-hidden="true" /></Link> : <span>{r.snapshot.studentNumber}</span>}
+            <span aria-hidden="true">·</span><span>{r.snapshot.program.toUpperCase()}</span><span aria-hidden="true">·</span><span className="capitalize">{r.snapshot.yearLevel.replaceAll('_', ' ')}</span><span aria-hidden="true">·</span><span>SY {r.snapshot.schoolYear}</span>
+          </p>
+        </div>
+        {admin && reviewable && <FinalDecision requestId={r.id} billId={r.billId} key={`${r.id}-${r.packetVersion}`} busy={mutation.isPending} setupBlocked={setupBlocked} checking={estimate.isPending || estimate.isFetching} onDecision={(action, payload) => mutation.mutateAsync({ action, payload: { ...payload, version: r.packetVersion } })} />}
+        {r.status === 'confirmed' && (!staff || admin) && <Button variant="outline" disabled={fileBusy} onClick={() => download(`/dropping-requests/${id}/acknowledgment`, `${r.reference}-acknowledgment.html`)}><DownloadIcon />Download approval</Button>}
+      </div>
+    </header>
+    {!staff && r.status === 'confirmed' && <ReturnEntry />}
+    <ErrorText error={mutation.error} />
+    {r.status === 'confirmed' && <section className="flex items-start gap-3 rounded-xl border bg-card p-5" aria-label="Approval confirmation"><CircleCheckIcon className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" /><div className="space-y-1 text-sm"><h2 className="font-semibold">{r.effectiveDate ? `Officially dropped effective ${dateLabel(r.effectiveDate)}` : 'Your drop has been approved'}</h2>{r.finalRemarks && <p className="whitespace-pre-wrap break-words">{r.finalRemarks}</p>}<p className="leading-relaxed text-muted-foreground">Records and account access remain available. Dropping charges are payable upon re-enrollment. No immediate payment or clearance is required. View re-enrollment to check your return deadline and available school year.</p></div></section>}
+    {(r.status === 'needs_correction' || r.status === 'rejected') && lastNote && <section role="status" className="space-y-2 rounded-xl border bg-card p-5 text-sm"><h2 className="font-semibold">{r.status === 'needs_correction' ? 'Changes requested' : 'Request rejected'}</h2><p className="whitespace-pre-wrap break-words leading-relaxed text-muted-foreground">{lastNote.remarks}</p></section>}
+    {reviewable && !staff && <p className="rounded-xl border bg-card p-5 text-sm leading-relaxed">Your request is waiting for approval. We’ll notify you when there’s an update.</p>}
+    <div className="grid overflow-hidden rounded-xl border bg-card lg:grid-cols-[minmax(0,1fr)_21rem]">
+      <section className="min-w-0 space-y-5 p-5 sm:p-7 lg:p-8" aria-label="Request details">
+        {latestSubmission ? documentList(latestSubmission) : <p className="text-sm leading-relaxed text-muted-foreground">Documents have not been submitted yet.{staff ? ' The student can upload their signed form and supporting documents.' : ' Complete the form below to send your request for review.'}</p>}
+        <ErrorText error={fileError} />
+        {r.submissions.length > 1 && <details className="border-t pt-4"><summary className="cursor-pointer py-1 text-sm font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Previous submissions ({r.submissions.length - 1})</summary><div className="mt-5 space-y-6">{[...r.submissions].reverse().slice(1).map(submission => <section key={submission.version} className="space-y-4 border-t pt-5"><p className="text-xs text-muted-foreground">Submitted {dateLabel(submission.submittedAt)}</p>{documentList(submission)}</section>)}</div></details>}
+        {editable && <UploadDocuments key={r.submissions.length} request={r} busy={mutation.isPending} onSubmit={payload => mutation.mutate({ action: 'submit', payload })}
+          formDownload={<Button type="button" variant="outline" size="sm" disabled={fileBusy} onClick={() => download('/dropping-requests/form', 'official-dropping-form.pdf')}><DownloadIcon />Official form</Button>}
+          onCancel={cancelRequest} />}
+        {!staff && r.status === 'submitted' && <Button variant="ghost" disabled={mutation.isPending} onClick={cancelRequest}>Cancel request</Button>}
+      </section>
+      <aside className="min-w-0 space-y-6 border-t p-5 sm:p-7 lg:border-l lg:border-t-0 lg:p-8" aria-label="Financial review">
+        <section className="space-y-6" aria-labelledby="financial-review-title">
+          <div className="flex items-center justify-between gap-3"><h2 id="financial-review-title" className="text-sm font-semibold">Financial summary</h2>{r.billId && <Link to={staff ? `/admin/billing/${r.billId}` : `/portal/bills/${r.billId}`} className="inline-flex min-h-10 items-center gap-1 rounded-sm text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">View bill<ArrowUpRightIcon className="size-3.5" aria-hidden="true" /></Link>}</div>
+          <dl><div className="flex flex-wrap items-baseline justify-between gap-2 text-sm"><dt className="text-muted-foreground">Current balance</dt><dd className="font-semibold tabular-nums">{formatPeso(r.balance)}</dd></div></dl>
+          <RequestAssessment compact requestId={r.id} final={r.droppingAssessment} current={r.financialSummary} staff={staff} canConfigure={admin} billId={r.billId} active={openStatuses.includes(r.status)} />
+          {staff && setupBlocked && !(admin && reviewable) && <SheetTrigger asChild><Button variant="outline" className="h-10 shadow-none">View setup</Button></SheetTrigger>}
+        </section>
+        {editable && <section className="space-y-3 border-t pt-5"><h2 className="text-sm font-semibold">Before you submit</h2><ul className="list-disc space-y-2 pl-4 text-xs leading-relaxed text-muted-foreground"><li>Complete the official form in three copies and collect all applicable signatures.</li><li>Attach your reason letter and confirmation / enrolled-subjects form.</li><li>Upload clear copies of all pages and keep the originals.</li></ul></section>}
+      </aside>
+    </div>
+        {r.events.length > 0 && <details className="group min-w-0 border-b pb-4" aria-label="Request history">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-details-marker]:hidden"><ChevronRightIcon className="size-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />Activity <span className="font-normal">({r.events.length})</span><span className="ml-auto text-xs font-normal">Created {dateLabel(r.createdAt)}</span></summary>
+          <ol className="pt-5">{[...r.events].reverse().map((event, index, events) => <li key={index} className="relative flex gap-3 pb-6 last:pb-0">
+            {index < events.length - 1 && <span className="absolute bottom-0 left-2 top-5 w-px bg-border" aria-hidden="true" />}
+            <span className="relative mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border bg-background" aria-hidden="true"><span className="size-1 rounded-full bg-muted-foreground" /></span>
+            <div className="min-w-0 flex-1 space-y-1"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><p className="text-sm font-medium">{event.action === 'submitted' ? 'Documents submitted' : event.action === 'created' ? 'Request created' : event.action in STATUS_LABELS ? STATUS_LABELS[event.action as DropStatus] : event.action.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase())}</p><time dateTime={event.at} className="text-xs tabular-nums text-muted-foreground">{dateLabel(event.at)} · {new Date(event.at).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })}</time></div><p className="break-words text-xs text-muted-foreground">{event.actorName}</p>{event.remarks && event.action !== 'submitted' && <p className="pt-1 text-sm leading-relaxed whitespace-pre-wrap break-words text-muted-foreground">{event.remarks.replace(/Packet version \d+ submitted\./g, 'Documents submitted.').replace(/\bpacket\b/gi, 'documents')}</p>}</div>
+          </li>)}</ol>
+        </details>}
+    <SheetContent className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md [--muted-foreground:#626c7d] dark:[--muted-foreground:#aeb4c3] [&>[data-slot=sheet-close]]:size-11">
+      <SheetHeader className="border-b p-6 pr-16"><SheetTitle className="text-lg font-semibold">Approval setup</SheetTitle><SheetDescription>Complete the financial setup to enable approval.</SheetDescription></SheetHeader>
+      <div className="p-6"><RequestAssessment requestId={r.id} final={r.droppingAssessment} current={r.financialSummary} staff={staff} canConfigure={admin} billId={r.billId} active={openStatuses.includes(r.status)} /></div>
+    </SheetContent>
+    <Dialog open={!!preview} onOpenChange={open => { if (!open) setPreview(null); }}><DialogContent onCloseAutoFocus={event => { event.preventDefault(); previewTrigger.current?.focus(); }} aria-describedby={undefined} className="max-h-[90dvh] w-[calc(100%-2rem)] sm:max-w-4xl"><DialogHeader><DialogTitle className="break-all pr-6">{preview?.name}</DialogTitle></DialogHeader>{preview?.mime === 'application/pdf' ? <Suspense fallback={<p role="status">Loading PDF…</p>}><PdfPreview url={preview.url} name={preview.name} /></Suspense> : preview && <img alt={preview.name} src={preview.url} className="max-h-[65dvh] w-full object-contain" />}</DialogContent></Dialog>
+    <Dialog open={!!confirmAction} onOpenChange={open => { if (!open && !mutation.isPending) setConfirmAction(null); }}><DialogContent showCloseButton={!mutation.isPending} className="w-[calc(100%-2rem)]"><DialogHeader><DialogTitle>{confirmAction?.title}</DialogTitle><DialogDescription>{confirmAction?.description}</DialogDescription></DialogHeader><ErrorText error={mutation.error} /><div className="flex justify-end gap-2"><Button variant="outline" disabled={mutation.isPending} onClick={() => setConfirmAction(null)}>Keep request</Button><Button variant="destructive" disabled={mutation.isPending} onClick={() => confirmAction && mutation.mutate(confirmAction)}>{mutation.isPending ? 'Cancelling…' : 'Cancel request'}</Button></div></DialogContent></Dialog>
+  </div></Sheet>;
 }
 
 function UploadDocuments({ request, busy, onSubmit, formDownload, onCancel }: { request: DroppingRequest; busy: boolean; onSubmit: (payload: FormData) => void; formDownload: ReactNode; onCancel: () => void }) {
@@ -203,52 +231,52 @@ function UploadDocuments({ request, busy, onSubmit, formDownload, onCancel }: { 
     {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
     {previews.length > 0 && <div className="grid gap-4 sm:grid-cols-2">{previews.map((p, i) => <div key={i} className="min-w-0 space-y-2"><p className="break-all text-sm font-medium">{p.file.name}</p>{p.file.type === 'application/pdf' ? <Suspense fallback={<p role="status">Loading PDF…</p>}><PdfPreview url={p.url} name={p.file.name} className="h-80" /></Suspense> : <img src={p.url} alt={`Preview ${p.file.name}`} className="h-64 w-full rounded-md border object-contain" />}<a href={p.url} target="_blank" rel="noreferrer" className="text-primary text-sm underline underline-offset-4">Open full preview</a></div>)}</div>}
     <label className="flex items-start gap-3 text-sm"><Checkbox checked={checked} onCheckedChange={value => setChecked(value === true)} disabled={busy || files.length === 0} className="mt-0.5" /><span>I have reviewed every page and included the complete signed form and supporting attachments.</span></label>
-    <div className="space-y-3 border-t pt-4"><p className="text-xs text-muted-foreground">Your enrollment ends only after approval. Unpaid bills remain payable.</p><div className="flex flex-wrap items-center justify-between gap-3"><Button type="button" variant="ghost" className="text-muted-foreground" disabled={busy} onClick={onCancel}>Cancel request</Button><Button type="submit" disabled={busy || !checked || files.length === 0 || !reason.trim()}>{busy ? 'Uploading documents…' : 'Submit request'}</Button></div></div>
+    <div className="space-y-3 border-t pt-4"><p className="text-xs text-muted-foreground">Your enrollment ends only after approval. Remaining dropping charges are payable upon re-enrollment.</p><div className="flex flex-wrap items-center justify-between gap-3"><Button type="button" variant="ghost" className="text-muted-foreground" disabled={busy} onClick={onCancel}>Cancel request</Button><Button type="submit" disabled={busy || !checked || files.length === 0 || !reason.trim()}>{busy ? 'Uploading documents…' : 'Submit request'}</Button></div></div>
   </form>;
 }
 
-function FinalDecision({ requestId, busy, onDecision }: { requestId: number; busy: boolean; onDecision: (action: string, payload: Record<string, unknown>) => Promise<unknown> }) {
+function FinalDecision({ requestId, billId, busy, setupBlocked, checking, onDecision }: { requestId: number; billId: number | null; busy: boolean; setupBlocked: boolean; checking: boolean; onDecision: (action: string, payload: Record<string, unknown>) => Promise<unknown> }) {
   const [decision, setDecision] = useState('');
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const reviewTrigger = useRef<HTMLButtonElement>(null);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   const [remarks, setRemarks] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [error, setError] = useState<unknown>(null);
   const confirming = decision === 'confirm';
-  const assessment = useQuery({ queryKey: ['dropping-assessment', requestId, effectiveDate], queryFn: () => fetchAssessment(requestId, effectiveDate), enabled: confirming && !!effectiveDate, staleTime: 0 });
+  const assessment = useQuery({ queryKey: ['dropping-assessment', requestId, effectiveDate], queryFn: () => fetchAssessment(requestId, effectiveDate), enabled: decisionOpen && confirming && !!effectiveDate, staleTime: 0 });
   const title = confirming ? 'Approve drop' : decision === 'needs_correction' ? 'Return for correction' : 'Reject request';
-  const open = (action: string) => { setRemarks(''); setEffectiveDate(''); setError(null); setDecision(action); };
+  const open = (action: string) => { setRemarks(''); setEffectiveDate(''); setError(null); setDecision(action); setDecisionOpen(true); };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy || (confirming && (assessment.isFetching || assessment.isError || !assessment.data?.ready || !assessment.data.fingerprint))) return;
     setError(null);
     try {
       await onDecision(confirming ? 'confirm' : 'decision', confirming ? { effectiveDate, remarks, assessmentFingerprint: assessment.data?.fingerprint } : { outcome: decision, remarks });
-      setDecision('');
+      setDecisionOpen(false);
     } catch (failure) { setError(failure); if (confirming) void assessment.refetch(); }
   };
-  return <section className="space-y-3 border-t pt-5" aria-label="Request actions">
-    <ul className="flex flex-wrap gap-2">
-      <li><Button disabled={busy} onClick={() => open('confirm')}>Approve drop</Button></li>
-      <li><Button variant="outline" disabled={busy} onClick={() => open('needs_correction')}>Return for correction</Button></li>
-      <li><Button variant="ghost" className="text-destructive hover:text-destructive" disabled={busy} onClick={() => open('rejected')}>Reject request</Button></li>
-    </ul>
-    <Dialog open={!!decision} onOpenChange={isOpen => { if (!isOpen && !busy) setDecision(''); }}>
-      <DialogContent showCloseButton={!busy} className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+  return <section className="flex shrink-0 items-center gap-2" aria-label="Request actions">
+    {setupBlocked && !checking ? <SheetTrigger asChild><Button className="h-11 px-4" disabled={busy}>Resolve setup</Button></SheetTrigger> : <Button ref={reviewTrigger} className="h-11 px-4" disabled={busy || checking} onClick={() => open('confirm')}>{checking ? 'Checking setup…' : 'Review & approve'}</Button>}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild><Button ref={menuTrigger} variant="outline" size="icon" className="size-11 shadow-none" disabled={busy} aria-label="More request actions"><MoreHorizontalIcon aria-hidden="true" /></Button></DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem className="min-h-11" onSelect={() => open('needs_correction')}>Return for correction</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="min-h-11" variant="destructive" onSelect={() => open('rejected')}>Reject request</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+    <Dialog open={decisionOpen} onOpenChange={isOpen => { if (!busy) setDecisionOpen(isOpen); }}>
+      <DialogContent onCloseAutoFocus={event => { event.preventDefault(); (confirming ? reviewTrigger : menuTrigger).current?.focus(); }} showCloseButton={!busy} className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-xl">
+        <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{confirming ? 'Confirm the effective date and review the final charge. Approval ends this enrollment.' : decision === 'needs_correction' ? 'Explain what the student needs to update before submitting again.' : 'Explain why this request is being rejected. Enrollment stays unchanged.'}</DialogDescription></DialogHeader>
         <form className="space-y-4" onSubmit={submit}>
-          <p className="text-sm text-muted-foreground">{confirming ? 'Review the charge for the effective date before approving. Verified payments are kept, and any excess becomes student credit.' : decision === 'needs_correction' ? 'Tell the student what to update before submitting again.' : 'Tell the student why this request cannot be approved. Enrollment stays unchanged.'}</p>
           {confirming && <div className="space-y-2"><Label htmlFor="effective-date">Effective date</Label><Input id="effective-date" type="date" max={philippinesToday()} required value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} disabled={busy} /><p className="text-xs text-muted-foreground">Between enrollment and today.</p></div>}
-          {confirming && effectiveDate && <div className="rounded-lg bg-muted/40 p-4">{assessment.isFetching ? <p role="status" className="text-sm">Calculating charge…</p> : assessment.isError ? <div className="space-y-2"><ErrorText error={assessment.error} /><Button type="button" variant="outline" size="sm" onClick={() => assessment.refetch()}>Try again</Button></div> : assessment.data && <AssessmentSummary assessment={assessment.data} staff />}</div>}
+          {confirming && effectiveDate && <div className="border-y py-4">{assessment.isFetching ? <p role="status" className="text-sm">Calculating charge…</p> : assessment.isError ? <div className="space-y-2"><ErrorText error={assessment.error} /><Button type="button" variant="outline" size="sm" onClick={() => assessment.refetch()}>Try again</Button></div> : assessment.data && <AssessmentSummary assessment={assessment.data} staff canConfigure billId={billId} />}</div>}
           <div className="space-y-2"><Label htmlFor="decision-remarks">{confirming ? 'Notes (optional)' : decision === 'needs_correction' ? 'What needs correcting?' : 'Reason for rejection'}</Label><Textarea id="decision-remarks" required={!confirming} maxLength={2000} value={remarks} onChange={e => setRemarks(e.target.value)} disabled={busy} /></div>
           <ErrorText error={error} />
-          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setDecision('')}>Cancel</Button><Button type="submit" variant={decision === 'rejected' ? 'destructive' : 'default'} disabled={busy || (confirming ? !effectiveDate || assessment.isFetching || assessment.isError || !assessment.data?.ready || !assessment.data.fingerprint : !remarks.trim())}>{busy ? 'Saving…' : title}</Button></div>
+          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setDecisionOpen(false)}>Cancel</Button><Button type="submit" variant={decision === 'rejected' ? 'destructive' : 'default'} disabled={busy || (confirming ? !effectiveDate || assessment.isFetching || assessment.isError || !assessment.data?.ready || !assessment.data.fingerprint : !remarks.trim())}>{busy ? 'Saving…' : title}</Button></div>
         </form>
       </DialogContent>
     </Dialog>
   </section>;
-}
-
-function CategoryEditor({ request }: { request: DroppingRequest }) {
-  const cache = useQueryClient();
-  const save = useMutation({ mutationFn: (category: DroppingCategory) => saveCategory(request.enrollmentId, category), onSuccess: () => { void cache.invalidateQueries({ queryKey: ['dropping'] }); void cache.invalidateQueries({ queryKey: ['dropping-assessment'] }); } });
-  return <div className="space-y-2"><Label htmlFor="dropping-category">Fee policy category</Label><Select value={request.droppingCategory ?? ''} disabled={save.isPending} onValueChange={value => save.mutate(value as DroppingCategory)}><SelectTrigger id="dropping-category" className="w-full sm:max-w-xs"><SelectValue placeholder="Confirm the student's category" /></SelectTrigger><SelectContent><SelectItem value="paying">Paying</SelectItem><SelectItem value="voucher_esc">Voucher / ESC</SelectItem></SelectContent></Select><ErrorText error={save.error} /></div>;
 }

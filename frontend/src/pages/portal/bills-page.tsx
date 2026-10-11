@@ -1,3 +1,5 @@
+import { ReturnEntry } from '@/features/re-enrollment/return-entry';
+import { billStatusMeta } from '@/features/bills/collection';
 import { PageHeader } from "@/components/page-header";
 import { useNavigate } from "react-router-dom";
 import {
@@ -26,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { EmptyState } from "@/features/bills/components/bill-ledger";
 import { useMyBill, useMyBills } from "@/features/bills/hooks";
-import { BILL_STATUS_META, type Bill } from "@/features/bills/types";
+import { type Bill } from "@/features/bills/types";
 import { termTitle } from "@/features/bills/utils";
 
 function BillsMobileList({
@@ -41,7 +43,7 @@ function BillsMobileList({
   return (
     <div className="divide-y md:hidden">
       {bills.map((bill) => {
-        const meta = BILL_STATUS_META[bill.status];
+        const meta = billStatusMeta(bill);
         return (
           <button
             key={bill.id}
@@ -64,7 +66,7 @@ function BillsMobileList({
               <ChevronRightIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
             </div>
 
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="space-y-1">
                 <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                   Balance
@@ -79,13 +81,13 @@ function BillsMobileList({
                 </p>
                 <p className="tabular-nums">{formatPeso(bill.amountPaid)}</p>
               </div>
-              <div className="space-y-1">
+              <div className="col-span-2 space-y-1">
                 <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                   Status
                 </p>
                 <Badge
                   variant="outline"
-                  className={cn("justify-center", meta.className)}
+                  className={cn("h-auto min-h-5 max-w-full justify-center whitespace-normal text-left", meta.className)}
                 >
                   {meta.label}
                 </Badge>
@@ -125,7 +127,7 @@ function BillsTable({
         </TableHeader>
         <TableBody>
           {bills.map((bill) => {
-            const meta = BILL_STATUS_META[bill.status];
+            const meta = billStatusMeta(bill);
             return (
               <TableRow
                 key={bill.id}
@@ -163,7 +165,7 @@ function BillsTable({
                   <span className="inline-flex items-center gap-2">
                     <Badge
                       variant="outline"
-                      className={cn("w-28 justify-center", meta.className)}
+                      className={cn("h-auto min-h-5 max-w-56 justify-center whitespace-normal", meta.className)}
                     >
                       {meta.label}
                     </Badge>
@@ -238,10 +240,11 @@ function BillsPage() {
   return (
     <div className="space-y-4 mx-auto max-w-7xl">
       <div>
-        <PageHeader title="My Bills" description={<>Select a bill to view the full breakdown, pay the current term, and
+        <PageHeader title="My Bills" description={<>Select a bill to view its breakdown, payment options, and
           download receipts.</>} />
       </div>
 
+      <ReturnEntry />
       {bills.length === 0 ? (
         <Card>
           <CardContent>

@@ -99,7 +99,7 @@ class StudentCreditService
             return false;
         }
         foreach ($this->previousBills($enrollment) as $bill) {
-            if ($bill->balance() > 0 && ! app(PaymentArrangementService::class)->covers($bill)) {
+            if ($bill->balance() > 0) {
                 return false;
             }
         }
@@ -107,7 +107,7 @@ class StudentCreditService
         return true;
     }
 
-    private function previousBills(Enrollment $enrollment)
+    public function previousBills(Enrollment $enrollment)
     {
         $start = $enrollment->schoolYear?->start_date;
 

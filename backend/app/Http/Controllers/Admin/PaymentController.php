@@ -74,7 +74,7 @@ class PaymentController extends Controller
             $this->protectFinalizedPayment($bill, $payment);
             $payment->update(['status' => 'rejected']);
             $bill->recalculate();
-            $this->notifyPayment($bill, 'Payment rejected', 'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' was rejected. Please resubmit.', true);
+            $this->notifyPayment($bill, 'Payment rejected', 'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' was rejected. It has not reduced your balance.', $bill->collectionState() !== 'deferred_until_reenrollment');
         });
     }
 
@@ -94,7 +94,7 @@ class PaymentController extends Controller
 
     private function protectFinalizedPayment(Bill $bill, Payment $payment): void
     {
-        abort_if($payment->status === 'verified' && ($bill->droppingAssessment()->exists()
+        abort_if($payment->status === 'verified' && ($bill->isDroppingBill()
             || DB::table('student_credits')->where('source_bill_id', $bill->id)->exists()),
             422, 'This verified payment is part of a finalized dropping assessment or student credit and cannot be reversed.');
     }

@@ -1,3 +1,4 @@
+import { ReturnEntry } from '@/features/re-enrollment/return-entry';
 import { useNavigate } from "react-router-dom";
 import { ApplicationsEmptyState } from "@/features/applications/components/applications-empty-state";
 import { ApplicationsHeader } from "@/features/applications/components/applications-header";
@@ -27,6 +28,7 @@ function ApplicationPage() {
 
   return (
     <div className="space-y-4 mx-auto max-w-7xl">
+      {isStudent && <ReturnEntry />}
       <ApplicationsHeader
         hasActiveApplication={hasActiveApplication}
         onNewApplication={startNewApplication}

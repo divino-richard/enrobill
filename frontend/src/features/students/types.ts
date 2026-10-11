@@ -138,6 +138,7 @@ export type EnrollmentStatus =
 
 // A student's enrollment (academic record) for a single term.
 export interface EnrollmentRecord {
+  returnRequirements?: import("@/features/bills/types").ReturnRequirements | null;
   id: number;
   schoolYear: string | null;
   program: string | null;

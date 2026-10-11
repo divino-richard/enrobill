@@ -34,6 +34,6 @@ class DroppingPolicy extends Model
 
     protected function casts(): array
     {
-        return ['periods' => 'array', 'formulas' => 'array', 'enabled' => 'boolean', 'version' => 'integer'];
+        return ['periods' => 'array', 'formulas' => 'array', 'fee_rules' => 'array', 'enabled' => 'boolean', 'version' => 'integer'];
     }
 }

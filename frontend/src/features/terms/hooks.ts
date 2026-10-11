@@ -31,8 +31,8 @@ export function useCreateTerm() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: TermInput) => createTerm(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: termsQueryKey });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: termsQueryKey });
     },
   });
 }
@@ -49,8 +49,8 @@ export function useUpdateTermStatus() {
       admissionOpen?: boolean;
       progressionOpen?: boolean | null;
     }) => updateTermStatus(id, changes),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: termsQueryKey });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: termsQueryKey });
       // The active/admission change affects the applicant-facing open term too.
       queryClient.invalidateQueries({ queryKey: openTermQueryKey });
       // Toggling progression opens/closes the year-end queues on the Students page.
@@ -63,8 +63,8 @@ export function useUpdateTermPolicy(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: InstallmentPolicyInput) => updateTermPolicy(id, input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: termsQueryKey });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: termsQueryKey });
     },
   });
 }
@@ -73,8 +73,8 @@ export function useDeleteTerm() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deleteTerm(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: termsQueryKey });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: termsQueryKey });
     },
   });
 }

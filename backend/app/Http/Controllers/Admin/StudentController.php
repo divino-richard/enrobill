@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Services\ReturningEnrollmentRules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
@@ -114,7 +115,7 @@ class StudentController extends Controller
         if ($validated['status'] === 'enrolled') {
             $latest = $student->enrollments()->with('schoolYear')->get()
                 ->sortByDesc(fn ($enrollment) => $enrollment->schoolYear?->school_year)->first();
-            abort_if($latest?->returning_from_enrollment_id && $latest->status !== 'enrolled',
+            abort_if($latest && $latest->status !== 'enrolled' && ($latest->status === 'dropped' || app(ReturningEnrollmentRules::class)->source($latest)),
                 422, 'Activate the returning enrollment after its payment requirements are met.');
         }
 

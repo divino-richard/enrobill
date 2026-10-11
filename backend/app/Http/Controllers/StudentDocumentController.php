@@ -39,23 +39,18 @@ class StudentDocumentController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $student = $this->ownStudentOrAbort($request);
-        $schoolYear = $this->activeYearOrAbort();
-
-        $documents = $student->documents()
-            ->where('school_year_id', $schoolYear->id)
-            ->get();
-
-        $standings = SemesterStanding::query()
-            ->where('student_id', $student->id)
-            ->where('school_year_id', $schoolYear->id)
-            ->get()
-            ->keyBy('semester');
-
+        $history = $request->boolean('history');
+        $schoolYear = $history ? null : $this->activeYearOrAbort();
+        $documents = $student->documents()->with('schoolYear')
+            ->when($schoolYear, fn ($query) => $query->where('school_year_id', $schoolYear->id))
+            ->latest()->get();
+        $standings = SemesterStanding::where('student_id', $student->id)
+            ->whereIn('school_year_id', $documents->pluck('school_year_id'))->get()
+            ->keyBy(fn ($row) => $row->school_year_id.':'.$row->semester);
         $documents->each(function (StudentDocument $document) use ($standings) {
-            $standing = $standings->get($document->semester);
+            $standing = $standings->get($document->school_year_id.':'.$document->semester);
             $accepted = $standing?->isAccepted($document->type) ?? false;
             $note = $standing?->noteFor($document->type);
-
             $document->review_status = $accepted ? 'accepted' : ($note ? 'returned' : 'pending');
             $document->review_note = $note;
         });

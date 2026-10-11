@@ -3,12 +3,10 @@ import {
   CheckCircle2Icon,
   EyeIcon,
   FileTextIcon,
-  InfoIcon,
   Loader2Icon,
   UploadIcon,
 } from "lucide-react";
 import { format } from "date-fns";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -266,7 +264,7 @@ export function ClearanceGradesPanel() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Skeleton className="h-56 rounded-xl" />
         <Skeleton className="h-56 rounded-xl" />
       </div>
@@ -277,29 +275,30 @@ export function ClearanceGradesPanel() {
     documents?.find((d) => d.semester === semester && d.type === type);
 
   return (
-    <div className="space-y-6">
-      <Alert>
-        <InfoIcon className="size-4 shrink-0" />
-        <AlertTitle>
-          {documents?.length ?? 0} of {TOTAL_DOCUMENT_SLOTS} requirements on file
-        </AlertTitle>
-        <AlertDescription>
-          Upload your clearance each semester. Your teachers upload your grade
-          slips through their published class schedules. The registrar reviews
-          both at the end of the school year.
-        </AlertDescription>
-      </Alert>
+    <div className="space-y-4">
+      <section aria-label="Document requirements" className="rounded-xl border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">Clearance &amp; grades</h2>
+          <Badge variant="secondary" className="font-medium tabular-nums">
+            {documents?.length ?? 0} of {TOTAL_DOCUMENT_SLOTS} on file
+          </Badge>
+        </div>
+        <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+          Upload your clearance each semester. Teachers upload grade slips;
+          the registrar reviews both at the end of the school year.
+        </p>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {SEMESTERS.map((semester) => (
-          <Card key={semester.value}>
+          <Card key={semester.value} className="shadow-none [--card-spacing:--spacing(5)]">
             <CardHeader className="border-b">
               <CardTitle className="text-base">{semester.label}</CardTitle>
               <CardDescription>
                 Clearance and grades for this semester.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 pt-4">
+            <CardContent className="space-y-3">
               {DOCUMENT_TYPES.map((type) => (
                 <DocumentSlot
                   key={type.value}

@@ -36,6 +36,7 @@ export interface PaymentMethodSnapshot {
 }
 
 export interface OutstandingBalanceRow {
+  collectionState?: import('@/features/bills/types').Bill['collectionState'];
   id: number;
   studentName: string;
   studentNumber: string;

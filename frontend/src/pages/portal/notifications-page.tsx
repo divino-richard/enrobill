@@ -200,6 +200,7 @@ function NotificationsPage() {
                                     {item.unread && (
                                       <span className="bg-primary size-2 rounded-full" />
                                     )}
+                                    {item.historical && <Badge variant="secondary">Historical reminder</Badge>}
                                     {item.actionRequired && (
                                       <Badge
                                         variant="outline"
@@ -212,6 +213,7 @@ function NotificationsPage() {
                                   <p className="text-muted-foreground mt-1 text-sm leading-6">
                                     {item.message}
                                   </p>
+                                  {item.historical && <p className="mt-1 text-xs text-muted-foreground">This payment reminder no longer applies. Dropping charges are payable upon re-enrollment.</p>}
                                 </div>
                                 <div className="text-muted-foreground text-xs whitespace-nowrap">
                                   {timeLabel(item.createdAt)}

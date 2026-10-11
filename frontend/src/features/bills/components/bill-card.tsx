@@ -1,3 +1,4 @@
+import { billStatusMeta } from '@/features/bills/collection';
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ReceiptTextIcon } from "lucide-react";
@@ -13,7 +14,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPeso } from "@/lib/money";
 import { useStudentBill } from "../hooks";
-import { BILL_STATUS_META } from "../types";
 
 interface BillCardProps {
   studentId: number;
@@ -34,9 +34,9 @@ export function BillCard({ studentId }: BillCardProps) {
           <CardAction>
             <Badge
               variant="outline"
-              className={BILL_STATUS_META[bill.status].className}
+              className={billStatusMeta(bill).className}
             >
-              {BILL_STATUS_META[bill.status].label}
+              {billStatusMeta(bill).label}
             </Badge>
           </CardAction>
         )}

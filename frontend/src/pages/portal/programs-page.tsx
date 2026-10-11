@@ -1,7 +1,11 @@
-import { Link } from "react-router-dom";
+import { ProgramReturnPanel } from '@/features/re-enrollment/program-return-panel';
+import { useStudentReturn } from '@/features/re-enrollment/api';
+import { DocumentHistory } from '@/features/student-documents/components/document-history';
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/page-header";
-import { useState } from "react";
 import { format } from "date-fns";
 import {
   ArrowRightLeftIcon,
@@ -9,6 +13,8 @@ import {
   FolderUpIcon,
   GraduationCapIcon,
   HistoryIcon,
+  MoreHorizontalIcon,
+  FileMinusIcon,
 } from "lucide-react";
 import {
   Card,
@@ -37,12 +43,14 @@ import { TransferRequestPanel } from "@/features/program-transfers/components/tr
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1.5">
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="text-sm font-medium">{value || "—"}</dd>
     </div>
   );
 }
+
+const programTabClassName = "min-h-11 flex-none justify-start px-3 sm:px-4 data-[state=active]:bg-primary/8 data-[state=active]:text-primary data-[state=active]:shadow-none hover:text-foreground";
 
 function termLabel(record: EnrollmentRecord): string {
   return record.schoolYear ? `SY ${record.schoolYear}` : "—";
@@ -63,26 +71,18 @@ function EmptyTab({
   title: string;
   message: string;
 }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
-        <Icon className="size-6" />
-      </div>
-      <div className="space-y-1">
-        <p className="font-medium">{title}</p>
-        <p className="text-muted-foreground mx-auto max-w-sm text-sm">
-          {message}
-        </p>
-      </div>
-    </div>
-  );
+  return <EmptyState icon={Icon} title={title} description={message} />;
 }
 
 function ProgramsPage() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section = searchParams.get('section') ?? 'overview';
+  const activeTab = ['overview', 'schedule', 'clearance-grades', 'history', 'transfer'].includes(section) ? section : 'overview';
+  const setActiveTab = (value: string) => setSearchParams(previous => {const next = new URLSearchParams(previous); next.set('section', value); return next;}, {replace: true});
   const { data: student, isLoading, isError } = useMyStudent();
   const { data: enrollments } = useMyEnrollments();
   const programLabel = useProgramLabel();
+  const returning = useStudentReturn();
   // Drives the tab's "n/4" badge, so an unfinished submission is visible without
   // opening the tab. Read before any early return — hook order must stay stable.
   const { data: myDocuments } = useMyDocuments();
@@ -114,64 +114,40 @@ function ProgramsPage() {
   const records = enrollments ?? [];
   // The enrollment for the open term, if any — otherwise fall back to the
   // student's own record for the headline.
-  const current = records.find((r) => r.isCurrent) ?? null;
+  const postDrop = student.status === 'dropped' || (!!returning.data?.source && returning.data.state !== 'enrolled');
+  const current = postDrop ? records[0] ?? null : records.find((r) => r.isCurrent) ?? records[0] ?? null;
   const history = records.filter((r) => r !== current);
 
   const currentProgram = current?.program ?? student.trackOrStrand;
   const currentYearLevel = current?.yearLevel ?? student.yearLevel;
   const currentSchoolYear = current?.schoolYear ?? student.schoolYear;
+  const selectedTab = postDrop && activeTab === 'transfer' ? 'overview' : activeTab;
 
   return (
-    <div className="space-y-4 mx-auto min-w-0 max-w-7xl">
-      {/* Header */}
-      <div>
-        <PageHeader title="My Program" />
-      </div>
+    <div className="mx-auto min-w-0 max-w-7xl space-y-5">
+      <PageHeader title="My Program" />
 
-      {/* Headline — current term */}
-      <Card>
-        <CardHeader>
-          <CardDescription className="text-xs font-medium tracking-wide uppercase">
-            {currentSchoolYear ? `SY ${currentSchoolYear}` : "Current term"}
-          </CardDescription>
-          <CardTitle className="text-lg">
-            {programLabel(currentProgram)}
-          </CardTitle>
-          <CardDescription>
-            {labelFor(YEAR_LEVEL_OPTIONS, currentYearLevel ?? "")}
-          </CardDescription>
-          <CardAction>
-            {current ? (
-              <EnrollmentStatusBadge status={current.status} />
-            ) : (
-              <StudentStatusBadge status={student.status} />
-            )}
-          </CardAction>
-        </CardHeader>
-        {current?.status === "enrolled" && <CardContent className="pt-0"><Button asChild variant="outline" size="sm"><Link to="/portal/dropping-requests">Request to drop</Link></Button></CardContent>}
-      </Card>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto w-full flex-wrap justify-start">
-          <TabsTrigger value="overview">
+      <Tabs value={selectedTab} onValueChange={setActiveTab}>
+        <TabsList aria-label="Program information" className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border bg-card p-1 sm:flex sm:flex-wrap sm:justify-start">
+          <TabsTrigger value="overview" className={programTabClassName}>
             <GraduationCapIcon />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="schedule">
+          <TabsTrigger value="schedule" className={programTabClassName}>
             <CalendarClockIcon />
             Schedule
           </TabsTrigger>
-          <TabsTrigger value="clearance-grades">
+          <TabsTrigger value="clearance-grades" className={`${programTabClassName}${postDrop ? '' : ' col-span-2 sm:col-span-1'}`}>
             <FolderUpIcon />
-            Clearance &amp; Grades
-            <Badge
+            {postDrop ? "Saved documents" : "Clearance & Grades"}
+            {!postDrop && <Badge
               variant="secondary"
               className="ml-0.5 h-5 justify-center px-1 font-normal tabular-nums"
             >
               {uploadedDocuments}/{TOTAL_DOCUMENT_SLOTS}
-            </Badge>
+            </Badge>}
           </TabsTrigger>
-          <TabsTrigger value="history">
+          <TabsTrigger value="history" className={programTabClassName}>
             <HistoryIcon />
             History
             {history.length > 0 && (
@@ -183,35 +159,59 @@ function ProgramsPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="transfer">
+          {!postDrop && <TabsTrigger value="transfer" className={programTabClassName}>
             <ArrowRightLeftIcon />
             Transfer
-          </TabsTrigger>
+          </TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="overview">
-          <Card className="overflow-hidden">
-            <CardHeader className="border-b bg-muted/20">
-              <CardTitle className="text-base">Enrollment details</CardTitle>
-              <CardDescription>
-                Your record for the current term.
+        {/* Keep the dialog mounted so re-enrollment links also work from another tab. */}
+        <TabsContent value="overview" forceMount hidden={selectedTab !== 'overview'}>
+          <Card className="shadow-none [--card-spacing:--spacing(5)]">
+            <CardHeader className="gap-2">
+              <CardTitle className="text-lg">
+                {programLabel(currentProgram)}
+              </CardTitle>
+              <CardDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>{labelFor(YEAR_LEVEL_OPTIONS, currentYearLevel ?? "")}</span>
+                {currentSchoolYear && <><span aria-hidden="true">·</span><span>SY {currentSchoolYear}</span></>}
               </CardDescription>
+              <CardAction className="flex items-center gap-2">
+                {current ? (
+                  <EnrollmentStatusBadge status={current.status} />
+                ) : (
+                  <StudentStatusBadge status={student.status} />
+                )}
+                {current?.status === "enrolled" && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="size-10" aria-label="Enrollment options" title="Enrollment options">
+                        <MoreHorizontalIcon aria-hidden="true" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem asChild>
+                        <Link to="/portal/dropping-requests"><FileMinusIcon aria-hidden="true" />Request to drop</Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </CardAction>
             </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-2 gap-5 sm:grid-cols-3">
-                <Detail label="Student No." value={student.studentNumber} />
-                <Detail label="Program" value={programLabel(currentProgram)} />
+            <CardContent className="border-t pt-5">
+              <h2 className="mb-4 text-sm font-semibold">Enrollment details</h2>
+              <dl className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
+                <Detail label="Student number" value={student.studentNumber} />
                 <Detail
-                  label="Year Level"
-                  value={labelFor(YEAR_LEVEL_OPTIONS, currentYearLevel ?? "")}
-                />
-                <Detail label="School Year" value={currentSchoolYear ?? "—"} />
-                <Detail
-                  label="Enrolled On"
+                  label="Enrolled on"
                   value={formatDate(current?.enrolledAt ?? null)}
                 />
+                {current?.status === 'dropped' && returning.data?.source?.id === current.id && (
+                  <Detail label="Dropped on" value={formatDate(returning.data.effectiveDroppingDate)} />
+                )}
               </dl>
             </CardContent>
+            <ProgramReturnPanel />
           </Card>
         </TabsContent>
 
@@ -220,12 +220,12 @@ function ProgramsPage() {
         </TabsContent>
 
         <TabsContent value="clearance-grades">
-          <ClearanceGradesPanel />
+          {postDrop ? <DocumentHistory /> : <ClearanceGradesPanel />}
         </TabsContent>
 
-        <TabsContent value="history">
-          <Card className="overflow-hidden">
-            <CardHeader className="border-b bg-muted/20">
+        <TabsContent value="history" className="space-y-4">
+          <Card className="shadow-none [--card-spacing:--spacing(5)]">
+            <CardHeader className="border-b">
               <CardTitle className="text-base">Enrollment history</CardTitle>
               <CardDescription>
                 Your program and level across past terms.
@@ -265,14 +265,15 @@ function ProgramsPage() {
               )}
             </CardContent>
           </Card>
+          {!postDrop && <DocumentHistory />}
         </TabsContent>
 
-        <TabsContent value="transfer">
+        {!postDrop && <TabsContent value="transfer">
           <TransferRequestPanel
             currentProgramCode={currentProgram ?? ""}
             currentProgramName={programLabel(currentProgram)}
           />
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
     </div>
   );

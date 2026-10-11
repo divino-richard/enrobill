@@ -7,6 +7,7 @@ use App\Models\Bill;
 use App\Models\DroppingPolicy;
 use App\Models\DroppingRequest;
 use App\Models\Enrollment;
+use App\Models\Program;
 use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\User;
@@ -111,6 +112,75 @@ class DroppingFinanceConcurrencyTest extends TestCase
                 unlink($gate);
             }
         }
+    }
+
+    public function test_duplicate_returns_and_simultaneous_verification_activate_only_once(): void
+    {
+        $admin = User::factory()->create(['role' => Role::Admin]);
+        $cashier = User::factory()->create(['role' => Role::Cashier]);
+        [$drop, $bill] = $this->fixture(0);
+        $preview = app(DroppingFinance::class)->preview($drop, '2026-09-30');
+        $approve = ['action' => 'confirm', 'id' => $drop->id, 'payload' => ['effectiveDate' => '2026-09-30', 'version' => 1, 'assessmentFingerprint' => $preview['fingerprint']]];
+        $this->assertSame([200], $this->race([$approve], $admin));
+        Program::firstOrCreate(['code' => 'stem'], ['name' => 'STEM', 'category' => 'academic', 'is_active' => true]);
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
+        $create = ['action' => 'return', 'id' => $bill->student_id, 'payload' => ['schoolYearId' => $year->id, 'program' => 'stem', 'yearLevel' => 'grade_11', 'discountId' => null]];
+        $this->assertSame([200, 200], $this->race([$create, $create], $admin));
+        $this->assertSame(1, Enrollment::where('school_year_id', $year->id)->count());
+        $return = Enrollment::where('school_year_id', $year->id)->firstOrFail();
+        $this->assertSame('pending', $return->status);
+        $this->assertSame([200], $this->race([['action' => 'pay', 'id' => $return->bill->id, 'payload' => ['amount' => 200, 'method' => 'cash', 'paidAt' => '2026-09-30']]], $cashier));
+        $this->assertSame('pending', $return->fresh()->status);
+        $payment = $bill->payments()->create(['amount' => 6000, 'status' => 'pending', 'method' => 'bank', 'paid_at' => now()]);
+        $verify = ['action' => 'verify', 'id' => $bill->id, 'paymentId' => $payment->id];
+        $this->assertSame([200, 200], $this->race([$verify, $verify], $cashier));
+        $this->assertSame(0.0, $bill->fresh()->balance());
+        $this->assertSame('enrolled', $return->fresh()->status);
+        $this->assertSame(1, $bill->student->notifications()->where('title', 'Enrollment status: Enrolled')->count());
+        $this->assertSame('dropped', $drop->enrollment->fresh()->status);
+    }
+
+    public function test_simultaneous_student_returns_create_one_enrollment_bill_and_notification(): void
+    {
+        $admin = User::factory()->create(['role' => Role::Admin]);
+        [$drop, $bill] = $this->fixture(0);
+        $preview = app(DroppingFinance::class)->preview($drop, '2026-09-30');
+        $this->assertSame([200], $this->race([['action' => 'confirm', 'id' => $drop->id, 'payload' => ['effectiveDate' => '2026-09-30', 'version' => 1, 'assessmentFingerprint' => $preview['fingerprint']]]], $admin));
+        Program::firstOrCreate(['code' => 'stem'], ['name' => 'STEM', 'category' => 'academic', 'is_active' => true]);
+        SchoolYear::query()->update(['is_active' => false]);
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
+        $create = ['action' => 'student-return', 'payload' => ['schoolYearId' => $year->id]];
+        $this->assertSame([200, 200], $this->race([$create, $create], $bill->student->user));
+        $this->assertSame(1, Enrollment::where('school_year_id', $year->id)->count());
+        $this->assertSame(1, Bill::where('school_year_id', $year->id)->count());
+        $this->assertSame(1, $bill->student->notifications()->where('dedupe_key', 'like', 'returning-started:%')->count());
+    }
+
+    public function test_admissions_closed_after_the_transaction_snapshot_blocks_student_return(): void
+    {
+        [$drop, $bill] = $this->fixture(0);
+        $drop->update(['status' => 'confirmed', 'effective_date' => '2026-09-30', 'confirmed_at' => now()]);
+        $drop->enrollment->update(['status' => 'dropped']);
+        Program::firstOrCreate(['code' => 'stem'], ['name' => 'STEM', 'category' => 'academic', 'is_active' => true]);
+        SchoolYear::query()->update(['is_active' => false]);
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
+        $closed = false;
+        // A second committed connection closes admissions after the return has
+        // established its read snapshot, but before it locks the calendar.
+        DB::listen(function (\Illuminate\Database\Events\QueryExecuted $query) use (&$closed, $year) {
+            if (! $closed && str_starts_with($query->sql, 'select') && str_contains($query->sql, 'from `enrollments`')
+                && str_contains($query->sql, '`school_year_id` =') && ! str_contains($query->sql, 'for update')) {
+                $closed = true;
+                $this->server->exec("UPDATE `{$this->testDatabase}`.`school_years` SET admission_open = 0 WHERE id = {$year->id}");
+            }
+        });
+        $this->actingAs($bill->student->user)->postJson('/api/me/re-enrollment', ['schoolYearId' => $year->id])->assertUnprocessable();
+        $this->assertTrue($closed, 'The concurrent admissions update was exercised.');
+        $this->assertSame(0, Enrollment::where('school_year_id', $year->id)->count());
+        $this->assertSame(0, Bill::where('school_year_id', $year->id)->count());
     }
 
     public function test_simultaneous_approvals_payments_and_credit_allocations_are_serialized(): void

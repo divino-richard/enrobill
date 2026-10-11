@@ -1,3 +1,5 @@
+import { isDroppingBill } from '@/features/bills/collection';
+import { BillCollectionNotice, DroppingSchedule } from '@/features/dropping-finance/collection-notice';
 import { BillFinanceSummary } from '@/features/dropping-finance/bill-finance';
 import { Link, useParams } from "react-router-dom";
 import {
@@ -82,6 +84,7 @@ function BillDetailPage() {
     );
   }
 
+  const dropping = isDroppingBill(bill);
   const installments = bill.installments ?? [];
   const payments = bill.payments ?? [];
 
@@ -90,6 +93,7 @@ function BillDetailPage() {
       {backLink}
 
       <BillActionPanel bill={bill} currentBill={currentBill ?? null} />
+      <BillCollectionNotice bill={bill} student />
       <BillFinanceSummary bill={bill} />
 
       <Tabs defaultValue="summary">
@@ -98,11 +102,11 @@ function BillDetailPage() {
             <ReceiptTextIcon />
             Summary
           </TabsTrigger>
-          {installments.length > 0 && (
+          {(dropping || installments.length > 0) && (
             <TabsTrigger value="schedule">
               <CalendarClockIcon />
               Schedule
-              <TabCount n={installments.length} />
+              {!dropping && <TabCount n={installments.length} />}
             </TabsTrigger>
           )}
           <TabsTrigger value="payments">
@@ -124,18 +128,17 @@ function BillDetailPage() {
           </Card>
         </TabsContent>
 
-        {installments.length > 0 && (
+        {(dropping || installments.length > 0) && (
           <TabsContent value="schedule">
             <Card className="overflow-hidden">
               <CardHeader className="border-b bg-muted/20">
                 <CardTitle className="text-base">Payment schedule</CardTitle>
                 <CardDescription>
-                  {installments.length} installment
-                  {installments.length === 1 ? "" : "s"} for this term.
+                  {dropping ? "Dropping charges are collected when you return." : `${installments.length} installment${installments.length === 1 ? "" : "s"} for this term.`}
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <ScheduleTable installments={installments} />
+                {dropping ? <div className="p-5"><DroppingSchedule bill={bill} /></div> : <ScheduleTable installments={installments} />}
               </CardContent>
             </Card>
           </TabsContent>

@@ -1,3 +1,4 @@
+import { billStatusMeta } from '@/features/bills/collection';
 import { CompactProgramLabel } from "@/components/compact-program-label";
 import { PageHeader } from "@/components/page-header";
 import { TablePanel, TableToolbar } from "@/components/table-panel";
@@ -34,7 +35,6 @@ import { useProgramLabel } from "@/features/programs/hooks";
 import { useTerms } from "@/features/terms/hooks";
 import { useBills } from "@/features/bills/hooks";
 import {
-  BILL_STATUS_META,
   type Bill,
   type BillStatus,
   type BillTrackingState,
@@ -206,9 +206,9 @@ function BillingPage() {
         cell: ({ row }) => (
           <Badge
             variant="outline"
-            className={cn(BILL_STATUS_META[row.original.status].className)}
+            className={cn(billStatusMeta(row.original).className)}
           >
-            {BILL_STATUS_META[row.original.status].label}
+            {billStatusMeta(row.original).label}
           </Badge>
         ),
       },

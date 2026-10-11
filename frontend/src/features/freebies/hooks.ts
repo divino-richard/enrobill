@@ -21,8 +21,8 @@ export function useUpsertFreebie(schoolYearId: number) {
   return useMutation({
     mutationFn: (input: FreebieUpsertInput) =>
       upsertFreebie(schoolYearId, input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: freebiesQueryKey });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: freebiesQueryKey });
     },
   });
 }

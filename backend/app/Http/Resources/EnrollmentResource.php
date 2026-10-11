@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Bill;
 use App\Models\Enrollment;
+use App\Services\ReturningEnrollmentRules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
@@ -23,7 +24,10 @@ class EnrollmentResource extends JsonResource
         return [
             'id' => $this->id,
             'schoolYearId' => $this->school_year_id,
-            'droppingCategory' => $this->dropping_category,
+            'droppingCategory' => $this->status === 'dropped' && ! $this->bill?->droppingAssessment
+                ? $this->dropping_category
+                : $this->bill?->droppingCategory(),
+            'returnRequirements' => app(ReturningEnrollmentRules::class)->requirements($this->resource),
             'returningFromEnrollmentId' => $this->returning_from_enrollment_id,
             'schoolYear' => $this->schoolYear?->school_year,
             'program' => $this->track,

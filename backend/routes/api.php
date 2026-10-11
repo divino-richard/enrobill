@@ -100,6 +100,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dropping-requests/{dropping}/acknowledgment', [DroppingRequestController::class, 'acknowledgment']);
     });
     Route::middleware('role:student')->group(function () {
+        Route::get('/me/re-enrollment', [\App\Http\Controllers\StudentReturningEnrollmentController::class, 'show']);
+        Route::post('/me/re-enrollment', [\App\Http\Controllers\StudentReturningEnrollmentController::class, 'store'])->middleware('throttle:10,1');
         Route::get('/me/dropping-requests', [DroppingRequestController::class, 'index']);
         Route::post('/me/dropping-requests', [DroppingRequestController::class, 'store']);
         Route::post('/me/dropping-requests/{dropping}/submit', [DroppingRequestController::class, 'submit'])->middleware('throttle:10,1');
@@ -108,8 +110,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::get('/admin/school-years/{schoolYear}/dropping-policy', [DroppingPolicyController::class, 'show']);
         Route::put('/admin/school-years/{schoolYear}/dropping-policy', [DroppingPolicyController::class, 'update']);
+        Route::put('/admin/school-years/{schoolYear}/dropping-policy/periods/{period}', [DroppingPolicyController::class, 'updatePeriod']);
         Route::put('/admin/bills/{bill}/dropping-classification', [DroppingPolicyController::class, 'classification']);
-        Route::put('/admin/enrollments/{enrollment}/dropping-category', [DroppingPolicyController::class, 'category']);
         Route::get('/admin/students/{student}/returning-summary', [ReturningEnrollmentController::class, 'summary']);
         Route::post('/admin/students/{student}/returning-enrollments', [ReturningEnrollmentController::class, 'store']);
         Route::get('/admin/dropping-requests', [DroppingRequestController::class, 'index']);

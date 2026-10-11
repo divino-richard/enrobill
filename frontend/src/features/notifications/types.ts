@@ -15,6 +15,7 @@ export interface StudentNotification {
   ctaLabel: string | null;
   ctaUrl: string | null;
   actionRequired: boolean;
+  historical?: boolean;
   unread: boolean;
   createdAt: string;
 }

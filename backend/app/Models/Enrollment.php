@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Actions\ReferralLifecycle;
-use App\Services\StudentCreditService;
+use App\Services\ReturningEnrollmentRules;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,11 +18,24 @@ class Enrollment extends Model
 {
     protected static function booted(): void
     {
+        static::creating(function (self $enrollment): void {
+            if (! in_array($enrollment->status, ['pending', 'enrolled'], true)) {
+                return;
+            }
+            $rules = app(ReturningEnrollmentRules::class);
+            $source = $rules->source($enrollment);
+            if ($source) {
+                $eligibility = $rules->eligibility($source, $enrollment->schoolYear);
+                if (! $eligibility['eligible'] || $enrollment->status === 'enrolled') {
+                    throw ValidationException::withMessages(['status' => $eligibility['blockers'] ?: ['Create a pending return and meet its payment requirements before activation.']]);
+                }
+            }
+        });
         static::updating(function (self $enrollment): void {
             if ($enrollment->isDirty('status') && $enrollment->status === 'enrolled'
                 && ! $enrollment->canActivate()) {
                 throw ValidationException::withMessages([
-                    'status' => 'Meet this enrollment’s payment requirement and settle previous balances or record an approved payment arrangement first.',
+                    'status' => implode(' ', app(ReturningEnrollmentRules::class)->activationBlockers($enrollment)),
                 ]);
             }
         });
@@ -30,10 +43,7 @@ class Enrollment extends Model
 
     public function canActivate(): bool
     {
-        $bill = $this->bill()->first();
-
-        return $bill !== null && $bill->enrollmentDownpaymentMet()
-            && app(StudentCreditService::class)->priorDebtClear($this);
+        return app(ReturningEnrollmentRules::class)->activationBlockers($this) === [];
     }
 
     /**

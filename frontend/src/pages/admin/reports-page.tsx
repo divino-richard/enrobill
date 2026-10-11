@@ -1,3 +1,4 @@
+import { COLLECTION_LABELS } from '@/features/bills/collection';
 import { useState, type ReactNode } from "react";
 import { BarChart3Icon, CalendarRangeIcon, ReceiptTextIcon } from "lucide-react";
 import {
@@ -517,7 +518,7 @@ function TopBalancesPanel({ rows }: { rows: OutstandingBalanceRow[] }) {
                 <TableCell className="py-1.5 text-right tabular-nums">{formatPeso(row.netTotal)}</TableCell>
                 <TableCell className="py-1.5 text-right tabular-nums">{formatPeso(row.amountPaid)}</TableCell>
                 <TableCell className="py-1.5 text-right font-semibold tabular-nums">{formatPeso(row.balance)}</TableCell>
-                <TableCell className="py-1.5 text-right font-semibold text-amber-700 tabular-nums dark:text-amber-300">{formatPeso(row.amountDue)}</TableCell>
+                <TableCell className="py-1.5 text-right"><span className={cn("font-semibold tabular-nums", row.amountDue > 0 && "text-amber-700 dark:text-amber-300")}>{formatPeso(row.amountDue)}</span>{row.collectionState && row.collectionState !== "standard" && <p className="mt-1 text-xs text-muted-foreground">{COLLECTION_LABELS[row.collectionState]}</p>}</TableCell>
               </TableRow>
             ))}
           </TableBody>
