@@ -49,7 +49,9 @@ try {
     } elseif ($input['action'] === 'verify') {
         app(PaymentController::class)->verify(Bill::findOrFail($input['id']), Payment::findOrFail($input['paymentId']));
     } elseif ($input['action'] === 'return') {
-        app(ReturningEnrollmentController::class)->store($request, Student::findOrFail($input['id']), app(GenerateBillForEnrollment::class));
+        app(ReturningEnrollmentController::class)->store($request, Student::findOrFail($input['id']));
+    } elseif ($input['action'] === 'generate') {
+        app(GenerateBillForEnrollment::class)(\App\Models\Enrollment::findOrFail($input['id']));
     } elseif ($input['action'] === 'student-return') {
         app(\App\Http\Controllers\StudentReturningEnrollmentController::class)->store($request, app(\App\Services\StudentReturningEnrollment::class));
     } elseif ($input['action'] === 'allocate') {

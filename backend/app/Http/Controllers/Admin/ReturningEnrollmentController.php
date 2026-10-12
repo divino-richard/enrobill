@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Actions\GenerateBillForEnrollment;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
 use App\Models\SchoolYear;
@@ -20,7 +19,7 @@ class ReturningEnrollmentController extends Controller
     {
         $rules = app(ReturningEnrollmentRules::class);
         $latest = $rules->latest($student);
-        $eligibility = $latest?->status === 'dropped' ? $rules->eligibility($latest)
+        $eligibility = $latest?->status === 'dropped' ? $rules->startEligibility($latest)
             : ['eligible' => false, 'blockers' => ['Only a student whose latest enrollment is dropped can enroll again here.'],
                 'effectiveDroppingDate' => null, 'returnDeadline' => null];
 
@@ -33,7 +32,7 @@ class ReturningEnrollmentController extends Controller
         ]]);
     }
 
-    public function store(Request $request, Student $student, GenerateBillForEnrollment $generate): EnrollmentResource
+    public function store(Request $request, Student $student): EnrollmentResource
     {
         $input = $request->validate([
             'schoolYearId' => ['required', 'integer', 'exists:school_years,id'],
@@ -42,7 +41,7 @@ class ReturningEnrollmentController extends Controller
             'discountId' => ['present', 'nullable', 'integer', Rule::exists('discounts', 'id')->where('is_active', true)->where('category', 'voucher')],
         ]);
 
-        return DB::transaction(function () use ($request, $student, $generate, $input) {
+        return DB::transaction(function () use ($request, $student, $input) {
             $student = Student::lockForUpdate()->findOrFail($student->id);
             $enrollments = $student->enrollments()->with('schoolYear')->lockForUpdate()->get();
             $existing = $enrollments->firstWhere('school_year_id', $input['schoolYearId']);
@@ -57,7 +56,7 @@ class ReturningEnrollmentController extends Controller
             $previous = $enrollments->sortByDesc(fn ($row) => $row->schoolYear?->school_year)->first();
             abort_unless($previous?->status === 'dropped', 422, 'The student’s latest enrollment must be dropped before enrolling again.');
             $year = SchoolYear::findOrFail($input['schoolYearId']);
-            $eligibility = app(ReturningEnrollmentRules::class)->eligibility($previous, $year);
+            $eligibility = app(ReturningEnrollmentRules::class)->startEligibility($previous, $year);
             abort_unless($eligibility['eligible'], 422, implode(' ', $eligibility['blockers']));
 
             $enrollment = $student->enrollments()->create([
@@ -70,10 +69,6 @@ class ReturningEnrollmentController extends Controller
                 'created_by' => $request->user()->id,
             ]);
             $student->update(['track_or_strand' => $input['program'], 'year_level' => $input['yearLevel'], 'school_year' => $year->school_year]);
-            $bill = $generate($enrollment);
-            app(StudentCreditService::class)->applyToBill($bill, $request->user()->id);
-            $bill->refresh()->recalculate();
-            $bill->settleEnrollment();
             $student->syncStatusFromLatestEnrollment();
 
             return new EnrollmentResource($enrollment->fresh()->load(['schoolYear', 'bill', 'discount']));

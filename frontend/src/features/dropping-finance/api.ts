@@ -25,6 +25,7 @@ export interface DroppingAssessment {
   originalTotal: number; finalCharge: number | null; verifiedPayments: number; balance: number; credit: number | null;
   feeBreakdown: Partial<Record<DroppingComponent, number>>; finalized?: boolean; legacy?: boolean; creditApplied?: number;
   feeCharges?: { feeId: number; billItemId: number; name: string; percent: number; originalAmount: number }[];
+  formulas?: Partial<Record<DroppingCategory, Partial<Record<PeriodKey, Partial<Record<DroppingComponent | 'total', number>>>>>>;
 }
 export type FeeRule = { feeId: number; percent: number; name?: string; category?: string; yearLevel?: string };
 export type FeeRules = Record<DroppingCategory, Record<PeriodKey, FeeRule[]>>;

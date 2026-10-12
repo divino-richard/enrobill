@@ -48,7 +48,6 @@ const APPLICANT_NAV: NavItem[] = [
 const STUDENT_NAV: NavItem[] = [
   { title: "Dashboard", url: "/portal", icon: LayoutDashboardIcon, end: true },
   { title: "My Program", url: "/portal/programs", icon: GraduationCapIcon },
-  { title: "Dropping Requests", url: "/portal/dropping-requests", icon: FileTextIcon },
   { title: "My Bills", url: "/portal/bills", icon: ReceiptTextIcon },
   { title: "Admission", url: "/portal/application", icon: FileTextIcon },
   {
@@ -117,7 +116,7 @@ export function PortalSidebar(props: ComponentProps<typeof Sidebar>) {
             {navItems.map((item) => {
               const isActive = item.end
                 ? pathname === item.url
-                : pathname.startsWith(item.url);
+                : pathname.startsWith(item.url) || (item.url === '/portal/programs' && pathname.startsWith('/portal/dropping-requests/'));
 
               return (
                 <SidebarMenuItem key={item.title}>

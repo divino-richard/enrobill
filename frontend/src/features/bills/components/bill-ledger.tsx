@@ -1,4 +1,6 @@
 import { Fragment, useState } from "react";
+import { isDroppingBill } from '../collection';
+import { DroppingBillStatement } from './dropping-statement';
 import { type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -158,6 +160,7 @@ function ProofLink({ href }: { href: string }) {
 }
 
 export function BillStatement({ bill }: { bill: Bill }) {
+  if (isDroppingBill(bill)) return <DroppingBillStatement bill={bill} />;
   const groups = groupFees(bill.items);
   const sectioned = groups.length > 1;
   const adjustments = bill.adjustments ?? [];

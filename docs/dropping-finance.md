@@ -66,6 +66,32 @@ visible but are not deducted a second time. The approval saves the policy versio
 original fee items, benefits, schedule, payments, and final calculation. Later
 catalog changes cannot change the approved assessment.
 
+## Bill presentation and reconciliation
+
+Dropping statements and receipts show only the fees stored in the approved
+assessment, with the original billed amount, applied percentage and resulting
+charge. The selected period, student category, effective date and saved policy
+version explain the basis. The current fee catalog is never used to reconstruct
+an approved charge. Historical category formulas use their frozen breakdown.
+Missing or inconsistent itemization shows a clear historical-data fallback;
+it does not pretend the original enrollment fees were dropping charges.
+
+Line amounts reconcile to the single rounded approved total. If percentages
+produce fractional cents, residual cents are assigned by largest remainder.
+Statements then show verified payments and applied student credits separately
+from the remaining balance. Pending payments never reduce that balance.
+
+Original enrollment items, vouchers and schedules remain under financial history;
+they do not appear as additional dropping charges. Receipt history follows the
+current assessment and payment reconciliation. Bills lists show assessed totals,
+verified payments, applicable credits and remaining balances on desktop and mobile.
+The same payment status is used on lists and details.
+
+Return guidance prioritizes eligibility issues, unpaid previous balances and
+payment verification before cashier billing. Existing pending returns with an
+unpaid dropping balance must not be presented as ready for billing. No record is
+deleted or financially recalculated by these presentation changes.
+
 ## Payments, credits, and returns
 
 Verified payments stay on their original bills. Excess cash payments at approval
@@ -84,17 +110,34 @@ empty, even for previously approved drops. There is no immediate payment,
 clearance, settlement deadline, or late fee. Voluntary partial and full payments
 are accepted; unverified payments never reduce the balance.
 
-A valid pending later-year return changes previous dropping bills to
-`required_for_reenrollment`: **Settle before completing re-enrollment**. Their
-remaining balance is required for activation, without installment deadlines.
-Partial payments are still accepted. The new year’s bill uses normal billing
-(`standard`). Both its normal enrollment payment requirement and all previous
-balances must be satisfied with verified payments and existing applicable credits
-before activation. Arrangements cannot bypass either requirement.
+A returning student must settle the previous dropping balance **before a pending
+enrollment can be created**. Unverified or partial payments and payment
+arrangements do not satisfy this prerequisite. The original bill remains deferred
+while the student is dropped; choosing to return requires settling it first.
+Payment verification by itself never creates an enrollment.
+
+After settlement, **Enroll again** creates only a pending enrollment. The cashier
+then generates its new school-year bill through the normal billing action, applies
+eligible benefits and credits, and records or verifies the required payment.
+The normal enrollment payment requirement (including a voucher waiver) controls
+activation, with the two-year return deadline still enforced.
+
+Pending returns created by an earlier release keep their existing records and
+bills. Their previous dropping bills use `required_for_reenrollment`: **Required for re-enrollment**. They still cannot activate with unpaid prior
+balances, and cannot generate a missing new-year bill until settlement. No
+existing bill, payment, credit or active enrollment is deleted by this change.
+
+**My Bills → Bills by school year** identifies each bill as **Enrollment charges**
+or **Dropping charges**; previous dropping charges remain on their original bill,
+separate from new school-year fees. Payment status reflects the bill's backend
+`unpaid`, `partial`, or `paid` status. Collection timing explains when payment is
+required and does not replace that status: a deferred bill can still be unpaid,
+partially paid, or paid.
 
 **Enroll again** retains the student account and number and creates a pending
 later-year enrollment with program, grade and voucher eligibility chosen afresh.
-`ReturningEnrollmentRules` supplies eligibility to the summary, creation checks,
+`ReturningEnrollmentRules::startEligibility` supplies the settlement prerequisite;
+`ReturningEnrollmentRules` supplies date eligibility to the summary, creation checks,
 model guards (including alternative creation/activation paths), and bill collection
 state. Returning enrollment/bill responses include `returnRequirements` with the
 effective dropping date, deadline, eligibility, blocking reasons and separate
@@ -167,8 +210,15 @@ grade, even after the student's current program changes.
 Re-enrollment lives in a compact section alongside the program summary and enrollment
 details in **My Program → Overview**.
 Its details and start action open in a dialog (`/portal/programs?reenroll=1`),
-leaving the normal program tabs available. Dashboard, bills, admission history,
-and dropping approvals link there. There is no separate sidebar item or page;
+leaving the normal program tabs available. The dialog shows the current status,
+return deadline, balances and bill actions without repeating the previous program
+or adding record-navigation links. Program and voucher guidance is expandable
+when starting a return; eligibility issues and pending verification stay visible.
+Dates omit timezone labels throughout the UI; Asia/Manila calculations are unchanged.
+The dashboard notice, bill details,
+and dropping approvals link there. The bills list and admission history omit the
+return banner. The dashboard uses a highlighted notice with state-specific color,
+a short explanation, return deadline, and one action. There is no separate sidebar item or page;
 legacy `/portal/re-enrollment` links redirect to the My Program dialog. Closed admissions, incomplete fee
 setup, invalid or missing historical dates, expired windows, pending returns,
 and successful activation each have an explicit state. Dropped students see
@@ -187,11 +237,72 @@ an active returning program, and fees for the student's existing grade. Students
 retain their prior program and grade; staff must review academic changes and
 new voucher eligibility. A previous voucher is never self-renewed.
 
-Starting a return creates a pending enrollment and its bill under the student
-lock. Retries return that same enrollment, including after admissions close or
+Starting a return checks full previous settlement and creates a pending enrollment
+under the student lock. It does not create a bill. Cashier billing follows the
+same path as an accepted new applicant. Retries return that same enrollment, including after admissions close or
 the deadline expires, without creating another bill or extending eligibility.
 Students pay the old and new bills separately. The portal refreshes pending
 requirements after payment submission, on window focus, and periodically while
 the return is pending. Existing verified-payment activation checks remain the
 only route to becoming enrolled. No new account, application, or clearance is
 needed. The normal student dashboard resumes once enrollment becomes active.
+
+### Starting a dropping request
+
+Active students start from **My Program → Overview → Enrollment options → Request
+to drop**. The same menu offers **Download dropping form** for preparation.
+The submission form spans the tab width and focuses on the reason, prepared
+documents, and confirmation, without a download action or repeated instructions. Opening,
+leaving, or cancelling this form does not create a draft or change enrollment.
+The table is for tracking requests, not starting them.
+
+Submitting a reason and valid documents creates the request, first document packet,
+and notification together with status **Waiting for approval**. Enrollment stays
+active until approval. Failed uploads roll back the request and remove any files
+already stored. The endpoint requires a complete submission; enrollment-only
+requests no longer create drafts. The student/enrollment lock and unique active
+request constraint prevent duplicates; retries return the existing open request.
+
+If an open request already exists, the Overview action opens that request instead.
+Existing legacy drafts and requests returned for correction can still be completed
+using the existing document-submission flow; no historical records are removed.
+
+### Approved request presentation
+
+Students access the request list from **My Program → Dropping requests**. Individual
+requests open on a standalone `/portal/dropping-requests/:id` page, with a back link
+to that list and My Program selected in the sidebar. The standalone sidebar entry
+is removed. `/portal/dropping-requests` redirects to the list tab, while older
+`/portal/programs?section=dropping&request=:id` links redirect to the detail page. Staff navigation is
+unchanged. Re-enrollment stays in the Overview summary and the approved request's
+next-step guidance rather than repeating a banner above the request list.
+
+The student page focuses on the approval status, effective dropping date, charges,
+and the next step. School remarks remain visible when present. The student approval
+download and separate approval card are omitted; approver details remain in the
+collapsed request history. Submitted reasons and documents are available in a
+collapsed **Submitted request** section. Staff approval controls are unchanged.
+
+Charges and return guidance share one section with one next-step action. The shared
+bill statement shows frozen approved fee lines and reconciles current verified
+payments, applied credit, and remaining balance. Policy versions and original
+assessment history are available on the bill instead of repeated on the request.
+Legacy approvals without an itemized snapshot explain the missing record instead
+of inferring fees from today's policy.
+
+On desktop, the fee breakdown sits beside a summary panel that groups the balance
+with the next action. These panels stack in the same reading order on smaller
+screens. Submitted request and request history use matching expandable rows below.
+
+Settlement links directly to the unpaid bill, pending payment verification links
+to payment status, and eligibility issues take precedence over payment prompts.
+Closed admissions keep payments voluntary. Settled returns show the next enrollment
+step; completed returns and older dropping records do not repeat an obsolete
+deadline. Return details remain in My Program. Document preview/download errors
+stay with their triggering action.
+
+Student bills show the remaining balance and payment action before the approved
+fee breakdown. Original assessments and past payment schedules remain in History;
+the repeated no-active-schedule note is omitted. The bills list begins directly
+with its column headers. My Program and bill details share white underline tabs,
+which scroll horizontally on small screens.

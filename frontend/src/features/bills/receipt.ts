@@ -1,5 +1,7 @@
 import { formatPeso } from "@/lib/money";
 import { paymentMethodLabel, type Bill } from "./types";
+import { approvedChargeLines, droppingAssessmentContext } from './dropping-statement';
+import { isDroppingBill } from './collection';
 
 // Who the receipt is billed to. The admin pages can read this off the bill's
 // embedded student; the student portal passes the signed-in user's details.
@@ -37,6 +39,8 @@ function termLine(bill: Bill): string {
 // money received.
 export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
   const issuedAt = new Date();
+  const dropping = isDroppingBill(bill);
+  const approvedLines = approvedChargeLines(bill);
   const receiptNo = `REC-${String(bill.id).padStart(6, "0")}`;
   const verifiedPayments = (bill.payments ?? []).filter(
     (payment) => payment.status === "verified",
@@ -54,7 +58,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
     party.program ? `<div class="muted">${escapeHtml(party.program)}</div>` : "",
   ].join("");
 
-  const itemRows = bill.items
+  const originalItemRows = bill.items
     .map(
       (item) => `
         <tr>
@@ -63,6 +67,12 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
         </tr>`,
     )
     .join("");
+
+  const itemRows = dropping ? approvedLines.map(line => `<tr>
+    <td>${escapeHtml(line.name)}<br /><span class="muted">${line.percent}% of ${formatPeso(line.base)}</span></td>
+    <td class="amount">${formatPeso(line.amount)}</td></tr>`).join('') || `<tr><td colspan="2">${bill.droppingAssessment
+      ? 'The approved total is recorded below. An itemized breakdown was not retained with this approval.'
+      : 'No saved dropping assessment. The original enrollment balance is retained for review.'}</td></tr>` : originalItemRows;
 
   const paymentRows = verifiedPayments.length
     ? verifiedPayments
@@ -189,7 +199,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
     </div>
 
     <table>
-      <caption>Fee breakdown</caption>
+      <caption>${dropping ? 'Approved dropping charges' : 'Fee breakdown'}</caption>
       <thead>
         <tr><th>Description</th><th class="amount">Amount</th></tr>
       </thead>
@@ -198,8 +208,10 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
       </tbody>
     </table>
 
+    ${bill.droppingAssessment ? `<p class="muted">${escapeHtml(droppingAssessmentContext(bill))} · Effective ${escapeHtml(bill.droppingAssessment.effectiveDate)} · Approved policy v${bill.droppingAssessment.policyVersion ?? '—'}</p>` : ''}
+
     ${
-      adjustmentRows
+      !dropping && adjustmentRows
         ? `<table>
       <caption>${bill.droppingAssessment ? "Historical vouchers and incentives (not deducted again)" : "Credits applied"}</caption>
       <thead><tr><th>Credit</th><th class="amount">Amount</th></tr></thead>
@@ -221,18 +233,25 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
     </table>
 
     <div class="totals">
-      <div class="row"><span class="muted">${bill.droppingAssessment ? "Original assessment" : "Gross total"}</span><span>${formatPeso(bill.total)}</span></div>
+      ${!dropping ? `<div class="row"><span class="muted">Gross total</span><span>${formatPeso(bill.total)}</span></div>` : ''}
       ${
         !bill.droppingAssessment && bill.discountTotal > 0
           ? `<div class="row discount"><span>Credits</span><span>− ${formatPeso(bill.discountTotal)}</span></div>`
           : ""
       }
-      <div class="row"><span class="muted">${bill.droppingAssessment ? "Final dropping charge" : "Net total"}</span><span>${formatPeso(bill.netTotal)}</span></div>
+      <div class="row"><span class="muted">${bill.droppingAssessment ? "Approved dropping charge" : dropping ? "Recorded assessment" : "Net total"}</span><span>${formatPeso(bill.netTotal)}</span></div>
       ${(bill.creditApplied ?? 0) > 0 ? `<div class="row"><span>Student credit used</span><span>${formatPeso(bill.creditApplied ?? 0)}</span></div>` : ""}
       ${(bill.creditIssued ?? 0) > 0 ? `<div class="row"><span>Credit issued for future enrollment</span><span>${formatPeso(bill.creditIssued ?? 0)}</span></div>` : ""}
-      <div class="row"><span class="muted">Total paid</span><span>${formatPeso(totalReceived)}</span></div>
-      <div class="row grand"><span>Balance</span><span>${formatPeso(bill.balance)}</span></div>
+      <div class="row"><span class="muted">Verified payments</span><span>${formatPeso(totalReceived)}</span></div>
+      <div class="row grand"><span>Remaining balance</span><span>${formatPeso(bill.balance)}</span></div>
     </div>
+
+    ${dropping ? `<section style="margin-top:40px; break-before:page">
+      <h2>Financial history</h2>
+      <p class="muted">Original enrollment records retained for reference. These are not additional dropping charges.</p>
+      <table><caption>Original enrollment fees · ${formatPeso(bill.total)}</caption><thead><tr><th>Description</th><th class="amount">Original amount</th></tr></thead><tbody>${originalItemRows}</tbody></table>
+      ${adjustmentRows ? `<table><caption>Historical vouchers and incentives (not deducted again)</caption><thead><tr><th>Award</th><th class="amount">Amount</th></tr></thead><tbody>${adjustmentRows}</tbody></table>` : ''}
+    </section>` : ''}
 
     <div class="foot">
       This is a system-generated receipt and does not require a signature.

@@ -1,5 +1,6 @@
+import { DroppingBillStatement, DroppingBillHistory } from '@/features/bills/components/dropping-statement';
 import { billStatusMeta, collectionLabel, isDroppingBill } from '@/features/bills/collection';
-import { BillCollectionNotice, DroppingSchedule } from '@/features/dropping-finance/collection-notice';
+import { BillCollectionNotice } from '@/features/dropping-finance/collection-notice';
 import { BillFinanceSummary, ClassificationDialog } from '@/features/dropping-finance/bill-finance';
 import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
 import { PageHeader } from "@/components/page-header";
@@ -403,16 +404,19 @@ function BillDetailPage() {
       </div>
 
       <BillCollectionNotice bill={bill} />
-      <BillFinanceSummary bill={bill} staff />
-      <DashboardMetricStrip metrics={[
+      {!dropping && <BillFinanceSummary bill={bill} staff />}
+      {!dropping && <DashboardMetricStrip metrics={[
         {label: "Net bill", value: formatPeso(bill.netTotal), detail: `${bill.items.length} fee items`, tone: "primary"},
         {label: "Student credit used", value: formatPeso(bill.creditApplied ?? 0), detail: "From previous payments", tone: "success"},
         {label: "Paid", value: formatPeso(bill.amountPaid), detail: "Verified payments", tone: "success"},
         {label: "Outstanding", value: formatPeso(bill.balance), detail: dropping ? collectionLabel(bill) : BILL_STATUS_META[bill.status].label, tone: bill.balance > 0 ? (dropping ? undefined : "warning") : "success"},
-      ]} />
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)]">
+      ]} />}
+      <div className={cn("grid items-start gap-4", dropping ? "lg:grid-cols-2" : "lg:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)]")}>
         {/* Summary */}
-        <Card className="gap-0">
+        {dropping ? <div className="min-w-0 space-y-4">
+          <Card className="gap-0 overflow-hidden"><CardHeader className="border-b"><CardTitle className="text-base">Charges and payments</CardTitle><CardDescription>Approved charges less verified payments and applied credits.</CardDescription></CardHeader><CardContent className="p-0"><DroppingBillStatement bill={bill} /></CardContent></Card>
+          <details className="rounded-xl border bg-card p-5"><summary className="cursor-pointer text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">Financial history</summary><div className="mt-5"><DroppingBillHistory bill={bill} staff /></div></details>
+        </div> : <Card className="gap-0">
           <CardHeader>
             <CardTitle className="text-base">Bill summary</CardTitle>
           </CardHeader>
@@ -447,11 +451,11 @@ function BillDetailPage() {
               />
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
         <div className="min-w-0 space-y-4">
           {/* Credits */}
-          <Card>
+          {!dropping && <><Card>
             <CardHeader>
               <CardTitle className="text-base">{bill.droppingAssessment ? "Original vouchers and incentives" : "Vouchers and incentives"}</CardTitle>
               <CardDescription>
@@ -509,7 +513,7 @@ function BillDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {dropping ? <DroppingSchedule bill={bill} /> : installments.length === 0 ? (
+              {installments.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
                   No installment plan yet.
                 </p>
@@ -548,6 +552,8 @@ function BillDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          </>}
 
           {/* Payments */}
           <Card>

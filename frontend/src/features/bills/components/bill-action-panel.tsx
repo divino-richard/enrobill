@@ -1,4 +1,4 @@
-import { collectionLabel, isDroppingBill } from '@/features/bills/collection';
+import { billStatusMeta, collectionLabel, isDroppingBill } from '@/features/bills/collection';
 import { useState, type ReactNode } from "react";
 import {
   CalendarClockIcon,
@@ -38,7 +38,6 @@ import { printBillReceipt } from "@/features/bills/receipt";
 import { useSubmitMyPayment } from "@/features/bills/hooks";
 import { useAuthStore } from "@/features/auth/store";
 import {
-  BILL_STATUS_META,
   type Bill,
   type PaymentMethod,
 } from "@/features/bills/types";
@@ -368,7 +367,7 @@ function PayDialog({
         <DialogHeader>
           <DialogTitle>{dropping ? (bill.collectionState === "required_for_reenrollment" ? "Pay toward re-enrollment" : "Make a voluntary payment") : "Pay your bill"}</DialogTitle>
           <DialogDescription>
-            {dropping ? "Partial payments are welcome. Only verified payments reduce the balance; full settlement is required before re-enrollment becomes active." : hasImmediateDue
+            {dropping ? "Partial payments are welcome. Settle the full dropping balance before starting re-enrollment. Only verified payments and applied credits count." : hasImmediateDue
               ? "Choose how to pay, settle the amount due, then upload your receipt for review."
               : "Nothing is due right now, but you can prepay your next installment or settle the remaining balance."}
           </DialogDescription>
@@ -604,7 +603,7 @@ export function BillActionPanel({
   const nextDue = nextOutstandingInstallment(bill.installments ?? []);
 
   const dropping = isDroppingBill(bill);
-  const status = dropping && bill.balance > 0 ? { label: 'Balance recorded', className: 'border-border bg-muted text-muted-foreground' } : BILL_STATUS_META[bill.status];
+  const status = billStatusMeta(bill);
   const hasPending = pendingTotal > 0;
   const dueOverdue = isOverdue(nextDue?.dueDate ?? null);
   const paidPct =
@@ -641,6 +640,37 @@ export function BillActionPanel({
     ? "Pay this bill and submit proof for verification."
     : "Advance payment is available on this bill.";
   const cardTone = bill.balance <= 0 ? "border-emerald-200/70" : "border-border";
+
+  if (dropping) {
+    return <header className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl font-semibold tracking-tight">{bill.droppingAssessment ? 'Dropping assessment' : 'Previous enrollment bill'}</h1>
+            <Badge variant="outline" className={status.className}>{status.label}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">{termTitle(bill)} · {billReference(bill.id)}</p>
+        </div>
+        {bill.amountPaid > 0 && <Button variant="outline" size="sm" onClick={() => printBillReceipt(bill, billReceiptParty(bill, userName))}><DownloadIcon />Receipt</Button>}
+      </div>
+      <section aria-label="Balance and payment" className="overflow-hidden rounded-xl border bg-card">
+        <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,1fr)_auto] lg:items-center lg:gap-8">
+          <div className="space-y-1.5">
+            <h2 className="text-sm font-medium">Remaining balance</h2>
+            <p className="text-3xl font-semibold tracking-tight tabular-nums">{formatPeso(bill.balance)}</p>
+            <p className="text-xs text-muted-foreground">{bill.balance <= 0 ? 'Fully settled' : collectionLabel(bill)}</p>
+          </div>
+          <dl className="space-y-2 text-sm">
+            <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{bill.droppingAssessment ? 'Approved charges' : 'Recorded assessment'}</dt><dd className="shrink-0 font-medium tabular-nums">{formatPeso(bill.netTotal)}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Verified payments</dt><dd className="shrink-0 tabular-nums">{formatPeso(-bill.amountPaid)}</dd></div>
+            {(bill.creditApplied ?? 0) > 0 && <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Applied credit</dt><dd className="shrink-0 tabular-nums">{formatPeso(-bill.creditApplied!)}</dd></div>}
+          </dl>
+          {bill.balance > 0 && <PayDialog bill={bill} channels={channels ?? []} disabled={hasPending} triggerClassName="min-h-10 w-full lg:w-auto" triggerLabel={hasPending ? 'Awaiting verification' : bill.collectionState === 'required_for_reenrollment' ? 'Make a payment' : 'Voluntary payment'} />}
+        </div>
+        {hasPending && <p role="status" className="flex items-start gap-2 border-t px-4 py-3 text-sm text-muted-foreground sm:px-5"><ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span>{formatPeso(pendingTotal)} awaiting verification. Your balance updates after approval.</span></p>}
+      </section>
+    </header>;
+  }
 
   if (bill.balance <= 0) {
     return (

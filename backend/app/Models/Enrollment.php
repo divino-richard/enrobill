@@ -25,13 +25,22 @@ class Enrollment extends Model
             $rules = app(ReturningEnrollmentRules::class);
             $source = $rules->source($enrollment);
             if ($source) {
-                $eligibility = $rules->eligibility($source, $enrollment->schoolYear);
+                $eligibility = $rules->startEligibility($source, $enrollment->schoolYear);
                 if (! $eligibility['eligible'] || $enrollment->status === 'enrolled') {
                     throw ValidationException::withMessages(['status' => $eligibility['blockers'] ?: ['Create a pending return and meet its payment requirements before activation.']]);
                 }
             }
         });
         static::updating(function (self $enrollment): void {
+            if ($enrollment->isDirty('status') && $enrollment->status === 'pending') {
+                $rules = app(ReturningEnrollmentRules::class);
+                if ($source = $rules->source($enrollment)) {
+                    $eligibility = $rules->startEligibility($source, $enrollment->schoolYear);
+                    if (! $eligibility['eligible']) {
+                        throw ValidationException::withMessages(['status' => $eligibility['blockers']]);
+                    }
+                }
+            }
             if ($enrollment->isDirty('status') && $enrollment->status === 'enrolled'
                 && ! $enrollment->canActivate()) {
                 throw ValidationException::withMessages([

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Actions\GenerateBillForEnrollment;
 use App\Actions\NotifyStudent;
 use App\Models\DroppingRequest;
 use App\Models\Enrollment;
@@ -67,6 +66,10 @@ class StudentReturningEnrollment
         if ($fees->isEmpty()) {
             return [...$base, 'state' => 'unavailable', 'blockers' => ['The school is preparing fees for your returning grade. Re-enrollment will be available once setup is complete.']];
         }
+        $start = $this->rules->startEligibility($source, $year);
+        if (! $start['eligible']) {
+            return [...$base, 'state' => 'settlement_required', 'blockers' => $start['blockers']];
+        }
         return [...$base, 'state' => 'ready', 'canStart' => true, 'offer' => ['schoolYearId' => $year->id,
             'schoolYear' => $year->school_year, 'feeTotal' => round((float) $fees->sum('amount'), 2),
             'downpaymentType' => $year->downpayment_type, 'downpaymentValue' => (float) $year->downpayment_value]];
@@ -93,10 +96,9 @@ class StudentReturningEnrollment
                 'returning_from_enrollment_id' => $source['id'], 'track' => $source['program'],
                 'year_level' => $source['yearLevel'], 'discount_id' => null, 'status' => 'pending', 'created_by' => $actorId]);
             $student->update(['track_or_strand' => $source['program'], 'year_level' => $source['yearLevel'], 'school_year' => $summary['offer']['schoolYear']]);
-            app(GenerateBillForEnrollment::class)($enrollment);
             $student->syncStatusFromLatestEnrollment();
             app(NotifyStudent::class)($student, 'enrollment', 'Re-enrollment started',
-                'Your returning enrollment has been created. Review your previous balance and new school-year payment requirement. Only verified payments and applied credits count.',
+                'Your pending enrollment has been created. The cashier will generate your new school-year bill and confirm its payment requirement.',
                 'View re-enrollment', '/portal/programs?reenroll=1', false, 'returning-started:'.$enrollment->id);
             return $enrollment->fresh();
         }, 3);

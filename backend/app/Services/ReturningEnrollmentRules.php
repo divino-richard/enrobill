@@ -55,7 +55,7 @@ class ReturningEnrollmentRules
         } elseif ($date > now('Asia/Manila')->toDateString()) {
             $blockers[] = 'The effective dropping date is in the future. Ask the school to correct the historical dropping record before re-enrollment.';
         } elseif (now('Asia/Manila')->toDateString() > $deadline) {
-            $blockers[] = "The re-enrollment deadline was {$deadline} (Asia/Manila). Enrollment had to become active by that date.";
+            $blockers[] = "The re-enrollment deadline was {$deadline}. Enrollment had to become active by that date.";
         }
         if ($year && ! ($year->school_year > $source->schoolYear?->school_year
             && $year->start_date && $year->end_date && $source->schoolYear?->end_date
@@ -66,6 +66,22 @@ class ReturningEnrollmentRules
 
         return ['effectiveDroppingDate' => $date, 'returnDeadline' => $deadline,
             'eligible' => $blockers === [], 'blockers' => $blockers];
+    }
+
+    /** Settlement is required before creating a return, not just before activation. */
+    public function startEligibility(Enrollment $source, ?SchoolYear $year = null): array
+    {
+        $eligibility = $this->eligibility($source, $year);
+        $target = new Enrollment(['student_id' => $source->student_id,
+            'school_year_id' => $year?->id ?? 0, 'returning_from_enrollment_id' => $source->id]);
+        $target->setRelation('schoolYear', $year);
+        $previous = app(StudentCreditService::class)->previousBalance($target);
+        $blockers = $eligibility['blockers'];
+        if ($previous > 0) {
+            $blockers[] = 'Settle the previous dropping balance before starting re-enrollment. Only verified payments and applied credits count.';
+        }
+
+        return [...$eligibility, 'eligible' => $blockers === [], 'blockers' => $blockers, 'previousBalance' => $previous];
     }
 
     public function requirements(Enrollment $target): ?array
@@ -85,11 +101,11 @@ class ReturningEnrollmentRules
         $newPayment = $bill?->enrollmentPaymentRemaining();
         $blockers = $eligibility['blockers'];
         if ($previous > 0) {
-            $blockers[] = 'Settle all previous dropping balances before completing re-enrollment. Only verified payments and applied credits count.';
+            $blockers[] = 'Settle the previous dropping balance first. Only verified payments and applied credits count.';
         }
-        if ($bill === null) {
+        if ($bill === null && $previous <= 0 && $eligibility['eligible']) {
             $blockers[] = 'Generate the new school year’s bill to determine its enrollment payment requirement.';
-        } elseif ($newPayment > 0) {
+        } elseif ($bill !== null && $newPayment > 0) {
             $blockers[] = 'Meet the new school year’s enrollment payment requirement.';
         }
         $pending = $target->student->bills()->whereHas('payments', fn ($q) => $q->where('status', 'pending'))->exists();

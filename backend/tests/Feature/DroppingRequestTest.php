@@ -37,7 +37,15 @@ class DroppingRequestTest extends TestCase
 
     private function draft(Enrollment $e): int
     {
-        return $this->actingAs($e->student->user)->postJson('/api/me/dropping-requests', ['enrollmentId' => $e->id])->assertSuccessful()->json('data.id');
+        // Legacy drafts remain editable, but opening the new form never creates one.
+        $this->actingAs($e->student->user);
+
+        return DroppingRequest::create([
+            'student_id' => $e->student_id, 'enrollment_id' => $e->id, 'active_enrollment_id' => $e->id,
+            'status' => 'draft', 'submissions' => [], 'events' => [],
+            'snapshot' => ['studentName' => 'Test Student', 'studentNumber' => $e->student->student_number,
+                'schoolYear' => $e->schoolYear->school_year, 'program' => $e->track, 'yearLevel' => $e->year_level],
+        ])->id;
     }
 
     private function packet(int $id): void
@@ -47,6 +55,90 @@ class DroppingRequestTest extends TestCase
             'reason' => 'Family circumstances',
             'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')],
         ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('data.status', 'submitted');
+    }
+
+    public function test_starting_without_a_complete_submission_creates_no_draft(): void
+    {
+        Storage::fake('s3');
+        $e = $this->enrollment();
+        $this->actingAs($e->student->user)->getJson('/api/me/dropping-requests')->assertOk()->assertJsonCount(0, 'data');
+        $this->postJson('/api/me/dropping-requests', ['enrollmentId' => $e->id])->assertUnprocessable()->assertJsonValidationErrors(['reason', 'files']);
+        $this->post('/api/me/dropping-requests', [
+            'enrollmentId' => $e->id, 'reason' => 'Reason',
+            'files' => [UploadedFile::fake()->create('script.html', 10, 'text/html')],
+        ], ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertEmpty(Storage::disk('s3')->allFiles());
+        $this->assertSame('enrolled', $e->fresh()->status);
+    }
+
+    public function test_submission_creates_one_complete_request_and_retries_do_not_duplicate_it(): void
+    {
+        Storage::fake('s3');
+        $e = $this->enrollment();
+        $this->actingAs($e->student->user);
+        $payload = fn () => ['enrollmentId' => $e->id, 'reason' => 'Family circumstances',
+            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')]];
+        $id = $this->post('/api/me/dropping-requests', $payload(), ['Accept' => 'application/json'])
+            ->assertSuccessful()->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.packetVersion', 1)->assertJsonPath('data.reason', 'Family circumstances')
+            ->assertJsonCount(1, 'data.submissions.0.files')->json('data.id');
+        $this->post('/api/me/dropping-requests', $payload(), ['Accept' => 'application/json'])
+            ->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.packetVersion', 1);
+        $this->assertDatabaseCount('dropping_requests', 1);
+        $this->assertDatabaseCount('student_notifications', 1);
+        $this->assertCount(1, Storage::disk('s3')->allFiles());
+        $this->assertSame(['submitted'], array_column(DroppingRequest::findOrFail($id)->events, 'action'));
+        $this->assertSame('enrolled', $e->fresh()->status);
+    }
+
+    public function test_new_submission_respects_existing_legacy_requests_without_overwriting_them(): void
+    {
+        Storage::fake('s3');
+        $e = $this->enrollment();
+        $id = $this->draft($e);
+        $this->post('/api/me/dropping-requests', [
+            'enrollmentId' => $e->id, 'reason' => 'New reason',
+            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')],
+        ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.status', 'draft');
+        $this->assertDatabaseCount('dropping_requests', 1);
+        $this->assertEmpty(Storage::disk('s3')->allFiles());
+        $this->packet($id);
+    }
+
+    public function test_failed_upload_rolls_back_the_request_and_removes_already_stored_files(): void
+    {
+        Storage::fake('s3');
+        $disk = Storage::disk('s3');
+        $e = $this->enrollment();
+        $valid = UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf');
+        $failed = \Mockery::mock(UploadedFile::fake()->create('attachment.pdf', 20, 'application/pdf'))->makePartial();
+        $failed->shouldReceive('store')->once()->andReturn(false);
+        $this->actingAs($e->student->user)->post('/api/me/dropping-requests', [
+            'enrollmentId' => $e->id, 'reason' => 'Reason', 'files' => [$valid, $failed],
+        ], ['Accept' => 'application/json'])->assertStatus(503);
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertDatabaseCount('student_notifications', 0);
+        $this->assertEmpty($disk->allFiles());
+    }
+
+    public function test_new_submission_requires_own_active_enrollment(): void
+    {
+        Storage::fake('s3');
+        $e = $this->enrollment();
+        $other = $this->enrollment();
+        $this->actingAs($e->student->user);
+        $payload = fn ($id) => ['enrollmentId' => $id, 'reason' => 'Reason',
+            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')]];
+        $this->post('/api/me/dropping-requests', $payload($other->id), ['Accept' => 'application/json'])->assertNotFound();
+        $e->update(['status' => 'dropped']);
+        $this->post('/api/me/dropping-requests', $payload($e->id), ['Accept' => 'application/json'])->assertUnprocessable();
+        $inactive = $this->enrollment();
+        $this->actingAs($inactive->student->user);
+        $inactive->schoolYear->update(['is_active' => false]);
+        $this->post('/api/me/dropping-requests', $payload($inactive->id), ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertEmpty(Storage::disk('s3')->allFiles());
     }
 
     public function test_complete_flow_preserves_finances_and_history_and_is_idempotent(): void
@@ -63,9 +155,11 @@ class DroppingRequestTest extends TestCase
         DroppingPolicy::create(['school_year_id' => $e->school_year_id, 'version' => 1, 'enabled' => true, 'periods' => DroppingPolicyConfigurationTest::periods()]);
         $originalItems = $bill->items->toArray();
         ProgressionDecision::create(['student_id' => $e->student_id, 'from_school_year_id' => $e->school_year_id, 'decision' => 'retain', 'from_year_level' => 'grade_11', 'to_year_level' => 'grade_11', 'decided_at' => now()]);
-        $id = $this->draft($e);
-        $this->postJson('/api/me/dropping-requests', ['enrollmentId' => $e->id])->assertJsonPath('data.id', $id);
-        $this->packet($id);
+        Storage::fake('s3');
+        $id = $this->actingAs($e->student->user)->post('/api/me/dropping-requests', [
+            'enrollmentId' => $e->id, 'reason' => 'Family circumstances',
+            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')],
+        ], ['Accept' => 'application/json'])->assertSuccessful()->assertJsonPath('data.status', 'submitted')->json('data.id');
         $this->assertSame('enrolled', $e->fresh()->status);
         $admin = User::factory()->create(['role' => Role::Admin]);
         $cashier = User::factory()->create(['role' => Role::Cashier]);
@@ -86,6 +180,8 @@ class DroppingRequestTest extends TestCase
         $this->assertFalse(app(YearEndCloseout::class)->pendingStudents($e->schoolYear)->contains('id', $e->student_id));
         $nextYear = SchoolYear::create(['school_year' => '2027-2028', 'is_active' => false, 'start_date' => '2027-06-01', 'end_date' => '2028-03-31']);
         $this->assertSame(0, app(YearEndCloseout::class)->materialize($e->schoolYear, $admin->id));
+        $this->actingAs($cashier)->postJson("/api/admin/bills/$bill->id/payments", ['amount' => 400, 'method' => 'cash', 'paidAt' => '2026-09-24'])->assertSuccessful();
+        $this->actingAs($admin);
         Enrollment::create(['student_id' => $e->student_id, 'school_year_id' => $nextYear->id, 'track' => 'stem', 'year_level' => 'grade_11', 'status' => 'pending']);
         $e->student->fresh()->syncStatusFromLatestEnrollment();
         $this->assertSame('admitted', $e->student->fresh()->status);

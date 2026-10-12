@@ -7,6 +7,7 @@ use App\Models\Discount;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Services\StudentCreditService;
+use App\Services\ReturningEnrollmentRules;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -54,6 +55,13 @@ class GenerateBillForEnrollment
             ($this->reconcileIncentives)($enrollment);
 
             return $existing->fresh();
+        }
+
+        // Older pending returns may predate the settlement-first rule.
+        $rules = app(ReturningEnrollmentRules::class);
+        if ($source = $rules->source($enrollment)) {
+            $eligibility = $rules->startEligibility($source, $schoolYear);
+            abort_unless($eligibility['eligible'], 422, implode(' ', $eligibility['blockers']));
         }
 
         $fees = $schoolYear->fees()

@@ -126,22 +126,28 @@ class DroppingFinanceConcurrencyTest extends TestCase
         $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
         $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
         $create = ['action' => 'return', 'id' => $bill->student_id, 'payload' => ['schoolYearId' => $year->id, 'program' => 'stem', 'yearLevel' => 'grade_11', 'discountId' => null]];
-        $this->assertSame([200, 200], $this->race([$create, $create], $admin));
-        $this->assertSame(1, Enrollment::where('school_year_id', $year->id)->count());
-        $return = Enrollment::where('school_year_id', $year->id)->firstOrFail();
-        $this->assertSame('pending', $return->status);
-        $this->assertSame([200], $this->race([['action' => 'pay', 'id' => $return->bill->id, 'payload' => ['amount' => 200, 'method' => 'cash', 'paidAt' => '2026-09-30']]], $cashier));
-        $this->assertSame('pending', $return->fresh()->status);
+        $this->assertSame([422, 422], $this->race([$create, $create], $admin));
+        $this->assertSame(0, Enrollment::where('school_year_id', $year->id)->count());
         $payment = $bill->payments()->create(['amount' => 6000, 'status' => 'pending', 'method' => 'bank', 'paid_at' => now()]);
         $verify = ['action' => 'verify', 'id' => $bill->id, 'paymentId' => $payment->id];
         $this->assertSame([200, 200], $this->race([$verify, $verify], $cashier));
         $this->assertSame(0.0, $bill->fresh()->balance());
+        $this->assertSame([200, 200], $this->race([$create, $create], $admin));
+        $this->assertSame(1, Enrollment::where('school_year_id', $year->id)->count());
+        $return = Enrollment::where('school_year_id', $year->id)->firstOrFail();
+        $this->assertSame('pending', $return->status);
+        $this->assertNull($return->bill);
+        $generate = ['action' => 'generate', 'id' => $return->id];
+        $this->assertSame([200, 200], $this->race([$generate, $generate], $cashier));
+        $this->assertSame(1, Bill::where('school_year_id', $year->id)->count());
+        $return->refresh();
+        $this->assertSame([200], $this->race([['action' => 'pay', 'id' => $return->bill->id, 'payload' => ['amount' => 200, 'method' => 'cash', 'paidAt' => '2026-09-30']]], $cashier));
         $this->assertSame('enrolled', $return->fresh()->status);
         $this->assertSame(1, $bill->student->notifications()->where('title', 'Enrollment status: Enrolled')->count());
         $this->assertSame('dropped', $drop->enrollment->fresh()->status);
     }
 
-    public function test_simultaneous_student_returns_create_one_enrollment_bill_and_notification(): void
+    public function test_simultaneous_student_returns_create_one_pending_enrollment_without_a_bill(): void
     {
         $admin = User::factory()->create(['role' => Role::Admin]);
         [$drop, $bill] = $this->fixture(0);
@@ -151,10 +157,12 @@ class DroppingFinanceConcurrencyTest extends TestCase
         SchoolYear::query()->update(['is_active' => false]);
         $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
         $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
+        $cashier = User::factory()->create(['role' => Role::Cashier]);
+        $this->assertSame([200], $this->race([['action' => 'pay', 'id' => $bill->id, 'payload' => ['amount' => 6000, 'method' => 'cash', 'paidAt' => '2026-09-30']]], $cashier));
         $create = ['action' => 'student-return', 'payload' => ['schoolYearId' => $year->id]];
         $this->assertSame([200, 200], $this->race([$create, $create], $bill->student->user));
         $this->assertSame(1, Enrollment::where('school_year_id', $year->id)->count());
-        $this->assertSame(1, Bill::where('school_year_id', $year->id)->count());
+        $this->assertSame(0, Bill::where('school_year_id', $year->id)->count());
         $this->assertSame(1, $bill->student->notifications()->where('dedupe_key', 'like', 'returning-started:%')->count());
     }
 

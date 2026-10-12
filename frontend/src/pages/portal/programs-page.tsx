@@ -1,6 +1,11 @@
 import { ProgramReturnPanel } from '@/features/re-enrollment/program-return-panel';
 import { useStudentReturn } from '@/features/re-enrollment/api';
 import { DocumentHistory } from '@/features/student-documents/components/document-history';
+import { StudentDroppingTab } from '@/features/dropping/dropping-page';
+import { useMutation } from '@tanstack/react-query';
+import { downloadDroppingFile } from '@/features/dropping/api';
+import { getErrorMessage } from '@/lib/get-error-message';
+import { NEW_STUDENT_DROPPING_PATH } from '@/features/dropping/paths';
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
@@ -15,6 +20,8 @@ import {
   HistoryIcon,
   MoreHorizontalIcon,
   FileMinusIcon,
+  DownloadIcon,
+  Loader2Icon,
 } from "lucide-react";
 import {
   Card,
@@ -50,8 +57,6 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-const programTabClassName = "min-h-11 flex-none justify-start px-3 sm:px-4 data-[state=active]:bg-primary/8 data-[state=active]:text-primary data-[state=active]:shadow-none hover:text-foreground";
-
 function termLabel(record: EnrollmentRecord): string {
   return record.schoolYear ? `SY ${record.schoolYear}` : "—";
 }
@@ -77,12 +82,20 @@ function EmptyTab({
 function ProgramsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const section = searchParams.get('section') ?? 'overview';
-  const activeTab = ['overview', 'schedule', 'clearance-grades', 'history', 'transfer'].includes(section) ? section : 'overview';
-  const setActiveTab = (value: string) => setSearchParams(previous => {const next = new URLSearchParams(previous); next.set('section', value); return next;}, {replace: true});
+  const activeTab = ['overview', 'schedule', 'clearance-grades', 'history', 'dropping', 'transfer'].includes(section) ? section : 'overview';
+  const setActiveTab = (value: string) => setSearchParams(previous => {
+    const next = new URLSearchParams(previous);
+    next.set('section', value);
+    if (value !== 'dropping') next.delete('request');
+    return next;
+  }, {replace: true});
   const { data: student, isLoading, isError } = useMyStudent();
   const { data: enrollments } = useMyEnrollments();
   const programLabel = useProgramLabel();
   const returning = useStudentReturn();
+  const formDownload = useMutation({
+    mutationFn: () => downloadDroppingFile('/dropping-requests/form', 'official-dropping-form.pdf'),
+  });
   // Drives the tab's "n/4" badge, so an unfinished submission is visible without
   // opening the tab. Read before any early return — hook order must stay stable.
   const { data: myDocuments } = useMyDocuments();
@@ -128,16 +141,16 @@ function ProgramsPage() {
       <PageHeader title="My Program" />
 
       <Tabs value={selectedTab} onValueChange={setActiveTab}>
-        <TabsList aria-label="Program information" className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border bg-card p-1 sm:flex sm:flex-wrap sm:justify-start">
-          <TabsTrigger value="overview" className={programTabClassName}>
+        <TabsList aria-label="Program information" variant="line">
+          <TabsTrigger value="overview">
             <GraduationCapIcon />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="schedule" className={programTabClassName}>
+          <TabsTrigger value="schedule">
             <CalendarClockIcon />
             Schedule
           </TabsTrigger>
-          <TabsTrigger value="clearance-grades" className={`${programTabClassName}${postDrop ? '' : ' col-span-2 sm:col-span-1'}`}>
+          <TabsTrigger value="clearance-grades">
             <FolderUpIcon />
             {postDrop ? "Saved documents" : "Clearance & Grades"}
             {!postDrop && <Badge
@@ -147,7 +160,11 @@ function ProgramsPage() {
               {uploadedDocuments}/{TOTAL_DOCUMENT_SLOTS}
             </Badge>}
           </TabsTrigger>
-          <TabsTrigger value="history" className={programTabClassName}>
+          <TabsTrigger value="dropping">
+            <FileMinusIcon />
+            Dropping requests
+          </TabsTrigger>
+          <TabsTrigger value="history">
             <HistoryIcon />
             History
             {history.length > 0 && (
@@ -159,7 +176,7 @@ function ProgramsPage() {
               </Badge>
             )}
           </TabsTrigger>
-          {!postDrop && <TabsTrigger value="transfer" className={programTabClassName}>
+          {!postDrop && <TabsTrigger value="transfer">
             <ArrowRightLeftIcon />
             Transfer
           </TabsTrigger>}
@@ -182,16 +199,20 @@ function ProgramsPage() {
                 ) : (
                   <StudentStatusBadge status={student.status} />
                 )}
-                {current?.status === "enrolled" && (
+                {current?.isCurrent && current.status === "enrolled" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="size-10" aria-label="Enrollment options" title="Enrollment options">
                         <MoreHorizontalIcon aria-hidden="true" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem asChild>
-                        <Link to="/portal/dropping-requests"><FileMinusIcon aria-hidden="true" />Request to drop</Link>
+                    <DropdownMenuContent align="end" className="w-60">
+                      <DropdownMenuItem className="min-h-11" disabled={formDownload.isPending} onSelect={() => formDownload.mutate()}>
+                        {formDownload.isPending ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : <DownloadIcon aria-hidden="true" />}
+                        {formDownload.isPending ? 'Downloading form…' : 'Download dropping form'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild className="min-h-11">
+                        <Link to={NEW_STUDENT_DROPPING_PATH}><FileMinusIcon aria-hidden="true" />Request to drop</Link>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -210,6 +231,8 @@ function ProgramsPage() {
                   <Detail label="Dropped on" value={formatDate(returning.data.effectiveDroppingDate)} />
                 )}
               </dl>
+              {formDownload.isPending && <p role="status" className="mt-4 text-sm text-muted-foreground">Downloading dropping form…</p>}
+              {formDownload.isError && <p role="alert" className="mt-4 text-sm text-destructive">{getErrorMessage(formDownload.error)}</p>}
             </CardContent>
             <ProgramReturnPanel />
           </Card>
@@ -221,6 +244,10 @@ function ProgramsPage() {
 
         <TabsContent value="clearance-grades">
           {postDrop ? <DocumentHistory /> : <ClearanceGradesPanel />}
+        </TabsContent>
+
+        <TabsContent value="dropping">
+          <StudentDroppingTab />
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">

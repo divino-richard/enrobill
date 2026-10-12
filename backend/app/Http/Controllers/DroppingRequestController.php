@@ -53,60 +53,86 @@ class DroppingRequestController extends Controller
     public function store(Request $request)
     {
         $input = $request->validate(['enrollmentId' => ['required', 'integer']]);
+        $submission = $this->validateSubmission($request);
+        $stored = [];
 
-        return DB::transaction(function () use ($request, $input) {
-            Student::lockForUpdate()->findOrFail($request->user()->student?->id ?? 0);
-            $enrollment = Enrollment::where('student_id', $request->user()->student?->id ?? 0)->lockForUpdate()->findOrFail($input['enrollmentId']);
-            abort_unless($enrollment->status === 'enrolled' && $enrollment->schoolYear->is_active, 422, 'An active, enrolled school year is required.');
-            $existing = DroppingRequest::where('active_enrollment_id', $enrollment->id)->first();
-            if ($existing) {
-                return new DroppingRequestResource($existing);
-            }
-            $student = $enrollment->student;
-            $dropping = DroppingRequest::create([
-                'student_id' => $student->id, 'enrollment_id' => $enrollment->id, 'active_enrollment_id' => $enrollment->id,
-                'status' => 'draft', 'submissions' => [], 'events' => [],
-                'snapshot' => ['studentName' => trim($student->first_name.' '.$student->last_name), 'studentNumber' => $student->student_number,
-                    'schoolYear' => $enrollment->schoolYear->school_year, 'program' => $enrollment->track, 'yearLevel' => $enrollment->year_level],
-            ]);
-            $dropping->record('created', $request->user());
+        try {
+            // File uploads are not retryable transaction side effects. A failed attempt
+            // rolls back the request and removes its uploads before the student retries.
+            return DB::transaction(function () use ($request, $input, $submission, &$stored) {
+                Student::lockForUpdate()->findOrFail($request->user()->student?->id ?? 0);
+                $enrollment = Enrollment::where('student_id', $request->user()->student?->id ?? 0)->lockForUpdate()->findOrFail($input['enrollmentId']);
+                abort_unless($enrollment->status === 'enrolled' && $enrollment->schoolYear->is_active, 422, 'An active, enrolled school year is required.');
+                $existing = DroppingRequest::where('active_enrollment_id', $enrollment->id)->first();
+                if ($existing) {
+                    return new DroppingRequestResource($existing);
+                }
+                $student = $enrollment->student;
+                $dropping = DroppingRequest::create([
+                    'student_id' => $student->id, 'enrollment_id' => $enrollment->id, 'active_enrollment_id' => $enrollment->id,
+                    'status' => 'submitted', 'submissions' => [], 'events' => [],
+                    'snapshot' => ['studentName' => trim($student->first_name.' '.$student->last_name), 'studentNumber' => $student->student_number,
+                        'schoolYear' => $enrollment->schoolYear->school_year, 'program' => $enrollment->track, 'yearLevel' => $enrollment->year_level],
+                ]);
+                $this->storeSubmission($request, $dropping, $submission['reason'], $stored);
 
-            return new DroppingRequestResource($dropping);
-        });
+                return new DroppingRequestResource($dropping);
+            });
+        } catch (\Throwable $error) {
+            $this->deleteUploads($stored);
+            throw $error;
+        }
     }
 
     public function submit(Request $request, DroppingRequest $dropping)
     {
         $this->authorizeOwner($request, $dropping);
+        $input = $this->validateSubmission($request);
+        $stored = [];
+        try {
+            return $this->locked($dropping, function ($dropping, $enrollment) use ($request, $input, &$stored) {
+                abort_unless(in_array($dropping->status, ['draft', 'needs_correction'], true), 422, 'This request is not open for uploads.');
+                abort_unless($enrollment->status === 'enrolled', 422, 'The enrollment has changed. Contact Records before continuing.');
+                $this->storeSubmission($request, $dropping, $input['reason'], $stored);
+            }, attempts: 1);
+        } catch (\Throwable $error) {
+            $this->deleteUploads($stored);
+            throw $error;
+        }
+    }
+
+    private function validateSubmission(Request $request): array
+    {
         $input = $request->validate([
             'reason' => ['required', 'string', 'max:2000'],
             'files' => ['required', 'array', 'min:1', 'max:12'],
             'files.*' => ['required', 'file', 'mimetypes:application/pdf,image/jpeg,image/png', 'max:2048'],
         ]);
         abort_if(collect($request->file('files'))->sum(fn ($file) => $file->getSize()) > 7 * 1024 * 1024, 422, 'The documents must be 7 MB or less in total.');
-        $stored = [];
-        try {
-            return $this->locked($dropping, function ($dropping, $enrollment) use ($request, $input, &$stored) {
-                abort_unless(in_array($dropping->status, ['draft', 'needs_correction'], true), 422, 'This request is not open for uploads.');
-                abort_unless($enrollment->status === 'enrolled', 422, 'The enrollment has changed. Contact Records before continuing.');
-                $version = count($dropping->submissions) + 1;
-                foreach ($request->file('files') as $file) {
-                    $disk = 's3';
-                    $path = $file->store("dropping/{$dropping->id}/{$version}", ['disk' => $disk, 'visibility' => 'private']);
-                    abort_unless($path, 503, 'The document could not be stored. Please try again.');
-                    $stored[] = ['id' => (string) Str::uuid(), 'path' => $path, 'disk' => $disk,
-                        'name' => basename($file->getClientOriginalName()), 'mime' => $file->getMimeType(), 'size' => $file->getSize()];
-                }
-                $dropping->fill(['reason' => $input['reason'], 'status' => 'submitted',
-                    'submissions' => [...$dropping->submissions, ['version' => $version, 'submittedAt' => now()->toIso8601String(), 'reason' => $input['reason'], 'files' => $stored]]]);
-                $dropping->record('submitted', $request->user(), 'Documents submitted.');
-                $this->notify($dropping, 'Your documents were submitted. Your request is waiting for approval.');
-            });
-        } catch (\Throwable $error) {
-            foreach ($stored as $file) {
-                Storage::disk($file['disk'])->delete($file['path']);
-            }
-            throw $error;
+
+        return $input;
+    }
+
+    private function storeSubmission(Request $request, DroppingRequest $dropping, string $reason, array &$stored): void
+    {
+        $version = count($dropping->submissions) + 1;
+        foreach ($request->file('files') as $file) {
+            $disk = 's3';
+            $path = $file->store("dropping/{$dropping->id}/{$version}", ['disk' => $disk, 'visibility' => 'private']);
+            abort_unless($path, 503, 'The document could not be stored. Please try again.');
+            $stored[] = ['id' => (string) Str::uuid(), 'path' => $path, 'disk' => $disk,
+                'name' => basename($file->getClientOriginalName()), 'mime' => $file->getMimeType(), 'size' => $file->getSize()];
+        }
+        $dropping->fill(['reason' => $reason, 'status' => 'submitted',
+            'submissions' => [...$dropping->submissions, ['version' => $version, 'submittedAt' => now()->toIso8601String(), 'reason' => $reason, 'files' => $stored]]]);
+        $dropping->record('submitted', $request->user(), 'Documents submitted.');
+        $this->notify($dropping, 'Your documents were submitted. Your request is waiting for approval.');
+    }
+
+    private function deleteUploads(array $stored): void
+    {
+        foreach ($stored as $file) {
+            Storage::disk($file['disk'])->delete($file['path']);
         }
     }
 
@@ -188,7 +214,7 @@ class DroppingRequestController extends Controller
         ]);
     }
 
-    private function locked(DroppingRequest $dropping, callable $action): DroppingRequestResource
+    private function locked(DroppingRequest $dropping, callable $action, int $attempts = 3): DroppingRequestResource
     {
         return DB::transaction(function () use ($dropping, $action) {
             // Shared with payment, credit, and returning-enrollment transactions.
@@ -199,7 +225,7 @@ class DroppingRequestController extends Controller
             $action($fresh, $enrollment);
 
             return new DroppingRequestResource($fresh->refresh());
-        }, 3);
+        }, $attempts);
     }
 
     private function reviewable(DroppingRequest $dropping, Request $request): void

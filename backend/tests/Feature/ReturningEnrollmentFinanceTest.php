@@ -23,6 +23,7 @@ use Tests\TestCase;
 class ReturningEnrollmentFinanceTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Concerns\CreatesLegacyReturningEnrollment;
 
     private function student(): Student
     {
@@ -61,6 +62,7 @@ class ReturningEnrollmentFinanceTest extends TestCase
     public function test_return_is_idempotent_keeps_history_and_requires_both_balances_for_activation(): void
     {
         extract($this->setupReturn());
+        $this->legacyReturn($student, $year, $old, 'abm');
         $url = "/api/admin/students/$student->id/returning-enrollments";
         $this->actingAs($student->user)->postJson($url, $this->payload($year))->assertForbidden();
         $response = $this->actingAs($admin)->postJson($url, $this->payload($year))->assertSuccessful()
@@ -114,7 +116,7 @@ class ReturningEnrollmentFinanceTest extends TestCase
         extract($this->setupReturn(100));
         $bill->installments()->create(['label' => 'Original', 'sequence' => 1, 'amount' => 100, 'due_date' => '2026-08-01']);
         $this->actingAs($admin)->getJson('/api/admin/bills?tracking_state=due_now')->assertOk()->assertJsonCount(0, 'data');
-        $this->postJson("/api/admin/students/$student->id/returning-enrollments", $this->payload($year))->assertSuccessful();
+        $this->legacyReturn($student, $year, $old, 'abm');
         $this->assertTrue($bill->fresh()->hasAmountDueBy('2027-06-01'));
         $this->travelTo(Carbon::parse('2028-06-02', 'Asia/Manila'));
         $this->assertFalse($bill->fresh()->hasAmountDueBy('2028-06-02'));
@@ -127,6 +129,10 @@ class ReturningEnrollmentFinanceTest extends TestCase
         StudentCredit::create(['student_id' => $student->id, 'source_bill_id' => $bill->id, 'amount' => 100, 'issued_by' => $admin->id]);
         $response = $this->actingAs($admin)->postJson("/api/admin/students/$student->id/returning-enrollments", $this->payload($year))->assertSuccessful();
         $return = Enrollment::findOrFail($response->json('data.id'));
+        $this->assertNull($return->bill);
+        $this->actingAs($cashier)->postJson("/api/admin/enrollments/$return->id/bill")->assertSuccessful();
+        $return->refresh();
+        $this->actingAs($admin);
         $this->assertSame('pending', $return->status);
         $newBill = $return->bill;
         $newBill->adjustments()->create(['label' => 'New eligibility', 'type' => 'fixed', 'value' => 900, 'amount' => 900]);
@@ -160,6 +166,10 @@ class ReturningEnrollmentFinanceTest extends TestCase
         $url = "/api/admin/students/$student->id/returning-enrollments";
         $response = $this->actingAs($admin)->postJson($url, $this->payload($year))->assertSuccessful();
         $return = Enrollment::findOrFail($response->json('data.id'));
+        $this->assertNull($return->bill);
+        $this->actingAs($cashier)->postJson("/api/admin/enrollments/$return->id/bill")->assertSuccessful();
+        $return->refresh();
+        $this->actingAs($admin);
         $this->assertSame('enrolled', $return->status);
         $this->assertSame(250.0, $return->bill->creditApplied());
         $this->assertEquals(0, $return->bill->amount_paid);
@@ -177,19 +187,24 @@ class ReturningEnrollmentFinanceTest extends TestCase
         $this->actingAs($admin)->postJson($url, $payload)->assertUnprocessable();
         $voucher = Discount::create(['name' => 'New voucher', 'category' => 'voucher', 'type' => 'fixed', 'value' => 100, 'is_active' => true]);
         $payload = [...$this->payload($year), 'discountId' => $voucher->id];
-        $response = $this->postJson($url, $payload)->assertSuccessful()->assertJsonPath('data.droppingCategory', 'voucher_esc');
+        $this->postJson($url, $payload)->assertUnprocessable();
+        $bill->payments()->create(['amount' => 100, 'status' => 'verified', 'method' => 'cash', 'paid_at' => now()]);
+        $bill->recalculate();
+        $response = $this->postJson($url, $payload)->assertSuccessful();
         $return = Enrollment::findOrFail($response->json('data.id'));
         $this->postJson($url, $payload)->assertSuccessful()->assertJsonPath('data.id', $return->id);
-        $this->assertTrue($return->no_downpayment);
-        $this->assertSame('pending', $return->status); // Voucher waiver cannot bypass old debt.
+        $this->assertSame('pending', $return->status);
+        $this->assertNull($return->bill);
+        $this->actingAs($cashier)->postJson("/api/admin/enrollments/$return->id/bill")->assertSuccessful();
+        $this->assertTrue($return->fresh()->no_downpayment);
+        $this->assertSame('enrolled', $return->fresh()->status);
     }
 
     public function test_unknown_legacy_dates_never_hide_previous_debt_or_allow_activation(): void
     {
         extract($this->setupReturn(100));
         $old->schoolYear->update(['start_date' => null]);
-        $response = $this->actingAs($admin)->postJson("/api/admin/students/$student->id/returning-enrollments", $this->payload($year))->assertSuccessful();
-        $return = Enrollment::findOrFail($response->json('data.id'));
+        $return = $this->legacyReturn($student, $year, $old, 'abm');
         $newBill = $return->bill;
         $this->actingAs($cashier)->postJson("/api/admin/bills/$newBill->id/payments", ['amount' => 200, 'method' => 'cash', 'paidAt' => '2027-06-01'])->assertSuccessful();
         $credits = app(StudentCreditService::class);

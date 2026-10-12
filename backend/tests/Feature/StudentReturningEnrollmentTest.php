@@ -46,14 +46,21 @@ class StudentReturningEnrollmentTest extends TestCase
     }
 
 
+    private function settleOldBill(Bill $bill): void
+    {
+        $bill->payments()->create(['amount' => 100, 'status' => 'verified', 'method' => 'cash', 'paid_at' => now()]);
+        $bill->recalculate();
+    }
+
     public function test_student_sees_own_return_offer_and_cannot_select_another_student_or_voucher(): void
     {
         extract($this->fixture());
+        $this->settleOldBill($bill);
         $other = User::factory()->create(['role' => Role::Student]);
         $this->actingAs($user)->getJson('/api/me/re-enrollment')->assertOk()
             ->assertJsonPath('data.state', 'ready')->assertJsonPath('data.returnDeadline', '2028-10-07')
             ->assertJsonPath('data.offer.schoolYearId', $year->id)->assertJsonPath('data.offer.feeTotal', 1000)
-            ->assertJsonPath('data.source.program', 'stem')->assertJsonPath('data.previousBills.0.balance', 100);
+            ->assertJsonPath('data.source.program', 'stem')->assertJsonPath('data.previousBills.0.balance', 0);
         $this->postJson('/api/me/re-enrollment', ['schoolYearId' => $year->id, 'studentId' => 99, 'discountId' => 1, 'status' => 'enrolled', 'yearLevel' => 'grade_12'])->assertUnprocessable();
         $this->assertSame(1, $student->enrollments()->count());
         $this->actingAs($other)->getJson('/api/me/re-enrollment')->assertNotFound();
@@ -79,22 +86,24 @@ class StudentReturningEnrollmentTest extends TestCase
     public function test_student_return_is_idempotent_and_waits_for_verified_old_and_new_payments(): void
     {
         extract($this->fixture());
+        $this->settleOldBill($bill);
         $this->actingAs($user)->postJson('/api/me/re-enrollment', ['schoolYearId' => $year->id])->assertSuccessful()->assertJsonPath('data.status', 'pending');
         $return = $student->enrollments()->where('school_year_id', $year->id)->firstOrFail();
         $this->assertNull($return->discount_id);
         $this->assertSame('grade_11', $return->year_level);
         $this->postJson('/api/me/re-enrollment', ['schoolYearId' => $year->id])->assertSuccessful()->assertJsonPath('data.id', $return->id);
         $this->assertSame(2, $student->enrollments()->count());
-        $this->assertSame(2, $student->bills()->count());
+        $this->assertSame(1, $student->bills()->count());
+        $this->actingAs($cashier)->postJson("/api/admin/enrollments/$return->id/bill")->assertSuccessful();
+        $this->actingAs($user);
         $this->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'pending')
-            ->assertJsonPath('data.enrollment.billId', $return->bill->id)->assertJsonPath('data.requirements.previousBalance', 100)
+            ->assertJsonPath('data.enrollment.billId', $return->bill->id)->assertJsonPath('data.requirements.previousBalance', 0)
             ->assertJsonPath('data.requirements.newEnrollmentPayment', 200);
         $year->update(['admission_open' => false]);
         $this->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'pending');
         $newBill = $return->bill;
         $this->actingAs($cashier)->postJson("/api/admin/bills/$newBill->id/payments", ['amount' => 200, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
-        $this->assertSame('pending', $return->fresh()->status);
-        $this->postJson("/api/admin/bills/$bill->id/payments", ['amount' => 100, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
+        $this->assertSame('enrolled', $return->fresh()->status);
         $this->actingAs($user)->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'enrolled')->assertJsonPath('data.returnDeadline', null);
         $this->assertSame('dropped', $old->fresh()->status);
         $this->assertSame(1, $student->notifications()->where('dedupe_key', 'returning-started:'.$return->id)->count());
@@ -110,6 +119,7 @@ class StudentReturningEnrollmentTest extends TestCase
     public function test_expired_pending_return_remains_visible_without_allowing_activation(): void
     {
         extract($this->fixture());
+        $this->settleOldBill($bill);
         $this->actingAs($user)->postJson('/api/me/re-enrollment', ['schoolYearId' => $year->id])->assertSuccessful();
         $this->travelTo(Carbon::parse('2028-10-08', 'Asia/Manila'));
         $this->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'blocked')
@@ -141,6 +151,7 @@ class StudentReturningEnrollmentTest extends TestCase
     public function test_a_completed_return_is_not_presented_as_an_active_enrollment(): void
     {
         extract($this->fixture());
+        $this->settleOldBill($bill);
         $this->actingAs($user)->postJson('/api/me/re-enrollment', ['schoolYearId' => $year->id])->assertSuccessful();
         $return = $student->enrollments()->where('school_year_id', $year->id)->firstOrFail();
         $return->newQuery()->whereKey($return->id)->update(['status' => 'completed', 'enrolled_at' => now()]);
@@ -150,6 +161,7 @@ class StudentReturningEnrollmentTest extends TestCase
     public function test_changed_return_calendar_is_reported_as_blocked(): void
     {
         extract($this->fixture());
+        $this->settleOldBill($bill);
         $this->actingAs($user)->postJson('/api/me/re-enrollment', ['schoolYearId' => $year->id])->assertSuccessful();
         $year->update(['start_date' => '2026-01-01']);
         $this->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'blocked')->assertJsonPath('data.requirements.eligible', false);
@@ -158,6 +170,7 @@ class StudentReturningEnrollmentTest extends TestCase
     public function test_student_sees_the_program_and_grade_approved_by_staff_for_the_return(): void
     {
         extract($this->fixture());
+        $this->settleOldBill($bill);
         $program = Program::firstOrCreate(['code' => 'abm'], ['name' => 'ABM', 'category' => 'academic', 'is_active' => true]);
         $this->actingAs($admin)->postJson("/api/admin/students/$student->id/returning-enrollments", [
             'schoolYearId' => $year->id, 'program' => 'abm', 'yearLevel' => 'grade_12', 'discountId' => null,

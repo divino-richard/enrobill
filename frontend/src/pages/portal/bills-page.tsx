@@ -1,5 +1,4 @@
-import { ReturnEntry } from '@/features/re-enrollment/return-entry';
-import { billStatusMeta } from '@/features/bills/collection';
+import { billStatusMeta, isDroppingBill } from '@/features/bills/collection';
 import { PageHeader } from "@/components/page-header";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,9 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -61,30 +57,27 @@ function BillsMobileList({
                     </Badge>
                   )}
                 </div>
-                <p className="text-muted-foreground text-sm">School year bill</p>
+                <p className="text-muted-foreground text-sm">{isDroppingBill(bill) ? 'Dropping charges' : 'Enrollment charges'}</p>
               </div>
               <ChevronRightIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="space-y-1">
-                <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                  Balance
-                </p>
-                <p className="font-semibold tabular-nums">
-                  {formatPeso(bill.balance)}
-                </p>
+                <p className="text-xs text-muted-foreground">Assessed</p>
+                <p className="tabular-nums">{formatPeso(bill.netTotal)}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                  Paid
-                </p>
+                <p className="text-xs text-muted-foreground">Verified payments</p>
                 <p className="tabular-nums">{formatPeso(bill.amountPaid)}</p>
               </div>
+              {(bill.creditApplied ?? 0) > 0 && <div className="space-y-1"><p className="text-xs text-muted-foreground">Applied credit</p><p className="tabular-nums">{formatPeso(bill.creditApplied ?? 0)}</p></div>}
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Remaining balance</p>
+                <p className="font-semibold tabular-nums">{formatPeso(bill.balance)}</p>
+              </div>
               <div className="col-span-2 space-y-1">
-                <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                  Status
-                </p>
+                <p className="text-xs text-muted-foreground">Payment status</p>
                 <Badge
                   variant="outline"
                   className={cn("h-auto min-h-5 max-w-full justify-center whitespace-normal text-left", meta.className)}
@@ -117,11 +110,12 @@ function BillsTable({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={cn(head, "pl-6")}>Term</TableHead>
-            <TableHead className={cn(head, "text-right")}>Net total</TableHead>
-            <TableHead className={cn(head, "text-right")}>Paid</TableHead>
-            <TableHead className={cn(head, "text-right")}>Balance</TableHead>
-            <TableHead className={cn(head, "text-center")}>Status</TableHead>
+            <TableHead className={cn(head, "pl-6")}>School year</TableHead>
+            <TableHead className={cn(head, "text-right")}>Assessed</TableHead>
+            <TableHead className={cn(head, "text-right")}>Verified payments</TableHead>
+            {bills.some(bill => (bill.creditApplied ?? 0) > 0) && <TableHead className={cn(head, "text-right")}>Applied credit</TableHead>}
+            <TableHead className={cn(head, "text-right")}>Remaining balance</TableHead>
+            <TableHead className={cn(head, "text-center")}>Payment status</TableHead>
             <TableHead className={cn(head, "text-center")}></TableHead>
           </TableRow>
         </TableHeader>
@@ -151,6 +145,7 @@ function BillsTable({
                       </Badge>
                     )}
                   </span>
+                  <p className="mt-1 text-xs font-normal text-muted-foreground">{isDroppingBill(bill) ? 'Dropping charges' : 'Enrollment charges'}</p>
                 </TableCell>
                 <TableCell className="text-muted-foreground py-2.5 text-right tabular-nums">
                   {formatPeso(bill.netTotal)}
@@ -158,6 +153,7 @@ function BillsTable({
                 <TableCell className="text-muted-foreground py-2.5 text-right tabular-nums">
                   {formatPeso(bill.amountPaid)}
                 </TableCell>
+                {bills.some(row => (row.creditApplied ?? 0) > 0) && <TableCell className="py-2.5 text-right tabular-nums">{formatPeso(bill.creditApplied ?? 0)}</TableCell>}
                 <TableCell className="py-2.5 text-right font-medium tabular-nums">
                   {formatPeso(bill.balance)}
                 </TableCell>
@@ -193,14 +189,7 @@ function BillsListCard({
   onView: (bill: Bill) => void;
 }) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-muted/20">
-        <CardTitle className="text-base">My bills</CardTitle>
-        <CardDescription>
-          Open any bill to review the breakdown, payment schedule, and payment
-          actions.
-        </CardDescription>
-      </CardHeader>
+    <Card className="gap-0 overflow-hidden py-0">
       <CardContent className={cn(bills.length > 0 && "p-0")}>
         {bills.length === 0 ? (
           <EmptyState
@@ -244,7 +233,6 @@ function BillsPage() {
           download receipts.</>} />
       </div>
 
-      <ReturnEntry />
       {bills.length === 0 ? (
         <Card>
           <CardContent>

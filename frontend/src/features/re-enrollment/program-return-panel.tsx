@@ -36,7 +36,7 @@ export function ProgramReturnPanel() {
           <p className="text-xs text-muted-foreground">Open details to retry.</p>
         </> : data && <>
           <h2 className="text-sm font-medium">{returnTitle(data)}</h2>
-          {data.returnDeadline && <p className="text-xs text-muted-foreground">Return deadline: {returnDate(data.returnDeadline)} · Manila time</p>}
+          {data.returnDeadline && <p className="text-xs text-muted-foreground">Return deadline: {returnDate(data.returnDeadline)}</p>}
         </>}
       </div>
       <DialogTrigger asChild><Button ref={triggerRef} variant="outline" aria-label={actionLabel === 'View details' ? 'View details for re-enrollment' : actionLabel} className="w-full sm:w-auto">{actionLabel}</Button></DialogTrigger>

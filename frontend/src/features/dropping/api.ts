@@ -21,8 +21,8 @@ export async function fetchDroppingRequests(staff: boolean) {
 export async function fetchDroppingRequest(id: number) {
   return (await api.get<{ data: DroppingRequest }>(`/dropping-requests/${id}`)).data.data;
 }
-export async function createDroppingRequest(enrollmentId: number) {
-  return (await api.post<{ data: DroppingRequest }>('/me/dropping-requests', { enrollmentId })).data.data;
+export async function createDroppingRequest(payload: FormData) {
+  return (await api.post<{ data: DroppingRequest }>('/me/dropping-requests', payload)).data.data;
 }
 export async function droppingAction(id: number, action: string, staff: boolean, payload: Record<string, unknown> | FormData = {}) {
   return (await api.post<{ data: DroppingRequest }>(`/${staff ? 'admin' : 'me'}/dropping-requests/${id}/${action}`, payload)).data.data;

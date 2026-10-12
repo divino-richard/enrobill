@@ -44,17 +44,17 @@ export function SubmittedDocument({ file, onPreview, onDownload }: {
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <Button ref={previewTrigger} size="sm" className="h-10 gap-1.5 px-3 shadow-none" variant="outline" disabled={!!pending} aria-busy={pending === 'preview'} onClick={() => void run('preview')} aria-label={`Preview ${file.name}`}>
+        <Button ref={previewTrigger} size="sm" className="h-11 gap-1.5 px-3 shadow-none" variant="outline" disabled={!!pending} aria-busy={pending === 'preview'} onClick={() => void run('preview')} aria-label={`Preview ${file.name}`}>
           {pending === 'preview' ? <Loader2Icon className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <EyeIcon aria-hidden="true" />}Preview
         </Button>
-        <Button size="icon" className="size-10" variant="ghost" disabled={!!pending} aria-busy={pending === 'download'} onClick={() => void run('download')} aria-label={`Download ${file.name}`} title={`Download ${file.name}`}>
+        <Button size="icon" className="size-11" variant="ghost" disabled={!!pending} aria-busy={pending === 'download'} onClick={() => void run('download')} aria-label={`Download ${file.name}`} title={`Download ${file.name}`}>
           {pending === 'download' ? <Loader2Icon className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <DownloadIcon aria-hidden="true" />}
         </Button>
       </div>
     </div>
     {failure && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-8">
       <p role="alert" className="min-w-0 flex-1 basis-48 break-words text-xs leading-relaxed text-destructive">{failure.action === 'preview' ? 'Preview failed.' : 'Download failed.'} {failure.message}</p>
-      <Button variant="ghost" size="sm" className="h-10 shrink-0 px-2 text-xs" onClick={() => void run(failure.action)} aria-label={`Retry ${failure.action} for ${file.name}`}>Try again</Button>
+      <Button variant="ghost" size="sm" className="h-11 shrink-0 px-2 text-xs" onClick={() => void run(failure.action)} aria-label={`Retry ${failure.action} for ${file.name}`}>Try again</Button>
     </div>}
   </li>;
 }

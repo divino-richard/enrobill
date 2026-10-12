@@ -1,5 +1,6 @@
 import { STUDENT_RETURN_PATH } from './features/re-enrollment/presentation'
 import DroppingPage from './features/dropping/dropping-page'
+import { studentDroppingPath } from './features/dropping/paths'
 import { createBrowserRouter, redirect } from 'react-router-dom'
 import {
   AdminGuard,
@@ -133,7 +134,7 @@ export const router = createBrowserRouter([
           { path: 'account', Component: AccountPage },
           { path: 'notifications', Component: PortalNotificationsPage },
           { path: 'bills', Component: PortalBillsPage },
-          { path: 'dropping-requests', Component: DroppingPage },
+          { path: 'dropping-requests', loader: () => redirect(studentDroppingPath()) },
           { path: 'dropping-requests/:id', Component: DroppingPage },
           { path: 'bills/:id', Component: PortalBillDetailPage },
           { path: 'programs', Component: PortalProgramsPage },

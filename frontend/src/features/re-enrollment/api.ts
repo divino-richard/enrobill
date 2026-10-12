@@ -4,7 +4,7 @@ import { useAuthStore } from '@/features/auth/store';
 import type { ReturnRequirements } from '@/features/bills/types';
 
 export interface StudentReturnSummary {
-  state: 'not_applicable' | 'unavailable' | 'ready' | 'pending' | 'enrolled' | 'blocked';
+  state: 'not_applicable' | 'unavailable' | 'settlement_required' | 'ready' | 'pending' | 'enrolled' | 'blocked';
   canStart: boolean;
   blockers: string[];
   effectiveDroppingDate: string | null;
@@ -25,7 +25,7 @@ export function useStudentReturn() {
     queryFn: async () => (await api.get<{data: StudentReturnSummary}>('/me/re-enrollment')).data.data,
     retry: false,
     refetchOnWindowFocus: true,
-    refetchInterval: query => query.state.data?.state === 'pending' ? 30_000 : false,
+    refetchInterval: query => ['pending', 'settlement_required'].includes(query.state.data?.state ?? '') ? 30_000 : false,
   });
 }
 export async function startStudentReturn(schoolYearId: number) {

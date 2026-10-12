@@ -11,6 +11,7 @@ const { StudentDashboard } = await server.ssrLoadModule('/src/features/students/
 const { useAuthStore } = await server.ssrLoadModule('/src/features/auth/store.ts');
 const { ReturnJourney } = await server.ssrLoadModule('/src/features/re-enrollment/return-journey.tsx');
 const { default: ProgramsPage } = await server.ssrLoadModule('/src/pages/portal/programs-page.tsx');
+const { default: BillsPage } = await server.ssrLoadModule('/src/pages/portal/bills-page.tsx');
 const source = { id: 1, schoolYear: '2026-2027', program: 'stem', programName: 'STEM', yearLevel: 'grade_11', droppingRequestId: 4, billId: 5 };
 const base = { state: 'unavailable', canStart: false, source, effectiveDroppingDate: '2026-10-07', returnDeadline: '2028-10-07', offer: null, enrollment: null, requirements: null, previousBills: [{id:5, schoolYear:'2026-2027', balance:1930, pendingPayment:0}], availableCredit:0, blockers: ['Re-enrollment is not yet open for a later school year.'] };
 function render(summary, Component = StudentDashboard) {
@@ -55,10 +56,12 @@ test('re-enrollment button names match the visible action in ready and pending s
 });
 
 function journey(summary) { return renderToStaticMarkup(createElement(MemoryRouter,null,createElement(ReturnJourney,{data:summary,onStart:()=>{}}))); }
-test('available return offers a start action and keeps old and new payment requirements separate', () => {
-  const html=journey({...base,state:'ready',canStart:true,offer:{schoolYearId:2,schoolYear:'2027-2028',feeTotal:10000,downpaymentType:'fixed',downpaymentValue:500}});
+test('settled return creates a pending enrollment and explains cashier billing', () => {
+  const html=journey({...base,state:'ready',canStart:true,previousBills:[{...base.previousBills[0],balance:0}],offer:{schoolYearId:2,schoolYear:'2027-2028',feeTotal:10000,downpaymentType:'fixed',downpaymentValue:500}});
   assert.match(html,/type="submit"[^>]*>Start re-enrollment/);
-  assert.match(html,/1,930\.00/); assert.match(html,/500\.00/);
+  assert.match(html,/Requirement met/); assert.match(html,/500\.00/);
+  assert.match(html,/Starting creates a pending enrollment/);
+  assert.doesNotMatch(html,/Starting creates your new bill/);
   assert.match(html,/href="\/portal\/bills\/5"/);
   assert.doesNotMatch(html,/<select|role="combobox"/); // student cannot choose a privileged voucher or grade
 });
@@ -100,4 +103,85 @@ test('activated students can still open historical documents from My Program his
   const html=renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,{initialEntries:['/portal/programs?section=history']},createElement(ProgramsPage))));
   assert.match(html,/Enrollment history/); assert.match(html,/previous-grades.pdf/); assert.match(html,/SY 2026-2027/);
   client.clear();
+});
+
+function billsMarkup(bills) {
+  const user = {id:12,role:'student'};
+  useAuthStore.setState({user}); Object.assign(useAuthStore.getInitialState(),{user});
+  const client = new QueryClient({defaultOptions:{queries:{staleTime:Infinity,retry:false}}});
+  client.setQueryData(['me','bill'], bills[0]);
+  client.setQueryData(['me','bills'], bills);
+  client.setQueryData(['me','re-enrollment',12], base);
+  const html=renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,null,createElement(BillsPage))));
+  client.clear();
+  return html;
+}
+
+test('returning students see distinct school-year charges and actual payment statuses', () => {
+  const html=billsMarkup([
+    {id:6,schoolYear:'2027-2028',status:'unpaid',netTotal:18421.25,amountPaid:0,balance:18421.25,collectionState:'standard'},
+    {id:5,schoolYear:'2026-2027',status:'partial',netTotal:2100,amountPaid:170,balance:1930,collectionState:'required_for_reenrollment'},
+  ]);
+  assert.match(html,/SY 2027-2028/); assert.match(html,/SY 2026-2027/);
+  assert.match(html,/Enrollment charges/); assert.match(html,/Dropping charges/);
+  assert.match(html,/18,421\.25/); assert.match(html,/1,930\.00/);
+  assert.match(html,/>Payment status</);
+  assert.match(html,/>Unpaid</); assert.match(html,/>Partially paid</);
+  assert.doesNotMatch(html,/Settle before completing re-enrollment/);
+  assert.doesNotMatch(html,/aria-label="Re-enrollment"|Bills by school year|Dropping charges stay on their original bill/);
+});
+
+test('deferring a dropping balance does not replace its payment status with a collection instruction', () => {
+  const html=billsMarkup([{id:5,schoolYear:'2026-2027',status:'unpaid',netTotal:2100,amountPaid:0,balance:2100,collectionState:'deferred_until_reenrollment'}]);
+  assert.match(html,/>Unpaid</); assert.match(html,/Dropping charges/);
+  assert.doesNotMatch(html,/Overdue|Payable upon re-enrollment/);
+});
+
+test('a dropping bill covered by applicable credits keeps its settled payment status', () => {
+  const html=billsMarkup([{id:5,schoolYear:'2026-2027',status:'paid',netTotal:2100,amountPaid:0,balance:0,creditApplied:2100,collectionState:'deferred_until_reenrollment'}]);
+  assert.match(html,/>Paid</);
+  assert.doesNotMatch(html,/>Unpaid<|>Partially paid<|Payable upon re-enrollment/);
+});
+
+
+test('settlement comes before the start action and exposes pending verification', () => {
+  const html=journey({...base,state:'settlement_required',blockers:['Settle the previous dropping balance before starting re-enrollment.'],previousBills:[{...base.previousBills[0],pendingPayment:1930}]});
+  assert.match(html,/Payment verification pending/);
+  assert.match(html,/1,930\.00 awaiting verification/);
+  assert.match(html,/href="\/portal\/bills\/5"/);
+  assert.doesNotMatch(html,/type="submit"|New enrollment payment|Payments do not resolve/);
+  const banner=render({...base,state:'settlement_required'});
+  assert.match(banner,/before a pending enrollment can be created/);
+});
+
+test('pending return without a bill directs the student to cashier billing without payment demands', () => {
+  const data={...base,state:'pending',previousBills:[{...base.previousBills[0],balance:0}],enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:null},requirements:{previousBalance:0,newEnrollmentPayment:null}};
+  const html=journey(data);
+  assert.match(html,/cashier will generate your new school-year bill/);
+  assert.doesNotMatch(html,/Pay each bill separately|New enrollment payment|type="submit"/);
+  assert.match(render(data),/Waiting for cashier billing/);
+});
+
+
+test('legacy pending return with unpaid debt never promises cashier billing readiness', () => {
+  const data={...base,state:'pending',enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:null},requirements:{eligible:true,previousBalance:1930,newEnrollmentPayment:null},blockers:['Settle previous dropping balances.']};
+  for (const html of [journey(data),render(data)]) {
+    assert.match(html,/Settle your dropping balance to return/);
+    assert.match(html,/Cashier billing remains blocked/);
+    assert.doesNotMatch(html,/Waiting for cashier billing|ready for billing|cashier will generate/);
+  }
+  assert.match(journey(data),/Settle previous dropping balances/);
+});
+test('expiry takes precedence over verification and billing readiness', () => {
+  const data={...base,state:'pending',enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:null},requirements:{eligible:false,previousBalance:0,newEnrollmentPayment:null},previousBills:[],blockers:['The re-enrollment deadline was 2028-10-07.']};
+  for (const html of [journey(data),render(data)]) {
+    assert.match(html,/Re-enrollment needs attention/);
+    assert.doesNotMatch(html,/Waiting for cashier billing|ready for billing|cashier will generate/);
+  }
+  assert.match(journey(data),/deadline was 2028-10-07/);
+});
+test('a pending payment covering old debt asks for verification instead of another payment', () => {
+  const data={...base,state:'pending',enrollment:{id:2,status:'pending',billId:null},requirements:{eligible:true,previousBalance:1930},previousBills:[{...base.previousBills[0],pendingPayment:1930}]};
+  assert.match(journey(data),/Payment verification pending/);
+  assert.doesNotMatch(journey(data),/Waiting for cashier billing|ready for billing|type="submit"/);
 });

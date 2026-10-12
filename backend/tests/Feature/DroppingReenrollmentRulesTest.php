@@ -25,6 +25,7 @@ use Tests\TestCase;
 class DroppingReenrollmentRulesTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Concerns\CreatesLegacyReturningEnrollment;
 
     private function fixture(?string $date = '2026-10-07'): array
     {
@@ -50,7 +51,9 @@ class DroppingReenrollmentRulesTest extends TestCase
     {
         $response = $this->actingAs($f['admin'])->postJson("/api/admin/students/{$f['student']->id}/returning-enrollments", $this->payload($f['year']))->assertSuccessful();
 
-        return Enrollment::findOrFail($response->json('data.id'));
+        $return = Enrollment::findOrFail($response->json('data.id'));
+        $this->actingAs($f['cashier'])->postJson("/api/admin/enrollments/$return->id/bill")->assertSuccessful();
+        return $return->fresh();
     }
 
     private function payload(SchoolYear $year): array
@@ -83,9 +86,9 @@ class DroppingReenrollmentRulesTest extends TestCase
         $f = $this->fixture();
         extract($f);
         PaymentArrangement::create(['bill_id' => $bill->id, 'approved_by' => $admin->id, 'remarks' => 'Historical', 'starting_paid' => 0, 'installments' => [['dueDate' => '2028-01-01', 'amount' => 100]]]);
-        $return = $this->startReturn($f);
+        $return = $this->legacyReturn($student, $year, $old);
         $newBill = $return->bill;
-        $this->getJson("/api/admin/bills/$bill->id")->assertOk()->assertJsonPath('data.collectionState', 'required_for_reenrollment')->assertJsonPath('data.amountDue', 100)->assertJsonCount(0, 'data.installments');
+        $this->actingAs($admin)->getJson("/api/admin/bills/$bill->id")->assertOk()->assertJsonPath('data.collectionState', 'required_for_reenrollment')->assertJsonPath('data.amountDue', 100)->assertJsonCount(0, 'data.installments');
         $this->actingAs($cashier)->postJson("/api/admin/bills/$newBill->id/payments", ['amount' => 200, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
         $this->assertSame('pending', $return->fresh()->status);
         $this->putJson("/api/admin/bills/$bill->id/payment-arrangement", ['remarks' => 'Bypass', 'installments' => [['dueDate' => '2028-01-01', 'amount' => 100]]])->assertUnprocessable();
@@ -114,6 +117,8 @@ class DroppingReenrollmentRulesTest extends TestCase
     public function test_return_deadline_uses_effective_date_calendar_years_and_manila_day(string $date, string $now, string $deadline, bool $allowed): void
     {
         extract($this->fixture($date));
+        $bill->payments()->create(['amount' => 100, 'status' => 'verified', 'method' => 'cash', 'paid_at' => now()]);
+        $bill->recalculate();
         $this->travelTo(Carbon::parse($now));
         $this->actingAs($admin)->getJson("/api/admin/students/$student->id/returning-summary")->assertOk()->assertJsonPath('data.returnDeadline', $deadline)->assertJsonPath('data.eligible', $allowed);
         $response = $this->postJson("/api/admin/students/$student->id/returning-enrollments", $this->payload($year));
@@ -124,7 +129,7 @@ class DroppingReenrollmentRulesTest extends TestCase
     {
         $f = $this->fixture();
         extract($f);
-        $return = $this->startReturn($f);
+        $return = $this->legacyReturn($student, $year, $old);
         $return->bill->payments()->create(['amount' => 200, 'method' => 'cash', 'status' => 'verified', 'paid_at' => now()]);
         $return->bill->recalculate();
         $payment = $bill->payments()->create(['amount' => 100, 'method' => 'gcash', 'status' => 'pending', 'paid_at' => '2028-10-07']);
@@ -147,8 +152,9 @@ class DroppingReenrollmentRulesTest extends TestCase
     public function test_activation_on_anniversary_and_alternative_path_still_requires_full_debt(): void
     {
         extract($this->fixture());
-        $return = app(EnsureEnrollment::class)($student, $year);
-        $newBill = app(GenerateBillForEnrollment::class)($return);
+        $return = $this->legacyReturn($student, $year, $old);
+        $return->update(['returning_from_enrollment_id' => null]);
+        $newBill = $return->bill;
         $newBill->payments()->create(['amount' => 1000, 'method' => 'cash', 'status' => 'verified', 'paid_at' => now()]);
         $newBill->recalculate();
         $newBill->settleEnrollment();
@@ -163,7 +169,7 @@ class DroppingReenrollmentRulesTest extends TestCase
     {
         $f = $this->fixture();
         extract($f);
-        $return = $this->startReturn($f);
+        $return = $this->legacyReturn($student, $year, $old);
         $this->actingAs($admin)->putJson("/api/admin/enrollments/$return->id", ['status' => 'withdrawn'])->assertSuccessful();
         $this->travelTo(Carbon::parse('2028-10-08', 'Asia/Manila'));
         $later = SchoolYear::create(['school_year' => '2028-2029', 'start_date' => '2028-06-01', 'end_date' => '2029-03-31']);
