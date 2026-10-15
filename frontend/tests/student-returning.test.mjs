@@ -10,21 +10,24 @@ after(() => server.close());
 const { StudentDashboard } = await server.ssrLoadModule('/src/features/students/components/student-dashboard.tsx');
 const { useAuthStore } = await server.ssrLoadModule('/src/features/auth/store.ts');
 const { ReturnJourney } = await server.ssrLoadModule('/src/features/re-enrollment/return-journey.tsx');
+const { ReturnSubmitted } = await server.ssrLoadModule('/src/features/re-enrollment/return-submitted.tsx');
+const { Dialog } = await server.ssrLoadModule('/src/components/ui/dialog.tsx');
 const { default: ProgramsPage } = await server.ssrLoadModule('/src/pages/portal/programs-page.tsx');
 const { default: BillsPage } = await server.ssrLoadModule('/src/pages/portal/bills-page.tsx');
 const source = { id: 1, schoolYear: '2026-2027', program: 'stem', programName: 'STEM', yearLevel: 'grade_11', droppingRequestId: 4, billId: 5 };
 const base = { state: 'unavailable', canStart: false, source, effectiveDroppingDate: '2026-10-07', returnDeadline: '2028-10-07', offer: null, enrollment: null, requirements: null, previousBills: [{id:5, schoolYear:'2026-2027', balance:1930, pendingPayment:0}], availableCredit:0, blockers: ['Re-enrollment is not yet open for a later school year.'] };
-function render(summary, Component = StudentDashboard) {
+function render(summary, Component = StudentDashboard, path = '/portal/programs') {
   const user = {id: 12, role: 'student'};
   useAuthStore.setState({user}); Object.assign(useAuthStore.getInitialState(), {user});
   const client = new QueryClient({ defaultOptions:{queries:{staleTime:Infinity,retry:false}}});
   client.setQueryData(['me','student'], {id:8, firstName:'Returning', studentNumber:'2026-001', status:'dropped', trackOrStrand:'stem', yearLevel:'grade_11'});
   client.setQueryData(['me','re-enrollment',12], summary);
+  client.setQueryData(['me','enrollments',12], summary.enrollment ? [{program:'stem',yearLevel:'grade_11',isCurrent:true,...summary.enrollment}] : []);
   client.setQueryData(['me','bill'], null);
   client.setQueryData(['me','documents'], []);
   client.setQueryData(['me','class-schedule',12,undefined], {entries:[],status:'no_section'});
   client.setQueryData(['programs'], []);
-  const result = renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,null,createElement(Component))));
+  const result = renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,{initialEntries:[path]},createElement(Component))));
   client.clear(); return result;
 }
 test('a dropped student has a return entry and no current class, referral or clearance prompts', () => {
@@ -33,10 +36,10 @@ test('a dropped student has a return entry and no current class, referral or cle
   assert.match(html,/Re-enrollment is not yet open/);
   assert.doesNotMatch(html,/Your schedule is on its way|Upload your clearance|Next payment|Referral details/);
 });
-test('pending return directs to completion rather than another enrollment', () => {
-  const html=render({...base,state:'pending',enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:6},requirements:{eligible:true,blockers:[],previousBalance:1930,newEnrollmentPayment:500}});
-  assert.match(html,/Continue re-enrollment/);
-  assert.doesNotMatch(html,/>Re-enroll</);
+test('submitted return keeps dashboard status without a monitor or repeat enrollment action', () => {
+  const html=render({...base,state:'pending',previousBills:[],enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:null},requirements:{eligible:true,blockers:[],previousBalance:0,newEnrollmentPayment:null}});
+  assert.match(html,/Re-enrollment submitted/);
+  assert.doesNotMatch(html,/Monitor|Continue re-enrollment|Re-enroll now|href="\/portal\/programs\?reenroll=1"/);
 });
 
 test('My Program keeps its normal content and a compact re-enrollment action without a new tab', () => {
@@ -44,44 +47,49 @@ test('My Program keeps its normal content and a compact re-enrollment action wit
   assert.match(html,/My Program/);
   assert.match(html,/Enrollment details/);
   assert.match(html,/aria-label="View details for re-enrollment"/);
-  assert.doesNotMatch(html,/Your payments|Previous balance|Start re-enrollment/);
+  assert.doesNotMatch(html,/Your payments|Previous balance|Re-enroll now/);
   assert.doesNotMatch(html,/<button[^>]*role="tab"[^>]*>Re-enrollment/);
 });
 
-test('re-enrollment button names match the visible action in ready and pending states', () => {
+test('re-enrollment offers start when ready and details when an outstanding balance needs attention', () => {
   const ready=render({...base,state:'ready',canStart:true}, ProgramsPage);
   const pending=render({...base,state:'pending'}, ProgramsPage);
-  assert.match(ready,/aria-label="Review &amp; re-enroll"/);
-  assert.match(pending,/aria-label="Continue re-enrollment"/);
+  assert.match(ready,/aria-label="Re-enroll now"/);
+  assert.match(pending,/aria-label="View details for re-enrollment"/);
 });
 
 function journey(summary) { return renderToStaticMarkup(createElement(MemoryRouter,null,createElement(ReturnJourney,{data:summary,onStart:()=>{}}))); }
-test('settled return creates a pending enrollment and explains cashier billing', () => {
+test('ready return shows program, deadline and start action without the settled balance or guidance sections', () => {
   const html=journey({...base,state:'ready',canStart:true,previousBills:[{...base.previousBills[0],balance:0}],offer:{schoolYearId:2,schoolYear:'2027-2028',feeTotal:10000,downpaymentType:'fixed',downpaymentValue:500}});
-  assert.match(html,/type="submit"[^>]*>Start re-enrollment/);
-  assert.match(html,/Requirement met/); assert.match(html,/500\.00/);
-  assert.match(html,/Starting creates a pending enrollment/);
-  assert.doesNotMatch(html,/Starting creates your new bill/);
-  assert.match(html,/href="\/portal\/bills\/5"/);
+  assert.match(html,/type="submit"[^>]*>Re-enroll now/);
+  assert.match(html,/>STEM</); assert.match(html,/>grade 11</);
+  assert.match(html,/SY 2027-2028/);
+  assert.match(html,/Complete re-enrollment by/); assert.match(html,/Oct 7, 2028/);
+  assert.doesNotMatch(html,/New enrollment payment|Estimated payment|Total fees|500\.00|10,000\.00/);
+  assert.doesNotMatch(html,/Payment requirements|Dropping balance|Requirement met|View statement|href="\/portal\/bills\/5"/);
+  assert.doesNotMatch(html,/cashier will generate|Program &amp; voucher details|Vouchers are not automatically renewed/);
   assert.doesNotMatch(html,/<select|role="combobox"/); // student cannot choose a privileged voucher or grade
 });
 test('pending return links each debt to its own bill and exposes verification blockers', () => {
   const html=journey({...base,state:'pending',enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:6},requirements:{newEnrollmentPayment:500},blockers:['A payment is awaiting verification.'],previousBills:[{...base.previousBills[0],pendingPayment:100}]});
   assert.match(html,/href="\/portal\/bills\/5"/); assert.match(html,/href="\/portal\/bills\/6"/);
+  assert.match(html,/New enrollment payment/); assert.match(html,/500\.00/);
   assert.match(html,/100\.00 awaiting verification/); assert.match(html,/A payment is awaiting verification/);
   assert.doesNotMatch(html,/type="submit"/);
 });
-test('expired return preserves bill access without offering another start or promising activation', () => {
-  const html=journey({...base,state:'blocked',blockers:['The re-enrollment deadline was 2028-10-07. Contact the school.']});
+test('expired return preserves existing bill access without showing an ungenerated new bill', () => {
+  const html=journey({...base,state:'blocked',enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:null},blockers:['The re-enrollment deadline was 2028-10-07. Contact the school.']});
   assert.match(html,/deadline was 2028-10-07/); assert.match(html,/href="\/portal\/bills\/5"/);
-  assert.doesNotMatch(html,/type="submit"|View bill &amp; pay/);
+  assert.doesNotMatch(html,/type="submit"|View bill &amp; pay|New enrollment payment/);
   assert.doesNotMatch(html,/settle when you return/);
   assert.match(html,/Payments do not resolve the eligibility issue/);
 });
-test('completed activation shows the new program and bill without an obsolete deadline', () => {
-  const html=journey({...base,state:'enrolled',source:null,returnDeadline:null,enrollment:{id:2,status:'enrolled',schoolYear:'2027-2028',billId:6}});
-  assert.match(html,/href="\/portal\/programs"/); assert.match(html,/href="\/portal\/bills\/6"/);
-  assert.doesNotMatch(html,/Oct 7, 2028|type="submit"|Your payments/);
+test('completed activation shows its status in My Program without another re-enrollment panel', () => {
+  const data={...base,state:'enrolled',source:null,returnDeadline:null,enrollment:{id:2,status:'enrolled',schoolYear:'2027-2028',billId:6}};
+  const html=render(data, ProgramsPage);
+  assert.match(html,/>Enrolled</); assert.match(html,/SY 2027-2028/);
+  assert.doesNotMatch(html,/Oct 7, 2028|aria-label="Re-enrollment"|Monitor|Re-enroll now/);
+  assert.equal(journey(data),'');
 });
 
 test('a staff-approved return displays its target program and grade instead of the dropped enrollment', () => {
@@ -151,15 +159,42 @@ test('settlement comes before the start action and exposes pending verification'
   assert.match(html,/href="\/portal\/bills\/5"/);
   assert.doesNotMatch(html,/type="submit"|New enrollment payment|Payments do not resolve/);
   const banner=render({...base,state:'settlement_required'});
-  assert.match(banner,/before a pending enrollment can be created/);
+  assert.match(banner,/Pay your remaining dropping balance in full before starting re-enrollment/);
 });
 
-test('pending return without a bill directs the student to cashier billing without payment demands', () => {
+test('an unbilled return shows its native Pending status without a monitor or extra details panel', () => {
   const data={...base,state:'pending',previousBills:[{...base.previousBills[0],balance:0}],enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:null},requirements:{previousBalance:0,newEnrollmentPayment:null}};
-  const html=journey(data);
-  assert.match(html,/cashier will generate your new school-year bill/);
-  assert.doesNotMatch(html,/Pay each bill separately|New enrollment payment|type="submit"/);
-  assert.match(render(data),/Waiting for cashier billing/);
+  const html=render(data, ProgramsPage);
+  assert.match(html,/>Pending</); assert.match(html,/SY 2027-2028/);
+  assert.doesNotMatch(html,/Monitor|Re-enrollment progress|Preparing your bill|aria-label="Re-enrollment"|Re-enroll now/);
+  assert.equal(journey(data),'');
+});
+
+test('submission success offers only Done without claiming enrollment is already confirmed', () => {
+  const html=renderToStaticMarkup(createElement(Dialog,null,createElement(ReturnSubmitted,{onDone:()=>{}})));
+  assert.match(html,/Re-enrollment submitted/);
+  assert.match(html,/View your status in My Program/);
+  assert.match(html,/>Done</);
+  assert.equal((html.match(/<button\b/g) ?? []).length,1);
+  assert.doesNotMatch(html,/Monitor|Enrollment confirmed|Waiting for cashier billing|Dropping balance|Re-enroll now|Continue re-enrollment/);
+});
+
+test('old re-enrollment links leave submitted students on My Program without a tracker', () => {
+  const data={...base,state:'pending',previousBills:[],enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:6},requirements:{eligible:true,previousBalance:0,newEnrollmentPayment:350,canActivate:false}};
+  const html=render(data, ProgramsPage, '/portal/programs?section=overview&reenroll=1');
+  assert.match(html,/>Pending</);
+  assert.doesNotMatch(html,/Monitor|Re-enrollment progress|Re-enroll now|aria-label="Re-enrollment"/);
+  assert.equal(journey(data),'');
+});
+
+test('payment completion waits for school confirmation and only enrolled records show final completion', () => {
+  const pending={...base,state:'pending',previousBills:[],enrollment:{id:2,status:'pending',schoolYear:'2027-2028',billId:6},requirements:{eligible:true,previousBalance:0,newEnrollmentPayment:0,canActivate:true}};
+  const waiting=render(pending, ProgramsPage);
+  assert.match(waiting,/>Pending</);
+  assert.doesNotMatch(waiting,/>Enrolled<|Monitor/);
+  const enrolled=render({...pending,state:'enrolled',enrollment:{...pending.enrollment,status:'enrolled'},requirements:null}, ProgramsPage);
+  assert.match(enrolled,/>Enrolled</);
+  assert.doesNotMatch(enrolled,/>Pending<|Monitor|Complete re-enrollment by/);
 });
 
 

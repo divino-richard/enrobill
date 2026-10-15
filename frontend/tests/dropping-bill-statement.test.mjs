@@ -3,7 +3,7 @@ import { after, test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { createServer } from 'vite';
 const server = await createServer({server:{middlewareMode:true,hmr:false,ws:false,watch:null}});
 after(() => server.close());
@@ -11,6 +11,7 @@ const { approvedChargeLines } = await server.ssrLoadModule('/src/features/bills/
 const { BillStatement } = await server.ssrLoadModule('/src/features/bills/components/bill-ledger.tsx');
 const { DroppingBillHistory } = await server.ssrLoadModule('/src/features/bills/components/dropping-statement.tsx');
 const { BillActionPanel } = await server.ssrLoadModule('/src/features/bills/components/bill-action-panel.tsx');
+const { default: BillDetailPage } = await server.ssrLoadModule('/src/pages/portal/bill-detail-page.tsx');
 const { buildBillReceiptHtml } = await server.ssrLoadModule('/src/features/bills/receipt.ts');
 const { BillCollectionNotice } = await server.ssrLoadModule('/src/features/dropping-finance/collection-notice.tsx');
 const { StudentDroppingSummary } = await server.ssrLoadModule('/src/features/bills/components/student-dropping-summary.tsx');
@@ -68,7 +69,7 @@ test('credits are separate from verified payments, including a fully credit-cove
 });
 test('student balance includes only verified payments and disables another payment during verification', () => {
   const client=new QueryClient({defaultOptions:{queries:{staleTime:Infinity,retry:false}}});
-  const html=renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,null,createElement(BillActionPanel,{bill,currentBill:bill}))));
+  const html=renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,null,createElement(BillActionPanel,{bill}))));
   assert.match(html,/Partially paid/); assert.match(html,/500\.00 awaiting verification/);
   assert.match(html,/1,930\.00/);
   assert.match(html,/<button[^>]*disabled=""[^>]*>[\s\S]*?Awaiting verification/);
@@ -90,4 +91,59 @@ test('normal bills retain their enrollment fee breakdown and receipt', () => {
   assert.match(markup(BillStatement,normal),/Tuition Fee/);
   const html=buildBillReceiptHtml(normal,{name:'Student'});
   assert.match(html,/Tuition Fee/); assert.doesNotMatch(html,/<h2>Financial history/);
+});
+
+const enrollmentBill = {
+  ...bill, id:4, schoolYear:'2027-2028', status:'unpaid', collectionState:'standard', droppingAssessment:null,
+  netTotal:18421.25, balance:18421.25, amountPaid:0, amountDue:120, discountTotal:0, payments:[],
+  createdAt:'2026-10-15', installments:[{id:1,sequence:1,label:'Down payment',amount:120,amountPaid:0,balance:120,status:'unpaid',dueDate:'2030-10-06'}],
+};
+function paymentHeader(input) {
+  const client=new QueryClient({defaultOptions:{queries:{staleTime:Infinity,retry:false}}});
+  const html=renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,null,createElement(BillActionPanel,{bill:input}))));
+  client.clear();
+  return html;
+}
+test('enrollment bill distinguishes the installment due from the full remaining balance', () => {
+  const html=paymentHeader(enrollmentBill);
+  assert.match(html,/Amount due now<\/dt><dd[^>]*>₱120\.00/);
+  assert.match(html,/Remaining balance <span[^>]*>₱18,421\.25/);
+  assert.match(html,/Due Oct 6, 2030/); assert.match(html,/>Pay now</);
+  assert.doesNotMatch(html,/Net total|paid of|% complete|Current bill|Past bill|>Actions</);
+  const fullDue=paymentHeader({...enrollmentBill,amountDue:18421.25});
+  assert.equal((fullDue.match(/18,421\.25/g) ?? []).length,1);
+});
+test('a pending enrollment payment leaves the balance intact and blocks another submission', () => {
+  const html=paymentHeader({...enrollmentBill,payments:[{id:1,status:'pending',amount:120}]});
+  assert.match(html,/₱120\.00 awaiting verification/);
+  assert.match(html,/Remaining balance <span[^>]*>₱18,421\.25/);
+  assert.match(html,/<button[^>]*disabled=""[^>]*>[\s\S]*?Awaiting verification/);
+  assert.doesNotMatch(html,/18,301\.25/);
+});
+test('the header distinguishes optional advance payments from overdue installments', () => {
+  const advance=paymentHeader({...enrollmentBill,amountDue:0});
+  assert.match(advance,/Remaining balance<\/dt><dd[^>]*>₱18,421\.25/);
+  assert.match(advance,/Next installment ₱120\.00 on Oct 6, 2030/);
+  assert.match(advance,/>Pay in advance</);
+  assert.doesNotMatch(advance,/Amount due now|Overdue since/);
+  const overdue=paymentHeader({...enrollmentBill,installments:[{...enrollmentBill.installments[0],dueDate:'2000-10-06'}]});
+  assert.match(overdue,/Overdue since Oct 6, 2000/); assert.match(overdue,/>Pay now</);
+});
+test('settled bills have no payment action and receipts remain available for verified cash payments', () => {
+  for (const amountPaid of [0,18421.25]) {
+    const html=paymentHeader({...enrollmentBill,status:'paid',balance:0,amountDue:0,amountPaid,creditApplied:18421.25-amountPaid});
+    assert.match(html,/Bill settled/); assert.match(html,/No remaining balance/);
+    assert.doesNotMatch(html,/Pay now|Pay in advance|Amount due now|Next installment/);
+    if (amountPaid > 0) assert.match(html,/>Receipt</); else assert.doesNotMatch(html,/>Receipt</);
+  }
+});
+test('the student bill page omits re-enrollment requirements while retaining billing details', () => {
+  const input={...enrollmentBill,returnRequirements:{eligible:true,previousBalance:0,newEnrollmentPayment:120,returnDeadline:'2028-10-07',blockers:['Meet the enrollment payment requirement.']}};
+  const client=new QueryClient({defaultOptions:{queries:{staleTime:Infinity,retry:false}}});
+  client.setQueryData(['me','bill'],input); client.setQueryData(['me','bills'],[input]);
+  const html=renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(MemoryRouter,{initialEntries:['/portal/bills/4']},createElement(Routes,null,createElement(Route,{path:'/portal/bills/:id',element:createElement(BillDetailPage)})))));
+  assert.doesNotMatch(html,/Re-enrollment payment requirements|Complete re-enrollment|View re-enrollment options|What is needed for re-enrollment/);
+  assert.match(html,/Enrollment bill/); assert.match(html,/Tuition Fee/); assert.match(html,/>Schedule</); assert.match(html,/>Payments</);
+  assert.match(html,/Net total/); assert.match(html,/Outstanding balance/);
+  client.clear();
 });

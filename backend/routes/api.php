@@ -97,7 +97,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dropping-requests/{dropping}/assessment', [DroppingRequestController::class, 'assessment']);
         Route::get('/dropping-requests/{dropping}', [DroppingRequestController::class, 'show']);
         Route::get('/dropping-requests/{dropping}/files/{fileId}', [DroppingRequestController::class, 'file']);
-        Route::get('/dropping-requests/{dropping}/acknowledgment', [DroppingRequestController::class, 'acknowledgment']);
     });
     Route::middleware('role:student')->group(function () {
         Route::get('/me/re-enrollment', [\App\Http\Controllers\StudentReturningEnrollmentController::class, 'show']);
@@ -168,6 +167,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Active payment channels (QR codes) students can pay to.
     Route::get('/payment-channels', [PaymentChannelController::class, 'index']);
+    Route::get('/payment-channels/{paymentChannel}/qr', [PaymentChannelController::class, 'qr']);
 
     // Active programs, for selection in the application form and other pickers.
     Route::get('/programs', [ProgramController::class, 'index']);

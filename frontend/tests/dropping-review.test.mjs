@@ -9,6 +9,7 @@ import { createServer } from 'vite';
 const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false, watch: null } });
 after(() => server.close());
 const { default: DroppingPage } = await server.ssrLoadModule('/src/features/dropping/dropping-page.tsx');
+const { PendingRequestCharges } = await server.ssrLoadModule('/src/features/dropping/pending-request-charges.tsx');
 const { useAuthStore } = await server.ssrLoadModule('/src/features/auth/store.ts');
 const { philippinesToday } = await server.ssrLoadModule('/src/features/dropping-finance/api.ts');
 
@@ -26,11 +27,11 @@ const assessment = {
   period: 'quarter_2', category: 'paying', effectiveDate: philippinesToday(),
   originalTotal: 10000, finalCharge: 6000, verifiedPayments: 1000, balance: 5000, credit: 0, feeBreakdown: {},
 };
-function renderReview(value, role = 'admin') {
+function renderReview(value, role = 'admin', changes = {}) {
   useAuthStore.setState({ user: { role } });
   Object.assign(useAuthStore.getInitialState(), { user: { role } });
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
-  client.setQueryData(['dropping', 1], request);
+  client.setQueryData(['dropping', 1], { ...request, ...changes });
   client.setQueryData(['dropping-assessment', 1, philippinesToday()], value);
   const html = renderToStaticMarkup(createElement(QueryClientProvider, { client },
     createElement(MemoryRouter, { initialEntries: ['/admin/dropping-requests/1'] },
@@ -46,30 +47,134 @@ test('incomplete setup exposes one recovery action and keeps its checklist close
   });
   assert.match(html, /href="\/admin\/billing\/12"/);
   assert.match(html, /<button[^>]*aria-haspopup="dialog"[^>]*>Resolve setup/);
-  assert.doesNotMatch(html, /Policy disabled|Invalid periods|Unclassified fees|Review &amp; approve/);
+  assert.doesNotMatch(html, /Policy disabled|Invalid periods|Unclassified fees|>Approve</);
   assert.match(html, /Preview signed-form.pdf/);
   assert.match(html, /aria-label="More request actions"/);
   assert.doesNotMatch(html, /Return for correction|Reject request/);
-  assert.match(html, /<details[^>]*>.*Activity/s);
+  assert.match(html, /<aside[^>]*aria-labelledby="request-activity-title"/);
+  assert.doesNotMatch(html, /<details[^>]*aria-label="Request history"/);
 });
 
 test('a date-only issue still lets the reviewer choose an effective date', () => {
   const html = renderReview({ ...assessment, ready: false, issues: ['Choose an effective date'], blockingIssues: [{ category: 'date', messages: ['Choose an effective date'] }] });
-  const button = html.match(/<button[^>]*>Review &amp; approve<\/button>/)?.[0];
+  const button = html.match(/<button[^>]*>Approve<\/button>/)?.[0];
   assert.ok(button);
   assert.doesNotMatch(button, / disabled=""/);
 });
 
 test('ready financial review shows the estimate and allows approval review', () => {
   const html = renderReview(assessment);
-  const button = html.match(/<button[^>]*>Review &amp; approve<\/button>/)?.[0];
+  const button = html.match(/<button[^>]*>Approve<\/button>/)?.[0];
   assert.ok(button);
   assert.doesNotMatch(button, / disabled=""/);
   assert.match(html, /6,000\.00/);
   assert.match(html, /5,000\.00/);
+  assert.match(html, /Fee policy/);
+  assert.match(html, /Paying/);
+  assert.match(html, /href="\/admin\/billing\/12"/);
+  assert.doesNotMatch(html, /request-status-title|Review the documents and charges before approving/);
+  assert.ok(html.indexOf('Documents submitted') < html.indexOf('estimated-charges-title'));
+  assert.equal((html.match(/₱5,000\.00/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Financial summary|Current balance|Calculation details|₱10,000\.00/);
 });
 
 test('cashiers cannot approve or access administrator policy setup', () => {
   const html = renderReview({ ...assessment, ready: false, issues: ['Policy disabled'], blockingIssues: [{ category: 'policy', messages: ['Policy disabled'] }] }, 'cashier');
-  assert.doesNotMatch(html, /Review &amp; approve|href="\/admin\/terms"/);
+  assert.doesNotMatch(html, />Approve<|href="\/admin\/terms"/);
+  assert.match(html, /View setup/);
+});
+
+test('approved staff requests use frozen charges and current payments while retaining admin actions', () => {
+  const html = renderReview(assessment, 'admin', {
+    status: 'confirmed', effectiveDate: '2026-10-05', finalRemarks: 'Approved by registrar.',
+    events: [...request.events, { action: 'confirmed', actorName: 'Registrar', at: '2026-10-05T11:00:00Z', remarks: 'Approved by registrar.' }],
+    droppingAssessment: { ...assessment, finalized: true },
+    financialSummary: { verifiedPayments: 2500, creditApplied: 500, balance: 3000, creditIssued: 200, availableCredit: 150 },
+  });
+  assert.doesNotMatch(html, /Download approval|Preparing approval|acknowledgment/);
+  assert.match(html, /href="\/admin\/billing\/12"/);
+  assert.match(html, /Approved by registrar/);
+  assert.doesNotMatch(html, /aria-label="Approval (confirmation|details)"/);
+  assert.match(html, /<aside[^>]*aria-labelledby="request-activity-title"/);
+  assert.ok(html.indexOf('request-activity-title') < html.indexOf('approved-charges-title'));
+  assert.match(html, /₱6,000\.00/);
+  assert.match(html, /-₱2,500\.00/);
+  assert.match(html, /-₱500\.00/);
+  assert.match(html, /₱3,000\.00/);
+  assert.match(html, /Available student credit:.*₱150\.00/);
+  assert.doesNotMatch(html, />Approve<|estimated-charges-title|₱5,000\.00|View return options/);
+});
+
+test('legacy staff approvals retain the recorded bill instead of today’s estimate', () => {
+  const html = renderReview(assessment, 'admin', {
+    status: 'confirmed', droppingAssessment: { ...assessment, legacy: true, finalCharge: null }, balance: 4200,
+  });
+  assert.match(html, /Recorded remaining balance/);
+  assert.match(html, /₱4,200\.00/);
+  assert.match(html, /href="\/admin\/billing\/12"/);
+  assert.doesNotMatch(html, /₱6,000\.00|estimated-charges-title|>Approve</);
+});
+
+test('closed staff requests retain bill access and activity without calculating charges', () => {
+  for (const status of ['cancelled', 'rejected']) {
+    const html = renderReview(assessment, 'admin', { status,
+      events: [...request.events, { action: status, actorName: 'Registrar', at: '2026-10-06T10:00:00Z', remarks: 'Request closed after review.' }],
+    });
+    assert.match(html, /aria-labelledby="request-activity-title"/);
+    assert.match(html, /Request closed after review/);
+    assert.match(html, /href="\/admin\/billing\/12"/);
+    assert.doesNotMatch(html, /estimated-charges-title|approved-charges-title|>Approve<|<section role="status"/);
+  }
+});
+
+test('student review shows status and permanent activity before one separate charge estimate', () => {
+  const html = renderReview(assessment, 'student', { balance: 0 });
+  assert.match(html, /role="status"[^>]*aria-labelledby="request-status-title"/);
+  assert.match(html, /Waiting for school approval/);
+  assert.match(html, /Your enrollment stays active/);
+  assert.match(html, /<aside[^>]*aria-labelledby="request-activity-title"/);
+  assert.ok(html.indexOf('Reason for dropping') < html.indexOf('request-activity-title'));
+  assert.ok(html.indexOf('Documents submitted') < html.indexOf('estimated-charges-title'));
+  assert.match(html, /Balance<\/dt><dd[^>]*>₱5,000\.00/);
+  assert.doesNotMatch(html, /Financial summary|Current balance|Calculation details|Original assessment|View bill|<details[^>]*aria-label="Request history"/);
+  assert.equal((html.match(/₱5,000\.00/g) ?? []).length, 1);
+});
+
+test('unavailable student estimates do not expose staff setup or invented totals', () => {
+  const html = renderReview({ ...assessment, ready: false, finalCharge: null, issues: ['Policy disabled'], blockingIssues: [{ category: 'policy', messages: ['Policy disabled'] }] }, 'student');
+  assert.match(html, /The school will confirm the charges when reviewing your request/);
+  assert.doesNotMatch(html, /Policy disabled|Setup required|Choose the effective date|₱/);
+});
+
+test('closed unapproved requests retain activity without a live charge estimate', () => {
+  for (const status of ['cancelled', 'rejected']) {
+    const html = renderReview(assessment, 'student', { status });
+    assert.match(html, /aria-labelledby="request-activity-title"/);
+    assert.doesNotMatch(html, /estimated-charges-title|Waiting for school approval/);
+  }
+});
+
+test('student estimate reconciles fee percentages, payments and credit without duplicate balances', () => {
+  const html = renderToStaticMarkup(createElement(PendingRequestCharges, {
+    assessment: { ...assessment, finalCharge: 2100, verifiedPayments: 170, creditApplied: 500, balance: 1430,
+      feeCharges: [{ billItemId: 1, name: 'Laboratory', originalAmount: 1600, percent: 100 }, { billItemId: 2, name: 'Registration', originalAmount: 1000, percent: 50 }] },
+    loading: false, failed: false, onRetry() {},
+  }));
+  assert.match(html, /Laboratory/);
+  assert.match(html, /50% of ₱1,000\.00/);
+  assert.match(html, /Verified payments<\/dt><dd[^>]*>-₱170\.00/);
+  assert.match(html, /Applied credits<\/dt><dd[^>]*>-₱500\.00/);
+  assert.equal((html.match(/₱1,430\.00/g) ?? []).length, 1);
+  assert.match(html, /Final charges depend on the approved dropping date/);
+});
+
+test('student estimate distinguishes failed and loading calculations from a zero balance', () => {
+  const render = props => renderToStaticMarkup(createElement(PendingRequestCharges, { onRetry() {}, ...props }));
+  const failed = render({ failed: true, loading: false });
+  assert.match(failed, /role="alert"/);
+  assert.match(failed, /Try again/);
+  assert.doesNotMatch(failed, /₱0\.00|>Balance</);
+  const loading = render({ failed: false, loading: true });
+  assert.match(loading, /Loading charge estimate/);
+  assert.doesNotMatch(loading, /₱0\.00|>Balance</);
 });

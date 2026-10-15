@@ -12,6 +12,9 @@ import { cn } from '@/lib/utils'
 
 interface DatePickerProps {
   id?: string
+  'aria-describedby'?: string
+  'aria-label'?: string
+  'aria-invalid'?: ComponentProps<typeof Button>['aria-invalid']
   // 'yyyy-MM-dd' (empty string when unset).
   value?: string
   onChange: (value: string) => void
@@ -43,6 +46,7 @@ export function DatePicker({
   startMonth,
   endMonth,
   disabledDates,
+  ...accessibilityProps
 }: DatePickerProps) {
   const selected = parseDate(value)
   const today = new Date()
@@ -51,6 +55,7 @@ export function DatePicker({
     <Popover>
       <PopoverTrigger asChild>
         <Button
+          {...accessibilityProps}
           id={id}
           type="button"
           variant="outline"

@@ -190,7 +190,8 @@ class DroppingRequestTest extends TestCase
         $this->deleteJson('/api/admin/sections/'.$section->id)->assertUnprocessable();
         $this->putJson('/api/admin/enrollments/'.$e->id.'/section', ['sectionId' => null])->assertUnprocessable();
         $this->assertSame($section->id, $e->fresh()->section_id);
-        $this->actingAs($e->student->user)->get("/api/dropping-requests/$id/acknowledgment")->assertOk();
+        $this->actingAs($admin)->getJson("/api/dropping-requests/$id/acknowledgment")->assertNotFound();
+        $this->actingAs($e->student->user)->getJson("/api/dropping-requests/$id/acknowledgment")->assertNotFound();
         $this->postJson("/api/me/dropping-requests/$id/cancel")->assertStatus(422);
     }
 
@@ -229,7 +230,7 @@ class DroppingRequestTest extends TestCase
         $this->packet($id);
         $fileId = DroppingRequest::findOrFail($id)->submissions[0]['files'][0]['id'];
         $this->get("/api/dropping-requests/$id/files/$fileId")->assertOk();
-        $this->get("/api/dropping-requests/$id/acknowledgment")->assertStatus(422);
+        $this->getJson("/api/dropping-requests/$id/acknowledgment")->assertNotFound();
         $other = $this->enrollment();
         $this->actingAs($other->student->user)->get("/api/dropping-requests/$id/files/$fileId")->assertNotFound();
         $cashier = User::factory()->create(['role' => Role::Cashier]);

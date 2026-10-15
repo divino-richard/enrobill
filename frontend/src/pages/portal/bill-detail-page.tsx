@@ -1,10 +1,9 @@
 import { isDroppingBill } from '@/features/bills/collection';
-import { BillCollectionNotice } from '@/features/dropping-finance/collection-notice';
 import { DroppingBillHistory } from '@/features/bills/components/dropping-statement';
 import { BillFinanceSummary } from '@/features/dropping-finance/bill-finance';
 import { StudentDroppingSummary } from '@/features/bills/components/student-dropping-summary';
 import { formatDate } from '@/features/applications/utils';
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
@@ -35,6 +34,7 @@ import {
 
 function BillDetailPage() {
   const { id } = useParams();
+  const [params, setParams] = useSearchParams();
   const billId = Number(id);
   const { data: allBills, isLoading, isError, refetch, isFetching } = useMyBills();
   const { data: currentBill } = useMyBill();
@@ -58,7 +58,6 @@ function BillDetailPage() {
       <div className="space-y-4">
         <Skeleton className="h-8 w-32 rounded-md" />
         <Skeleton className="h-28 w-full rounded-xl" />
-        <Skeleton className="h-44 w-full rounded-xl" />
         <Skeleton className="h-9 w-72 rounded-md" />
         <Skeleton className="h-64 w-full rounded-xl" />
       </div>
@@ -92,16 +91,17 @@ function BillDetailPage() {
   const dropping = isDroppingBill(bill);
   const installments = bill.installments ?? [];
   const payments = bill.payments ?? [];
+  const requestedTab = params.get('tab');
+  const activeTab = requestedTab === 'payments' || requestedTab === 'history' && dropping || requestedTab === 'schedule' && !dropping && installments.length > 0 ? requestedTab : 'summary';
 
   return (
     <div className="mx-auto min-w-0 max-w-7xl space-y-4">
       {backLink}
 
-      <BillActionPanel bill={bill} currentBill={currentBill ?? null} />
-      {!dropping && <BillCollectionNotice bill={bill} student />}
+      <BillActionPanel bill={bill} />
       {!dropping && <BillFinanceSummary bill={bill} />}
 
-      <Tabs defaultValue="summary">
+      <Tabs value={activeTab} onValueChange={value => setParams(current => { const next = new URLSearchParams(current); if (value === 'summary') next.delete('tab'); else next.set('tab', value); return next; }, { replace: true })}>
         <TabsList aria-label="Bill details" variant="line">
           <TabsTrigger value="summary">
             <ReceiptTextIcon />
@@ -114,7 +114,7 @@ function BillDetailPage() {
               {!dropping && <TabCount n={installments.length} />}
             </TabsTrigger>
           )}
-          <TabsTrigger value="payments">
+          <TabsTrigger value="payments" data-payment-history-tab>
             <CreditCardIcon />
             Payments
             {payments.length > 0 && <TabCount n={payments.length} />}

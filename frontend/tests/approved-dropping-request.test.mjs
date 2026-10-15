@@ -101,16 +101,12 @@ test('an invalid request parameter safely shows the dropping list', () => {
   assert.doesNotMatch(html, /Charges and payments|Unable to load this request/);
 });
 
-test('active students open an unsaved form directly without showing the requests table or a draft', () => {
+test('the new-request URL keeps the list behind the modal instead of rendering an inline form', () => {
   const html = renderPage(null, '/portal/programs?section=dropping&request=new', true);
-  assert.match(html, /<h2[^>]*>Request to drop<\/h2>/);
-  assert.match(html, /Reason for dropping/);
-  assert.match(html, /Signed form and attachments/);
-  assert.doesNotMatch(html, /Official form|Briefly explain|Keep your original documents|<h2[^>]*>Documents<\/h2>/);
-  assert.match(html, /href="\/portal\/programs\?section=overview"/);
-  assert.match(html, />Cancel<\/button>/);
-  assert.match(html, /disabled=""[^>]*>Submit request<\/button>/);
-  assert.doesNotMatch(html, /aria-label="Dropping requests"|DROP-000001|>Draft<|Cancel request/);
+  // Radix portals mount only in the browser. Server markup keeps the list visible.
+  assert.match(html, /No dropping requests yet/);
+  assert.match(html, /id="student-request-drop"/);
+  assert.doesNotMatch(html, /Reason for dropping|Signed form and attachments|DROP-000001|>Draft</);
 });
 
 test('Overview offers dropping only for an enrolled record in the active school year', () => {
@@ -118,16 +114,27 @@ test('Overview offers dropping only for an enrolled record in the active school 
   assert.doesNotMatch(renderPage(null, '/portal/programs?section=overview', true, false), /aria-label="Enrollment options"/);
 });
 
-test('students without an active enrollment cannot use the new-request form', () => {
+test('students without an active enrollment are not offered a new-request action', () => {
   const html = renderPage(null, '/portal/programs?section=dropping&request=new');
-  assert.match(html, /No active enrollment to drop/);
-  assert.doesNotMatch(html, /Submit request|Reason for dropping/);
+  assert.match(html, /No dropping requests yet/);
+  assert.doesNotMatch(html, /id="student-request-drop"|Submit request|Reason for dropping/);
 });
 
-test('the request list does not create requests even for active students', () => {
+test('the student empty state offers one request action and no search or status filters', () => {
   const html = renderPage(null, '/portal/programs?section=dropping', true);
-  assert.match(html, /No dropping requests found/);
-  assert.doesNotMatch(html, />Request to drop<\/button>/);
+  assert.match(html, /No dropping requests yet/);
+  assert.match(html, /Your submitted requests and school decisions will appear here/);
+  assert.equal((html.match(/id="student-request-drop"/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Search dropping requests|All statuses|Request status|Submit request/);
+});
+
+test('existing open requests suppress another request action while closed requests allow a new one', () => {
+  const open = renderPage({ ...request, status: 'submitted' }, '/portal/programs?section=dropping', true);
+  assert.match(open, /href="\/portal\/dropping-requests\/1"/);
+  assert.doesNotMatch(open, /id="student-request-drop"|Search dropping requests|All statuses/);
+  const closed = renderPage({ ...request, status: 'cancelled' }, '/portal/programs?section=dropping', true);
+  assert.match(closed, /id="student-request-drop"/);
+  assert.doesNotMatch(renderPage(null, '/portal/programs?section=dropping', true, false), /id="student-request-drop"/);
 });
 
 test('effective date and school remarks stay visible while approval metadata stays in history', () => {

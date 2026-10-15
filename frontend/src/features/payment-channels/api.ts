@@ -28,6 +28,11 @@ export async function fetchActivePaymentChannels(): Promise<PaymentChannel[]> {
   return data.data;
 }
 
+// Same-origin download avoids cross-origin restrictions on signed QR URLs.
+export async function downloadPaymentChannelQr(id: number): Promise<Blob> {
+  return (await api.get<Blob>(`/payment-channels/${id}/qr`, { responseType: 'blob' })).data;
+}
+
 export interface PaymentChannelInput {
   accountName: string | null;
   accountNumber: string | null;

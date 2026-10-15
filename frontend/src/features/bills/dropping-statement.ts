@@ -1,4 +1,5 @@
 import type { Bill } from './types';
+import type { DroppingAssessment } from '@/features/dropping-finance/api';
 
 export interface ApprovedChargeLine {
   name: string;
@@ -27,7 +28,11 @@ export function droppingAssessmentContext(bill: Pick<Bill, 'droppingAssessment'>
 
 /** Use only the frozen approval, never today's catalog or policy. */
 export function approvedChargeLines(bill: Pick<Bill, 'droppingAssessment'>): ApprovedChargeLine[] {
-  const assessment = bill.droppingAssessment;
+  return assessmentChargeLines(bill.droppingAssessment);
+}
+
+/** Reconcile fee lines against the supplied assessment, including rounding. */
+export function assessmentChargeLines(assessment?: DroppingAssessment | null): ApprovedChargeLine[] {
   if (!assessment || assessment.finalCharge == null) return [];
   const formula = assessment.category && assessment.period
     ? assessment.formulas?.[assessment.category]?.[assessment.period] : null;

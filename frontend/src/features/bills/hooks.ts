@@ -168,6 +168,12 @@ export function useSubmitMyPayment(billId?: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: SubmitPaymentInput) => submitMyPayment(input, billId),
+    onError: () => {
+      // A lost response can follow a successful submission; refresh its status
+      // before offering a retry so the student can inspect Payments.
+      void queryClient.invalidateQueries({ queryKey: myBillQueryKey });
+      void queryClient.invalidateQueries({ queryKey: myBillsQueryKey });
+    },
     onSuccess: (bill) => {
       void queryClient.invalidateQueries({ queryKey: ["me", "re-enrollment"] });
       queryClient.setQueryData<Bill | undefined>(myBillQueryKey, current => current?.id === bill.id ? bill : current);

@@ -3,6 +3,11 @@ import type { StudentReturnSummary } from './api';
 export const STUDENT_RETURN_PATH = '/portal/programs?reenroll=1';
 
 export const returnDate = (date: string) => new Intl.DateTimeFormat('en-PH', {month:'short',day:'numeric',year:'numeric',timeZone:'Asia/Manila'}).format(new Date(`${date}T00:00:00+08:00`));
+export function returnActionLabel(data: StudentReturnSummary) {
+  if (data.state === 'not_applicable' || data.state === 'enrolled') return null;
+  if ((data.enrollment || data.state === 'pending') && !returnNeedsEligibilityReview(data) && !previousSettlementRequired(data)) return null;
+  return data.canStart ? 'Re-enroll now' : 'View details';
+}
 export function previousSettlementRequired(data: StudentReturnSummary) {
   return (data.requirements?.previousBalance ?? data.previousBills.reduce((sum, bill) => sum + bill.balance, 0)) > 0;
 }
@@ -18,7 +23,7 @@ export function returnTitle(data: StudentReturnSummary) {
   if ((data.state === 'pending' || data.state === 'settlement_required') && previousSettlementRequired(data)) {
     return returnVerificationPending(data) ? 'Payment verification pending' : 'Settle your dropping balance to return';
   }
-  if (data.state === 'pending' && !data.enrollment?.billId) return 'Waiting for cashier billing';
+  if (data.state === 'pending' && !data.enrollment?.billId) return 'Re-enrollment submitted';
   return {settlement_required:'Settle your dropping balance to return',ready:'Ready to return to school?',unavailable:'Re-enrollment is not yet open',pending:'Your re-enrollment is in progress',blocked:'Re-enrollment needs attention',enrolled:'You’re enrolled again',not_applicable:'Re-enrollment'}[data.state];
 }
 
@@ -30,11 +35,11 @@ export function returnDescription(data: StudentReturnSummary) {
       ? data.enrollment?.billId
         ? 'Settle your previous dropping balance first, then meet the new bill’s enrollment payment requirement.'
         : 'Settle your previous dropping balance first. Cashier billing remains blocked until settlement is verified.'
-      : 'Your previous balance must be fully settled before a pending enrollment can be created.';
+      : 'Pay your remaining dropping balance in full before starting re-enrollment.';
   }
   if (data.state === 'pending') return data.enrollment?.billId
     ? 'Meet the new bill’s enrollment payment requirement. Only verified payments and applied credits count.'
-    : 'Your previous dropping balance is settled. The cashier will generate your new school-year bill.';
+    : 'Your bill will appear once the cashier generates it.';
   if (data.state === 'ready') return `Admissions are open for SY ${data.offer?.schoolYear}.`;
   return 'Your account and records remain available. No payment or clearance is required now.';
 }

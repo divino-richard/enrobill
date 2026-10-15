@@ -110,6 +110,33 @@ empty, even for previously approved drops. There is no immediate payment,
 clearance, settlement deadline, or late fee. Voluntary partial and full payments
 are accepted; unverified payments never reduce the balance.
 
+The student payment dialog records an external transfer in one form: amount paid,
+payment method, date paid, and receipt, with optional reference number and note
+fields always visible. Cancel and Submit payment are aligned together on the
+right. Receipt format and size guidance appears inside the upload box.
+
+The payment method field opens a modal picker with expandable account details
+and QR codes. Radios to the left of the method names show the selection. Selecting a
+radio reveals its account details and keeps the picker open; expanding a name
+alone does not select it. Done applies the choice and returns to the form.
+Cancel or dismiss keeps the previous choice. Account details include copy
+controls and QR download, without repeated transfer instructions. The portal
+itself does not transfer money.
+
+Submission validates all fields, including the current balance and payment-method
+availability, before upload. Receipts must be JPG or PNG, up to 5 MB. Payment dates
+use the Manila calendar and cannot be in the future; the server enforces the same
+date rule. Payment-method loading, failure, and missing configuration have separate
+states. Reference numbers are optional and limited to 100 characters when
+provided; blank or omitted values are stored as null. Both the form and API
+enforce the length limit. Validation focuses the first invalid field.
+
+Closing and reopening keeps the draft while the page remains mounted. Submission
+locks the fields and dismissal controls, shows upload progress, and preserves the
+draft on failure. A completed upload is reused for submission retries. Successful
+submissions show the amount, method, date, and pending-verification status, with a
+link to the bill's Payments tab. The original balance stays until verification.
+
 A returning student must settle the previous dropping balance **before a pending
 enrollment can be created**. Unverified or partial payments and payment
 arrangements do not satisfy this prerequisite. The original bill remains deferred
@@ -210,15 +237,26 @@ grade, even after the student's current program changes.
 Re-enrollment lives in a compact section alongside the program summary and enrollment
 details in **My Program → Overview**.
 Its details and start action open in a dialog (`/portal/programs?reenroll=1`),
-leaving the normal program tabs available. The dialog shows the current status,
-return deadline, balances and bill actions without repeating the previous program
-or adding record-navigation links. Program and voucher guidance is expandable
-when starting a return; eligibility issues and pending verification stay visible.
+leaving the normal program tabs available. When ready to start, the dialog shows
+the returning program, grade, school year, return deadline, and **Re-enroll now** action.
+Settled balances, billing guidance, and program/voucher guidance are omitted from
+this ready view. A successful submission opens a confirmation with a single **Done**
+action. Students then see their enrollment status directly in the existing program
+summary; there is no separate monitoring action or tracking dialog. Old re-enrollment
+links also return submitted students to My Program. Generated bills remain available
+in **My Bills**. Unpaid previous balances and eligibility issues retain access to their
+required actions. Submission alone never displays the enrollment as confirmed.
 Dates omit timezone labels throughout the UI; Asia/Manila calculations are unchanged.
+Student enrollment bills show a compact header with the bill identity, payment status,
+amount due, due date, and payment action. The remaining balance is shown separately
+when it differs from the amount due; fee totals, verified payments, and applied credits
+stay in the bill summary. The separate re-enrollment requirements notice is omitted
+from student bill details. Staff billing notices and enrollment eligibility rules are unchanged.
 The dashboard notice, bill details,
 and dropping approvals link there. The bills list and admission history omit the
 return banner. The dashboard uses a highlighted notice with state-specific color,
-a short explanation, return deadline, and one action. There is no separate sidebar item or page;
+a short explanation, return deadline, and an action only when there is something to
+start or review. There is no separate sidebar item or page;
 legacy `/portal/re-enrollment` links redirect to the My Program dialog. Closed admissions, incomplete fee
 setup, invalid or missing historical dates, expired windows, pending returns,
 and successful activation each have an explicit state. Dropped students see
@@ -241,6 +279,8 @@ Starting a return checks full previous settlement and creates a pending enrollme
 under the student lock. It does not create a bill. Cashier billing follows the
 same path as an accepted new applicant. Retries return that same enrollment, including after admissions close or
 the deadline expires, without creating another bill or extending eligibility.
+The re-enrollment dialog shows new enrollment charges only after that bill has
+been generated; it does not preview amounts from the school year's fee settings.
 Students pay the old and new bills separately. The portal refreshes pending
 requirements after payment submission, on window focus, and periodically while
 the return is pending. Existing verified-payment activation checks remain the
@@ -251,10 +291,16 @@ needed. The normal student dashboard resumes once enrollment becomes active.
 
 Active students start from **My Program → Overview → Enrollment options → Request
 to drop**. The same menu offers **Download dropping form** for preparation.
-The submission form spans the tab width and focuses on the reason, prepared
-documents, and confirmation, without a download action or repeated instructions. Opening,
+The submission form opens in a modal over the Dropping requests tab and focuses on the reason, prepared
+documents, and confirmation, without a download action or repeated instructions.
+Attachments use the same compact upload-row style as the application form, with
+file names or a selection count, total size, and a remove action. Selected
+attachments have an inline **Open** action; previews load
+only on demand, with a file selector when there are multiple attachments. Opening,
 leaving, or cancelling this form does not create a draft or change enrollment.
-The table is for tracking requests, not starting them.
+The student list omits search and status filters. Its empty state offers
+**Request to drop** for an active enrollment with no open request; the same action
+is available above past requests when eligible. Closing the modal returns to the list.
 
 Submitting a reason and valid documents creates the request, first document packet,
 and notification together with status **Waiting for approval**. Enrollment stays
@@ -266,6 +312,43 @@ request constraint prevent duplicates; retries return the existing open request.
 If an open request already exists, the Overview action opens that request instead.
 Existing legacy drafts and requests returned for correction can still be completed
 using the existing document-submission flow; no historical records are removed.
+
+### Student request presentation
+
+While a request is waiting for approval, a highlighted status notice explains that
+enrollment remains active. The submitted reason and documents sit beside an
+always-visible activity timeline. Activity matches the request-details panel's
+height on desktop; the panels stack naturally on smaller screens.
+
+Dropping charges appear below these panels, with payments, credits, and the balance
+aligned directly below the fee lines. The underlying estimate
+uses the assessment response, not the current enrollment bill balance. The date
+note makes clear that the approved dropping date determines the final charge.
+Unavailable estimates do not show placeholder zero balances or staff setup tasks.
+Cancelled and rejected requests do not display a live charge estimate.
+
+### Staff request presentation
+
+The admin request list fills the available content width and retains its search,
+status filter, and pagination. Staff detail pages use the same request-details
+card, document preview, and always-visible Activity panel as the student review
+page. Charges sit below these panels with payments and balances under the fee lines.
+Staff pages show status through the header badge and Activity, without status
+banners. Approval events and school remarks remain in Activity; the effective date
+appears with the approved charges.
+
+Staff retain the student-record link, bill access, and automatic fee-policy category.
+Approval downloads and their endpoint are removed; the request and its documents
+remain available in the portal. Administrators can approve, return for correction,
+or reject; setup blockers remain in the Approval setup drawer. Cashiers can inspect
+setup but cannot approve or configure administrator-only policies. Approved requests
+use the saved assessment with current payment and credit totals, including legacy
+approvals with no saved itemized assessment.
+
+The approval dialog contains the effective date and optional notes; charges remain
+on the request details page. Selecting another effective date still recalculates
+the assessment in the background. Approval requires a ready, current fingerprint,
+and validation failures remain visible in the dialog with a retry when needed.
 
 ### Approved request presentation
 

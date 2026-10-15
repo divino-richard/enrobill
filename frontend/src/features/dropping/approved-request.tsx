@@ -9,16 +9,17 @@ import { returnDate, returnNeedsEligibilityReview, previousSettlementRequired, S
 import { formatPeso } from '@/lib/money';
 import type { DroppingRequest } from './api';
 
-export function ApprovedRequestCharges({ request, children }: { request: DroppingRequest; children?: ReactNode }) {
+export function ApprovedRequestCharges({ request, children, staff = false, actions }: { request: DroppingRequest; children?: ReactNode; staff?: boolean; actions?: ReactNode }) {
   const assessment = request.droppingAssessment;
   const current = request.financialSummary;
   const hasAssessment = assessment && !assessment.legacy && assessment.finalCharge != null;
   return <section aria-labelledby="approved-charges-title" className="overflow-hidden rounded-xl border bg-card">
-    <header className="border-b px-5 py-4 sm:px-6">
-      <h2 id="approved-charges-title" className="text-base font-semibold">Charges and payments</h2>
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 sm:px-6">
+      <h2 id="approved-charges-title" className={staff ? 'text-sm font-semibold' : 'text-base font-semibold'}>{staff ? 'Dropping charges' : 'Charges and payments'}</h2>
+      {actions}
     </header>
     {hasAssessment ?
-      <DroppingBillStatement columns showApprovalDetails={false} summaryFooter={children} bill={{
+      <DroppingBillStatement columns={!staff} showApprovalDetails={staff} summaryFooter={<>{children}{staff && current && current.creditIssued > 0 && <p className="text-xs text-muted-foreground">Available student credit: <span className="tabular-nums">{formatPeso(current.availableCredit)}</span></p>}</>} bill={{
         droppingAssessment: assessment,
         netTotal: assessment.finalCharge!,
         amountPaid: current?.verifiedPayments ?? assessment.verifiedPayments,

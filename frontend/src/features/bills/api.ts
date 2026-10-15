@@ -142,7 +142,7 @@ export async function fetchMyBills(): Promise<Bill[]> {
 }
 
 // Presign + upload a proof-of-payment screenshot; returns the object key.
-export async function uploadPaymentProof(file: File): Promise<string> {
+export async function uploadPaymentProof(file: File, onProgress?: (percent: number) => void): Promise<string> {
   const { data } = await api.post<PresignResponse>(
     "/me/bill/payments/presign",
     { contentType: file.type, size: file.size },
@@ -150,6 +150,9 @@ export async function uploadPaymentProof(file: File): Promise<string> {
 
   await axios.put(data.url, file, {
     headers: { "Content-Type": file.type },
+    onUploadProgress: event => {
+      if (event.total) onProgress?.(Math.round(event.loaded / event.total * 100));
+    },
   });
 
   return data.key;

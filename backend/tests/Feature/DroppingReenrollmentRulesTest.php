@@ -69,7 +69,7 @@ class DroppingReenrollmentRulesTest extends TestCase
         $this->actingAs($user)->getJson('/api/me/bills')->assertOk()->assertJsonPath('data.0.collectionState', 'deferred_until_reenrollment')->assertJsonPath('data.0.amountDue', 0)->assertJsonCount(0, 'data.0.installments');
         $this->getJson('/api/me/notifications')->assertOk()->assertJsonPath('data.0.actionRequired', false);
         $this->assertDatabaseHas('student_notifications', ['id' => $notice->id, 'message' => 'Old reminder']);
-        $this->postJson("/api/me/bills/$bill->id/payments", ['amount' => 10, 'method' => 'gcash', 'proofKey' => 'proof.jpg', 'paidAt' => '2027-10-07'])->assertSuccessful();
+        $this->postJson("/api/me/bills/$bill->id/payments", ['amount' => 10, 'method' => 'gcash', 'proofKey' => 'proof.jpg', 'reference' => 'GC-001234', 'paidAt' => '2027-10-07'])->assertSuccessful();
         $this->assertSame(100.0, $bill->fresh()->balance());
         $payment = $bill->payments()->first();
         $this->actingAs($cashier)->postJson("/api/admin/bills/$bill->id/payments/$payment->id/verify")->assertSuccessful();
@@ -92,7 +92,7 @@ class DroppingReenrollmentRulesTest extends TestCase
         $this->actingAs($cashier)->postJson("/api/admin/bills/$newBill->id/payments", ['amount' => 200, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
         $this->assertSame('pending', $return->fresh()->status);
         $this->putJson("/api/admin/bills/$bill->id/payment-arrangement", ['remarks' => 'Bypass', 'installments' => [['dueDate' => '2028-01-01', 'amount' => 100]]])->assertUnprocessable();
-        $this->actingAs($user)->postJson("/api/me/bills/$bill->id/payments", ['amount' => 40, 'method' => 'gcash', 'proofKey' => 'proof.jpg', 'paidAt' => '2027-10-07'])->assertSuccessful();
+        $this->actingAs($user)->postJson("/api/me/bills/$bill->id/payments", ['amount' => 40, 'method' => 'gcash', 'proofKey' => 'proof.jpg', 'reference' => 'GC-001234', 'paidAt' => '2027-10-07'])->assertSuccessful();
         $payment = $bill->payments()->first();
         $this->assertSame('pending', $return->fresh()->status);
         $this->actingAs($cashier)->postJson("/api/admin/bills/$bill->id/payments/$payment->id/verify")->assertSuccessful();

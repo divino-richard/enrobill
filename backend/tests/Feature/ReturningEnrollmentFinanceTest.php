@@ -147,7 +147,7 @@ class ReturningEnrollmentFinanceTest extends TestCase
     {
         extract($this->setupReturn());
         $other = $this->student();
-        $data = ['amount' => 100, 'method' => 'gcash', 'proofKey' => 'proof.jpg', 'paidAt' => '2027-06-01'];
+        $data = ['amount' => 100, 'method' => 'gcash', 'proofKey' => 'proof.jpg', 'reference' => 'GC-001234', 'paidAt' => '2027-06-01'];
         $url = "/api/me/bills/$bill->id/payments";
         $this->actingAs($other->user)->postJson($url, $data)->assertNotFound();
         $this->actingAs($student->user)->postJson($url, $data)->assertSuccessful();

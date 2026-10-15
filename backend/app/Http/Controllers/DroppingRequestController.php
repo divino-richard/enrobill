@@ -203,17 +203,6 @@ class DroppingRequestController extends Controller
         return Storage::disk($file['disk'])->response($file['path'], $file['name'], ['Content-Type' => $file['mime'], 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
-    public function acknowledgment(Request $request, DroppingRequest $dropping)
-    {
-        $this->authorizeRead($request, $dropping);
-        abort_unless($dropping->status === 'confirmed', 422, 'You can download the approval after this request is approved.');
-
-        return response()->view('dropping.acknowledgment', ['dropping' => $dropping], 200, [
-            'Content-Disposition' => 'attachment; filename="'.$dropping->reference().'-acknowledgment.html"',
-            'Cache-Control' => 'private, no-store', 'Content-Security-Policy' => "default-src 'none'; style-src 'unsafe-inline'",
-        ]);
-    }
-
     private function locked(DroppingRequest $dropping, callable $action, int $attempts = 3): DroppingRequestResource
     {
         return DB::transaction(function () use ($dropping, $action) {

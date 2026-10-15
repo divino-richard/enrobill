@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon } from "lucide-react";
 import {
@@ -62,8 +62,6 @@ export function DocumentViewerDialog({
     staleTime: 5 * 60 * 1000,
   });
 
-  const isImage = (document?.contentType ?? "").startsWith("image/");
-
   // The view URL is a cross-origin pre-signed S3 link the browser can embed but
   // not read in JS (no CORS for GET), so `download` attributes and iframe
   // printing fail against it. We instead pull the bytes through our own API and
@@ -96,8 +94,48 @@ export function DocumentViewerDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+    <DocumentPreviewDialog
+      document={document ? {
+        fileName: data?.fileName ?? document.fileName,
+        contentType: data?.contentType ?? document.contentType,
+        url: data?.url,
+      } : null}
+      onOpenChange={onOpenChange}
+      isLoading={isLoading}
+      isError={isError}
+      onDownload={handleDownload}
+      isDownloading={pending === "download"}
+      downloadError={actionError}
+    />
+  );
+}
+
+interface DocumentPreviewDialogProps {
+  document: { fileName: string; contentType: string | null; url?: string } | null;
+  onOpenChange: (open: boolean) => void;
+  isLoading?: boolean;
+  isError?: boolean;
+  onDownload: () => void;
+  isDownloading?: boolean;
+  downloadError?: string | null;
+  onCloseAutoFocus?: ComponentProps<typeof DialogContent>["onCloseAutoFocus"];
+}
+
+// Shared admission-style preview for signed URLs and authenticated blob URLs.
+export function DocumentPreviewDialog({
+  document,
+  onOpenChange,
+  isLoading = false,
+  isError = false,
+  onDownload,
+  isDownloading = false,
+  downloadError,
+  onCloseAutoFocus,
+}: DocumentPreviewDialogProps) {
+  const isImage = (document?.contentType ?? "").startsWith("image/");
+  return (
+    <Dialog open={document !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto" aria-describedby={undefined} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle className="truncate pr-8">
             {document?.fileName ?? "Document"}
@@ -107,38 +145,38 @@ export function DocumentViewerDialog({
         <div className="bg-muted/40 flex h-[70vh] items-center justify-center overflow-hidden rounded-md border">
           {isLoading ? (
             <Skeleton className="h-full w-full" />
-          ) : isError || !data ? (
-            <p className="text-muted-foreground text-sm">
+          ) : isError || !document?.url ? (
+            <p role="alert" className="text-muted-foreground text-sm">
               We couldn't load this document. Please try again.
             </p>
           ) : isImage ? (
             <img
-              src={data.url}
-              alt={data.fileName}
+              src={document.url}
+              alt={document.fileName}
               className="max-h-full max-w-full object-contain"
             />
           ) : (
             <iframe
-              src={data.url}
-              title={data.fileName}
+              src={document.url}
+              title={document.fileName}
               className="h-full w-full"
             />
           )}
         </div>
 
-        {data && (
+        {document?.url && !isError && (
           <div className="flex items-center justify-end gap-2">
-            {actionError && (
-              <p className="text-destructive mr-auto text-sm">{actionError}</p>
+            {downloadError && (
+              <p role="alert" className="text-destructive mr-auto text-sm">{downloadError}</p>
             )}
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDownload}
-              disabled={pending !== null}
+              onClick={onDownload}
+              disabled={isDownloading}
             >
               <DownloadIcon />
-              {pending === "download" ? "Downloading…" : "Download"}
+              {isDownloading ? "Downloading…" : "Download"}
             </Button>
           </div>
         )}

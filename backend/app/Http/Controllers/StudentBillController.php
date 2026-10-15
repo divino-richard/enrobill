@@ -130,8 +130,11 @@ class StudentBillController extends Controller
             'method' => ['required', Rule::in(self::SUBMIT_METHODS)],
             'reference' => ['nullable', 'string', 'max:100'],
             'proofKey' => ['required', 'string', 'max:255'],
-            'paidAt' => ['required', 'date'],
+            'paidAt' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Manila')->toDateString()],
             'note' => ['nullable', 'string', 'max:255'],
+        ], [
+            'paidAt.date_format' => 'Choose a valid payment date.',
+            'paidAt.before_or_equal' => 'Payment date cannot be in the future.',
         ]);
 
         return DB::transaction(function () use ($request, $bill, $validated) {
