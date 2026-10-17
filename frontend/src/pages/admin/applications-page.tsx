@@ -1,8 +1,6 @@
-import { RowActions } from "@/components/row-actions";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { CompactProgramLabel } from "@/components/compact-program-label";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   getCoreRowModel,
   useReactTable,
@@ -14,9 +12,9 @@ import {
 } from "@tanstack/react-table";
 import {
   ChevronDownIcon,
+  ChevronRightIcon,
   ChevronUpIcon,
   ChevronsUpDownIcon,
-  EyeIcon,
   FunnelXIcon,
   SearchIcon,
 } from "lucide-react";
@@ -209,11 +207,19 @@ function AdminApplicationsPage() {
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
-          <RowActions><DropdownMenuItem className="items-start gap-3 py-2.5" onClick={() => navigate(`/admin/applications/${row.original.id}`)}><EyeIcon className="mt-0.5 text-primary" /><span><span className="block font-medium">Review application</span><span className="text-muted-foreground block text-xs">View details and admission decision</span></span></DropdownMenuItem></RowActions>
+          <Button asChild variant="ghost" size="icon-sm">
+            <Link
+              to={`/admin/applications/${row.original.id}`}
+              aria-label={`View application ${row.original.reference}`}
+              title="View application"
+            >
+              <ChevronRightIcon aria-hidden="true" />
+            </Link>
+          </Button>
         ),
       },
     ],
-    [navigate],
+    [],
   );
 
   // TanStack Table returns non-memoizable functions; the React Compiler lint
@@ -371,6 +377,7 @@ function AdminApplicationsPage() {
 
           <DataTable
             table={table}
+            onRowClick={(application) => navigate(`/admin/applications/${application.id}`)}
             compact
             isLoading={query.isLoading}
             emptyMessage={

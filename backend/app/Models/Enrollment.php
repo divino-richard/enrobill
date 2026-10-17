@@ -123,6 +123,11 @@ class Enrollment extends Model
         return $this->hasOne(Bill::class);
     }
 
+    public function openDroppingRequest(): HasOne
+    {
+        return $this->hasOne(DroppingRequest::class, 'active_enrollment_id');
+    }
+
     /** Incentive eligibility records attached to this school-year enrollment. */
     public function incentiveAwards(): HasMany
     {

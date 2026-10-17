@@ -1,3 +1,4 @@
+import { ChevronRightIcon } from "lucide-react";
 import { CompactProgramLabel } from "@/components/compact-program-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +36,15 @@ export function ApplicationsTable({
       </TableHeader>
       <TableBody>
         {applications.map((application) => (
-          <TableRow key={application.id}>
+          <TableRow
+            key={application.id}
+            className={onView ? "cursor-pointer" : undefined}
+            onClick={onView ? (event) => {
+              if (event.defaultPrevented || (event.target as HTMLElement).closest('a, button, input, select, textarea, [role="button"], [role="link"], [contenteditable="true"]')) return;
+              if (window.getSelection()?.toString()) return;
+              onView(application.id);
+            } : undefined}
+          >
             <TableCell className="font-medium">
               {application.reference}
             </TableCell>
@@ -52,10 +61,12 @@ export function ApplicationsTable({
             <TableCell className="text-right">
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                aria-label={`View application ${application.reference}`}
+                title="View application"
                 onClick={() => onView?.(application.id)}
               >
-                View
+                <ChevronRightIcon aria-hidden="true" />
               </Button>
             </TableCell>
           </TableRow>

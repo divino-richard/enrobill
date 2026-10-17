@@ -38,6 +38,7 @@ use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\StudentBillController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentProfileController;
+use App\Http\Controllers\StudentReturningEnrollmentController;
 use App\Http\Controllers\StudentScheduleController;
 use App\Http\Controllers\Teacher\GradeController as TeacherGradeController;
 use App\Http\Controllers\UserController;
@@ -99,8 +100,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dropping-requests/{dropping}/files/{fileId}', [DroppingRequestController::class, 'file']);
     });
     Route::middleware('role:student')->group(function () {
-        Route::get('/me/re-enrollment', [\App\Http\Controllers\StudentReturningEnrollmentController::class, 'show']);
-        Route::post('/me/re-enrollment', [\App\Http\Controllers\StudentReturningEnrollmentController::class, 'store'])->middleware('throttle:10,1');
+        Route::get('/me/re-enrollment', [StudentReturningEnrollmentController::class, 'show']);
+        Route::post('/me/re-enrollment', [StudentReturningEnrollmentController::class, 'store'])->middleware('throttle:10,1');
         Route::get('/me/dropping-requests', [DroppingRequestController::class, 'index']);
         Route::post('/me/dropping-requests', [DroppingRequestController::class, 'store']);
         Route::post('/me/dropping-requests/{dropping}/submit', [DroppingRequestController::class, 'submit'])->middleware('throttle:10,1');
@@ -114,6 +115,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/students/{student}/returning-summary', [ReturningEnrollmentController::class, 'summary']);
         Route::post('/admin/students/{student}/returning-enrollments', [ReturningEnrollmentController::class, 'store']);
         Route::get('/admin/dropping-requests', [DroppingRequestController::class, 'index']);
+        Route::post('/admin/students/{student}/dropping-requests', [DroppingRequestController::class, 'storeForStudent'])->middleware('throttle:10,1');
+        Route::get('/admin/students/{student}/dropping-assessment', [DroppingRequestController::class, 'assessmentForStudent']);
         Route::post('/admin/dropping-requests/{dropping}/decision', [DroppingRequestController::class, 'decision']);
         Route::post('/admin/dropping-requests/{dropping}/confirm', [DroppingRequestController::class, 'confirm']);
     });

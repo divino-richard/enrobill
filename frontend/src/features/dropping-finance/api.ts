@@ -34,14 +34,6 @@ export interface DroppingPolicy {
   periods: Record<PeriodKey, { startsOn: string; endsOn: string }>;
   feeRules?: FeeRules | null;
 }
-export interface ReturningSummary {
-  effectiveDroppingDate: string | null; returnDeadline: string | null;
-  previousBalance: number; availableCredit: number; eligible: boolean; blockers: string[];
-  latestSchoolYearId: number | null; latestSchoolYear: string | null;
-}
-export interface ReturningInput {
-  schoolYearId: number; program: string; yearLevel: string; discountId: number | null;
-}
 export interface PaymentArrangement {
   remarks: string; installments: { dueDate: string; amount: number }[];
   approvedBy?: number | string; createdAt?: string;
@@ -63,12 +55,6 @@ export async function savePolicyPeriod(id: number, period: PeriodKey, input: Per
 }
 export async function saveClassification(id: number, items: { id: number; component: DroppingComponent | null; sourceFeeId?: number | null }[]) {
   return (await api.put(`/admin/bills/${id}/dropping-classification`, { items })).data;
-}
-export async function fetchReturningSummary(id: number) {
-  return (await api.get<{ data: ReturningSummary }>(`/admin/students/${id}/returning-summary`)).data.data;
-}
-export async function createReturningEnrollment(id: number, input: ReturningInput) {
-  return (await api.post(`/admin/students/${id}/returning-enrollments`, input)).data;
 }
 export async function saveArrangement(id: number, input: PaymentArrangement) {
   return (await api.put(`/admin/bills/${id}/payment-arrangement`, input)).data;

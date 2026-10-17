@@ -37,6 +37,7 @@ interface DataTableProps<TData> {
   emptyMessage?: string;
   pageSizeOptions?: number[];
   compact?: boolean;
+  onRowClick?: (row: TData) => void;
 }
 
 // Presentational data table built on @tanstack/react-table + the shadcn Table
@@ -48,6 +49,7 @@ export function DataTable<TData>({
   emptyMessage = "No results.",
   pageSizeOptions = [15, 30, 50],
   compact = true,
+  onRowClick,
 }: DataTableProps<TData>) {
   const columnCount = table.getAllLeafColumns().length;
   const { pageIndex, pageSize } = table.getState().pagination;
@@ -91,7 +93,15 @@ export function DataTable<TData>({
               ))
             ) : rows.length > 0 ? (
               rows.map((row) => (
-                <TableRow key={row.id} className={cn(compact && "h-14")}>
+                <TableRow
+                  key={row.id}
+                  className={cn(compact && "h-14", onRowClick && "cursor-pointer")}
+                  onClick={onRowClick ? (event) => {
+                    if (event.defaultPrevented || (event.target as HTMLElement).closest('a, button, input, select, textarea, [role="button"], [role="link"], [contenteditable="true"]')) return;
+                    if (window.getSelection()?.toString()) return;
+                    onRowClick(row.original);
+                  } : undefined}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}

@@ -1,42 +1,18 @@
-import { ReturningEnrollmentDialog } from '@/features/dropping-finance/returning-dialog';
-import {
-  CheckCircle2Icon,
-  LogOutIcon,
-  RotateCcwIcon,
-} from "lucide-react";
 import {
   Card,
   CardContent,
-  CardAction,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RowActions } from "@/components/row-actions";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { YEAR_LEVEL_OPTIONS, labelFor } from "@/features/applications/types";
 import { useProgramLabel } from "@/features/programs/hooks";
-import { getErrorMessage } from "@/lib/get-error-message";
-import {
-  useStudentEnrollments,
-  useUpdateEnrollmentStatus,
-} from "../hooks";
+import { AdminDroppingAction } from "@/features/dropping/admin-dropping-action";
+import { useStudentEnrollments } from "../hooks";
 import { EnrollmentStatusBadge } from "./enrollment-status-badge";
-import type { EnrollmentRecord, EnrollmentStatus } from "../types";
-
-// The status transitions an admin can apply, with their menu presentation.
-const ACTIONS: {
-  status: EnrollmentStatus;
-  label: string;
-  icon: typeof CheckCircle2Icon;
-}[] = [
-  // { status: "enrolled", label: "Mark as enrolled", icon: CheckCircle2Icon },
-  // { status: "completed", label: "Mark as completed", icon: GraduationCapIcon },
-  { status: "withdrawn", label: "Mark as withdrawn", icon: LogOutIcon },
-  { status: "pending", label: "Reset to pending", icon: RotateCcwIcon },
-];
+import type { EnrollmentRecord } from "../types";
 
 function termLabel(record: EnrollmentRecord): string {
   return record.schoolYear ? `SY ${record.schoolYear}` : "—";
@@ -44,33 +20,23 @@ function termLabel(record: EnrollmentRecord): string {
 
 export function StudentEnrollmentsCard({
   studentId,
-  readOnly = false,
+  studentName,
 }: {
   studentId: number;
-  readOnly?: boolean;
+  studentName: string;
 }) {
   const programLabel = useProgramLabel();
   const { data: enrollments, isLoading } = useStudentEnrollments(studentId);
-  const mutation = useUpdateEnrollmentStatus(studentId);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Enrollments</CardTitle>
-        {!readOnly && enrollments?.some(e => e.status === "dropped") && <CardAction><ReturningEnrollmentDialog studentId={studentId} /></CardAction>}
         <CardDescription>
           The student's program, level and status per term.
-          {!readOnly &&
-            " Official drops must be confirmed through Dropping Requests."}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {mutation.isError && (
-          <p className="text-destructive mb-3 text-sm">
-            {getErrorMessage(mutation.error)}
-          </p>
-        )}
-
         {isLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-12 w-full rounded-md" />
@@ -86,7 +52,7 @@ export function StudentEnrollmentsCard({
             {enrollments.map((record) => (
               <li
                 key={record.id}
-                className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+                className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium">
@@ -105,29 +71,9 @@ export function StudentEnrollmentsCard({
                     {termLabel(record)}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 flex-wrap items-center gap-3">
                   <EnrollmentStatusBadge status={record.status} />
-                  {!readOnly && record.status !== "dropped" && (
-                    <RowActions>
-                      {ACTIONS.filter((a) => a.status !== record.status).map(
-                        (action) => (
-                          <DropdownMenuItem
-                            key={action.status}
-                            disabled={mutation.isPending}
-                            onClick={() =>
-                              mutation.mutate({
-                                enrollmentId: record.id,
-                                status: action.status,
-                              })
-                            }
-                          >
-                            <action.icon />
-                            {action.label}
-                          </DropdownMenuItem>
-                        ),
-                      )}
-                    </RowActions>
-                  )}
+                  <AdminDroppingAction studentId={studentId} studentName={studentName} enrollment={record} />
                 </div>
               </li>
             ))}

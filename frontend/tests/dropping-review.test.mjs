@@ -84,6 +84,28 @@ test('cashiers cannot approve or access administrator policy setup', () => {
   assert.match(html, /View setup/);
 });
 
+test('admin-initiated approval records its reason and actor without suggesting missing documents', () => {
+  const html = renderReview(assessment, 'admin', {
+    status: 'confirmed', packetVersion: 0, submissions: [],
+    snapshot: { ...request.snapshot, initiatedBy: 'admin' },
+    reason: 'Student could not be reached.',
+    droppingAssessment: { ...assessment, finalized: true },
+    effectiveDate: philippinesToday(),
+    events: [{ action: 'confirmed', actorName: 'Registrar', actorRole: 'admin', at: '2026-10-05T10:00:00Z', remarks: null }],
+  });
+  assert.match(html, /Initiated by administrator/);
+  assert.match(html, /No signed form required/);
+  assert.match(html, /Student could not be reached/);
+  assert.match(html, /Registrar · Administrator/);
+  assert.doesNotMatch(html, /Documents have not been submitted|Update documents|Submit request|>Approve<|Cancel request/);
+});
+
+test('student document corrections remain student-owned', () => {
+  for (const role of ['admin', 'cashier']) {
+    assert.doesNotMatch(renderReview(assessment, role, { status: 'needs_correction' }), /Update documents|Submit request/);
+  }
+});
+
 test('approved staff requests use frozen charges and current payments while retaining admin actions', () => {
   const html = renderReview(assessment, 'admin', {
     status: 'confirmed', effectiveDate: '2026-10-05', finalRemarks: 'Approved by registrar.',

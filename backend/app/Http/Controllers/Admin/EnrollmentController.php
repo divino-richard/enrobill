@@ -100,7 +100,7 @@ class EnrollmentController extends Controller
     public function index(Student $student): AnonymousResourceCollection
     {
         $records = $student->enrollments()
-            ->with('schoolYear')
+            ->with(['schoolYear', 'openDroppingRequest'])
             ->get()
             ->sortByDesc(fn (Enrollment $e) => $e->schoolYear?->school_year ?? '')
             ->values();

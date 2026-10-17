@@ -324,7 +324,7 @@ function StudentDetailPage() {
           </TabsContent>
 
           <TabsContent value="enrollments">
-            <StudentEnrollmentsCard studentId={student.id} readOnly={!isAdmin} />
+            <StudentEnrollmentsCard studentId={student.id} studentName={studentDisplayName(student)} />
           </TabsContent>
 
           <TabsContent value="billing">

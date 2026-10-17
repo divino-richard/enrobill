@@ -10,11 +10,10 @@ import {
   fetchStudent,
   fetchStudentEnrollments,
   fetchStudents,
-  updateEnrollmentStatus,
   updateStudent,
   type StudentListParams,
 } from "./api";
-import type { EnrollmentStatus, StudentFormValues } from "./types";
+import type { StudentFormValues } from "./types";
 import { useAuthStore } from "@/features/auth/store";
 
 export const studentsQueryKey = ["admin", "students"] as const;
@@ -74,29 +73,5 @@ export function useStudentEnrollments(studentId: number) {
   return useQuery({
     queryKey: [...studentsQueryKey, "enrollments", studentId],
     queryFn: () => fetchStudentEnrollments(studentId),
-  });
-}
-
-export function useUpdateEnrollmentStatus(studentId: number) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({
-      enrollmentId,
-      status,
-    }: {
-      enrollmentId: number;
-      status: EnrollmentStatus;
-    }) => updateEnrollmentStatus(enrollmentId, status),
-    onSuccess: () => {
-      // The student's mirrored status may have changed too.
-      queryClient.invalidateQueries({
-        queryKey: [...studentsQueryKey, "enrollments", studentId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [...studentsQueryKey, "detail", studentId],
-      });
-      queryClient.invalidateQueries({ queryKey: studentsQueryKey });
-    },
   });
 }

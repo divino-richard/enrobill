@@ -143,7 +143,8 @@ arrangements do not satisfy this prerequisite. The original bill remains deferre
 while the student is dropped; choosing to return requires settling it first.
 Payment verification by itself never creates an enrollment.
 
-After settlement, **Enroll again** creates only a pending enrollment. The cashier
+After settlement, the student uses **Re-enroll now** in **My Program** to create
+only a pending enrollment. The cashier
 then generates its new school-year bill through the normal billing action, applies
 eligible benefits and credits, and records or verifies the required payment.
 The normal enrollment payment requirement (including a voucher waiver) controls
@@ -161,8 +162,12 @@ separate from new school-year fees. Payment status reflects the bill's backend
 required and does not replace that status: a deferred bill can still be unpaid,
 partially paid, or paid.
 
-**Enroll again** retains the student account and number and creates a pending
-later-year enrollment with program, grade and voucher eligibility chosen afresh.
+Student self-service retains the student account, number, program and grade when
+creating a pending later-year enrollment. Staff review new voucher eligibility.
+Admin student details show enrollment history and status, without
+**Enroll again**, **Mark as withdrawn**, or **Reset to pending** actions. Students
+settle their balance and initiate the return through their portal. Official drops
+use Dropping Requests, and enrollment activation follows the payment requirements.
 `ReturningEnrollmentRules::startEligibility` supplies the settlement prerequisite;
 `ReturningEnrollmentRules` supplies date eligibility to the summary, creation checks,
 model guards (including alternative creation/activation paths), and bill collection
@@ -264,7 +269,7 @@ records and return options instead of current classes, referral promotions, or
 clearance submission demands. Prior schedules are marked historical; saved
 academic documents remain readable across school years.
 After activation, saved documents remain accessible in **My Program → History**
-(`?section=history`), alongside past enrollments. A staff-created return displays
+(`?section=history`), alongside past enrollments. An existing staff-created return displays
 its approved program and grade, even when they differ from the dropped record.
 
 `GET /api/me/re-enrollment` returns only the signed-in student's eligibility,
@@ -328,6 +333,26 @@ Unavailable estimates do not show placeholder zero balances or staff setup tasks
 Cancelled and rejected requests do not display a live charge estimate.
 
 ### Staff request presentation
+
+Administrators can use **Students → Enrollments → Start dropping** for an enrolled
+student in the active school year. They provide a reason and effective date; no
+signed form or attachments are required when the school initiates a drop. **Review
+drop** opens a confirmation with the student, date, reason, charges, and remaining
+balance. **Confirm drop** immediately approves the record and marks the enrollment
+Dropped. Opening, previewing, or cancelling the form saves nothing. The approved
+record identifies the administrator and reason without implying missing documents.
+
+Admin approval uses the same financial assessment and transaction as approval of a
+student request. It requires a ready assessment with its current fingerprint,
+blocks pending payments, preserves verified payments, applies normal charges and
+credits, and notifies the student once. A failed or stale confirmation rolls back
+the entire operation; retrying an approved drop does not duplicate records or credit.
+Existing open requests use **View dropping request** and cannot be overwritten by
+this action. Cashiers and other roles cannot initiate an admin drop.
+
+Student submissions still require signed documents and go through the existing
+versioned review and approval process. Admin-initiated drops do not enter that
+waiting-for-approval queue or require a second approval.
 
 The admin request list fills the available content width and retains its search,
 status filter, and pagination. Staff detail pages use the same request-details

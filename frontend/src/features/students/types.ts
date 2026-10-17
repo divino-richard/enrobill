@@ -146,6 +146,7 @@ export interface EnrollmentRecord {
   status: EnrollmentStatus;
   enrolledAt: string | null;
   isCurrent: boolean;
+  openDroppingRequestId?: number | null;
 }
 
 // Soft badge colours per enrollment status.

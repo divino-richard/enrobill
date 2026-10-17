@@ -57,6 +57,166 @@ class DroppingRequestTest extends TestCase
         ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('data.status', 'submitted');
     }
 
+    private function adminDropFixture(int $paid = 100): array
+    {
+        $this->travelTo(Carbon::parse('2026-09-24 10:00:00', 'Asia/Manila'));
+        $e = $this->enrollment();
+        $e->update(['dropping_category' => 'paying']);
+        $bill = Bill::create(['student_id' => $e->student_id, 'enrollment_id' => $e->id, 'school_year_id' => $e->school_year_id, 'total' => 1000, 'amount_paid' => $paid, 'status' => $paid === 1000 ? 'paid' : 'partial']);
+        $bill->items()->create(['name' => 'Tuition', 'category' => 'tuition', 'dropping_component' => 'tuition', 'amount' => 1000]);
+        $bill->payments()->create(['amount' => $paid, 'method' => 'cash', 'status' => 'verified', 'paid_at' => now()]);
+        DroppingPolicy::create(['school_year_id' => $e->school_year_id, 'version' => 1, 'enabled' => true, 'periods' => DroppingPolicyConfigurationTest::periods()]);
+        $this->actingAs(User::factory()->create(['role' => Role::Admin]));
+
+        return [$e, $bill];
+    }
+
+    private function adminDropPayload(Enrollment $e): array
+    {
+        $fingerprint = $this->getJson("/api/admin/students/$e->student_id/dropping-assessment?enrollmentId=$e->id&effectiveDate=2026-09-24")
+            ->assertOk()->assertJsonPath('data.assessment.ready', true)->json('data.assessment.fingerprint');
+
+        return ['enrollmentId' => $e->id, 'reason' => 'Student unreachable after repeated attempts to contact them.',
+            'effectiveDate' => '2026-09-24', 'assessmentFingerprint' => $fingerprint, 'confirmed' => true];
+    }
+
+    public function test_admin_drop_is_approved_immediately_without_documents_and_preserves_payments(): void
+    {
+        Storage::fake('s3');
+        [$e, $bill] = $this->adminDropFixture();
+        $admin = auth()->user();
+        $payload = $this->adminDropPayload($e);
+        // Previewing has no side effects.
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertDatabaseCount('student_notifications', 0);
+        $this->assertSame('enrolled', $e->fresh()->status);
+        $url = "/api/admin/students/$e->student_id/dropping-requests";
+        $id = $this->postJson($url, $payload)->assertCreated()
+            ->assertJsonPath('data.status', 'confirmed')->assertJsonPath('data.packetVersion', 0)
+            ->assertJsonPath('data.snapshot.initiatedBy', 'admin')->assertJsonPath('data.reason', $payload['reason'])
+            ->assertJsonPath('data.effectiveDate', '2026-09-24')->assertJsonCount(0, 'data.submissions')
+            ->assertJsonPath('data.events.0.action', 'confirmed')->assertJsonPath('data.events.0.actorId', $admin->id)
+            ->assertJsonPath('data.events.0.actorRole', 'admin')->json('data.id');
+        $this->postJson($url, $payload)->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.status', 'confirmed');
+        $this->assertDatabaseCount('dropping_requests', 1);
+        $this->assertDatabaseCount('dropping_assessments', 1);
+        $this->assertDatabaseCount('student_notifications', 1);
+        $this->assertEmpty(Storage::disk('s3')->allFiles());
+        $this->assertSame('dropped', $e->fresh()->status);
+        $this->assertSame('dropped', $e->student->fresh()->status);
+        $this->assertEquals(500, $bill->fresh()->netTotal());
+        $this->assertEquals(100, $bill->fresh()->amount_paid);
+        $this->assertEquals(400, $bill->fresh()->balance());
+        $this->assertSame('verified', $bill->payments()->first()->status);
+        $this->assertSame('deferred_until_reenrollment', $bill->fresh()->collectionState());
+        $this->assertSame($admin->id, DroppingRequest::findOrFail($id)->confirmed_by);
+        $this->getJson("/api/admin/students/$e->student_id/enrollments")->assertOk()->assertJsonPath('data.0.openDroppingRequestId', null);
+        $this->actingAs($e->student->user)->getJson("/api/dropping-requests/$id")->assertOk()->assertJsonPath('data.status', 'confirmed');
+    }
+
+    public function test_admin_drop_requires_confirmation_and_current_assessment(): void
+    {
+        [$e, $bill] = $this->adminDropFixture();
+        $payload = $this->adminDropPayload($e);
+        $url = "/api/admin/students/$e->student_id/dropping-requests";
+        $this->postJson($url, ['enrollmentId' => $e->id])->assertUnprocessable()->assertJsonValidationErrors(['reason', 'effectiveDate', 'assessmentFingerprint', 'confirmed']);
+        $this->postJson($url, [...$payload, 'confirmed' => false])->assertUnprocessable()->assertJsonValidationErrors('confirmed');
+        $this->postJson($url, [...$payload, 'assessmentFingerprint' => 'stale'])->assertConflict();
+        // Even a valid preview becomes stale if payment data changes before confirmation.
+        $bill->payments()->create(['amount' => 50, 'method' => 'cash', 'status' => 'verified', 'paid_at' => now()]);
+        $this->postJson($url, $payload)->assertConflict();
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertDatabaseCount('dropping_assessments', 0);
+        $this->assertDatabaseCount('student_notifications', 0);
+        $this->assertSame('enrolled', $e->fresh()->status);
+        $this->postJson($url, $this->adminDropPayload($e))->assertCreated()->assertJsonPath('data.status', 'confirmed');
+    }
+
+    public function test_admin_drop_cannot_skip_pending_payments_or_financial_setup(): void
+    {
+        [$e, $bill] = $this->adminDropFixture();
+        $payload = $this->adminDropPayload($e);
+        $url = "/api/admin/students/$e->student_id/dropping-requests";
+        $payment = $bill->payments()->create(['amount' => 50, 'method' => 'gcash', 'status' => 'pending', 'paid_at' => now()]);
+        $this->postJson($url, $payload)->assertUnprocessable();
+        $this->getJson("/api/admin/students/$e->student_id/dropping-assessment?enrollmentId=$e->id&effectiveDate=2026-09-24")
+            ->assertOk()->assertJsonPath('data.assessment.ready', false)->assertJsonPath('data.billId', $bill->id);
+        $payment->update(['status' => 'rejected']);
+        DroppingPolicy::query()->update(['enabled' => false]);
+        $this->postJson($url, $payload)->assertUnprocessable();
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertDatabaseCount('dropping_assessments', 0);
+        $this->assertDatabaseCount('student_notifications', 0);
+        $this->assertSame('enrolled', $e->fresh()->status);
+        $this->assertEquals(1000, $bill->fresh()->netTotal());
+    }
+
+    public function test_admin_drop_issues_credit_once_for_an_overpayment(): void
+    {
+        [$e, $bill] = $this->adminDropFixture(1000);
+        $payload = $this->adminDropPayload($e);
+        $url = "/api/admin/students/$e->student_id/dropping-requests";
+        $this->postJson($url, $payload)->assertCreated()->assertJsonPath('data.financialSummary.creditIssued', 500);
+        $this->postJson($url, $payload)->assertOk();
+        $this->assertDatabaseCount('student_credits', 1);
+        $this->assertDatabaseCount('dropping_assessments', 1);
+        $this->assertEquals(0, $bill->fresh()->balance());
+        $this->assertEquals(1000, $bill->fresh()->amount_paid);
+    }
+
+    public function test_only_admins_can_preview_and_initiate_direct_dropping(): void
+    {
+        [$e] = $this->adminDropFixture();
+        $payload = $this->adminDropPayload($e);
+        foreach ([Role::Cashier, Role::Teacher, Role::Applicant, Role::Student] as $role) {
+            $this->actingAs(User::factory()->create(['role' => $role]));
+            $this->postJson("/api/admin/students/$e->student_id/dropping-requests", $payload)->assertForbidden();
+            $this->getJson("/api/admin/students/$e->student_id/dropping-assessment?enrollmentId=$e->id&effectiveDate=2026-09-24")->assertForbidden();
+        }
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertSame('enrolled', $e->fresh()->status);
+    }
+
+    public function test_admin_dropping_requires_matching_active_enrollment_and_valid_effective_date(): void
+    {
+        [$e] = $this->adminDropFixture();
+        $payload = $this->adminDropPayload($e);
+        $other = $this->enrollment();
+        $url = "/api/admin/students/$e->student_id/dropping-requests";
+        $this->postJson($url, [...$payload, 'enrollmentId' => $other->id])->assertNotFound();
+        $this->getJson("/api/admin/students/$e->student_id/dropping-assessment?enrollmentId=$other->id&effectiveDate=2026-09-24")->assertNotFound();
+        foreach (['2026-09-25', '2026-06-01'] as $date) {
+            $this->postJson($url, [...$payload, 'effectiveDate' => $date])->assertUnprocessable();
+            $this->getJson("/api/admin/students/$e->student_id/dropping-assessment?enrollmentId=$e->id&effectiveDate=$date")->assertUnprocessable();
+        }
+        foreach (['pending', 'dropped', 'withdrawn', 'completed'] as $status) {
+            $e->update(['status' => $status]);
+            $this->postJson($url, $payload)->assertUnprocessable();
+        }
+        DB::table('enrollments')->where('id', $e->id)->update(['status' => 'enrolled']);
+        $e->schoolYear->update(['is_active' => false]);
+        $this->postJson($url, $payload)->assertUnprocessable();
+        $this->getJson("/api/admin/students/$e->student_id/dropping-assessment?enrollmentId=$e->id&effectiveDate=2026-09-24")->assertUnprocessable();
+        $this->assertDatabaseCount('dropping_requests', 0);
+    }
+
+    public function test_admin_direct_drop_does_not_overwrite_an_open_student_request(): void
+    {
+        [$e] = $this->adminDropFixture();
+        $admin = auth()->user();
+        $payload = $this->adminDropPayload($e);
+        $id = $this->draft($e);
+        $this->packet($id);
+        $this->actingAs($admin);
+        $this->postJson("/api/admin/students/$e->student_id/dropping-requests", $payload)->assertConflict();
+        $this->getJson("/api/admin/students/$e->student_id/dropping-assessment?enrollmentId=$e->id&effectiveDate=2026-09-24")->assertConflict();
+        $this->assertDatabaseCount('dropping_requests', 1);
+        $this->assertDatabaseCount('dropping_assessments', 0);
+        $this->assertSame('submitted', DroppingRequest::findOrFail($id)->status);
+        $this->assertSame('enrolled', $e->fresh()->status);
+        $this->getJson("/api/admin/students/$e->student_id/enrollments")->assertOk()->assertJsonPath('data.0.openDroppingRequestId', $id);
+    }
+
     public function test_starting_without_a_complete_submission_creates_no_draft(): void
     {
         Storage::fake('s3');

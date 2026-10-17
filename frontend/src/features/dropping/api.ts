@@ -8,11 +8,11 @@ export const STATUS_LABELS: Record<DropStatus, string> = {
 export interface DroppingRequest {
   droppingCategory: DroppingCategory | null; droppingAssessment: DroppingAssessment | null;
   id: number; packetVersion: number; reference: string; enrollmentId: number; studentId: number; status: DropStatus;
-  snapshot: { studentName: string; studentNumber: string; schoolYear: string; program: string; yearLevel: string };
+  snapshot: { studentName: string; studentNumber: string; schoolYear: string; program: string; yearLevel: string; initiatedBy?: 'admin' };
   financialSummary: { verifiedPayments: number; balance: number; creditApplied: number; creditIssued: number; availableCredit: number } | null;
   reason: string | null; balance: number; billId: number | null;
   submissions: { version: number; submittedAt: string; reason: string; files: { id: string; name: string; mime: string; size: number }[] }[];
-  events: { action: string; actorId: number; actorName: string; at: string; remarks: string | null }[];
+  events: { action: string; actorId: number; actorName: string; actorRole?: string; at: string; remarks: string | null }[];
   effectiveDate: string | null; confirmedAt: string | null; finalRemarks: string | null; createdAt: string;
 }
 export async function fetchDroppingRequests(staff: boolean) {
@@ -23,6 +23,15 @@ export async function fetchDroppingRequest(id: number) {
 }
 export async function createDroppingRequest(payload: FormData) {
   return (await api.post<{ data: DroppingRequest }>('/me/dropping-requests', payload)).data.data;
+}
+export type AdminDroppingInput = {
+  enrollmentId: number; reason: string; effectiveDate: string; assessmentFingerprint: string; confirmed: true;
+};
+export async function fetchAdminDroppingAssessment(studentId: number, enrollmentId: number, effectiveDate: string) {
+  return (await api.get<{ data: { assessment: DroppingAssessment; billId: number | null } }>(`/admin/students/${studentId}/dropping-assessment`, { params: { enrollmentId, effectiveDate } })).data.data;
+}
+export async function createAdminDroppingRequest(studentId: number, payload: AdminDroppingInput) {
+  return (await api.post<{ data: DroppingRequest }>(`/admin/students/${studentId}/dropping-requests`, payload)).data.data;
 }
 export async function droppingAction(id: number, action: string, staff: boolean, payload: Record<string, unknown> | FormData = {}) {
   return (await api.post<{ data: DroppingRequest }>(`/${staff ? 'admin' : 'me'}/dropping-requests/${id}/${action}`, payload)).data.data;

@@ -1,7 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon, ArrowUpRightIcon, ChevronRightIcon, CircleCheckIcon, Clock3Icon, FileMinusIcon, FileTextIcon, FolderOpenIcon, MoreHorizontalIcon, RefreshCwIcon, Undo2Icon, UploadCloudIcon, XIcon } from 'lucide-react';
+import { ArrowLeftIcon, ArrowUpRightIcon, ChevronRightIcon, CircleCheckIcon, Clock3Icon, FileMinusIcon, MoreHorizontalIcon, RefreshCwIcon, Undo2Icon, XIcon } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
 import { DocumentPreviewDialog } from '@/components/document-viewer-dialog';
@@ -14,8 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,7 +23,6 @@ import { YEAR_LEVEL_OPTIONS, labelFor } from '@/features/applications/types';
 import { fetchMyEnrollments } from '@/features/students/api';
 import { useProgramLabel } from '@/features/programs/hooks';
 import { getErrorMessage } from '@/lib/get-error-message';
-import { formatBytes } from '@/lib/format-bytes';
 import { cn } from '@/lib/utils';
 import { STATUS_LABELS, createDroppingRequest, downloadDroppingFile, droppingAction, droppingBlob, fetchDroppingRequest, fetchDroppingRequests, type DroppingRequest, type DropStatus } from './api';
 import { SubmittedDocument } from './submitted-document';
@@ -35,7 +33,7 @@ import { NEW_STUDENT_DROPPING_PATH, studentDroppingPath } from './paths';
 import { RequestAssessment } from '@/features/dropping-finance/assessment-summary';
 import { fetchAssessment, philippinesToday } from '@/features/dropping-finance/api';
 
-const PdfPreview = lazy(() => import('@/components/pdf-preview'));
+import { DroppingSubmissionForm } from './dropping-submission-form';
 
 const openStatuses: DropStatus[] = ['draft', 'submitted', 'needs_correction'];
 const dateLabel = (value: string) => new Date(value.length === 10 ? `${value}T00:00:00+08:00` : value).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' });
@@ -114,7 +112,7 @@ function NewDroppingRequest({ onClose }: { onClose: () => void }) {
         {loading ? <p role="status" className="text-sm text-muted-foreground">Opening request form…</p>
           : failed ? <div className="space-y-3"><p className="font-medium">Unable to open the request form</p><ErrorText error={enrollments.error || requests.error} /><Button variant="outline" onClick={() => { void enrollments.refetch(); void requests.refetch(); }}>Try again</Button></div>
           : !current ? <div className="space-y-3"><p className="font-medium">No active enrollment to drop</p><Button asChild variant="outline"><Link to={overview}>Back to Overview</Link></Button></div>
-          : <UploadDocuments busy={create.isPending} error={create.error} onCancel={onClose} onSubmit={data => {
+          : <DroppingSubmissionForm busy={create.isPending} error={create.error} onCancel={onClose} onSubmit={data => {
           if (submitting.current) return;
           submitting.current = true;
           data.append('enrollmentId', String(current.id));
@@ -240,7 +238,7 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
   const activityList = <ol>{[...r.events].reverse().map((event, index, events) => <li key={index} className="relative flex gap-3 pb-6 last:pb-0">
             {index < events.length - 1 && <span className="absolute bottom-0 left-2 top-5 w-px bg-border" aria-hidden="true" />}
             <span className="relative mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border bg-background" aria-hidden="true"><span className="size-1 rounded-full bg-muted-foreground" /></span>
-            <div className="min-w-0 flex-1 space-y-1"><div className={expandedDetails ? 'flex flex-col gap-1' : 'flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'}><p className="text-sm font-medium">{event.action === 'submitted' ? 'Documents submitted' : event.action === 'created' ? 'Request created' : event.action in STATUS_LABELS ? STATUS_LABELS[event.action as DropStatus] : event.action.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase())}</p><time dateTime={event.at} className="text-xs tabular-nums text-muted-foreground">{dateLabel(event.at)} · {new Date(event.at).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })}</time></div><p className="break-words text-xs text-muted-foreground">{event.actorName}</p>{event.remarks && event.action !== 'submitted' && <p className="pt-1 text-sm leading-relaxed whitespace-pre-wrap break-words text-muted-foreground">{event.remarks.replace(/Packet version \d+ submitted\./g, 'Documents submitted.').replace(/\bpacket\b/gi, 'documents')}</p>}</div>
+            <div className="min-w-0 flex-1 space-y-1"><div className={expandedDetails ? 'flex flex-col gap-1' : 'flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'}><p className="text-sm font-medium">{event.action === 'submitted' ? 'Documents submitted' : event.action === 'created' ? 'Request created' : event.action in STATUS_LABELS ? STATUS_LABELS[event.action as DropStatus] : event.action.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase())}</p><time dateTime={event.at} className="text-xs tabular-nums text-muted-foreground">{dateLabel(event.at)} · {new Date(event.at).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })}</time></div><p className="break-words text-xs text-muted-foreground">{event.actorName}{event.actorRole === 'admin' && ' · Administrator'}</p>{event.remarks && event.action !== 'submitted' && <p className="pt-1 text-sm leading-relaxed whitespace-pre-wrap break-words text-muted-foreground">{event.remarks.replace(/Packet version \d+ submitted\./g, 'Documents submitted.').replace(/\bpacket\b/gi, 'documents')}</p>}</div>
           </li>)}</ol>;
   const requestHistory = r.events.length > 0 && <details className={studentApproved ? 'group min-w-0 border-t px-5 py-2 open:pb-5 sm:px-6' : 'group min-w-0 border-b pb-4'} aria-label="Request history">
           <summary className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm text-sm font-medium transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden ${studentApproved ? '' : 'text-muted-foreground'}`}>{!studentApproved && <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />}{studentApproved ? 'Request history' : <>Activity <span className="font-normal">({r.events.length})</span><span className="ml-auto text-xs font-normal">Created {dateLabel(r.createdAt)}</span></>}{studentApproved && <ChevronRightIcon className="ml-auto size-4 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />}</summary>
@@ -289,13 +287,13 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
     {reviewable && !staff && <section role="status" aria-labelledby="request-status-title" className={cn(bannerStyles({ tone: 'info' }), 'flex items-start gap-3')}><Clock3Icon className="mt-0.5 size-5 shrink-0" aria-hidden="true" /><div className="space-y-1"><h2 id="request-status-title" className="font-semibold">Waiting for school approval</h2><p className="leading-relaxed">Your enrollment stays active. We’ll notify you when there’s an update.</p></div></section>}
     <div className={studentApproved ? 'overflow-hidden rounded-xl border bg-card' : 'grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-stretch'}>
       <RequestDetails className={studentApproved ? 'group min-w-0 px-5 py-2 open:space-y-4 open:pb-5 sm:px-6' : 'min-w-0 overflow-hidden rounded-xl border bg-card'} aria-label={expandedDetails ? undefined : 'Request details'} aria-labelledby={expandedDetails ? 'request-details-title' : undefined}>
-        {studentApproved && <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-sm text-sm font-medium transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">Submitted request<ChevronRightIcon className="size-4 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" /></summary>}
+        {studentApproved && <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-sm text-sm font-medium transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">{r.snapshot.initiatedBy === 'admin' ? 'Dropping details' : 'Submitted request'}<ChevronRightIcon className="size-4 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" /></summary>}
         {expandedDetails && <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-4"><h2 id="request-details-title" className="text-sm font-semibold">Request details</h2>{latestSubmission && <time dateTime={latestSubmission.submittedAt} className="text-xs text-muted-foreground">Submitted on {dateLabel(latestSubmission.submittedAt)}</time>}</header>}
         <div className={cn('space-y-5', expandedDetails && 'p-5')}>
-        {latestSubmission ? documentList(latestSubmission) : <p className="text-sm leading-relaxed text-muted-foreground">Documents have not been submitted yet.{staff ? ' The student can upload their signed form and supporting documents.' : ' Complete the form below to send your request for review.'}</p>}
+        {latestSubmission ? documentList(latestSubmission) : r.snapshot.initiatedBy === 'admin' ? <div className="space-y-3"><p className="text-xs text-muted-foreground">Initiated by administrator · No signed form required</p><div className="space-y-2"><h3 className="text-sm font-medium">Reason for dropping</h3><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{r.reason}</p></div></div> : <p className="text-sm leading-relaxed text-muted-foreground">Documents have not been submitted yet.{!staff && ' Complete the form below to send your request for review.'}</p>}
         {r.status !== 'confirmed' && <ErrorText error={fileError} />}
         {r.submissions.length > 1 && <details className="border-t pt-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Previous submissions ({r.submissions.length - 1})</summary><div className="mt-5 space-y-6">{[...r.submissions].reverse().slice(1).map(submission => <section key={submission.version} className="space-y-4 border-t pt-5"><p className="text-xs text-muted-foreground">Submitted {dateLabel(submission.submittedAt)}</p>{documentList(submission)}</section>)}</div></details>}
-        {editable && <UploadDocuments key={r.submissions.length} request={r} busy={mutation.isPending} onSubmit={payload => mutation.mutate({ action: 'submit', payload })}
+        {editable && <DroppingSubmissionForm key={r.submissions.length} request={r} busy={mutation.isPending} onSubmit={payload => mutation.mutate({ action: 'submit', payload })}
           onCancel={cancelRequest} />}
         </div>
         {!staff && r.status === 'submitted' && <footer className="flex justify-end border-t bg-muted/20 px-5 py-3"><Button variant="outline" className="text-muted-foreground" disabled={mutation.isPending} onClick={cancelRequest}>Cancel request</Button></footer>}
@@ -323,71 +321,6 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
   </div></Sheet>;
 }
 
-function UploadDocuments({ request, busy, onSubmit, onCancel, error: submissionError }: { request?: DroppingRequest; busy: boolean; onSubmit: (payload: FormData) => void; onCancel: () => void; error?: unknown }) {
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [reason, setReason] = useState(request?.reason ?? '');
-  const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewIndex, setPreviewIndex] = useState(0);
-  const [checked, setChecked] = useState(false);
-  const [error, setError] = useState('');
-  const files = previews.map(p => p.file);
-  const selectedPreview = previews[previewIndex];
-  useEffect(() => () => previews.forEach(p => URL.revokeObjectURL(p.url)), [previews]);
-  function selectFiles(next: File[]) {
-    setChecked(false); setError(''); setPreviewOpen(false); setPreviewIndex(0);
-    if (next.length > 12 || next.some(f => f.size > 2 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png'].includes(f.type)) || next.reduce((s, f) => s + f.size, 0) > 7 * 1024 * 1024) {
-      setPreviews([]); setError('Choose up to 12 PDF, JPG, or PNG files, each up to 2 MB and 7 MB total.'); return;
-    }
-    setPreviews(next.map(file => ({ file, url: URL.createObjectURL(file) })));
-  }
-  return <form className={request ? "space-y-5 border-t pt-5" : "space-y-5"} onSubmit={event => { event.preventDefault(); if (busy || !checked || !files.length || !reason.trim()) return; const data = new FormData(); data.append('reason', reason); files.forEach(file => data.append('files[]', file)); onSubmit(data); }}>
-    {request && <h2 className="text-base font-semibold">{request.status === 'needs_correction' ? 'Update documents' : 'Documents'}</h2>}
-    <div className="space-y-2"><Label htmlFor="drop-reason">Reason for dropping</Label><Textarea id="drop-reason" required maxLength={2000} value={reason} disabled={busy} onChange={e => setReason(e.target.value)} /></div>
-    <div className="space-y-2">
-      <Label id="drop-files-label" htmlFor="drop-files">Signed form and attachments</Label>
-      <div role="group" aria-labelledby="drop-files-label" className={cn('flex flex-wrap items-center gap-3 rounded-lg border p-3 transition-colors', files.length ? 'border-primary/40 bg-primary/5' : 'border-dashed')}>
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <span className={cn('flex size-9 shrink-0 items-center justify-center rounded-md', files.length ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
-            <FileTextIcon className="size-4.5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0" role="status">
-            <p className="truncate text-sm font-medium" title={files.length === 1 ? files[0].name : undefined}>{files.length === 1 ? files[0].name : files.length ? `${files.length} files selected` : 'Upload documents'}</p>
-            <p className="text-muted-foreground text-xs">{files.length ? formatBytes(files.reduce((total, file) => total + file.size, 0)) : 'PDF, JPG or PNG'}</p>
-          </div>
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-        {selectedPreview && <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogTrigger asChild><Button type="button" variant="outline" size="sm" className="h-9 shrink-0" aria-label={files.length === 1 ? `Open ${selectedPreview.file.name}` : `Open ${files.length} selected documents`}><FolderOpenIcon aria-hidden="true" />Open</Button></DialogTrigger>
-          <DialogContent aria-describedby={undefined} className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-4xl [&>[data-slot=dialog-close]]:size-11">
-            <DialogHeader><DialogTitle className="break-all pr-10">{selectedPreview.file.name}</DialogTitle></DialogHeader>
-            {previews.length > 1 && <Select value={String(previewIndex)} onValueChange={value => setPreviewIndex(Number(value))}>
-              <SelectTrigger className="w-full min-w-0 [&_[data-slot=select-value]]:truncate" aria-label="Document to open"><SelectValue /></SelectTrigger>
-              <SelectContent>{previews.map((preview, index) => <SelectItem key={index} value={String(index)} className="break-all">{preview.file.name}</SelectItem>)}</SelectContent>
-            </Select>}
-            {selectedPreview.file.type === 'application/pdf'
-              ? <Suspense fallback={<p role="status">Loading PDF…</p>}><PdfPreview url={selectedPreview.url} name={selectedPreview.file.name} /></Suspense>
-              : <img src={selectedPreview.url} alt={selectedPreview.file.name} className="max-h-[65dvh] w-full object-contain" />}
-          </DialogContent>
-        </Dialog>}
-          <Button type="button" variant={files.length ? 'ghost' : 'outline'} size={files.length ? 'icon-sm' : 'sm'} className={cn('h-9 shrink-0', files.length && 'w-9 text-muted-foreground hover:text-destructive')} disabled={busy} aria-label={files.length ? 'Remove selected documents' : 'Upload signed form and attachments'} aria-describedby="drop-files-help" onClick={() => files.length ? selectFiles([]) : fileInput.current?.click()}>
-            {files.length ? <XIcon aria-hidden="true" /> : <><UploadCloudIcon aria-hidden="true" />Upload</>}
-          </Button>
-        </div>
-        <input ref={fileInput} id="drop-files" className="hidden" type="file" accept="application/pdf,image/jpeg,image/png" multiple disabled={busy} onChange={event => {
-          const next = Array.from(event.target.files ?? []);
-          if (next.length) selectFiles(next);
-          event.target.value = '';
-        }} />
-      </div>
-      <p id="drop-files-help" className="text-muted-foreground text-xs">Up to 12 files · 2 MB each · 7 MB total.</p>
-    </div>
-    {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
-    <label className="flex items-start gap-3 text-sm"><Checkbox checked={checked} onCheckedChange={value => setChecked(value === true)} disabled={busy || files.length === 0} className="mt-0.5" /><span>I reviewed my complete, signed documents.</span></label>
-    <ErrorText error={submissionError} />
-    <div className="space-y-3 border-t pt-4"><p className="text-xs text-muted-foreground">Your enrollment stays active until approval.</p><div className="flex flex-wrap items-center justify-end gap-3"><Button type="button" variant="ghost" className="text-muted-foreground" disabled={busy} onClick={onCancel}>{request ? 'Cancel request' : 'Cancel'}</Button><Button type="submit" disabled={busy || !checked || files.length === 0 || !reason.trim()}>{busy ? 'Uploading documents…' : 'Submit request'}</Button></div></div>
-  </form>;
-}
 
 function FinalDecision({ requestId, busy, setupBlocked, checking, onDecision }: { requestId: number; busy: boolean; setupBlocked: boolean; checking: boolean; onDecision: (action: string, payload: Record<string, unknown>) => Promise<unknown> }) {
   const [decision, setDecision] = useState('');

@@ -36,6 +36,7 @@ class EnrollmentResource extends JsonResource
             'status' => $this->status,
             'enrolledAt' => $this->enrolled_at?->toIso8601String(),
             'isCurrent' => (bool) $this->schoolYear?->is_active,
+            'openDroppingRequestId' => $this->whenLoaded('openDroppingRequest', fn () => $this->openDroppingRequest?->id),
             // Only present on the global list, where these relations are loaded.
             'hasBill' => $this->relationLoaded('bill') ? $this->bill !== null : null,
             // Fee total for this enrollment's school year + level — the cashier's

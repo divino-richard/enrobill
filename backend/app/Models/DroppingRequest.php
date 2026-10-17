@@ -33,7 +33,7 @@ class DroppingRequest extends Model
 
     public function record(string $action, User $actor, ?string $remarks = null): void
     {
-        $this->events = [...$this->events, ['action' => $action, 'actorId' => $actor->id, 'actorName' => $actor->name, 'at' => now()->toIso8601String(), 'remarks' => $remarks]];
+        $this->events = [...$this->events, ['action' => $action, 'actorId' => $actor->id, 'actorName' => $actor->name, 'actorRole' => $actor->role->value, 'at' => now()->toIso8601String(), 'remarks' => $remarks]];
         $this->save();
     }
 }

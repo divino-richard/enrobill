@@ -52,16 +52,78 @@ class DroppingRequestController extends Controller
 
     public function store(Request $request)
     {
+        return $this->createForStudent($request, $request->user()->student?->id ?? 0);
+    }
+
+    public function storeForStudent(Request $request, Student $student)
+    {
+        $input = $request->validate([
+            'enrollmentId' => ['required', 'integer'],
+            'reason' => ['required', 'string', 'max:2000'],
+            'effectiveDate' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Manila')->toDateString()],
+            'assessmentFingerprint' => ['required', 'string', 'max:128'],
+            'confirmed' => ['required', 'accepted'],
+        ]);
+
+        return DB::transaction(function () use ($request, $student, $input) {
+            Student::lockForUpdate()->findOrFail($student->id);
+            $enrollment = Enrollment::where('student_id', $student->id)->lockForUpdate()->findOrFail($input['enrollmentId']);
+            $enrollment->bill()->lockForUpdate()->first();
+            $approved = DroppingRequest::where('enrollment_id', $enrollment->id)->where('status', 'confirmed')->first();
+            // A retry after a lost response must not duplicate approval or financial entries.
+            if ($approved && ($approved->snapshot['initiatedBy'] ?? null) === 'admin') {
+                return new DroppingRequestResource($approved);
+            }
+            $this->assertAdminDroppingEligible($enrollment);
+            $dropping = DroppingRequest::create([
+                'student_id' => $student->id, 'enrollment_id' => $enrollment->id, 'active_enrollment_id' => $enrollment->id,
+                'reason' => $input['reason'], 'status' => 'submitted', 'submissions' => [], 'events' => [],
+                'snapshot' => ['studentName' => trim($student->first_name.' '.$student->last_name), 'studentNumber' => $student->student_number,
+                    'schoolYear' => $enrollment->schoolYear->school_year, 'program' => $enrollment->track,
+                    'yearLevel' => $enrollment->year_level, 'initiatedBy' => 'admin'],
+            ]);
+            $this->approve($request, $dropping, $enrollment, $input);
+
+            return new DroppingRequestResource($dropping->refresh());
+        }, 3);
+    }
+
+    public function assessmentForStudent(Request $request, Student $student)
+    {
+        $input = $request->validate([
+            'enrollmentId' => ['required', 'integer'],
+            'effectiveDate' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Manila')->toDateString()],
+        ]);
+        $enrollment = Enrollment::where('student_id', $student->id)->findOrFail($input['enrollmentId']);
+        $this->assertAdminDroppingEligible($enrollment);
+        $this->assertEffectiveDate($enrollment, $input['effectiveDate']);
+        // Preview an unsaved request: opening or cancelling the form creates no record.
+        $dropping = new DroppingRequest(['enrollment_id' => $enrollment->id, 'status' => 'submitted']);
+
+        return response()->json(['data' => [
+            'assessment' => app(DroppingFinance::class)->preview($dropping, $input['effectiveDate']),
+            'billId' => $enrollment->bill?->id,
+        ]]);
+    }
+
+    private function assertAdminDroppingEligible(Enrollment $enrollment): void
+    {
+        abort_unless($enrollment->status === 'enrolled' && $enrollment->schoolYear->is_active, 422, 'An active, enrolled school year is required.');
+        abort_if(DroppingRequest::where('active_enrollment_id', $enrollment->id)->exists(), 409, 'This enrollment already has an open dropping request. Refresh the student record and review that request.');
+    }
+
+    private function createForStudent(Request $request, int $studentId)
+    {
         $input = $request->validate(['enrollmentId' => ['required', 'integer']]);
         $submission = $this->validateSubmission($request);
         $stored = [];
 
         try {
             // File uploads are not retryable transaction side effects. A failed attempt
-            // rolls back the request and removes its uploads before the student retries.
-            return DB::transaction(function () use ($request, $input, $submission, &$stored) {
-                Student::lockForUpdate()->findOrFail($request->user()->student?->id ?? 0);
-                $enrollment = Enrollment::where('student_id', $request->user()->student?->id ?? 0)->lockForUpdate()->findOrFail($input['enrollmentId']);
+            // rolls back the request and removes its uploads before a retry.
+            return DB::transaction(function () use ($request, $studentId, $input, $submission, &$stored) {
+                Student::lockForUpdate()->findOrFail($studentId);
+                $enrollment = Enrollment::where('student_id', $studentId)->lockForUpdate()->findOrFail($input['enrollmentId']);
                 abort_unless($enrollment->status === 'enrolled' && $enrollment->schoolYear->is_active, 422, 'An active, enrolled school year is required.');
                 $existing = DroppingRequest::where('active_enrollment_id', $enrollment->id)->first();
                 if ($existing) {
@@ -174,24 +236,34 @@ class DroppingRequestController extends Controller
                 return;
             }
             $this->reviewable($dropping, $request);
-            abort_unless($enrollment->status === 'enrolled', 422, 'The enrollment is no longer enrolled.');
-            $firstDate = $enrollment->enrolled_at?->timezone('Asia/Manila')->toDateString() ?? $enrollment->schoolYear->start_date?->toDateString();
-            abort_if($firstDate && $input['effectiveDate'] < $firstDate, 422, 'The effective date cannot precede enrollment.');
-            $request->validate(['assessmentFingerprint' => ['required', 'string', 'max:128']]);
-            SchoolYear::lockForUpdate()->findOrFail($enrollment->school_year_id);
-            $finance = app(DroppingFinance::class);
-            $preview = $finance->preview($dropping, $input['effectiveDate']);
-            abort_unless($preview['ready'], 422, implode(' ', $preview['issues']));
-            abort_unless(hash_equals($preview['fingerprint'], $request->string('assessmentFingerprint')->toString()), 409,
-                'The charge has changed. Review the updated calculation before approving.');
-            $finance->finalize($dropping, $input['effectiveDate'], $request->user()->id);
-            $enrollment->update(['status' => 'dropped']);
-            $enrollment->student->syncStatusFromLatestEnrollment();
-            $dropping->fill(['status' => 'confirmed', 'active_enrollment_id' => null, 'confirmed_by' => $request->user()->id,
-                'confirmed_at' => now(), 'effective_date' => $input['effectiveDate'], 'final_remarks' => ($input['remarks'] ?? null)]);
-            $dropping->record('confirmed', $request->user(), ($input['remarks'] ?? null));
-            $this->notify($dropping, 'Your dropping request is approved effective '.$input['effectiveDate'].'. Any remaining dropping balance is payable upon re-enrollment. No immediate payment or clearance is required.');
+            $this->approve($request, $dropping, $enrollment, $input);
         });
+    }
+
+    private function assertEffectiveDate(Enrollment $enrollment, string $date): void
+    {
+        $firstDate = $enrollment->enrolled_at?->timezone('Asia/Manila')->toDateString() ?? $enrollment->schoolYear->start_date?->toDateString();
+        abort_if($firstDate && $date < $firstDate, 422, 'The effective date cannot precede enrollment.');
+    }
+
+    private function approve(Request $request, DroppingRequest $dropping, Enrollment $enrollment, array $input): void
+    {
+        abort_unless($enrollment->status === 'enrolled', 422, 'The enrollment is no longer enrolled.');
+        $this->assertEffectiveDate($enrollment, $input['effectiveDate']);
+        $request->validate(['assessmentFingerprint' => ['required', 'string', 'max:128']]);
+        SchoolYear::lockForUpdate()->findOrFail($enrollment->school_year_id);
+        $finance = app(DroppingFinance::class);
+        $preview = $finance->preview($dropping, $input['effectiveDate']);
+        abort_unless($preview['ready'], 422, implode(' ', $preview['issues']));
+        abort_unless(hash_equals($preview['fingerprint'], $request->string('assessmentFingerprint')->toString()), 409,
+            'The charge has changed. Review the updated calculation before approving.');
+        $finance->finalize($dropping, $input['effectiveDate'], $request->user()->id);
+        $enrollment->update(['status' => 'dropped']);
+        $enrollment->student->syncStatusFromLatestEnrollment();
+        $dropping->fill(['status' => 'confirmed', 'active_enrollment_id' => null, 'confirmed_by' => $request->user()->id,
+            'confirmed_at' => now(), 'effective_date' => $input['effectiveDate'], 'final_remarks' => ($input['remarks'] ?? null)]);
+        $dropping->record('confirmed', $request->user(), ($input['remarks'] ?? null));
+        $this->notify($dropping, 'Your dropping request is approved effective '.$input['effectiveDate'].'. Any remaining dropping balance is payable upon re-enrollment. No immediate payment or clearance is required.');
     }
 
     public function file(Request $request, DroppingRequest $dropping, string $fileId)
@@ -221,7 +293,7 @@ class DroppingRequestController extends Controller
     {
         abort_unless($dropping->status === 'submitted', 422, 'This request is not awaiting review.');
         $request->validate(['version' => ['required', 'integer', 'min:1']]);
-        abort_unless($request->integer('version') === count($dropping->submissions), 409, 'The student uploaded new documents. Refresh this page before making a decision.');
+        abort_unless($request->integer('version') === count($dropping->submissions), 409, 'New documents were uploaded. Refresh this page before making a decision.');
     }
 
     private function authorizeOwner(Request $request, DroppingRequest $dropping): void
