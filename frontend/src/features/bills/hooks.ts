@@ -18,7 +18,6 @@ import {
   submitMyPayment,
   verifyPayment,
   voidBill,
-  voidPayment,
   type BillListParams,
   type PaymentInput,
   type SubmitPaymentInput,
@@ -116,13 +115,6 @@ export function useRemoveAdjustment(billId: number) {
 export function useRecordPayment(billId: number) {
   return useBillMutation(
     (input: PaymentInput) => recordPayment(billId, input),
-    billId,
-  );
-}
-
-export function useVoidPayment(billId: number) {
-  return useBillMutation(
-    (paymentId: number) => voidPayment(billId, paymentId),
     billId,
   );
 }

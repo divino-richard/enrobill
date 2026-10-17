@@ -3,7 +3,7 @@ import { CompactProgramLabel } from "@/components/compact-program-label";
 import { PageHeader } from "@/components/page-header";
 import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   getCoreRowModel,
   useReactTable,
@@ -12,13 +12,12 @@ import {
   type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
-import { FunnelXIcon, ReceiptTextIcon, SearchIcon } from "lucide-react";
+import { ChevronRightIcon, FunnelXIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { SortHeader } from "@/components/data-table-sort-header";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -26,15 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RowActions } from "@/components/row-actions";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
-import { formatDate } from "@/features/applications/utils";
 import { useProgramLabel } from "@/features/programs/hooks";
 import { useTerms } from "@/features/terms/hooks";
 import { useBills } from "@/features/bills/hooks";
 import {
+  PAYMENT_STATUS_META,
   type Bill,
   type BillStatus,
   type BillTrackingState,
@@ -51,10 +49,10 @@ const STATUS_PILLS: { value: StatusFilter; label: string }[] = [
 ];
 
 const TRACKING_FILTERS: { value: TrackingFilter; label: string }[] = [
-  { value: "all", label: "All payment states" },
-  { value: "with_balance", label: "Balance remaining" },
-  { value: "due_now", label: "Due now / overdue" },
-  { value: "pending_payment", label: "Pending payment" },
+  { value: "all", label: "All bills" },
+  { value: "with_balance", label: "With balance" },
+  { value: "due_now", label: "Due now" },
+  { value: "pending_payment", label: "To verify" },
 ];
 
 function BillingPage() {
@@ -68,9 +66,7 @@ function BillingPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [schoolYearId, setSchoolYearId] = useState<string>("all");
   const [trackingState, setTrackingState] = useState<TrackingFilter>("all");
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "createdAt", desc: true },
-  ]);
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 30,
@@ -84,8 +80,8 @@ function BillingPage() {
   const query = useBills({
     page: pagination.pageIndex + 1,
     perPage: pagination.pageSize,
-    sort: sortState?.id,
-    dir: sortState?.desc ? "desc" : "asc",
+    sort: sortState?.id ?? "createdAt",
+    dir: !sortState || sortState.desc ? "desc" : "asc",
     status: status === "all" ? undefined : status,
     schoolYearId: schoolYearId === "all" ? undefined : Number(schoolYearId),
     trackingState: trackingState === "all" ? undefined : trackingState,
@@ -150,22 +146,6 @@ function BillingPage() {
         ),
       },
       {
-        id: "netTotal",
-        header: "Net total",
-        enableSorting: false,
-        meta: { className: "text-right" },
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap">
-            {formatPeso(row.original.netTotal)}
-            {row.original.discountTotal > 0 && (
-              <span className="text-muted-foreground ml-1 text-xs">
-                (−{formatPeso(row.original.discountTotal)})
-              </span>
-            )}
-          </span>
-        ),
-      },
-      {
         id: "amountPaid",
         header: "Paid",
         enableSorting: false,
@@ -204,21 +184,22 @@ function BillingPage() {
         accessorKey: "status",
         header: ({ column }) => <SortHeader column={column} title="Status" />,
         cell: ({ row }) => (
-          <Badge
-            variant="outline"
-            className={cn(billStatusMeta(row.original).className)}
-          >
-            {billStatusMeta(row.original).label}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: "createdAt",
-        header: ({ column }) => <SortHeader column={column} title="Generated" />,
-        cell: ({ row }) => (
-          <span className="text-muted-foreground whitespace-nowrap">
-            {formatDate(row.original.createdAt)}
-          </span>
+          <div className="flex flex-wrap items-center gap-2 py-1.5">
+            <Badge
+              variant="outline"
+              className={cn(billStatusMeta(row.original).className)}
+            >
+              {billStatusMeta(row.original).label}
+            </Badge>
+            {(row.original.pendingPaymentCount ?? 0) > 0 && (
+              <Badge
+                variant="outline"
+                className={PAYMENT_STATUS_META.pending.className}
+              >
+                {row.original.pendingPaymentCount} pending {row.original.pendingPaymentCount === 1 ? "payment" : "payments"}
+              </Badge>
+            )}
+          </div>
         ),
       },
       {
@@ -227,18 +208,18 @@ function BillingPage() {
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
-          <RowActions>
-            <DropdownMenuItem
-              onClick={() => navigate(`/admin/billing/${row.original.id}`)}
+          <Button variant="ghost" size="icon-sm" asChild>
+            <Link
+              to={`/admin/billing/${row.original.id}`}
+              aria-label={`Manage bill for ${row.original.student?.name ?? "student"}`}
             >
-              <ReceiptTextIcon />
-              Manage bill
-            </DropdownMenuItem>
-          </RowActions>
+              <ChevronRightIcon aria-hidden="true" />
+            </Link>
+          </Button>
         ),
       },
     ],
-    [navigate, programLabel],
+    [programLabel],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -294,7 +275,7 @@ function BillingPage() {
               value={status}
               onValueChange={(value) => setStatus(value as StatusFilter)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-label="Bill status">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -307,7 +288,7 @@ function BillingPage() {
             </Select>
 
             <Select value={schoolYearId} onValueChange={setSchoolYearId}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-label="School year">
                 <SelectValue placeholder="All school years" />
               </SelectTrigger>
               <SelectContent>
@@ -325,8 +306,8 @@ function BillingPage() {
               value={trackingState}
               onValueChange={(value) => setTrackingState(value as TrackingFilter)}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All payment states" />
+              <SelectTrigger className="w-full" aria-label="Payment filter">
+                <SelectValue placeholder="All bills" />
               </SelectTrigger>
               <SelectContent>
                 {TRACKING_FILTERS.map((option) => (
@@ -353,6 +334,7 @@ function BillingPage() {
           <DataTable
             table={table}
             isLoading={query.isLoading}
+            onRowClick={(bill) => navigate(`/admin/billing/${bill.id}`)}
             emptyMessage={
               hasFilters
                 ? "No bills match your filters."

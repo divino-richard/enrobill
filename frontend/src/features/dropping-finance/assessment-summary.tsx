@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowUpRightIcon, CircleAlertIcon, CircleCheckIcon, ChevronRightIcon, RefreshCwIcon } from 'lucide-react';
+import { ArrowUpRightIcon, CircleAlertIcon, ChevronRightIcon, RefreshCwIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatPeso } from '@/lib/money';
 import { getErrorMessage } from '@/lib/get-error-message';
 import type { DroppingRequest } from '@/features/dropping/api';
+import { assessmentChargeLines } from '@/features/bills/dropping-statement';
 import { fetchAssessment, PERIODS, philippinesToday, type AssessmentBlocker, type DroppingAssessment } from './api';
 
 const recovery: Record<AssessmentBlocker['category'], { title: string; description: string; action?: string }> = {
@@ -50,7 +52,68 @@ function AssessmentIssues({ assessment, billId, canConfigure }: { assessment: Dr
   </div>;
 }
 
-export function AssessmentSummary({ assessment, estimated = false, staff = false, current, billId, canConfigure = false, compact = false }: {
+export function AssessmentCalculationDetails({ assessment, estimated = false, current }: {
+  assessment: DroppingAssessment;
+  estimated?: boolean;
+  current?: DroppingRequest['financialSummary'];
+}) {
+  if (assessment.finalCharge === null) return <p className="text-sm text-muted-foreground">Calculation unavailable.</p>;
+
+  const rows = assessmentChargeLines(assessment);
+  const payments = current?.verifiedPayments ?? assessment.verifiedPayments;
+  const creditApplied = current?.creditApplied ?? assessment.creditApplied ?? 0;
+  const credit = current?.creditIssued ?? assessment.credit ?? 0;
+
+  return <div className="space-y-5">
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+      <div className="min-w-0 space-y-1"><dt className="text-xs text-muted-foreground">Fee policy</dt><dd className="font-medium">{assessment.category ? assessment.category === 'voucher_esc' ? 'Voucher / ESC' : 'Paying' : '—'}</dd></div>
+      <div className="min-w-0 space-y-1"><dt className="text-xs text-muted-foreground">Period</dt><dd className="font-medium">{PERIODS.find(period => period.key === assessment.period)?.label ?? '—'}</dd></div>
+      <div className="min-w-0 space-y-1"><dt className="text-xs text-muted-foreground">Effective date</dt><dd className="font-medium"><time dateTime={assessment.effectiveDate}>{new Date(`${assessment.effectiveDate}T00:00:00+08:00`).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })}</time></dd></div>
+      <div className="min-w-0 space-y-1"><dt className="text-xs text-muted-foreground">Original bill</dt><dd className="font-medium tabular-nums wrap-anywhere">{formatPeso(assessment.originalTotal)}</dd></div>
+    </dl>
+
+    {rows.length > 0 && <div>
+      <div aria-hidden="true" className="flex justify-between gap-4 border-b pb-2 text-xs text-muted-foreground"><span>Fee</span><span>Charge</span></div>
+      <dl aria-label="Fee breakdown" className="divide-y text-sm">
+        {rows.map((row, index) => <div key={index} className="flex items-baseline justify-between gap-4 py-3 last:pb-0">
+          <dt className="min-w-0 space-y-1"><p className="font-medium wrap-anywhere">{row.name}</p><p className="text-xs text-muted-foreground">{row.percent}% of {formatPeso(row.base)}</p></dt>
+          <dd className="shrink-0 tabular-nums">{formatPeso(row.amount)}</dd>
+        </div>)}
+      </dl>
+    </div>}
+
+    <dl className="space-y-3 border-t pt-4 text-sm">
+      <div className="flex items-baseline justify-between gap-4"><dt>{estimated ? 'Estimated charge' : 'Dropping charge'}</dt><dd className="shrink-0 font-medium tabular-nums">{formatPeso(assessment.finalCharge)}</dd></div>
+      <div className="flex items-baseline justify-between gap-4"><dt className="text-muted-foreground">Verified payments</dt><dd className="shrink-0 tabular-nums">{formatPeso(payments > 0 ? -payments : 0)}</dd></div>
+      {creditApplied > 0 && <div className="flex items-baseline justify-between gap-4"><dt className="text-muted-foreground">Applied credit</dt><dd className="shrink-0 tabular-nums">{formatPeso(-creditApplied)}</dd></div>}
+      <div className="flex items-baseline justify-between gap-4 border-t pt-4 font-semibold"><dt>Balance after dropping</dt><dd className="shrink-0 text-lg tabular-nums">{formatPeso(current?.balance ?? assessment.balance)}</dd></div>
+      {credit > 0 && <div className="flex items-baseline justify-between gap-4"><dt>Student credit</dt><dd className="shrink-0 tabular-nums">{formatPeso(credit)}</dd></div>}
+      {current && credit > 0 && <div className="flex items-baseline justify-between gap-4 text-muted-foreground"><dt>Available credit</dt><dd className="shrink-0 tabular-nums">{formatPeso(current.availableCredit)}</dd></div>}
+    </dl>
+  </div>;
+}
+
+export function AssessmentCalculationDialog({ assessment, estimated = false, current }: {
+  assessment: DroppingAssessment;
+  estimated?: boolean;
+  current?: DroppingRequest['financialSummary'];
+}) {
+  return <Dialog>
+    <DialogTrigger asChild>
+      <Button type="button" variant="ghost" size="sm" className="-mr-2 min-h-10 text-primary hover:text-primary">
+        Calculation details<ChevronRightIcon aria-hidden="true" />
+      </Button>
+    </DialogTrigger>
+    <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-xl p-5 sm:max-w-xl">
+      <DialogHeader className="pr-8 text-left">
+        <DialogTitle>Calculation details</DialogTitle>
+      </DialogHeader>
+      <AssessmentCalculationDetails assessment={assessment} estimated={estimated} current={current} />
+    </DialogContent>
+  </Dialog>;
+}
+
+export function AssessmentSummary({ assessment, estimated = false, staff = false, current, billId, canConfigure = false, compact = false, showDetails = true }: {
   assessment: DroppingAssessment;
   estimated?: boolean;
   staff?: boolean;
@@ -58,26 +121,28 @@ export function AssessmentSummary({ assessment, estimated = false, staff = false
   billId?: number | null;
   canConfigure?: boolean;
   compact?: boolean;
+  showDetails?: boolean;
 }) {
   if (assessment.legacy) return <p className="text-sm leading-relaxed text-muted-foreground">This request was approved before the dropping-charge policy. Its original bill remains unchanged.</p>;
   if (compact) {
     const ready = (assessment.ready || assessment.finalized) && assessment.finalCharge !== null;
     const dateOnly = assessment.blockingIssues?.length === 1 && assessment.blockingIssues[0].category === 'date';
-    return <div className="space-y-5">
-      {staff && assessment.category && <dl className="text-sm"><div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="text-muted-foreground">Fee policy</dt><dd className="text-right">{assessment.category === 'voucher_esc' ? 'Voucher / ESC' : 'Paying'}{!assessment.finalized && <span className="ml-1.5 text-xs text-muted-foreground">· Automatic</span>}</dd></div></dl>}
-      <dl className="space-y-4 border-t pt-5 text-sm">
+    return <div className="space-y-3">
+      {ready && showDetails && <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h3 className="text-sm font-semibold">Charges</h3>
+        <AssessmentCalculationDialog assessment={assessment} estimated={estimated} current={current} />
+      </div>}
+      <dl className="space-y-3 text-sm">
+        {staff && assessment.category && <div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="text-muted-foreground">Fee policy</dt><dd className="font-medium">{assessment.category === 'voucher_esc' ? 'Voucher / ESC' : 'Paying'}</dd></div>}
         <div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="text-muted-foreground">{estimated ? 'Estimated charge' : 'Dropping charge'}</dt><dd className="font-medium tabular-nums">{ready ? formatPeso(assessment.finalCharge!) : <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-200"><CircleAlertIcon className="size-3.5" aria-hidden="true" />{dateOnly ? 'Date needed' : staff ? 'Setup required' : 'Pending review'}</span>}</dd></div>
-        {ready && estimated && <div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="text-muted-foreground">Balance after dropping</dt><dd className="font-semibold tabular-nums">{formatPeso(current?.balance ?? assessment.balance)}</dd></div>}
+        {ready && estimated && <div className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-4"><dt className="font-medium">Balance after dropping</dt><dd className="text-lg font-semibold tabular-nums">{formatPeso(current?.balance ?? assessment.balance)}</dd></div>}
         {ready && (current?.creditIssued ?? assessment.credit ?? 0) > 0 && <div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="text-muted-foreground">Student credit</dt><dd className="font-medium tabular-nums">{formatPeso(current?.creditIssued ?? assessment.credit ?? 0)}</dd></div>}
       </dl>
-      {ready ? <details className="group/charge text-sm"><summary className="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-details-marker]:hidden"><ChevronRightIcon className="size-3.5 group-open/charge:rotate-90" aria-hidden="true" />Calculation details</summary><div className="border-t pt-4"><AssessmentSummary assessment={assessment} estimated={estimated} staff={staff} current={current} billId={billId} canConfigure={canConfigure} /></div></details> : <p role="status" className="text-xs leading-relaxed text-muted-foreground">{dateOnly ? 'Choose the effective date during approval.' : staff ? 'Financial setup is required before approval.' : 'The school will confirm the final charge.'}</p>}
+      {!ready && <p role="status" className="text-xs leading-relaxed text-muted-foreground">{dateOnly ? 'Choose the effective date during approval.' : staff ? 'Financial setup is required before approval.' : 'The school will confirm the final charge.'}</p>}
     </div>;
   }
   const policyNote = staff && !assessment.finalized && assessment.category ? <div className="space-y-1.5 border-b pb-4">
-    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-      <span className="font-medium">{assessment.category === 'voucher_esc' ? 'Voucher / ESC policy' : 'Paying policy'}</span>
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CircleCheckIcon className="size-3.5" aria-hidden="true" />Automatic</span>
-    </div>
+    <p className="text-sm font-medium">{assessment.category === 'voucher_esc' ? 'Voucher / ESC policy' : 'Paying policy'}</p>
     <p className="text-xs leading-relaxed text-muted-foreground">{assessment.category === 'voucher_esc' ? 'A voucher is recorded on this enrollment’s bill.' : 'No voucher is recorded on this enrollment’s bill.'}</p>
   </div> : null;
   if ((!assessment.ready && !assessment.finalized) || assessment.finalCharge === null) {

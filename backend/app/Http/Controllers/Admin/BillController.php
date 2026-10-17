@@ -66,7 +66,8 @@ class BillController extends Controller
                         ->orWhere('student_number', 'like', $needle);
                 });
             })
-            ->with(['student', 'schoolYear', 'items', 'adjustments', 'installments']);
+            ->with(['student', 'schoolYear', 'items', 'adjustments', 'installments'])
+            ->withCount(['payments as pending_payments_count' => fn ($q) => $q->where('status', 'pending')]);
 
         if ($trackingState === 'due_now') {
             // Arrangement dates replace the original schedule. Paid installments

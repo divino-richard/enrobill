@@ -1,6 +1,6 @@
 import { bannerStyles } from "@/components/ui/banner";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   getCoreRowModel,
   useReactTable,
@@ -13,20 +13,17 @@ import {
 import {
   ArrowRightIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   ChevronUpIcon,
   ChevronsUpDownIcon,
   FunnelXIcon,
   SearchIcon,
-  SquarePenIcon,
-  EyeIcon,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-primitives";
 import { TablePanel } from "@/components/table-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { RowActions } from "@/components/row-actions";
 import {
   Select,
   SelectContent,
@@ -214,18 +211,18 @@ function StudentsPage() {
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
-          <RowActions>
-            <DropdownMenuItem
-              onClick={() => navigate(`/admin/students/${row.original.id}`)}
+          <Button variant="ghost" size="icon-sm" asChild>
+            <Link
+              to={`/admin/students/${row.original.id}`}
+              aria-label={`View details for ${studentFullName(row.original)}`}
             >
-              {isAdmin ? <SquarePenIcon /> : <EyeIcon />}
-              {isAdmin ? "Manage" : "View"}
-            </DropdownMenuItem>
-          </RowActions>
+              <ChevronRightIcon aria-hidden="true" />
+            </Link>
+          </Button>
         ),
       },
     ],
-    [navigate, isAdmin],
+    [],
   );
 
   // TanStack Table returns non-memoizable functions; the React Compiler lint
@@ -405,6 +402,7 @@ function StudentsPage() {
             table={table}
             compact
             isLoading={query.isLoading}
+            onRowClick={(student) => navigate(`/admin/students/${student.id}`)}
             emptyMessage={
               hasFilters ? "No students match your filters." : "No students yet."
             }

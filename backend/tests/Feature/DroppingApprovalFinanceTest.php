@@ -215,7 +215,7 @@ class DroppingApprovalFinanceTest extends TestCase
         $this->assertDatabaseHas('bill_adjustments', ['id' => $adjustment->id, 'amount' => 11000]);
         $this->actingAs(User::factory()->create(['role' => Role::Cashier]));
         $payment = $bill->payments()->first();
-        $this->deleteJson("/api/admin/bills/{$bill->id}/payments/{$payment->id}")->assertUnprocessable();
+        $this->deleteJson("/api/admin/bills/{$bill->id}/payments/{$payment->id}")->assertNotFound();
         $this->assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'verified']);
         $this->assertDatabaseHas('student_credits', ['source_bill_id' => $bill->id, 'amount' => 5000]);
     }

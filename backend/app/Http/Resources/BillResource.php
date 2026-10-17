@@ -49,6 +49,7 @@ class BillResource extends JsonResource
             // What the student actually owes after credits.
             'netTotal' => $netTotal,
             'amountPaid' => $paid,
+            'pendingPaymentCount' => $this->whenCounted('pending_payments'),
             'assessmentOriginalTotal' => $gross,
             'droppingAssessment' => $this->droppingAssessment?->snapshot,
             'creditApplied' => $this->creditApplied(),

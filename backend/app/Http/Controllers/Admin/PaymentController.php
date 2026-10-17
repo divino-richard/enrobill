@@ -78,20 +78,6 @@ class PaymentController extends Controller
         });
     }
 
-    public function destroy(Bill $bill, Payment $payment): BillResource
-    {
-        abort_if($payment->bill_id !== $bill->id, 404);
-
-        return $this->locked($bill, function (Bill $bill) use ($payment) {
-            $payment = $bill->payments()->lockForUpdate()->findOrFail($payment->id);
-            $this->protectFinalizedPayment($bill, $payment);
-            $amount = (float) $payment->amount;
-            $payment->delete();
-            $bill->recalculate();
-            $this->notifyPayment($bill, 'Payment reversed', 'A payment of ₱'.number_format($amount, 2).' on your bill was voided.');
-        });
-    }
-
     private function protectFinalizedPayment(Bill $bill, Payment $payment): void
     {
         abort_if($payment->status === 'verified' && ($bill->isDroppingBill()
@@ -129,7 +115,7 @@ class PaymentController extends Controller
             $bill = Bill::lockForUpdate()->findOrFail($bill->id);
             $action($bill);
 
-            return new BillResource($bill->fresh()->load(['schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']));
+            return new BillResource($bill->fresh()->load(['student', 'schoolYear', 'enrollment', 'items', 'adjustments', 'installments', 'payments.recorder', 'payments.submitter']));
         }, 3);
     }
 }

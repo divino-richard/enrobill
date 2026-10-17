@@ -116,17 +116,6 @@ export async function recordPayment(
   return data.data;
 }
 
-// Void a recorded payment.
-export async function voidPayment(
-  billId: number,
-  paymentId: number,
-): Promise<Bill> {
-  const { data } = await api.delete<Wrapped<Bill>>(
-    `/admin/bills/${billId}/payments/${paymentId}`,
-  );
-  return data.data;
-}
-
 // --- Student self-service (portal) -----------------------------------------
 
 // The authenticated student's bill for the open term (404 if none).

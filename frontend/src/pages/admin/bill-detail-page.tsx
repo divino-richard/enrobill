@@ -1,677 +1,175 @@
+import { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeftIcon, ChevronRightIcon, PrinterIcon } from 'lucide-react';
+import { PageHeader } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAuthStore } from '@/features/auth/store';
+import { useProgramLabel } from '@/features/programs/hooks';
+import { useBill } from '@/features/bills/hooks';
+import { billStatusMeta, isDroppingBill } from '@/features/bills/collection';
+import { PAYMENT_STATUS_META, paymentMethodLabel, type Bill, type BillPayment } from '@/features/bills/types';
+import { formatBillDate } from '@/features/bills/staff-billing';
+import { printBillReceipt } from '@/features/bills/receipt';
 import { DroppingBillStatement, DroppingBillHistory } from '@/features/bills/components/dropping-statement';
-import { billStatusMeta, collectionLabel, isDroppingBill } from '@/features/bills/collection';
+import { StaffBillSummary, StaffInstallmentPlan } from '@/features/bills/components/staff-bill-reference';
+import { StaffRecordPayment } from '@/features/bills/components/staff-record-payment';
+import { StaffPaymentReview } from '@/features/bills/components/staff-payment-review';
 import { BillCollectionNotice } from '@/features/dropping-finance/collection-notice';
 import { BillFinanceSummary, ClassificationDialog } from '@/features/dropping-finance/bill-finance';
-import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
-import { PageHeader } from "@/components/page-header";
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeftIcon, DownloadIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { FieldLabel } from "@/components/form/field-label";
-import { cn } from "@/lib/utils";
-import { formatPeso } from "@/lib/money";
-import { getErrorMessage } from "@/lib/get-error-message";
-import { useAuthStore } from "@/features/auth/store";
-import { useProgramLabel } from "@/features/programs/hooks";
-import {
-  useBill,
-  useRecordPayment,
-  useRejectPayment,
-  useVerifyPayment,
-  useVoidBill,
-  useVoidPayment,
-} from "@/features/bills/hooks";
-import {
-  BILL_STATUS_META,
-  INSTALLMENT_STATUS_META,
-  PAYMENT_METHOD_OPTIONS,
-  PAYMENT_STATUS_META,
-  paymentMethodLabel,
-  type Bill,
-  type PaymentMethod,
-} from "@/features/bills/types";
-import { printBillReceipt } from "@/features/bills/receipt";
-import { PaymentProofDialog } from "@/features/bills/components/payment-proof-dialog";
+import { formatPeso } from '@/lib/money';
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
-function SummaryRow({
-  label,
-  value,
-  emphasize,
-  muted,
-}: {
-  label: string;
-  value: string;
-  emphasize?: boolean;
-  muted?: boolean;
+function PaymentRow({ payment, readOnly, onReview }: {
+  payment: BillPayment; readOnly: boolean; onReview: () => void;
 }) {
+  const pending = payment.status === 'pending';
+  const needsReview = pending && !readOnly;
+
   return (
-    <div
-      className={cn(
-        "flex justify-between gap-4 hover:bg-muted cursor-pointer",
-        emphasize ? "text-base" : "text-sm",
-      )}
-    >
-      <span
-        className={cn(
-          emphasize ? "font-semibold" : "text-muted-foreground",
-          muted && "text-emerald-600 dark:text-emerald-400",
-        )}
+    <li className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="min-w-0 flex-1 space-y-2">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-lg leading-6 font-semibold tracking-tight tabular-nums wrap-anywhere">
+            <span className="sr-only">Payment amount: </span>{formatPeso(payment.amount)}
+          </span>
+          <span className="text-sm font-medium text-muted-foreground">{paymentMethodLabel(payment.method)}</span>
+          <Badge variant="outline" className={PAYMENT_STATUS_META[payment.status].className}>
+            {pending ? 'To verify' : PAYMENT_STATUS_META[payment.status].label}
+          </Badge>
+        </p>
+        <p className="flex flex-col gap-x-3 gap-y-1 text-sm leading-relaxed text-muted-foreground sm:flex-row sm:flex-wrap sm:items-baseline">
+          <time dateTime={payment.paidAt ?? undefined}>{formatBillDate(payment.paidAt)}</time>
+          {payment.reference && (
+            <span className="inline-flex min-w-0 max-w-full gap-3">
+              <span aria-hidden="true" className="hidden sm:inline">·</span>
+              <span className="min-w-0 tabular-nums wrap-anywhere">Ref. {payment.reference}</span>
+            </span>
+          )}
+          {(payment.submittedBy || payment.recordedBy) && (
+            <span className="inline-flex min-w-0 max-w-full gap-3">
+              <span aria-hidden="true" className="hidden sm:inline">·</span>
+              <span className="min-w-0 wrap-anywhere">{payment.submittedBy ? 'Submitted by' : 'Recorded by'} {payment.submittedBy || payment.recordedBy}</span>
+            </span>
+          )}
+        </p>
+      </div>
+      <Button
+        id={`review-payment-${payment.id}`}
+        variant={needsReview ? 'default' : 'ghost'}
+        size="sm"
+        className={`min-h-11 self-start sm:min-h-9 sm:self-center ${needsReview ? '' : 'text-primary hover:text-primary'}`}
+        onClick={onReview}
+        aria-label={`${needsReview ? 'Review' : 'View'} ${formatPeso(payment.amount)} ${paymentMethodLabel(payment.method)} payment dated ${formatBillDate(payment.paidAt)}`}
       >
-        {label}
-      </span>
-      <span
-        className={cn(
-          "tabular-nums",
-          emphasize ? "font-semibold" : "font-medium",
-          muted && "text-emerald-600 dark:text-emerald-400",
-        )}
-      >
-        {value}
-      </span>
-    </div>
+        {needsReview ? 'Review payment' : 'View details'}
+        {!needsReview && <ChevronRightIcon aria-hidden="true" data-icon="inline-end" />}
+      </Button>
+    </li>
   );
 }
 
-function RecordPaymentDialog({ bill }: { bill: Bill }) {
-  const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("cash");
-  const [reference, setReference] = useState("");
-  const [paidAt, setPaidAt] = useState(todayIso());
-  const [note, setNote] = useState("");
-  const record = useRecordPayment(bill.id);
-
-  function seed() {
-    setAmount(bill.balance > 0 ? String(bill.balance) : "");
-    setMethod("cash");
-    setReference("");
-    setPaidAt(todayIso());
-    setNote("");
-    record.reset();
-  }
-
-  async function handleSave() {
-    const numericAmount = Number(amount);
-    if (!numericAmount || numericAmount <= 0) return;
-    try {
-      await record.mutateAsync({
-        amount: numericAmount,
-        method,
-        reference: reference.trim() || null,
-        paidAt,
-        note: note.trim() || null,
-      });
-      setOpen(false);
-    } catch {
-      // Surfaced via record.isError.
-    }
-  }
+function BalanceSummary({ bill }: { bill: Bill }) {
+  const status = billStatusMeta(bill);
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) seed();
-        setOpen(next);
-      }}
-    >
-      <Button size="sm" onClick={() => setOpen(true)} disabled={bill.balance <= 0}>
-        <PlusIcon />
-        Record payment
-      </Button>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Record payment</DialogTitle>
-          <DialogDescription>
-            Outstanding balance: {formatPeso(bill.balance)}. {isDroppingBill(bill) && `${collectionLabel(bill)}. Partial payments are accepted.`}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="amount" required>
-                Amount
-              </FieldLabel>
-              <Input
-                id="amount"
-                type="number"
-                min={0}
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="method" required>
-                Method
-              </FieldLabel>
-              <Select
-                value={method}
-                onValueChange={(next) => setMethod(next as PaymentMethod)}
-              >
-                <SelectTrigger id="method" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHOD_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="paidAt" required>
-                Date paid
-              </FieldLabel>
-              <Input
-                id="paidAt"
-                type="date"
-                value={paidAt}
-                onChange={(e) => setPaidAt(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="reference">Reference / OR no.</FieldLabel>
-              <Input
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-              />
-            </div>
+    <section aria-label="Bill balance" className="overflow-hidden rounded-xl border bg-card">
+      <div className="grid lg:grid-cols-2">
+        <dl className="flex flex-col justify-center border-b bg-muted/30 p-5 lg:border-r lg:border-b-0">
+          <div>
+            <dt className="text-sm font-medium text-muted-foreground">Balance</dt>
+            <dd className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="break-words text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">
+                {formatPeso(bill.balance)}
+              </span>
+              <Badge variant="outline" className={status.className}>{status.label}</Badge>
+            </dd>
           </div>
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="note">Note</FieldLabel>
-            <Textarea
-              id="note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
+        </dl>
+        <dl className="divide-y px-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-4">
+            <dt className="text-sm font-medium">Due now</dt>
+            <dd className="text-lg font-semibold tabular-nums">{formatPeso(bill.amountDue)}</dd>
           </div>
-        </div>
-
-        {record.isError && (
-          <p className="text-destructive text-sm">
-            {getErrorMessage(record.error)}
-          </p>
-        )}
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={record.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!amount || Number(amount) <= 0 || record.isPending}
-          >
-            {record.isPending ? "Saving…" : "Record payment"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-4">
+            <dt className="text-sm text-muted-foreground">Verified payments</dt>
+            <dd className="text-lg font-medium tabular-nums">{formatPeso(bill.amountPaid)}</dd>
+          </div>
+        </dl>
+      </div>
+      {(bill.creditApplied ?? 0) > 0 && (
+        <p className="border-t px-5 py-3 text-sm text-muted-foreground">
+          Student credit applied: <span className="font-medium text-foreground tabular-nums">{formatPeso(bill.creditApplied ?? 0)}</span>
+        </p>
+      )}
+    </section>
   );
 }
 
 function BillDetailPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const billId = Number(id);
   const { data: bill, isLoading, isError, refetch } = useBill(billId);
-  const voidPayment = useVoidPayment(billId);
-  const verifyPayment = useVerifyPayment(billId);
-  const rejectPayment = useRejectPayment(billId);
-  const voidBill = useVoidBill();
+  const role = useAuthStore(state => state.user?.role);
+  const readOnly = role !== 'cashier';
   const programLabel = useProgramLabel();
-  const role = useAuthStore((state) => state.user?.role);
-  const isPaymentReadOnly = role === "admin";
-  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [reviewId, setReviewId] = useState<number | null>(null);
+  const [notice, setNotice] = useState('');
 
-  const termLabel = useMemo(() => {
-    if (!bill?.schoolYear) return "—";
-    return `SY ${bill.schoolYear}`;
-  }, [bill]);
+  if (isLoading) return <div role="status" aria-label="Loading bill" className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /><span className="sr-only">Loading bill…</span></div>;
+  if (isError || !bill) return <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center"><p role="alert" className="text-muted-foreground">We couldn't load this bill. Try again or return to billing.</p><Button variant="outline" onClick={() => refetch()}>Try again</Button><Link to="/admin/billing" className="text-sm underline underline-offset-4">Back to billing</Link></div>;
 
-  if (isLoading) {
-    return (
-      <div className="w-full space-y-4">
-        <Skeleton className="h-8 w-48 rounded-md" />
-        <Skeleton className="h-64 w-full rounded-md" />
-      </div>
-    );
-  }
-
-  if (isError || !bill) {
-    return (
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-        <p className="text-muted-foreground text-sm">
-          We couldn't load this bill.
-        </p>
-        <Button variant="outline" onClick={() => refetch()}>
-          Try again
-        </Button>
-      </div>
-    );
-  }
-
-  const adjustments = bill.adjustments ?? [];
   const dropping = isDroppingBill(bill);
-  const installments = bill.installments ?? [];
   const payments = bill.payments ?? [];
-  // A bill with no verified/pending payments can be voided (returns the student
-  // to the pending queue so the cashier can re-generate it).
-  // const canVoid = payments.every((payment) => payment.status === "rejected");
-  const canVoid = false;
+  const pending = payments.filter(payment => payment.status === 'pending');
+  const history = payments.filter(payment => payment.status !== 'pending');
+  const studentName = bill.student?.name ?? `Bill #${bill.id}`;
+  const program = bill.student ? programLabel(bill.student.track, bill.student.yearLevel) : null;
 
-  async function handleVoid() {
-    try {
-      await voidBill.mutateAsync(billId);
-      navigate("/admin/billing");
-    } catch {
-      // Surfaced via voidBill.isError.
-    }
-  }
-
-  return (
-    <div className="w-full space-y-4">
-      <div>
-        <Button variant="ghost" size="sm" asChild className="-ml-2 mb-2">
-          <Link to="/admin/billing">
-            <ArrowLeftIcon />
-            Back to billing
-          </Link>
-        </Button>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <PageHeader title={<>{bill.student?.name ?? `Bill #${bill.id}`}</>} description={<>{bill.student?.studentNumber ? `${bill.student.studentNumber} · ` : ""}
-              {bill.student
-                ? `${programLabel(bill.student.track, bill.student.yearLevel)} · `
-                : ""}
-              {termLabel}</>} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {role === "admin" && !dropping && <ClassificationDialog bill={bill} />}
-            <Badge
-              variant="outline"
-              className={billStatusMeta(bill).className}
-            >
-              {billStatusMeta(bill).label}
-            </Badge>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={bill.amountPaid <= 0}
-              onClick={() =>
-                printBillReceipt(bill, {
-                  name: bill.student?.name ?? `Bill #${bill.id}`,
-                  studentNumber: bill.student?.studentNumber,
-                  program: bill.student
-                    ? programLabel(bill.student.track, bill.student.yearLevel)
-                    : null,
-                })
-              }
-            >
-              <DownloadIcon />
-              Download receipt
-            </Button>
-            {canVoid && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={voidBill.isPending}
-                  >
-                    <Trash2Icon />
-                    Void bill
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Void this bill?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      The bill, its credits and installment plan will be deleted
-                      and {bill.student?.name ?? "the student"} returns to the
-                      pending queue so you can re-generate it. Only possible while
-                      no payment has been made.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={voidBill.isPending}>
-                      Cancel
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={(event) => {
-                        event.preventDefault();
-                        void handleVoid();
-                      }}
-                    >
-                      {voidBill.isPending ? "Voiding…" : "Void bill"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
+  return <div className="w-full space-y-5">
+    <header>
+      <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link to="/admin/billing"><ArrowLeftIcon aria-hidden="true" />Back to billing</Link></Button>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0"><PageHeader title={studentName} description={[bill.student?.studentNumber, program, bill.schoolYear ? `SY ${bill.schoolYear}` : null].filter(Boolean).join(' · ')} /></div>
+        <div className="space-y-2 sm:text-right">
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {role === 'admin' && !dropping && <ClassificationDialog bill={bill} />}
+            <Button variant="default" disabled={bill.amountPaid <= 0} onClick={() => printBillReceipt(bill, { name: studentName, studentNumber: bill.student?.studentNumber, program })}><PrinterIcon aria-hidden="true" />Print receipt</Button>
           </div>
         </div>
       </div>
+    </header>
 
-      <BillCollectionNotice bill={bill} />
-      {!dropping && <BillFinanceSummary bill={bill} staff />}
-      {!dropping && <DashboardMetricStrip metrics={[
-        {label: "Net bill", value: formatPeso(bill.netTotal), detail: `${bill.items.length} fee items`, tone: "primary"},
-        {label: "Student credit used", value: formatPeso(bill.creditApplied ?? 0), detail: "From previous payments", tone: "success"},
-        {label: "Paid", value: formatPeso(bill.amountPaid), detail: "Verified payments", tone: "success"},
-        {label: "Outstanding", value: formatPeso(bill.balance), detail: dropping ? collectionLabel(bill) : BILL_STATUS_META[bill.status].label, tone: bill.balance > 0 ? (dropping ? undefined : "warning") : "success"},
-      ]} />}
-      <div className={cn("grid items-start gap-4", dropping ? "lg:grid-cols-2" : "lg:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)]")}>
-        {/* Summary */}
-        {dropping ? <div className="min-w-0 space-y-4">
-          <Card className="gap-0 overflow-hidden"><CardHeader className="border-b"><CardTitle className="text-base">Charges and payments</CardTitle><CardDescription>Approved charges less verified payments and applied credits.</CardDescription></CardHeader><CardContent className="p-0"><DroppingBillStatement bill={bill} /></CardContent></Card>
-          <details className="rounded-xl border bg-card p-5"><summary className="cursor-pointer text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">Financial history</summary><div className="mt-5"><DroppingBillHistory bill={bill} staff /></div></details>
-        </div> : <Card className="gap-0">
-          <CardHeader>
-            <CardTitle className="text-base">Bill summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <details className="py-3"><summary className="cursor-pointer text-sm font-medium">Fee breakdown · {bill.items.length} items</summary><dl className="mt-4 space-y-2">
-              {bill.items.map((item) => (
-                <SummaryRow
-                  key={item.id}
-                  label={item.name}
-                  value={formatPeso(item.amount)}
-                />
-              ))}
-            </dl></details>
-            <div className="space-y-2 border-t pt-3">
-              <SummaryRow label={bill.droppingAssessment ? "Original assessment" : "Gross total"} value={formatPeso(bill.total)} />
-              {!isDroppingBill(bill) && bill.discountTotal > 0 && (
-                <SummaryRow
-                  label="Credits"
-                  value={`− ${formatPeso(bill.discountTotal)}`}
-                  muted
-                />
-              )}
-              <SummaryRow label={bill.droppingAssessment ? "Final dropping charge" : "Net total"} value={formatPeso(bill.netTotal)} />
-              {(bill.creditApplied ?? 0) > 0 && <SummaryRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
-              <SummaryRow label="Paid" value={formatPeso(bill.amountPaid)} />
-            </div>
-            <div className="border-t pt-3">
-              <SummaryRow
-                label="Balance due"
-                value={formatPeso(bill.balance)}
-                emphasize
-              />
-            </div>
-          </CardContent>
-        </Card>}
+    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">{notice}</div>
 
-        <div className="min-w-0 space-y-4">
-          {/* Credits */}
-          {!dropping && <><Card>
-            <CardHeader>
-              <CardTitle className="text-base">{bill.droppingAssessment ? "Original vouchers and incentives" : "Vouchers and incentives"}</CardTitle>
-              <CardDescription>
-                {bill.droppingAssessment ? "Historical awards retained for reference. They do not reduce the final dropping charge." : "Benefits captured when this bill was generated."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {adjustments.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No vouchers or tuition incentives were applied.
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {adjustments.map((adjustment) => (
-                    <li
-                      key={adjustment.id}
-                      className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{adjustment.label}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {adjustment.type === "percentage"
-                            ? `${adjustment.value}%`
-                            : adjustment.type === "full"
-                              ? "Full coverage"
-                              : "Fixed"}
-                        </p>
-                        {(adjustment.reasons?.length ?? 0) > 0 && (
-                          <p className="text-primary mt-1 text-xs">
-                            Reason: {adjustment.reasons?.join(" + ")}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{bill.droppingAssessment ? "Historical" : "Applied"}</Badge>
-                        <span className="text-sm font-medium text-emerald-600 tabular-nums dark:text-emerald-400">
-                          {bill.droppingAssessment ? "" : "− "}{formatPeso(adjustment.amount)}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+    <BalanceSummary bill={bill} />
+    <BillCollectionNotice bill={bill} />
 
-          {/* Installment plan */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Installment plan</CardTitle>
-              <CardDescription>
-                {dropping ? "Historical dates are kept for reference." : bill.noDownpayment
-                  ? "Downpayment waived — spread evenly over the school year."
-                  : "Downpayment plus equal monthly payments, from the school year's policy."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {installments.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No installment plan yet.
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {installments.map((installment) => (
-                    <li
-                      key={installment.id}
-                      className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">
-                          {installment.label}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          Due {installment.dueDate ?? "—"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium tabular-nums">
-                          {formatPeso(installment.amount)}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "w-20 justify-center",
-                            INSTALLMENT_STATUS_META[installment.status].className,
-                          )}
-                        >
-                          {INSTALLMENT_STATUS_META[installment.status].label}
-                        </Badge>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+    <Card className="gap-0 pb-0">
+      <CardHeader className="flex flex-wrap items-center justify-between gap-2 border-b">
+        <h2 id="bill-payments-heading" tabIndex={-1} className="text-base font-semibold">Payments</h2>
+        {readOnly ? (
+          <p className="max-w-prose text-sm text-muted-foreground">Only cashiers can record, verify, or reject payments.</p>
+        ) : (
+          <StaffRecordPayment key={bill.id} bill={bill} onSuccess={setNotice} />
+        )}
+      </CardHeader>
+      <CardContent className="p-0">
+      {pending.length > 0 && <ul aria-label="Payments awaiting verification" className="divide-y">{pending.map(payment => <PaymentRow key={payment.id} payment={payment} readOnly={readOnly} onReview={() => setReviewId(payment.id)} />)}</ul>}
+      {history.length > 0 && <ul aria-label="Payment history" className={pending.length > 0 ? 'divide-y border-t' : 'divide-y'}>{history.map(payment => <PaymentRow key={payment.id} payment={payment} readOnly={readOnly} onReview={() => setReviewId(payment.id)} />)}</ul>}
+      {payments.length === 0 && <p className="p-4 text-sm text-muted-foreground">{bill.balance <= 0 ? 'No payment records. This bill has no remaining balance.' : readOnly ? 'No payments recorded yet.' : 'No payments recorded yet. Use Record payment when the school receives a payment.'}</p>}
+      </CardContent>
+    </Card>
 
-          </>}
+    {!dropping && <BillFinanceSummary bill={bill} staff />}
+    {dropping ? <div className="grid items-start gap-4 lg:grid-cols-2">
+      <Card><CardHeader><h2 className="text-base font-semibold">Charges and payments</h2><p className="text-sm text-muted-foreground">Approved charges less verified payments and applied credits.</p></CardHeader><CardContent><DroppingBillStatement bill={bill} /></CardContent></Card>
+      <section aria-labelledby="financial-history-heading" className="rounded-xl border bg-card p-4"><h2 id="financial-history-heading" className="mb-3 text-base font-semibold">Financial history</h2><details><summary className="cursor-pointer rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">View original fees and schedules</summary><div className="mt-4"><DroppingBillHistory bill={bill} staff /></div></details></section>
+    </div> : <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]"><StaffBillSummary bill={bill} /><StaffInstallmentPlan key={bill.id} bill={bill} /></div>}
 
-          {/* Payments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Payments</CardTitle>
-              <CardDescription>Recorded payments for this bill.</CardDescription>
-              <CardAction>
-                {isPaymentReadOnly ? (
-                  <Badge variant="outline">Cashier only</Badge>
-                ) : (
-                  <RecordPaymentDialog bill={bill} />
-                )}
-              </CardAction>
-            </CardHeader>
-            <CardContent>
-              {isPaymentReadOnly && (
-                <Alert className="mb-4">
-                  <AlertTitle>Read-only for admins</AlertTitle>
-                  <AlertDescription>
-                    Admins can review payment records here, but only cashiers can
-                    record, verify, reject, or void payments.
-                  </AlertDescription>
-                </Alert>
-              )}
-              {payments.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No payments recorded yet.
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {payments.map((payment) => (
-                    <li
-                      key={payment.id}
-                      className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium tabular-nums">
-                          {formatPeso(payment.amount)}
-                          <span className="text-muted-foreground ml-2 text-xs font-normal">
-                            {paymentMethodLabel(payment.method)}
-                          </span>
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {payment.paidAt ?? "—"}
-                          {payment.reference ? ` · ${payment.reference}` : ""}
-                          {payment.recordedBy ? ` · by ${payment.recordedBy}` : ""}
-                          {payment.submittedBy
-                            ? ` · from ${payment.submittedBy}`
-                            : ""}
-                        </p>
-                        {payment.proofUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setProofUrl(payment.proofUrl)}
-                            className="text-primary text-xs underline"
-                          >
-                            View proof
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={PAYMENT_STATUS_META[payment.status].className}
-                        >
-                          {PAYMENT_STATUS_META[payment.status].label}
-                        </Badge>
-                        {!isPaymentReadOnly && payment.status === "pending" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={verifyPayment.isPending}
-                              onClick={() => verifyPayment.mutate(payment.id)}
-                            >
-                              Verify
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-muted-foreground hover:text-destructive"
-                              disabled={rejectPayment.isPending}
-                              onClick={() => rejectPayment.mutate(payment.id)}
-                            >
-                              Reject
-                            </Button>
-                          </>
-                        )}
-                        {!isPaymentReadOnly && payment.status !== "pending" && !payment.creditProtected && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground hover:text-destructive size-8"
-                            disabled={voidPayment.isPending}
-                            onClick={() => voidPayment.mutate(payment.id)}
-                          >
-                            <Trash2Icon className="size-4" />
-                            <span className="sr-only">Void payment</span>
-                          </Button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <PaymentProofDialog
-        url={proofUrl}
-        onOpenChange={(open) => {
-          if (!open) setProofUrl(null);
-        }}
-      />
-    </div>
-  );
+    {reviewId !== null && <StaffPaymentReview key={`${bill.id}-${reviewId}`} bill={bill} paymentId={reviewId} readOnly={readOnly} onClose={() => setReviewId(null)} onSuccess={setNotice} />}
+  </div>;
 }
 
 export default BillDetailPage;

@@ -150,6 +150,7 @@ export interface Bill {
   adjustments?: BillAdjustment[];
   installments?: BillInstallment[];
   payments?: BillPayment[];
+  pendingPaymentCount?: number;
   student?: BillStudent;
   createdAt: string | null;
 }

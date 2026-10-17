@@ -329,11 +329,10 @@ Route::middleware('auth:sanctum')->group(function () {
             // Generate bills for pending enrollments.
             Route::post('/admin/enrollments/{enrollment}/bill', [AdminBillController::class, 'generate']);
 
-            // Record, verify, reject or void payments against a bill.
+            // Record, verify or reject payments against a bill.
             Route::post('/admin/bills/{bill}/payments', [AdminPaymentController::class, 'store']);
             Route::post('/admin/bills/{bill}/payments/{payment}/verify', [AdminPaymentController::class, 'verify']);
             Route::post('/admin/bills/{bill}/payments/{payment}/reject', [AdminPaymentController::class, 'reject']);
-            Route::delete('/admin/bills/{bill}/payments/{payment}', [AdminPaymentController::class, 'destroy']);
 
             // Payment channel maintenance (GCash / Maya / Bank Transfer).
             Route::post('/admin/payment-channels', [AdminPaymentChannelController::class, 'store']);

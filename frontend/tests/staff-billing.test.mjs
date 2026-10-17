@@ -1,0 +1,164 @@
+import assert from 'node:assert/strict';
+import { after, test } from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { createServer } from 'vite';
+
+const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false, watch: null } });
+after(() => server.close());
+const { default: BillDetailPage } = await server.ssrLoadModule('/src/pages/admin/bill-detail-page.tsx');
+const { useAuthStore } = await server.ssrLoadModule('/src/features/auth/store.ts');
+const { formatBillDate, paymentDecisions, paymentDecisionCopy, upcomingInstallments } = await server.ssrLoadModule('/src/features/bills/staff-billing.ts');
+const { PaymentReviewDetails, PaymentDecisionConfirmation, PaymentProofPreview } = await server.ssrLoadModule('/src/features/bills/components/staff-payment-review.tsx');
+const { AlertDialog } = await server.ssrLoadModule('/src/components/ui/alert-dialog.tsx');
+const { StaffInstallmentPlan } = await server.ssrLoadModule('/src/features/bills/components/staff-bill-reference.tsx');
+
+const payment = { id: 8, amount: 170, method: 'gcash', status: 'pending', reference: '000123', paidAt: '2026-10-05', note: 'Tuition deposit', submittedBy: 'Test Student', proofUrl: '/proof.png' };
+const bill = {
+  id: 6, studentId: 5, schoolYearId: 1, schoolYear: '2026-2027', status: 'unpaid', collectionState: 'standard',
+  total: 18421.25, netTotal: 18421.25, discountTotal: 0, amountPaid: 0, balance: 18421.25, amountDue: 170,
+  student: { id: 5, name: 'Test Student', studentNumber: '2026-00005', track: 'gas', yearLevel: 'grade_11' },
+  items: [{ id: 1, name: 'Tuition Fee', amount: 18421.25 }], payments: [payment], adjustments: [],
+  installments: [
+    { id: 1, sequence: 1, label: 'Down payment', dueDate: '2026-10-05', status: 'overdue', amount: 170, amountPaid: 0, balance: 170 },
+    ...Array.from({ length: 5 }, (_, index) => ({ id: index + 2, sequence: index + 2, label: `Installment ${index + 1}`, dueDate: `2027-0${index + 1}-05`, status: 'unpaid', amount: 1000, amountPaid: 0, balance: 1000 })),
+  ],
+};
+
+function renderBill(input = bill, role = 'cashier') {
+  const user = { id: 20, role };
+  useAuthStore.setState({ user });
+  Object.assign(useAuthStore.getInitialState(), { user });
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+  client.setQueryData(['admin', 'bills', 'detail', input.id], input);
+  client.setQueryData(['programs'], []);
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client },
+    createElement(MemoryRouter, { initialEntries: [`/admin/billing/${input.id}`] }, createElement(Routes, null,
+      createElement(Route, { path: '/admin/billing/:id', element: createElement(BillDetailPage) })))));
+  client.clear();
+  return html;
+}
+
+test('pending review stays in Payments without reducing verified totals or balance', () => {
+  const html = renderBill();
+  const balance = html.match(/<section aria-label="Bill balance"[\s\S]*?<\/section>/)?.[0] ?? '';
+  assert.doesNotMatch(html, /pending-payment-heading|1 payment to verify|Awaiting verification;/);
+  assert.equal((html.match(/>Review payment</g) ?? []).length, 1);
+  assert.ok(html.indexOf('>Payments</h2>') < html.indexOf('>Installment plan</h2>'));
+  assert.match(balance, /Balance<\/dt><dd[^>]*><span[^>]*>₱18,421\.25/);
+  assert.match(balance, />Unpaid</);
+  assert.doesNotMatch(html.slice(0, html.indexOf('Bill balance')), />Unpaid</);
+  assert.match(balance, /Due now<\/dt><dd[^>]*>₱170\.00/);
+  assert.match(balance, /Verified payments<\/dt><dd[^>]*>₱0\.00/);
+  assert.doesNotMatch(html, /₱18,251\.25|Student credit applied|Outstanding|Net bill|Net total|Balance due/);
+  const recordButtons = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].filter(([button]) => button.includes('Record payment'));
+  assert.equal(recordButtons.length, 1);
+  assert.match(recordButtons[0][0], /disabled=""/);
+  assert.ok(html.indexOf('Record payment') > html.indexOf('>Payments</h2>'));
+  assert.ok(html.indexOf('Record payment') < html.indexOf('Payments awaiting verification'));
+  assert.doesNotMatch(html, /pending-payment-guidance|Review pending payments before recording another/);
+  assert.doesNotMatch(html, /Receipt available after a verified payment|receipt-guidance/);
+  const pendingRow = html.match(/<ul aria-label="Payments awaiting verification"[^>]*>([\s\S]*?)<\/ul>/)?.[1] ?? '';
+  for (const value of ['GCash', 'Oct 5, 2026', 'Ref. 000123', 'Submitted by Test Student']) {
+    assert.ok(pendingRow.includes(value), value);
+  }
+});
+
+test('reference details stay available without an empty voucher card or expanded fee list', () => {
+  const html = renderBill();
+  assert.match(html, /No vouchers or incentives applied/);
+  assert.doesNotMatch(html, /<h2[^>]*>Vouchers and incentives|hover:bg-muted cursor-pointer/);
+  assert.match(html, /<details[^>]*><summary[^>]*>Fee breakdown/);
+  assert.doesNotMatch(html, /<details[^>]*open[^>]*><summary[^>]*>Fee breakdown/);
+  assert.match(html, /Tuition Fee/);
+  assert.match(html, /aria-expanded="false"[^>]*aria-controls="bill-installments"/);
+  assert.match(html, /View full schedule \(6\)/);
+  assert.doesNotMatch(html, /Installment 3/);
+});
+
+test('admins can inspect pending payments without any cashier record control', () => {
+  const html = renderBill(bill, 'admin');
+  assert.match(html, /Only cashiers can record, verify, or reject/);
+  assert.match(html, />View details</);
+  assert.doesNotMatch(html, />Record payment<|>Review payment<|>Verify payment<|>Reject payment</);
+});
+
+test('settled bills distinguish credit from payments and keep the receipt available', () => {
+  const html = renderBill({ ...bill, status: 'paid', balance: 0, amountDue: 0, amountPaid: 170, creditApplied: 18251.25, payments: [{ ...payment, status: 'verified' }] });
+  assert.match(html, /Student credit applied/);
+  assert.match(html, /₱18,251\.25/);
+  assert.doesNotMatch(html, /payment to verify|Receipt available after/);
+  assert.match(html, />Print receipt</);
+  assert.match(html, /<ul aria-label="Payment history"[^>]*>[\s\S]*?>View details<[\s\S]*?<\/ul>/);
+  assert.doesNotMatch(html, /<summary[^>]*>Payment history/);
+  const empty = renderBill({ ...bill, payments: [], balance: 0, amountDue: 0, status: 'paid' });
+  assert.match(empty, /No payment records. This bill has no remaining balance/);
+});
+
+test('multiple pending payments each keep one review action without a duplicate summary', () => {
+  const html = renderBill({ ...bill, payments: [{ ...payment, amount: 0.1 }, { ...payment, id: 9, amount: 0.2 }] });
+  assert.match(html, /id="review-payment-8"/);
+  assert.match(html, /id="review-payment-9"/);
+  assert.equal((html.match(/>Review payment</g) ?? []).length, 2);
+  assert.doesNotMatch(html, /payments to verify|Review first payment|₱0\.30/);
+});
+
+test('dropping bills retain their collection notice and financial history after payments', () => {
+  const html = renderBill({ ...bill, collectionState: 'deferred_until_reenrollment', enrollmentStatus: 'dropped', amountDue: 0, historicalInstallments: [] });
+  assert.match(html, /Payable upon re-enrollment/);
+  assert.match(html, /Financial history/);
+  assert.ok(html.indexOf('>Payments</h2>') < html.indexOf('>Charges and payments</h2>'));
+  assert.doesNotMatch(html, />Installment plan<\/h2>/);
+});
+
+test('payment review retains identifying context and references with leading zeroes', () => {
+  const html = renderToStaticMarkup(createElement(PaymentReviewDetails, { bill, payment }));
+  for (const text of ['₱170.00', 'GCash', 'Oct 5, 2026', '000123', 'Test Student', '2026-2027', 'Tuition deposit']) assert.ok(html.includes(text), text);
+});
+
+test('only pending payments have cashier decisions; resolved payments are view-only', () => {
+  assert.deepEqual(paymentDecisions(payment, false), ['verify', 'reject']);
+  assert.deepEqual(paymentDecisions(payment, true), []);
+  for (const status of ['verified', 'rejected']) {
+    assert.deepEqual(paymentDecisions({ ...payment, status }, false), []);
+    assert.deepEqual(paymentDecisions({ ...payment, status }, true), []);
+  }
+});
+
+test('confirmation describes consequences and locks all decisions during submission', () => {
+  let calls = 0;
+  for (const decision of ['verify', 'reject']) {
+    const html = renderToStaticMarkup(createElement(AlertDialog, { open: true }, createElement(PaymentDecisionConfirmation, { decision, payment, busy: true, error: 'Unable to update payment. Try again.', onBack() { calls++; }, onConfirm() { calls++; } })));
+    assert.match(html, /aria-busy="true"/);
+    assert.match(html, /role="alert"/);
+    assert.equal((html.match(/disabled=""/g) ?? []).length, 2);
+    assert.ok(html.includes(paymentDecisionCopy(decision, payment).busy));
+  }
+  assert.equal(calls, 0);
+  assert.match(paymentDecisionCopy('reject', payment).description, /will not reduce the balance/);
+});
+
+test('proof viewer handles images, PDFs and missing attachments without an external-open action', () => {
+  const image = renderToStaticMarkup(createElement(PaymentProofPreview, { payment }));
+  assert.match(image, /<img[^>]*src="\/proof.png"/);
+  assert.match(image, /alt="Proof for ₱170.00 paid on Oct 5, 2026"/);
+  const pdf = renderToStaticMarkup(createElement(PaymentProofPreview, { payment: { ...payment, proofUrl: '/proof.PDF?signature=test' } }));
+  assert.match(pdf, /<iframe[^>]*title="Payment proof document"/);
+  const empty = renderToStaticMarkup(createElement(PaymentProofPreview, { payment: { ...payment, proofUrl: null } }));
+  assert.match(empty, /No proof is attached/);
+  assert.doesNotMatch(image + pdf + empty, /Open original|target="_blank"/);
+});
+
+test('schedule prioritizes unpaid obligations, keeps server-calculated remaining amounts, and formats dates', () => {
+  const plan = [{ ...bill.installments[1], status: 'paid', balance: 0 }, { ...bill.installments[0], status: 'partial', balance: 70, amountPaid: 100 }, bill.installments[2]];
+  assert.deepEqual(upcomingInstallments(plan).map(item => item.id), [1, 3]);
+  const html = renderToStaticMarkup(createElement(StaffInstallmentPlan, { bill: { ...bill, installments: plan } }));
+  assert.match(html, /₱70\.00/);
+  assert.match(html, /Remaining of .*170\.00/);
+  assert.match(html, /Due Oct 5, 2026/);
+  assert.equal(formatBillDate(null), '—');
+  assert.equal(formatBillDate('invalid'), '—');
+  assert.equal(formatBillDate('2026-10-04T16:30:00Z'), 'Oct 5, 2026');
+});
