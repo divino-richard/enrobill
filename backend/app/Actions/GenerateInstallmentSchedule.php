@@ -28,9 +28,7 @@ class GenerateInstallmentSchedule
 
         $downpayment = 0.0;
         if (! $waiveDownpayment && $schoolYear !== null) {
-            $downpayment = $schoolYear->downpayment_type === 'percentage'
-                ? round($net * ((float) $schoolYear->downpayment_value / 100), 2)
-                : round(min((float) $schoolYear->downpayment_value, $net), 2);
+            $downpayment = round(min((float) $schoolYear->downpayment_value, $net), 2);
             $downpayment = max($downpayment, 0);
         }
 

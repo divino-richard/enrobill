@@ -10,7 +10,7 @@ export interface StudentReturnSummary {
   effectiveDroppingDate: string | null;
   returnDeadline: string | null;
   source: { id: number; schoolYear: string; program: string; programName: string; yearLevel: string; droppingRequestId: number | null; billId: number | null } | null;
-  offer: { schoolYearId: number; schoolYear: string; feeTotal: number; downpaymentType: 'fixed' | 'percentage'; downpaymentValue: number } | null;
+  offer: { schoolYearId: number; schoolYear: string; feeTotal: number; downpaymentValue: number } | null;
   enrollment: { id: number; schoolYear: string; status: string; billId: number | null; program: string; programName: string; yearLevel: string } | null;
   requirements: ReturnRequirements | null;
   previousBills: { id: number; schoolYear: string; balance: number; pendingPayment: number }[];

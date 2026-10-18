@@ -346,30 +346,27 @@ function FeesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <PageHeader title="Fees" />
         </div>
-        <div className="flex items-end gap-2">
-          <div className="space-y-1.5">
-            <FieldLabel>School year</FieldLabel>
-            <Select
-              value={effectiveId ? String(effectiveId) : ""}
-              onValueChange={(v) => setSelectedId(Number(v))}
-            >
-              <SelectTrigger className="h-9 min-w-44 w-full bg-card" aria-label="School year">
-                <SelectValue placeholder="Select year" />
-              </SelectTrigger>
-              <SelectContent>
-                {schoolYears.map((sy) => (
-                  <SelectItem key={sy.id} value={String(sy.id)}>
-                    SY {sy.schoolYear}
-                    {sy.isActive ? " · Active" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={effectiveId ? String(effectiveId) : ""}
+            onValueChange={(v) => setSelectedId(Number(v))}
+          >
+            <SelectTrigger className="h-9 min-w-44 bg-card" aria-label="School year">
+              <SelectValue placeholder="Select year" />
+            </SelectTrigger>
+            <SelectContent>
+              {schoolYears.map((sy) => (
+                <SelectItem key={sy.id} value={String(sy.id)}>
+                  SY {sy.schoolYear}
+                  {sy.isActive ? " · Active" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button onClick={openAdd} disabled={effectiveId === null}>
             <PlusIcon />
             Add fee

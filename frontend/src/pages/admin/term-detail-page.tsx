@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeftIcon, ArrowUpRightIcon, CalendarDaysIcon, CircleAlertIcon, PencilIcon, PlusIcon, UsersRoundIcon } from 'lucide-react';
+import { ArrowLeftIcon, ArrowUpRightIcon, CalendarDaysIcon, CircleAlertIcon, InfoIcon, PencilIcon, PlusIcon, UsersRoundIcon } from 'lucide-react';
 import { EmptyState, type EmptyStateContent } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,10 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useDeleteTerm, useTerms, useUpdateTermStatus } from '@/features/terms/hooks';
-import { EarlyEnrollmentForm, InstallmentPolicyForm, ReferralIncentiveForm } from '@/features/terms/term-forms';
+import { EarlyEnrollmentForm, InstallmentPolicyDialog, ReferralIncentiveForm } from '@/features/terms/term-forms';
 import { termLabel, type Term } from '@/features/terms/types';
 import { useSchoolYearFreebies } from '@/features/freebies/hooks';
 import { DroppingPeriods } from '@/features/dropping-finance/policy-editor';
@@ -20,7 +21,6 @@ import { getErrorMessage } from '@/lib/get-error-message';
 
 const sections = [
   { id: 'overview', label: 'Overview' },
-  { id: 'payments', label: 'Payment plan' },
   { id: 'dropping', label: 'Dropping charges' },
   { id: 'incentives', label: 'Incentives' },
 ];
@@ -75,7 +75,7 @@ function AcademicYearDetail({ term, activeTerm }: { term: Term; activeTerm?: Ter
       <div className="overflow-x-auto border-b"><TabsList aria-label="Academic year sections" className="h-10 min-w-max justify-start gap-2 rounded-none bg-transparent p-0">{sections.map(item => <TabsTrigger key={item.id} value={item.id} className="h-10 flex-none rounded-none border-0 border-b-2 border-transparent px-4 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none">{item.label}</TabsTrigger>)}</TabsList></div>
       <TabsContent value="overview" forceMount className="space-y-3 data-[state=inactive]:hidden">
         {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
-        <div className="space-y-3">
+        <Card className="gap-0 divide-y py-0">
           <SettingRow title="School year" description={term.isActive ? 'The current year used by billing, the student portal, and dashboards.' : 'Activate this year to use it across enrollment and billing.'} badge={<StateBadge active={term.isActive} yes="Active" no="Inactive" />}>
             <Button size="sm" variant="outline" disabled={update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('active', !term.isActive); }}>{term.isActive ? 'Deactivate year' : 'Set as active'}</Button>
           </SettingRow>
@@ -88,13 +88,13 @@ function AcademicYearDetail({ term, activeTerm }: { term: Term; activeTerm?: Ter
               <Button size="sm" variant="outline" disabled={!term.isActive || update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('progression', !term.progressionOpen); }}>{term.progressionOpen ? 'Disable progression' : 'Enable progression'}</Button>
             </div>
           </SettingRow>
-        </div>
-        <Card className="gap-0 py-0"><details className="group"><summary className="cursor-pointer px-4 py-3 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">Delete academic year</summary><div className="flex flex-wrap items-center justify-between gap-4 border-t px-4 py-3"><p className="max-w-prose text-[0.8125rem] leading-relaxed text-muted-foreground">Permanently remove this year. Years with enrollments or bills cannot be deleted.</p><Button ref={deleteTrigger} variant="outline" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { remove.reset(); setDeleting(true); }}>Delete year</Button></div></details></Card>
-      </TabsContent>
-      <TabsContent value="payments" forceMount className="data-[state=inactive]:hidden">
-        <EditableSection title="Installment policy" description="Downpayment and monthly payments for this academic year." editLabel="Edit payment plan" editor={onDone => <InstallmentPolicyForm term={term} onDone={onDone} />}>
-          <dl className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0"><div className="space-y-1.5 px-4 py-3"><dt className="text-[0.8125rem] font-medium text-muted-foreground">Downpayment</dt><dd className="text-lg font-semibold tabular-nums">{term.downpaymentType === 'percentage' ? `${term.downpaymentValue}% of the bill` : formatPeso(term.downpaymentValue)}</dd></div><div className="space-y-1.5 px-4 py-3"><dt className="text-[0.8125rem] font-medium text-muted-foreground">Remaining balance</dt><dd className="text-lg font-semibold tabular-nums">{term.installmentCount} monthly installments</dd></div></dl>
-        </EditableSection>
+          <SettingRow title="Installment policy" hint="The balance after the downpayment is split into equal monthly payments. A larger downpayment lowers the monthly amount." description={`${formatPeso(term.downpaymentValue)} downpayment · ${term.installmentCount} monthly installment${term.installmentCount === 1 ? '' : 's'}`}>
+            <InstallmentPolicyDialog term={term} />
+          </SettingRow>
+          <SettingRow title="Delete academic year" description="Permanently remove this year. Years with enrollments or bills cannot be deleted.">
+            <Button ref={deleteTrigger} variant="outline" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { remove.reset(); setDeleting(true); }}>Delete year</Button>
+          </SettingRow>
+        </Card>
       </TabsContent>
       <TabsContent value="dropping" forceMount className="data-[state=inactive]:hidden"><DroppingPeriods term={term} /></TabsContent>
       <TabsContent value="incentives" forceMount className="data-[state=inactive]:hidden"><IncentivesSection term={term} /></TabsContent>
@@ -107,8 +107,29 @@ function AcademicYearDetail({ term, activeTerm }: { term: Term; activeTerm?: Ter
 function StateBadge({ active, yes, no }: { active: boolean; yes: string; no: string }) {
   return <Badge variant="secondary" className={active ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-muted text-muted-foreground'}>{active ? yes : no}</Badge>;
 }
-function SettingRow({ title, description, badge, children }: { title: string; description: string; badge: ReactNode; children: ReactNode }) {
-  return <section aria-label={title}><Card className="gap-0 py-0"><header className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5"><div className="flex min-w-0 flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">{title}</h2>{badge}</div>{children}</header><p className="max-w-prose px-4 py-3 text-[0.8125rem] leading-relaxed text-muted-foreground">{description}</p></Card></section>;
+function SettingRow({ title, description, badge, hint, children }: { title: string; description: string; badge?: ReactNode; hint?: string; children: ReactNode }) {
+  return (
+    <section aria-label={title} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-6">
+      <div className="min-w-0 space-y-1.5 sm:basis-72 sm:flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {hint && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" aria-label={`About ${title.toLowerCase()}`} className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-6 shrink-0 items-center justify-center rounded focus-visible:ring-2">
+                  <InfoIcon className="size-3.5" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-64 leading-relaxed">{hint}</TooltipContent>
+            </Tooltip>
+          )}
+          {badge}
+        </div>
+        <p className="max-w-prose text-[0.8125rem] leading-relaxed text-muted-foreground">{description}</p>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{children}</div>
+    </section>
+  );
 }
 function EditableSection({ title, description, badge, editLabel, editor, children, emptyState, secondaryAction }: { title: string; description: string; badge?: ReactNode; editLabel: string; editor: (onDone: () => void) => ReactNode; children?: ReactNode; emptyState?: EmptyStateContent; secondaryAction?: ReactNode }) {
   const [editing, setEditing] = useState(false);

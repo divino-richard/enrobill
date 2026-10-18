@@ -2,8 +2,6 @@ export interface OpenTerm {
   schoolYear: string;
 }
 
-export type DownpaymentType = "percentage" | "fixed";
-
 // A school year. Enrollment, admission, and billing are all keyed by this row.
 export interface Term {
   id: number;
@@ -18,7 +16,6 @@ export interface Term {
   progressionOverride: boolean | null;
   // Whether the end-date schedule alone would open progression.
   progressionAuto: boolean;
-  downpaymentType: DownpaymentType;
   downpaymentValue: number;
   installmentCount: number;
   createdAt: string | null;
@@ -26,7 +23,6 @@ export interface Term {
 
 // Installments are always on; the policy is just the downpayment + monthly count.
 export interface InstallmentPolicyInput {
-  downpaymentType: DownpaymentType;
   downpaymentValue: number;
   installmentCount: number;
 }

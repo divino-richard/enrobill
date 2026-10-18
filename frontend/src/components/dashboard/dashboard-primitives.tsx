@@ -1,5 +1,5 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { ArrowRightIcon, InfoIcon } from "lucide-react";
+import { ArrowRightIcon, CircleCheckIcon, InfoIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,77 +28,72 @@ export function DashboardAttention({
 }) {
   const visibleItems = items.slice(0, 3);
 
+  if (visibleItems.length === 0) {
+    return (
+      <Card role="status" className="flex-row items-center gap-3 px-4 py-3">
+        <CircleCheckIcon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <strong className="text-sm font-semibold">{summary}</strong>
+          <p className="text-muted-foreground text-sm">Nothing requires immediate action.</p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="grid gap-0 py-0 lg:grid-cols-[8.75rem_repeat(3,minmax(0,1fr))]">
-      <div className="bg-primary px-4 py-3 text-primary-foreground">
+    <Card className="gap-0 py-0 lg:flex-row">
+      <div className="bg-primary px-4 py-3 text-primary-foreground lg:w-35 lg:shrink-0">
         <span className="block text-[0.8125rem] font-medium tracking-[0.08em] uppercase opacity-75">
           {label}
         </span>
         <strong className="mt-1 block text-sm font-semibold">{summary}</strong>
       </div>
-      {visibleItems.length ? (
-        visibleItems.map((item) => {
-          const content = (
-            <>
-              <span
-                className={cn(
-                  "bg-primary/10 text-primary inline-flex min-h-7 min-w-7 shrink-0 items-center justify-center whitespace-nowrap rounded px-2 py-1 text-sm font-semibold tabular-nums",
-                  item.tone === "warning" &&
-                    "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-                  item.tone === "danger" &&
-                    "bg-destructive/10 text-destructive",
-                )}
-              >
-                {item.value}
+      {visibleItems.map((item) => {
+        const content = (
+          <>
+            <span
+              className={cn(
+                "bg-primary/10 text-primary inline-flex min-h-7 min-w-7 shrink-0 items-center justify-center whitespace-nowrap rounded px-2 py-1 text-sm font-semibold tabular-nums",
+                item.tone === "warning" &&
+                  "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                item.tone === "danger" &&
+                  "bg-destructive/10 text-destructive",
+              )}
+            >
+              {item.value}
+            </span>
+            <span className="min-w-0 text-left">
+              <span className="block truncate text-sm font-semibold">
+                {item.label}
               </span>
-              <span className="min-w-0 text-left">
-                <span className="block truncate text-sm font-semibold">
-                  {item.label}
-                </span>
-                <span className="text-muted-foreground mt-0.5 block truncate text-[0.8125rem]">
-                  {item.detail}
-                </span>
+              <span className="text-muted-foreground mt-0.5 block truncate text-[0.8125rem]">
+                {item.detail}
               </span>
-              {item.onAction ? (
-                <ArrowRightIcon className="text-primary size-4 shrink-0" />
-              ) : null}
-            </>
-          );
+            </span>
+            {item.onAction ? (
+              <ArrowRightIcon className="text-primary size-4 shrink-0" />
+            ) : null}
+          </>
+        );
 
-          return item.onAction ? (
-            <button
-              key={item.label}
-              type="button"
-              className="hover:bg-muted/50 focus-visible:ring-ring grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none lg:border-t-0 lg:border-l"
-              onClick={item.onAction}
-            >
-              {content}
-            </button>
-          ) : (
-            <div
-              key={item.label}
-              className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t px-3 py-2.5 lg:border-t-0 lg:border-l"
-            >
-              {content}
-            </div>
-          );
-        })
-      ) : (
-        <div className="text-muted-foreground flex min-h-16 items-center px-4 text-sm lg:col-span-3 lg:border-l">
-          Nothing requires immediate action.
-        </div>
-      )}
-      {visibleItems.length > 0
-        ? Array.from({ length: Math.max(0, 3 - visibleItems.length) }).map(
-            (_, index) => (
-              <div
-                key={`empty-${index}`}
-                className="hidden border-l lg:block"
-                aria-hidden="true"
-              />
-            ),
-          )
-        : null}
+        return item.onAction ? (
+          <button
+            key={item.label}
+            type="button"
+            className="hover:bg-muted/50 focus-visible:ring-ring grid min-h-16 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none lg:flex-1 lg:border-t-0 lg:border-l"
+            onClick={item.onAction}
+          >
+            {content}
+          </button>
+        ) : (
+          <div
+            key={item.label}
+            className="grid min-h-16 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t px-3 py-2.5 lg:flex-1 lg:border-t-0 lg:border-l"
+          >
+            {content}
+          </div>
+        );
+      })}
     </Card>
   );
 }

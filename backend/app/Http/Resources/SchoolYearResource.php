@@ -29,7 +29,6 @@ class SchoolYearResource extends JsonResource
             'progressionOverride' => $this->progression_open,
             // Whether the end-date schedule alone would open it.
             'progressionAuto' => $this->autoProgressionOpen(),
-            'downpaymentType' => $this->downpayment_type,
             'downpaymentValue' => $this->downpayment_value !== null ? (float) $this->downpayment_value : null,
             'installmentCount' => $this->installment_count,
             'createdAt' => $this->created_at?->toIso8601String(),

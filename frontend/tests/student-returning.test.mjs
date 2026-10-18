@@ -60,7 +60,7 @@ test('re-enrollment offers start when ready and details when an outstanding bala
 
 function journey(summary) { return renderToStaticMarkup(createElement(MemoryRouter,null,createElement(ReturnJourney,{data:summary,onStart:()=>{}}))); }
 test('ready return shows program, deadline and start action without the settled balance or guidance sections', () => {
-  const html=journey({...base,state:'ready',canStart:true,previousBills:[{...base.previousBills[0],balance:0}],offer:{schoolYearId:2,schoolYear:'2027-2028',feeTotal:10000,downpaymentType:'fixed',downpaymentValue:500}});
+  const html=journey({...base,state:'ready',canStart:true,previousBills:[{...base.previousBills[0],balance:0}],offer:{schoolYearId:2,schoolYear:'2027-2028',feeTotal:10000,downpaymentValue:500}});
   assert.match(html,/type="submit"[^>]*>Re-enroll now/);
   assert.match(html,/>STEM</); assert.match(html,/>grade 11</);
   assert.match(html,/SY 2027-2028/);

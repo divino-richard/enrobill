@@ -423,13 +423,7 @@ function AdminTransferRequestsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <PageHeader title="Transfer Requests" />
-        </div>
-
-        <div className="bg-card rounded-lg border px-3 py-2 text-sm font-medium tabular-nums">{filtered.length} {filtered.length === 1 ? "request" : "requests"}</div>
-      </div>
+      <PageHeader title="Transfer Requests" />
 
       <TablePanel>
         <TableToolbar className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))_auto]">

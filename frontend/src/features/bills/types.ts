@@ -13,7 +13,6 @@ export type PaymentMethod = "cash" | "gcash" | "maya" | "bank";
 export type PaymentStatus = "pending" | "verified" | "rejected";
 
 export interface InstallmentPolicy {
-  downpaymentType: "percentage" | "fixed" | null;
   downpaymentValue: number | null;
   installmentCount: number | null;
 }

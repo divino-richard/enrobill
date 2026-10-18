@@ -34,7 +34,7 @@ class StudentReturningEnrollmentTest extends TestCase
         $cashier = User::factory()->create(['role' => Role::Cashier]);
         $student = Student::create(['user_id' => $user->id, 'student_number' => 'DEF-'.$user->id, 'first_name' => 'Deferred', 'last_name' => 'Student', 'status' => 'dropped', 'track_or_strand' => 'stem', 'year_level' => 'grade_11']);
         $oldYear = SchoolYear::create(['school_year' => '2026-2027', 'start_date' => '2026-06-01', 'end_date' => '2027-03-31']);
-        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_value' => 200, 'installment_count' => 4]);
         $old = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $oldYear->id, 'status' => 'dropped', 'track' => 'stem', 'year_level' => 'grade_11']);
         $drop = DroppingRequest::create(['student_id' => $student->id, 'enrollment_id' => $old->id, 'status' => 'confirmed', 'effective_date' => $date, 'confirmed_at' => now(), 'snapshot' => [], 'submissions' => [], 'events' => []]);
         $bill = Bill::create(['student_id' => $student->id, 'school_year_id' => $oldYear->id, 'enrollment_id' => $old->id, 'total' => 100, 'amount_paid' => 0, 'status' => 'unpaid']);

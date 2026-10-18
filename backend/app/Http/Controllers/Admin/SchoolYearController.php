@@ -12,7 +12,6 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class SchoolYearController extends Controller
@@ -63,7 +62,7 @@ class SchoolYearController extends Controller
                     }
                 },
             ],
-            ...$this->policyRules($request),
+            ...$this->policyRules(),
         ], [
             'endDate.after' => 'The end date must be after the start date.',
         ]);
@@ -130,7 +129,7 @@ class SchoolYearController extends Controller
      */
     public function updatePolicy(Request $request, SchoolYear $schoolYear): SchoolYearResource
     {
-        $validated = $request->validate($this->policyRules($request));
+        $validated = $request->validate($this->policyRules());
 
         $schoolYear->update($this->policyAttributes($validated));
 
@@ -143,13 +142,11 @@ class SchoolYearController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function policyRules(Request $request): array
+    private function policyRules(): array
     {
-        $percentage = $request->input('downpaymentType') === 'percentage';
-
         return [
-            'downpaymentType' => ['required', Rule::in(['percentage', 'fixed'])],
-            'downpaymentValue' => ['required', 'numeric', 'min:0', 'max:'.($percentage ? '100' : '99999999.99')],
+            'downpaymentType' => ['prohibited'],
+            'downpaymentValue' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'installmentCount' => ['required', 'integer', 'min:1', 'max:24'],
         ];
     }
@@ -163,7 +160,6 @@ class SchoolYearController extends Controller
     private function policyAttributes(array $validated): array
     {
         return [
-            'downpayment_type' => $validated['downpaymentType'] ?? null,
             'downpayment_value' => $validated['downpaymentValue'] ?? null,
             'installment_count' => $validated['installmentCount'] ?? null,
         ];

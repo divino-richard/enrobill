@@ -216,7 +216,6 @@ class ReconcileEnrollmentIncentivesTest extends TestCase
             'end_date' => now()->addMonths(9)->toDateString(),
             'is_active' => true,
             'admission_open' => true,
-            'downpayment_type' => 'fixed',
             'downpayment_value' => 100,
             'installment_count' => 4,
         ]);

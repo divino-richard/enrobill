@@ -198,7 +198,6 @@ class ReferralLifecycleTest extends TestCase
             'end_date' => ($startYear + 1).'-03-31',
             'is_active' => $active,
             'admission_open' => $admitting,
-            'downpayment_type' => 'fixed',
             'downpayment_value' => 100,
             'installment_count' => 4,
         ]);

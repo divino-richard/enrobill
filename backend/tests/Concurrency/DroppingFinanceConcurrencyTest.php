@@ -123,7 +123,7 @@ class DroppingFinanceConcurrencyTest extends TestCase
         $approve = ['action' => 'confirm', 'id' => $drop->id, 'payload' => ['effectiveDate' => '2026-09-30', 'version' => 1, 'assessmentFingerprint' => $preview['fingerprint']]];
         $this->assertSame([200], $this->race([$approve], $admin));
         Program::firstOrCreate(['code' => 'stem'], ['name' => 'STEM', 'category' => 'academic', 'is_active' => true]);
-        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'downpayment_value' => 200, 'installment_count' => 4]);
         $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
         $create = ['action' => 'return', 'id' => $bill->student_id, 'payload' => ['schoolYearId' => $year->id, 'program' => 'stem', 'yearLevel' => 'grade_11', 'discountId' => null]];
         $this->assertSame([422, 422], $this->race([$create, $create], $admin));
@@ -155,7 +155,7 @@ class DroppingFinanceConcurrencyTest extends TestCase
         $this->assertSame([200], $this->race([['action' => 'confirm', 'id' => $drop->id, 'payload' => ['effectiveDate' => '2026-09-30', 'version' => 1, 'assessmentFingerprint' => $preview['fingerprint']]]], $admin));
         Program::firstOrCreate(['code' => 'stem'], ['name' => 'STEM', 'category' => 'academic', 'is_active' => true]);
         SchoolYear::query()->update(['is_active' => false]);
-        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_value' => 200, 'installment_count' => 4]);
         $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
         $cashier = User::factory()->create(['role' => Role::Cashier]);
         $this->assertSame([200], $this->race([['action' => 'pay', 'id' => $bill->id, 'payload' => ['amount' => 6000, 'method' => 'cash', 'paidAt' => '2026-09-30']]], $cashier));
@@ -173,7 +173,7 @@ class DroppingFinanceConcurrencyTest extends TestCase
         $drop->enrollment->update(['status' => 'dropped']);
         Program::firstOrCreate(['code' => 'stem'], ['name' => 'STEM', 'category' => 'academic', 'is_active' => true]);
         SchoolYear::query()->update(['is_active' => false]);
-        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'admission_open' => true, 'downpayment_value' => 200, 'installment_count' => 4]);
         $year->fees()->create(['name' => 'Tuition', 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all', 'amount' => 1000]);
         $closed = false;
         // A second committed connection closes admissions after the return has

@@ -37,7 +37,6 @@ class BillResource extends JsonResource
             'historicalInstallments' => $this->historicalInstallments(),
             'noDownpayment' => (bool) ($this->whenLoaded('enrollment', fn () => $this->enrollment?->no_downpayment, false)),
             'installmentPolicy' => $this->schoolYear ? [
-                'downpaymentType' => $this->schoolYear->downpayment_type,
                 'downpaymentValue' => $this->schoolYear->downpayment_value !== null
                     ? (float) $this->schoolYear->downpayment_value
                     : null,

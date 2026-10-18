@@ -245,23 +245,15 @@ function AdminApplicationsPage() {
     schoolYear !== "all" ||
     yearLevel !== "all" ||
     programCode !== "all";
-  const meta = query.data?.meta;
 
   return (
     <div className="space-y-4">
       <DashboardHeader
         title="Applications"
         actions={
-          <div className="flex items-center gap-2 text-[0.8125rem] tabular-nums" aria-live="polite">
-            <span className="bg-card inline-flex h-9 items-center rounded-md px-3 font-semibold shadow-xs ring-1 ring-foreground/10">
-              {meta?.from && meta?.to
-                ? `Showing ${meta.from}–${meta.to} of ${meta.total}`
-                : `${meta?.total ?? 0} total`}
-            </span>
-            {query.isFetching && !query.isLoading && (
-              <span className="text-muted-foreground">Updating…</span>
-            )}
-          </div>
+          query.isFetching && !query.isLoading ? (
+            <span role="status" className="text-muted-foreground text-sm">Updating…</span>
+          ) : undefined
         }
       />
 

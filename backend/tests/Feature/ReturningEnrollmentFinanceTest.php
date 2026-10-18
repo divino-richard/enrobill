@@ -40,7 +40,7 @@ class ReturningEnrollmentFinanceTest extends TestCase
         $student = $this->student();
         $oldYear = SchoolYear::create(['school_year' => '2026-2027', 'start_date' => '2026-06-01', 'end_date' => '2027-03-31']);
         $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31',
-            'is_active' => true, 'downpayment_type' => 'fixed', 'downpayment_value' => 200, 'installment_count' => 4]);
+            'is_active' => true, 'downpayment_value' => 200, 'installment_count' => 4]);
         $old = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $oldYear->id,
             'status' => 'dropped', 'track' => 'stem', 'year_level' => 'grade_11']);
         DroppingRequest::create(['student_id' => $student->id, 'enrollment_id' => $old->id, 'status' => 'confirmed', 'effective_date' => '2026-06-01', 'snapshot' => [], 'events' => [], 'submissions' => []]);

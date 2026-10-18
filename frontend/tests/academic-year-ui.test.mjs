@@ -10,10 +10,11 @@ const server = await createServer({ server: { middlewareMode: true, hmr: false, 
 after(() => server.close());
 const { default: TermsPage } = await server.ssrLoadModule('/src/pages/admin/terms-page.tsx');
 const { default: TermDetailPage } = await server.ssrLoadModule('/src/pages/admin/term-detail-page.tsx');
+const { TooltipProvider } = await server.ssrLoadModule('/src/components/ui/tooltip.tsx');
 const term = {
   id: 7, schoolYear: '2026-2027', startDate: '2026-10-05', endDate: '2027-09-24',
   isActive: true, admissionOpen: true, progressionOpen: false, progressionOverride: null,
-  progressionAuto: false, downpaymentType: 'fixed', downpaymentValue: 170, installmentCount: 12, createdAt: null,
+  progressionAuto: false, downpaymentValue: 170, installmentCount: 12, createdAt: null,
 };
 const freebies = [
   { id: 1, schoolYearId: 7, type: 'early_enrollment', name: 'Early Enrollment Promo', isActive: true, startsOn: '2026-10-05', endsOn: '2026-10-31' },
@@ -25,9 +26,9 @@ function renderPage(url, years = [term], campaigns = freebies) {
   client.setQueryData(['dropping-policy', 7], { id: null, schoolYearId: 7, version: 0, enabled: false, periods: {} });
   client.setQueryData(['admin', 'freebies', 'school-year', 7], campaigns);
   const html = renderToStaticMarkup(createElement(QueryClientProvider, { client },
-    createElement(MemoryRouter, { initialEntries: [url] }, createElement(Routes, null,
+    createElement(TooltipProvider, null, createElement(MemoryRouter, { initialEntries: [url] }, createElement(Routes, null,
       createElement(Route, { path: '/admin/terms', element: createElement(TermsPage) }),
-      createElement(Route, { path: '/admin/terms/:id', element: createElement(TermDetailPage) })))));
+      createElement(Route, { path: '/admin/terms/:id', element: createElement(TermDetailPage) }))))));
   client.clear();
   return html;
 }
@@ -45,15 +46,19 @@ test('the year list links to details without exposing configuration actions in a
   assert.doesNotMatch(html, /role="menu"|aria-haspopup="menu"|Deactivate year|Close admissions|Enable progression|Delete year/);
 });
 
-test('overview exposes year, admissions, and progression in one selected section', () => {
+test('overview exposes year, admissions, progression, and installment settings together', () => {
   const html = renderPage('/admin/terms/7');
   const panel = selectedPanel(html);
   assert.match(panel, /School year/);
   assert.match(panel, /Close admissions/);
   assert.match(panel, /Enable progression/);
-  assert.doesNotMatch(panel, /Edit payment plan|Configure policy|Edit incentive/);
-  assert.equal((html.match(/role="tab"/g) ?? []).length, 4);
-  assert.match(html, /<details[^>]*><summary[^>]*>Delete academic year/);
+  assert.match(panel, /Installment policy/);
+  assert.doesNotMatch(panel, /Configure policy|Edit incentive/);
+  assert.equal((html.match(/role="tab"/g) ?? []).length, 3);
+  assert.doesNotMatch(html, />Payment plan<|trigger-payments|content-payments/);
+  assert.match(panel, /<section aria-label="Delete academic year"/);
+  assert.match(panel, />Delete year<\/button>/);
+  assert.doesNotMatch(panel, /<details|<summary/);
 });
 
 test('inactive years cannot open admissions or progression', () => {
@@ -66,13 +71,23 @@ test('inactive years cannot open admissions or progression', () => {
   assert.match(html, />Set as active<\/button>/);
 });
 
-test('payment plan can be opened directly and displays saved amounts', () => {
+test('old payment plan links open overview with saved amounts and a modal edit action', () => {
   const panel = selectedPanel(renderPage('/admin/terms/7?section=payments'));
   assert.match(panel, /Installment policy/);
   assert.match(panel, /170\.00/);
   assert.match(panel, /12 monthly installments/);
-  assert.match(panel, /Edit payment plan/);
-  assert.doesNotMatch(panel, /Deactivate year|Close admissions/);
+  assert.match(panel, /<button[^>]*aria-haspopup="dialog"[^>]*>Edit policy<\/button>/);
+  assert.match(panel, /Deactivate year/);
+  assert.match(panel, /Close admissions/);
+  assert.doesNotMatch(panel, /Save policy|Downpayment type/);
+});
+
+test('downpayments are always peso amounts in the overview and academic year list', () => {
+  const years = [{ ...term, downpaymentValue: 20, installmentCount: 1 }];
+  const panel = selectedPanel(renderPage('/admin/terms/7', years));
+  assert.match(panel, /₱20\.00 downpayment · 1 monthly installment</);
+  assert.match(renderPage('/admin/terms', years), /₱20\.00 down · 1 monthly/);
+  assert.doesNotMatch(panel, /20%|1 monthly installments/);
 });
 
 test('unconfigured dropping policy has its own clear setup entry', () => {
@@ -81,7 +96,7 @@ test('unconfigured dropping policy has its own clear setup entry', () => {
   assert.match(panel, /Add Paying policy for Enrollment period/);
   assert.match(panel, /Add With voucher policy for Final quarter/);
   assert.doesNotMatch(panel, /Next period|Review policy/);
-  assert.doesNotMatch(panel, /Edit freebie|Edit payment plan/);
+  assert.doesNotMatch(panel, /Edit freebie|Edit policy/);
 });
 
 test('incentives preserve separate configurations and their saved states', () => {

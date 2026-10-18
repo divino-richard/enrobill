@@ -72,7 +72,7 @@ class StudentReturningEnrollment
         }
         return [...$base, 'state' => 'ready', 'canStart' => true, 'offer' => ['schoolYearId' => $year->id,
             'schoolYear' => $year->school_year, 'feeTotal' => round((float) $fees->sum('amount'), 2),
-            'downpaymentType' => $year->downpayment_type, 'downpaymentValue' => (float) $year->downpayment_value]];
+            'downpaymentValue' => (float) $year->downpayment_value]];
     }
 
     public function start(Student $student, int $yearId, int $actorId): Enrollment

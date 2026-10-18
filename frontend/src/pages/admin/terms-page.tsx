@@ -31,7 +31,7 @@ export default function TermsPage() {
             <TableBody>{terms.map(term => <TableRow key={term.id} className="group relative cursor-pointer focus-within:bg-muted/50">
               <TableCell className="pl-5 font-semibold">{term.schoolYear}</TableCell>
               <TableCell className="text-muted-foreground">{term.startDate && term.endDate ? `${formatDate(term.startDate)} – ${formatDate(term.endDate)}` : 'Dates not set'}</TableCell>
-              <TableCell className="text-muted-foreground">{term.downpaymentType === 'percentage' ? `${term.downpaymentValue}%` : formatPeso(term.downpaymentValue)} down · {term.installmentCount} monthly</TableCell>
+              <TableCell className="text-muted-foreground">{formatPeso(term.downpaymentValue)} down · {term.installmentCount} monthly</TableCell>
               <TableCell><Badge variant="secondary" className={term.isActive ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : ''}>{term.isActive ? 'Active' : 'Inactive'}</Badge></TableCell>
               <TableCell className="w-16 pr-5 text-right">
                 {/* Stretch the native link over the row, preserving keyboard and new-tab behavior. */}

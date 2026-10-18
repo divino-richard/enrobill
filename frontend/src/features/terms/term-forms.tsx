@@ -2,8 +2,7 @@ import { useId, useState } from "react";
 import { addMonths, differenceInMonths, format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldLabel } from "@/components/form/field-label";
 import { DatePicker } from "@/components/form/date-picker";
@@ -11,23 +10,20 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { useCreateTerm, useUpdateTermPolicy } from "./hooks";
 import { useSchoolYearFreebies, useUpsertFreebie } from "@/features/freebies/hooks";
 import type { Freebie } from "@/features/freebies/types";
-import type { DownpaymentType, Term } from "./types";
+import type { Term } from "./types";
 
 interface PolicyState {
-  type: DownpaymentType;
   value: string;
   count: string;
 }
 
 const EMPTY_POLICY: PolicyState = {
-  type: "fixed",
   value: "",
   count: "",
 };
 
 function policyToInput(policy: PolicyState) {
   return {
-    downpaymentType: policy.type,
     downpaymentValue: Number(policy.value),
     installmentCount: Number(policy.count),
   };
@@ -36,7 +32,7 @@ function policyToInput(policy: PolicyState) {
 const policyComplete = (policy: PolicyState) =>
   policy.value !== "" && policy.count !== "" &&
   Number.isFinite(Number(policy.value)) && Number(policy.value) >= 0 &&
-  Number(policy.value) <= (policy.type === "percentage" ? 100 : 99999999.99) &&
+  Number(policy.value) <= 99999999.99 &&
   Number.isInteger(Number(policy.count)) && Number(policy.count) >= 1 && Number(policy.count) <= 24;
 
 function SchedulePreview({
@@ -74,52 +70,37 @@ function PolicyFields({
   onChange,
   startDate,
   endDate,
+  showExplanation = true,
 }: {
   policy: PolicyState;
   onChange: (patch: Partial<PolicyState>) => void;
   startDate: string | null;
   endDate: string | null;
+  showExplanation?: boolean;
 }) {
   const count = Number(policy.count);
   const fieldId = useId();
 
   return (
     <div className="space-y-4 sm:col-span-2">
-      <details className="text-muted-foreground text-sm">
+      {showExplanation && <details className="text-muted-foreground text-sm">
         <summary className="cursor-pointer">How installments work</summary>
         <p className="mt-2">The balance after the downpayment is split into equal monthly payments. A larger downpayment lowers the monthly amount.</p>
-      </details>
+      </details>}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <FieldLabel htmlFor={`${fieldId}-type`}>Downpayment type</FieldLabel>
-          <Select
-            value={policy.type}
-            onValueChange={(v) => onChange({ type: v as DownpaymentType })}
-          >
-            <SelectTrigger id={`${fieldId}-type`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="percentage">Percentage (%)</SelectItem>
-              <SelectItem value="fixed">Fixed (₱)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <FieldLabel htmlFor={`${fieldId}-amount`}>
-            {policy.type === "percentage" ? "Downpayment %" : "Downpayment ₱"}
-          </FieldLabel>
+          <FieldLabel htmlFor={`${fieldId}-amount`}>Downpayment (₱)</FieldLabel>
           <Input
             id={`${fieldId}-amount`}
             type="number"
             min={0}
-            max={policy.type === "percentage" ? 100 : undefined}
+            max={99999999.99}
             step="0.01"
             value={policy.value}
             onChange={(e) => onChange({ value: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5">
           <FieldLabel htmlFor={`${fieldId}-count`} hint="Splits the balance after the downpayment into this many equal monthly dues. More installments means a smaller amount per month.">
             Monthly installments
           </FieldLabel>
@@ -144,51 +125,70 @@ function PolicyFields({
   );
 }
 
-export function InstallmentPolicyForm({ term, onDone }: { term: Term; onDone: () => void }) {
+export function InstallmentPolicyDialog({ term }: { term: Term }) {
   const save = useUpdateTermPolicy(term.id);
-  const [policy, setPolicy] = useState<PolicyState>({
-    type: term.downpaymentType ?? "fixed",
+  const [open, setOpen] = useState(false);
+  const savedPolicy: PolicyState = {
     value: term.downpaymentValue != null ? String(term.downpaymentValue) : "",
     count: term.installmentCount != null ? String(term.installmentCount) : "",
-  });
+  };
+  const [policy, setPolicy] = useState<PolicyState>(savedPolicy);
+
+  function changeOpen(next: boolean) {
+    if (save.isPending) return;
+    if (next) {
+      setPolicy(savedPolicy);
+      save.reset();
+    }
+    setOpen(next);
+  }
 
   async function handleSave() {
-    if (!policyComplete(policy)) return;
+    if (!policyComplete(policy) || save.isPending) return;
     try {
       await save.mutateAsync(policyToInput(policy));
-      onDone();
+      setOpen(false);
     } catch {
       // Surfaced via save.isError.
     }
   }
 
   return (
-    <>
-      <fieldset disabled={save.isPending} className="grid gap-4">
-        <PolicyFields
-          policy={policy}
-          onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
-          startDate={term.startDate}
-          endDate={term.endDate}
-        />
-      </fieldset>
-      {save.isError && (
-        <p role="alert" className="text-destructive text-sm">
-          {getErrorMessage(save.error)}
-        </p>
-      )}
-      <DialogFooter className="mt-5 border-t pt-4">
-        <Button variant="outline" onClick={onDone} disabled={save.isPending}>
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={!policyComplete(policy) || save.isPending}
-        >
-          {save.isPending ? "Saving…" : "Save policy"}
-        </Button>
-      </DialogFooter>
-    </>
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">Edit policy</Button>
+      </DialogTrigger>
+      <DialogContent className="w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto" showCloseButton={!save.isPending}>
+        <DialogHeader className="pr-6 text-left">
+          <DialogTitle>Edit installment policy</DialogTitle>
+          <DialogDescription>SY {term.schoolYear}</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void handleSave(); }}>
+          <fieldset disabled={save.isPending} className="grid gap-4">
+            <PolicyFields
+              policy={policy}
+              onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
+              startDate={term.startDate}
+              endDate={term.endDate}
+              showExplanation={false}
+            />
+          </fieldset>
+          {save.isError && (
+            <p role="alert" className="text-destructive text-sm">
+              {getErrorMessage(save.error)}
+            </p>
+          )}
+          <DialogFooter className="border-t pt-4">
+            <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={save.isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!policyComplete(policy) || save.isPending}>
+              {save.isPending ? "Saving…" : "Save policy"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
