@@ -68,7 +68,8 @@ export function PayDialog({ bill, disabled, triggerClassName, triggerLabel = 'Ma
   const suggested = !dropping && bill.amountDue > 0 ? bill.amountDue : nextOutstandingInstallment(bill.installments ?? [])?.balance ?? bill.balance;
   const billNumber = `BILL-${String(bill.id).padStart(5, '0')}`;
   const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState(String(suggested));
+  const [enteredAmount, setAmount] = useState<string | null>(null);
+  const amount = enteredAmount ?? String(suggested);
   const [method, setMethod] = useState('');
   const [paidAt, setPaidAt] = useState(paymentToday);
   const [reference, setReference] = useState('');
@@ -175,13 +176,15 @@ export function PayDialog({ bill, disabled, triggerClassName, triggerLabel = 'Ma
   }
   function changeOpen(next: boolean) {
     if (lock.current) return;
-    if (next && !openedBefore.current) {
-      setAmount(String(suggested));
+    if (next && (!openedBefore.current || (!method && !reference && !note && !receipt))) {
+      // A fresh payment starts at the current due amount; keep an unfinished
+      // payment's amount alongside its method, receipt, and other details.
+      setAmount(null);
       setPaidAt(paymentToday());
       openedBefore.current = true;
     }
     if (next && success) {
-      setSuccess(null); setAmount(String(suggested)); setMethod(''); setPaidAt(paymentToday());
+      setSuccess(null); setAmount(null); setMethod(''); setPaidAt(paymentToday());
       setReference(''); setNote(''); setErrors({}); setError(''); setAnnouncement('');
       submit.reset();
     }
