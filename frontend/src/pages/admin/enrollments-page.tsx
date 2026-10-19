@@ -239,7 +239,7 @@ function EnrollmentActionsCell({
   const studentId = enrollment.student?.id ?? null;
 
   return (
-    <div className="flex justify-end">
+    <div className="flex items-center justify-center">
       <RowActions>
         <DropdownMenuItem onClick={() => onViewBilling(enrollment)}>
           <ReceiptTextIcon />
@@ -391,7 +391,7 @@ function EnrollmentsPage() {
         id: "actions",
         header: () => null,
         enableSorting: false,
-        meta: { className: "w-14 text-right align-top" },
+        meta: { className: "w-14 text-center align-middle" },
         cell: ({ row }) => (
           <EnrollmentActionsCell
             enrollment={row.original}

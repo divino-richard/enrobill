@@ -1,3 +1,4 @@
+import { appliedCreditLines } from '@/features/bills/credits';
 import { useStudentReturn } from '@/features/re-enrollment/api';
 import { PostDropDashboard } from '@/features/re-enrollment/post-drop-dashboard';
 import { format } from "date-fns";
@@ -168,7 +169,7 @@ export function StudentDashboard() {
                 </div>
                 {((bill.creditApplied ?? 0) > 0 || (bill.availableCredit ?? 0) > 0) && (
                   <dl className="text-muted-foreground mt-4 space-y-1.5 text-xs">
-                    {(bill.creditApplied ?? 0) > 0 && <div className="flex justify-between gap-3"><dt>Credit applied</dt><dd className="text-foreground tabular-nums">{formatPeso(bill.creditApplied ?? 0)}</dd></div>}
+                    {appliedCreditLines(bill, 'Credit applied').map(credit => <div key={credit.kind} className="flex justify-between gap-3"><dt>{credit.label}</dt><dd className="shrink-0 text-foreground tabular-nums">{formatPeso(credit.amount)}</dd></div>)}
                     {(bill.availableCredit ?? 0) > 0 && <div className="flex justify-between gap-3"><dt>Credit for a future enrollment</dt><dd className="text-foreground tabular-nums">{formatPeso(bill.availableCredit ?? 0)}</dd></div>}
                   </dl>
                 )}

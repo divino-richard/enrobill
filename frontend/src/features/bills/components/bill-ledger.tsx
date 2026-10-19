@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { appliedCreditLines } from '../credits';
 import { isDroppingBill } from '../collection';
 import { DroppingBillStatement } from './dropping-statement';
 import { type LucideIcon } from "lucide-react";
@@ -220,7 +221,7 @@ export function BillStatement({ bill }: { bill: Bill }) {
               value={formatPeso(bill.netTotal)}
               strong
             />
-            {(bill.creditApplied ?? 0) > 0 && <MobileValueRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
+            {appliedCreditLines(bill, 'Student credit used').map(credit => <MobileValueRow key={credit.kind} label={credit.label} value={formatPeso(credit.amount)} />)}
             <MobileValueRow label="Paid" value={formatPeso(bill.amountPaid)} />
             <MobileValueRow
               label="Outstanding balance"
@@ -290,7 +291,7 @@ export function BillStatement({ bill }: { bill: Bill }) {
               value={formatPeso(bill.netTotal)}
               divide
             />
-            {(bill.creditApplied ?? 0) > 0 && <TotalRow label="Student credit used" value={formatPeso(bill.creditApplied ?? 0)} />}
+            {appliedCreditLines(bill, 'Student credit used').map(credit => <TotalRow key={credit.kind} label={credit.label} value={formatPeso(credit.amount)} />)}
             <TotalRow label="Paid" value={formatPeso(bill.amountPaid)} />
             <TotalRow
               label="Outstanding balance"

@@ -1,4 +1,3 @@
-import { COMPONENTS, type DroppingComponent } from '@/features/dropping-finance/api';
 import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
 import { PageHeader } from "@/components/page-header";
 import { Fragment, useMemo, useState } from "react";
@@ -75,7 +74,6 @@ import {
 interface FeeFormState {
   yearLevel: FeeYearLevel;
   category: FeeCategory;
-  droppingComponent: DroppingComponent | "unclassified";
   name: string;
   type: FeeType;
   amount: string;
@@ -84,7 +82,6 @@ interface FeeFormState {
 const EMPTY_FEE: FeeFormState = {
   yearLevel: "all",
   category: "other",
-  droppingComponent: "unclassified",
   name: "",
   type: "default",
   amount: "",
@@ -117,7 +114,6 @@ function FeeDialog({
       ? {
           yearLevel: editing.yearLevel,
           category: editing.category,
-          droppingComponent: editing.droppingComponent ?? "unclassified",
           name: editing.name,
           type: editing.type,
           amount: String(editing.amount),
@@ -132,7 +128,6 @@ function FeeDialog({
     const payload: FeeInput = {
       yearLevel: form.yearLevel,
       category: form.category,
-      droppingComponent: form.droppingComponent === "unclassified" ? null : form.droppingComponent,
       name: form.name.trim(),
       type: form.type,
       amount: Number(form.amount),
@@ -177,15 +172,6 @@ function FeeDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="space-y-1.5 sm:col-span-2">
-            <FieldLabel htmlFor="fee-dropping-component">Dropping charge classification</FieldLabel>
-            <Select value={form.droppingComponent} onValueChange={value => setForm(prev => ({ ...prev, droppingComponent: value as FeeFormState['droppingComponent'] }))}>
-              <SelectTrigger id="fee-dropping-component" className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="unclassified">Not classified yet</SelectItem>{COMPONENTS.map(component => <SelectItem key={component.value} value={component.value}>{component.label}</SelectItem>)}</SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">Used on newly generated bills. Keep registration and laboratory separate from miscellaneous.</p>
           </div>
 
           <div className="space-y-1.5">

@@ -33,7 +33,12 @@ class Bill extends Model
 
     public function issuedCredit(): HasOne
     {
-        return $this->hasOne(StudentCredit::class, 'source_bill_id');
+        return $this->hasOne(StudentCredit::class, 'source_bill_id')->where('kind', StudentCredit::EXCESS_PAYMENT);
+    }
+
+    public function issuedCredits(): HasMany
+    {
+        return $this->hasMany(StudentCredit::class, 'source_bill_id');
     }
 
     public function paymentArrangement(): HasOne
@@ -82,6 +87,16 @@ class Bill extends Model
         return Currency::pesos($this->creditAllocations()->get()->sum(fn ($row) => Currency::cents($row->amount) - Currency::cents($row->released_amount)));
     }
 
+    public function appliedCreditLines(): array
+    {
+        return $this->creditAllocations()->with('credit')->get()
+            ->groupBy(fn ($allocation) => $allocation->credit->kind)
+            ->map(function ($allocations, $kind) {
+                return ['kind' => $kind, 'label' => $allocations->first()->credit->label(),
+                    'amount' => Currency::pesos($allocations->sum(fn ($allocation) => Currency::cents($allocation->amount) - Currency::cents($allocation->released_amount)))];
+            })->filter(fn ($line) => $line['amount'] > 0)->values()->all();
+    }
+
     public function effectivePaymentTotal(): float
     {
         return Currency::pesos(Currency::cents($this->amount_paid) + Currency::cents($this->creditApplied()));
@@ -108,7 +123,7 @@ class Bill extends Model
         });
         static::deleting(function (Bill $bill) {
             $bill->assertMutableAssessment();
-            if ($bill->creditAllocations()->exists() || $bill->issuedCredit()->exists()) {
+            if ($bill->creditAllocations()->exists() || $bill->issuedCredits()->exists()) {
                 throw ValidationException::withMessages(['bill' => 'A bill with student credit history cannot be deleted.']);
             }
         });

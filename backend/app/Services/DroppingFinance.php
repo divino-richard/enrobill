@@ -76,8 +76,10 @@ class DroppingFinance
         foreach ($items as $item) {
             $amount = Currency::cents($item->amount);
             $original += $amount;
-            if ($amount < 0 || (! $usesFeeRules && ! in_array($item->dropping_component, BillItem::DROPPING_COMPONENTS, true))) {
-                $addIssue('fees', 'Classify each original fee before approving this request.');
+            if ($amount < 0) {
+                $addIssue('fees', 'The original bill contains an invalid fee amount.');
+            } elseif (! $usesFeeRules && ! in_array($item->dropping_component, BillItem::DROPPING_COMPONENTS, true)) {
+                $addIssue('fees', 'The original fee “'.$item->name.'” has incomplete data for this older dropping policy.');
             } elseif (in_array($item->dropping_component, BillItem::DROPPING_COMPONENTS, true)) {
                 $breakdown[$item->dropping_component] += $amount;
             }
@@ -118,7 +120,7 @@ class DroppingFinance
                         ? $item->source_fee_id === $rule['feeId']
                         : $item->name === $rule['name'] && $item->category === $rule['category']);
                     if ($matches->count() !== 1 || isset($matched[$matches->first()?->id])) {
-                        $addIssue('fees', 'Link the original bill fee “'.$rule['name'].'” to its fee schedule item before approval.');
+                        $addIssue('fees', 'The original bill fee “'.$rule['name'].'” could not be matched uniquely to this dropping policy.');
 
                         continue;
                     }
@@ -204,7 +206,7 @@ class DroppingFinance
         ]);
         $bill->unsetRelation('droppingAssessment');
         if ($preview['credit'] > 0) {
-            StudentCredit::firstOrCreate(['source_bill_id' => $bill->id], [
+            StudentCredit::firstOrCreate(['source_bill_id' => $bill->id, 'kind' => StudentCredit::EXCESS_PAYMENT], [
                 'student_id' => $bill->student_id, 'amount' => $preview['credit'], 'issued_by' => $actorId,
             ]);
         }

@@ -2,10 +2,6 @@ import api from '@/lib/api';
 
 export type DroppingCategory = 'paying' | 'voucher_esc';
 export type DroppingComponent = 'registration' | 'miscellaneous' | 'laboratory' | 'tuition' | 'other';
-export const COMPONENTS: { value: DroppingComponent; label: string }[] = [
-  { value: 'registration', label: 'Registration' }, { value: 'miscellaneous', label: 'Miscellaneous' },
-  { value: 'laboratory', label: 'Laboratory' }, { value: 'tuition', label: 'Tuition' }, { value: 'other', label: 'Other' },
-];
 export const PERIODS = [
   { key: 'enrollment', label: 'Enrollment period', paying: 'Registration', voucher: 'Registration' },
   { key: 'quarter_1', label: 'First quarter', paying: 'Miscellaneous + laboratory', voucher: '50% of miscellaneous' },
@@ -52,9 +48,6 @@ export type PeriodUpdateInput =
   | { startsOn?: never; endsOn?: never; feeRules: Partial<Record<DroppingCategory, FeeRule[]>> };
 export async function savePolicyPeriod(id: number, period: PeriodKey, input: PeriodUpdateInput) {
   return (await api.put<{ data: DroppingPolicy }>(`/admin/school-years/${id}/dropping-policy/periods/${period}`, input)).data.data;
-}
-export async function saveClassification(id: number, items: { id: number; component: DroppingComponent | null; sourceFeeId?: number | null }[]) {
-  return (await api.put(`/admin/bills/${id}/dropping-classification`, { items })).data;
 }
 export async function saveArrangement(id: number, input: PaymentArrangement) {
   return (await api.put(`/admin/bills/${id}/payment-arrangement`, input)).data;

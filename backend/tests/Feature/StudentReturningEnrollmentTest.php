@@ -2,23 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Actions\EnsureEnrollment;
-use App\Actions\GenerateBillForEnrollment;
 use App\Enums\Role;
 use App\Models\Bill;
-use App\Models\Discount;
 use App\Models\DroppingRequest;
 use App\Models\Enrollment;
-use App\Models\PaymentArrangement;
 use App\Models\Program;
 use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\StudentNotification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class StudentReturningEnrollmentTest extends TestCase
@@ -44,7 +38,6 @@ class StudentReturningEnrollmentTest extends TestCase
 
         return compact('student', 'user', 'admin', 'cashier', 'old', 'drop', 'bill', 'year');
     }
-
 
     private function settleOldBill(Bill $bill): void
     {
@@ -98,11 +91,12 @@ class StudentReturningEnrollmentTest extends TestCase
         $this->actingAs($user);
         $this->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'pending')
             ->assertJsonPath('data.enrollment.billId', $return->bill->id)->assertJsonPath('data.requirements.previousBalance', 0)
-            ->assertJsonPath('data.requirements.newEnrollmentPayment', 200);
+            ->assertJsonPath('data.requirements.newEnrollmentPayment', 100);
         $year->update(['admission_open' => false]);
         $this->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'pending');
         $newBill = $return->bill;
-        $this->actingAs($cashier)->postJson("/api/admin/bills/$newBill->id/payments", ['amount' => 200, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
+        $this->assertSame(100.0, $newBill->creditApplied());
+        $this->actingAs($cashier)->postJson("/api/admin/bills/$newBill->id/payments", ['amount' => 100, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
         $this->assertSame('enrolled', $return->fresh()->status);
         $this->actingAs($user)->getJson('/api/me/re-enrollment')->assertOk()->assertJsonPath('data.state', 'enrolled')->assertJsonPath('data.returnDeadline', null);
         $this->assertSame('dropped', $old->fresh()->status);

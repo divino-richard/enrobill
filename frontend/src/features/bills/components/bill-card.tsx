@@ -11,6 +11,7 @@ import { billStatusMeta, collectionLabel, isDroppingBill } from "../collection";
 import { approvedChargeLines, droppingAssessmentContext } from "../dropping-statement";
 import { useStudentBill } from "../hooks";
 import type { Bill } from "../types";
+import { appliedCreditLines } from '../credits';
 
 export function BillCard({ studentId }: { studentId: number }) {
   const query = useStudentBill(studentId);
@@ -96,7 +97,7 @@ function StudentBillOverview({ bill }: { bill: Bill }) {
             </>}
             <AmountRow label={dropping ? bill.droppingAssessment ? "Approved dropping charge" : "Recorded assessment" : "Bill total"} amount={bill.netTotal} strong />
             <AmountRow label="Verified payments" amount={bill.amountPaid > 0 ? -bill.amountPaid : 0} />
-            {(bill.creditApplied ?? 0) > 0 && <AmountRow label="Student credit applied" amount={-bill.creditApplied!} />}
+            {appliedCreditLines(bill).map(credit => <AmountRow key={credit.kind} label={credit.label} amount={-credit.amount} />)}
           </dl>
           {(bill.creditIssued ?? 0) > 0 && <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Student credit issued <span className="ml-1 font-medium text-foreground tabular-nums">{formatPeso(bill.creditIssued!)}</span></p>}
         </section>

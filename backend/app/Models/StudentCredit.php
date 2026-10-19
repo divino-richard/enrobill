@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class StudentCredit extends Model
 {
+    public const EXCESS_PAYMENT = 'excess_payment';
+
+    public const RETURNING_STUDENT = 'returning_student';
+
     protected $guarded = ['id'];
+
+    public function label(): string
+    {
+        return $this->kind === self::RETURNING_STUDENT ? 'Returning student credit' : 'Excess payment credit';
+    }
 
     protected function casts(): array
     {

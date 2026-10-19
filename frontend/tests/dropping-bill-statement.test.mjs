@@ -32,11 +32,13 @@ test('approved statement shows the two charged fees and current reconciliation, 
   assert.doesNotMatch(html,/Tuition Fee|18,421\.25|12,561\.25/);
 });
 test('historical enrollment fees remain accessible separately', () => {
-  const html=markup(DroppingBillHistory,{...bill,historicalInstallments:[{id:1,label:'First installment',amount:1000,dueDate:'2026-11-01'}]});
+  const html=markup(DroppingBillHistory,{...bill,historicalInstallments:[{id:1,label:'First installment',amount:1000,dueDate:'2026-11-01'}],creditHistory:[{id:1,sourceBillId:1,kind:'returning_student',label:'Returning student credit',amount:2100,allocated:2100,remaining:0,allocations:[{id:1,billId:8,amount:2100,releasedAmount:0}]}]});
   assert.match(html,/View original fees/); assert.match(html,/Tuition Fee/);
   assert.match(html,/not additional dropping charges/);
   assert.match(html,/Past payment schedules/); assert.match(html,/First installment/);
   assert.doesNotMatch(html,/No active payment schedule|Payable upon re-enrollment/);
+  assert.match(html,/Student credit history/); assert.match(html,/Returning student credit/);
+  assert.match(html,/href="\/portal\/bills\/8"/);
 });
 test('receipt uses approved fees on its main statement and original fees only in history', () => {
   const html=buildBillReceiptHtml(bill,{name:'Student <One>'});

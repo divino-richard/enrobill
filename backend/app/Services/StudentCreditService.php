@@ -11,6 +11,35 @@ use Illuminate\Support\Facades\DB;
 
 class StudentCreditService
 {
+    /** Issue once under the bill-generation transaction, before applying any credits. */
+    public function issueReturningCredit(Bill $bill, Enrollment $source, ?int $actorId = null): void
+    {
+        if ($source->student_id !== $bill->student_id
+            || ! app(ReturningEnrollmentRules::class)->startEligibility($source, $bill->schoolYear)['eligible']) {
+            return;
+        }
+        $sourceBill = $source->bill()->lockForUpdate()->first();
+        if (! $sourceBill) {
+            return;
+        }
+
+        $paid = Currency::cents($sourceBill->payments()->where('status', 'verified')->sum('amount'));
+        // Excess payments already belong to a separate credit, including amounts
+        // already used elsewhere. Applied credits are never treated as new cash.
+        $excessIssued = Currency::cents($sourceBill->issuedCredit?->amount ?? 0);
+        $amount = min(Currency::cents($sourceBill->netTotal()), max($paid - $excessIssued, 0));
+        if ($amount <= 0) {
+            return;
+        }
+
+        StudentCredit::firstOrCreate([
+            'source_bill_id' => $sourceBill->id, 'kind' => StudentCredit::RETURNING_STUDENT,
+        ], [
+            'student_id' => $bill->student_id, 'amount' => Currency::pesos($amount),
+            'issued_by' => $actorId ?? $sourceBill->droppingAssessment?->approved_by ?? $bill->enrollment?->created_by,
+        ]);
+    }
+
     public function availableFor(Student|int $student): float
     {
         $id = $student instanceof Student ? $student->id : $student;

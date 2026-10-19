@@ -13,7 +13,7 @@ const { useAuthStore } = await server.ssrLoadModule('/src/features/auth/store.ts
 const { formatBillDate, paymentDecisions, paymentDecisionCopy, upcomingInstallments } = await server.ssrLoadModule('/src/features/bills/staff-billing.ts');
 const { PaymentReviewDetails, PaymentDecisionConfirmation, PaymentProofPreview } = await server.ssrLoadModule('/src/features/bills/components/staff-payment-review.tsx');
 const { AlertDialog } = await server.ssrLoadModule('/src/components/ui/alert-dialog.tsx');
-const { StaffInstallmentPlan } = await server.ssrLoadModule('/src/features/bills/components/staff-bill-reference.tsx');
+const { StaffBillSummary, StaffInstallmentPlan } = await server.ssrLoadModule('/src/features/bills/components/staff-bill-reference.tsx');
 
 const payment = { id: 8, amount: 170, method: 'gcash', status: 'pending', reference: '000123', paidAt: '2026-10-05', note: 'Tuition deposit', submittedBy: 'Test Student', proofUrl: '/proof.png' };
 const bill = {
@@ -83,6 +83,7 @@ test('admins can inspect pending payments without any cashier record control', (
   assert.match(html, /Only cashiers can record, verify, or reject/);
   assert.match(html, />View details</);
   assert.doesNotMatch(html, />Record payment<|>Review payment<|>Verify payment<|>Reject payment</);
+  assert.doesNotMatch(html, /Classify fees|Original bill fees|Legacy classification/);
 });
 
 test('settled bills distinguish credit from payments and keep the receipt available', () => {
@@ -97,6 +98,63 @@ test('settled bills distinguish credit from payments and keep the receipt availa
   assert.match(empty, /No payment records. This bill has no remaining balance/);
 });
 
+test('returning credits appear once in Bill summary and student account history is absent from staff bills', () => {
+  const creditHistory = [{ id: 1, sourceBillId: 6, kind: 'returning_student', label: 'Returning student credit',
+    amount: 2100, allocated: 2100, remaining: 0, allocations: [{ id: 1, billId: 8, amount: 2100, releasedAmount: 0 }] }];
+  const html = renderBill({ ...bill, id: 8, payments: [], amountDue: 0, balance: 16321.25, creditApplied: 2100,
+    appliedCredits: [{ kind: 'returning_student', label: 'Returning student credit', amount: 2100 }], creditHistory });
+  assert.equal((html.match(/Returning student credit/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Student account|Student credit history|Previous balance|Available student credit/);
+  const summary = html.slice(html.indexOf('>Bill summary</h2>'), html.indexOf('>Installment plan</h2>'));
+  assert.match(summary, /Returning student credit<\/dt><dd[^>]*>−₱2,100\.00/);
+  assert.match(summary, /Remaining balance<\/dt><dd[^>]*>₱16,321\.25/);
+  assert.doesNotMatch(summary, /Verified payments|Bill total/);
+  const topBalance = html.match(/<section aria-label="Bill balance"[\s\S]*?<\/section>/)?.[0] ?? '';
+  assert.doesNotMatch(topBalance, /Returning student credit|₱2,100\.00/);
+
+  const source = renderBill({ ...bill, collectionState: 'deferred_until_reenrollment', enrollmentStatus: 'dropped',
+    netTotal: 2100, amountPaid: 2100, balance: 0, amountDue: 0, creditIssued: 100, payments: [], historicalInstallments: [], creditHistory });
+  assert.match(source, /Original billing details/);
+  assert.match(source, /Original fees/);
+  assert.doesNotMatch(source, /Student account|Student credit history|Returning student credit|Available student credit|history for credit allocations/);
+  assert.doesNotMatch(source, /href="\/admin\/billing\/8"/);
+});
+
+test('bill summary itemizes vouchers, mixed credits, and verified payments without changing their totals', () => {
+  const input = { ...bill, discountTotal: 1000, netTotal: 17421.25, creditApplied: 3000, amountPaid: 500, balance: 13921.25,
+    appliedCredits: [
+      { kind: 'returning_student', label: 'Returning student credit', amount: 2100 },
+      { kind: 'excess_payment', label: 'Excess payment credit', amount: 900 },
+    ] };
+  const html = renderToStaticMarkup(createElement(StaffBillSummary, { bill: input }));
+  const rows = [...html.matchAll(/<dt[^>]*>([^<]+)<\/dt><dd[^>]*>([^<]+)<\/dd>/g)].map(([, label, value]) => [label, value]);
+  assert.deepEqual(rows.slice(0, 6), [
+    ['Fees', '₱18,421.25'], ['Vouchers and incentives', '−₱1,000.00'],
+    ['Returning student credit', '−₱2,100.00'], ['Excess payment credit', '−₱900.00'],
+    ['Verified payments', '−₱500.00'], ['Remaining balance', '₱13,921.25'],
+  ]);
+  assert.match(html, /Fee breakdown/);
+  assert.doesNotMatch(html, /Student account|Student credit history|Bill total/);
+});
+
+test('bill summary uses the server balance for unpaid, payment-only, credit-covered, and legacy bills', () => {
+  for (const input of [
+    { ...bill, appliedCredits: [], creditApplied: 0, amountPaid: 0 },
+    { ...bill, appliedCredits: [], creditApplied: 0, amountPaid: 421.25, balance: 18000 },
+    { ...bill, status: 'paid', creditApplied: 18421.25, amountPaid: 0, balance: 0,
+      appliedCredits: [{ kind: 'returning_student', label: 'Returning student credit', amount: 18421.25 }] },
+    { ...bill, creditApplied: 2100, amountPaid: 0, balance: 16321.25 },
+  ]) {
+    const html = renderToStaticMarkup(createElement(StaffBillSummary, { bill: input }));
+    const expected = input.balance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    assert.equal(html.match(/>Remaining balance<\/dt><dd[^>]*>([^<]+)<\/dd>/)?.[1], `₱${expected}`);
+    if (input.amountPaid === 0) assert.doesNotMatch(html, /Verified payments/);
+    if (input.creditApplied === 0) assert.doesNotMatch(html, /Returning student credit|Excess payment credit|Student credit applied/);
+    if (input.appliedCredits === undefined) assert.match(html, /Student credit applied/);
+    assert.doesNotMatch(html, /−₱0\.00/);
+  }
+});
+
 test('multiple pending payments each keep one review action without a duplicate summary', () => {
   const html = renderBill({ ...bill, payments: [{ ...payment, amount: 0.1 }, { ...payment, id: 9, amount: 0.2 }] });
   assert.match(html, /id="review-payment-8"/);
@@ -108,9 +166,44 @@ test('multiple pending payments each keep one review action without a duplicate 
 test('dropping bills retain their collection notice and financial history after payments', () => {
   const html = renderBill({ ...bill, collectionState: 'deferred_until_reenrollment', enrollmentStatus: 'dropped', amountDue: 0, historicalInstallments: [] });
   assert.match(html, /Payable upon re-enrollment/);
-  assert.match(html, /Financial history/);
+  assert.match(html, /Original billing details/);
   assert.ok(html.indexOf('>Payments</h2>') < html.indexOf('>Charges and payments</h2>'));
   assert.doesNotMatch(html, />Installment plan<\/h2>/);
+});
+
+test('original billing details keep historical sections independently collapsed without nested disclosures', () => {
+  const html = renderBill({ ...bill, collectionState: 'deferred_until_reenrollment', enrollmentStatus: 'dropped',
+    adjustments: [{ id: 1, label: 'Original scholarship', amount: 500, type: 'fixed', value: 500 }],
+    historicalInstallments: [{ id: 1, label: 'Original downpayment', amount: 170, dueDate: '2026-10-05' },
+      { id: 2, label: 'Original installment', amount: 1520.93, dueDate: null }],
+    paymentArrangement: { remarks: 'Approved before dropping', installments: [{ dueDate: '2026-12-05', amount: 1000 }] },
+  });
+  const history = html.match(/<section aria-labelledby="original-billing-heading"[\s\S]*?<\/section>/)?.[0] ?? '';
+  assert.ok(history);
+  assert.ok(html.indexOf('>Charges and payments</h2>') < html.indexOf('>Original billing details</h2>'));
+  const summaries = [...history.matchAll(/<summary\b[^>]*>([\s\S]*?)<\/summary>/g)].map(([, content]) => content.replace(/<[^>]+>/g, ' '));
+  assert.equal(summaries.length, 4);
+  assert.match(summaries[0], /Original fees.*1 item.*₱18,421\.25/);
+  assert.match(summaries[1], /Original discounts.*1 item/);
+  assert.match(summaries[2], /Past installment schedule.*2 installments/);
+  assert.match(summaries[3], /Previous payment arrangement.*1 installment/);
+  let depth = 0;
+  for (const [tag] of history.matchAll(/<\/?details\b[^>]*>/g)) {
+    if (tag.startsWith('</')) depth -= 1;
+    else { depth += 1; assert.doesNotMatch(tag, /\sopen(?:=|\s|>)/); }
+    assert.ok(depth <= 1, 'Opening a historical section must not require another disclosure');
+  }
+  assert.equal(depth, 0);
+  for (const value of ['Tuition Fee', 'Original scholarship', 'Original downpayment', 'Oct 5, 2026', 'No date recorded', 'Approved before dropping', 'Dec 5, 2026', '₱1,000.00']) assert.ok(history.includes(value), value);
+  assert.doesNotMatch(history, /View original fees and schedules|No active payment schedule|Student account|Student credit history/);
+});
+
+test('original billing details omit unavailable historical sections', () => {
+  const html = renderBill({ ...bill, collectionState: 'deferred_until_reenrollment', enrollmentStatus: 'dropped',
+    items: [], adjustments: [], historicalInstallments: [], paymentArrangement: null });
+  const history = html.match(/<section aria-labelledby="original-billing-heading"[\s\S]*?<\/section>/)?.[0] ?? '';
+  assert.match(history, /No original fees recorded/);
+  assert.doesNotMatch(history, /<details|Original discounts|Past installment schedule|Previous payment arrangement/);
 });
 
 test('payment review retains identifying context and references with leading zeroes', () => {
@@ -156,7 +249,7 @@ test('schedule prioritizes unpaid obligations, keeps server-calculated remaining
   assert.deepEqual(upcomingInstallments(plan).map(item => item.id), [1, 3]);
   const html = renderToStaticMarkup(createElement(StaffInstallmentPlan, { bill: { ...bill, installments: plan } }));
   assert.match(html, /₱70\.00/);
-  assert.match(html, /Remaining of .*170\.00/);
+  assert.doesNotMatch(html, /Remaining of|₱170\.00/);
   assert.match(html, /Due Oct 5, 2026/);
   assert.equal(formatBillDate(null), '—');
   assert.equal(formatBillDate('invalid'), '—');

@@ -13,6 +13,7 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\DroppingFinance;
 use App\Services\StudentCreditService;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -141,7 +142,12 @@ class DroppingFinanceConcurrencyTest extends TestCase
         $this->assertSame([200, 200], $this->race([$generate, $generate], $cashier));
         $this->assertSame(1, Bill::where('school_year_id', $year->id)->count());
         $return->refresh();
-        $this->assertSame([200], $this->race([['action' => 'pay', 'id' => $return->bill->id, 'payload' => ['amount' => 200, 'method' => 'cash', 'paidAt' => '2026-09-30']]], $cashier));
+        $this->assertSame(1000.0, $return->bill->creditApplied());
+        $this->assertSame(0.0, $return->bill->balance());
+        $this->assertSame(5000.0, app(StudentCreditService::class)->availableFor($bill->student_id));
+        $this->assertDatabaseCount('student_credits', 1);
+        $this->assertDatabaseCount('student_credit_allocations', 1);
+        $this->assertDatabaseHas('student_credits', ['source_bill_id' => $bill->id, 'kind' => 'returning_student', 'amount' => 6000]);
         $this->assertSame('enrolled', $return->fresh()->status);
         $this->assertSame(1, $bill->student->notifications()->where('title', 'Enrollment status: Enrolled')->count());
         $this->assertSame('dropped', $drop->enrollment->fresh()->status);
@@ -178,7 +184,7 @@ class DroppingFinanceConcurrencyTest extends TestCase
         $closed = false;
         // A second committed connection closes admissions after the return has
         // established its read snapshot, but before it locks the calendar.
-        DB::listen(function (\Illuminate\Database\Events\QueryExecuted $query) use (&$closed, $year) {
+        DB::listen(function (QueryExecuted $query) use (&$closed, $year) {
             if (! $closed && str_starts_with($query->sql, 'select') && str_contains($query->sql, 'from `enrollments`')
                 && str_contains($query->sql, '`school_year_id` =') && ! str_contains($query->sql, 'for update')) {
                 $closed = true;

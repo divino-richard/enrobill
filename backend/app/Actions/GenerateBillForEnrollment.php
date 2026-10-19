@@ -6,8 +6,8 @@ use App\Models\Bill;
 use App\Models\Discount;
 use App\Models\Enrollment;
 use App\Models\Student;
-use App\Services\StudentCreditService;
 use App\Services\ReturningEnrollmentRules;
+use App\Services\StudentCreditService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -86,7 +86,7 @@ class GenerateBillForEnrollment
 
         $hasVoucher = $voucher !== null;
 
-        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $voucher, $hasVoucher) {
+        return DB::transaction(function () use ($student, $schoolYear, $enrollment, $fees, $voucher, $hasVoucher, $source) {
             $bill = $student->bills()->create([
                 'school_year_id' => $schoolYear->id,
                 'enrollment_id' => $enrollment->id,
@@ -135,7 +135,11 @@ class GenerateBillForEnrollment
             // zero-tuition adjustment after vouchers and ordinary discounts.
             ($this->reconcileIncentives)($enrollment->fresh());
 
-            \app(StudentCreditService::class)->applyToBill($bill);
+            $credits = app(StudentCreditService::class);
+            if ($source) {
+                $credits->issueReturningCredit($bill, $source, auth()->id());
+            }
+            $credits->applyToBill($bill, auth()->id());
             $bill = $bill->fresh();
             $bill->recalculate();
             $bill->settleEnrollment();

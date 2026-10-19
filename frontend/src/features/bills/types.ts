@@ -128,9 +128,10 @@ export interface Bill {
   droppingCategory?: DroppingCategory | null;
   droppingAssessment?: DroppingAssessment | null;
   creditApplied?: number; creditIssued?: number; availableCredit?: number; previousBalance?: number;
+  appliedCredits?: { kind: 'excess_payment' | 'returning_student'; label: string; amount: number }[];
   assessmentOriginalTotal?: number; effectivePaymentTotal?: number;
   paymentArrangement?: PaymentArrangement | null;
-  creditHistory?: { id: number; sourceBillId: number; amount: number; allocated: number; remaining: number; allocations: { id: number; billId: number; amount: number; releasedAmount: number }[] }[];
+  creditHistory?: { id: number; sourceBillId: number; kind?: 'excess_payment' | 'returning_student'; label?: string; amount: number; allocated: number; remaining: number; allocations: { id: number; billId: number; amount: number; releasedAmount: number }[] }[];
 
   id: number;
   studentId: number;

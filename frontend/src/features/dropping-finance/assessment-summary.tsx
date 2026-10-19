@@ -13,7 +13,7 @@ import { fetchAssessment, PERIODS, philippinesToday, type AssessmentBlocker, typ
 const recovery: Record<AssessmentBlocker['category'], { title: string; description: string; action?: string }> = {
   policy: { title: 'Configure the dropping policy', description: 'Set the school-year periods and enable the policy in Academic Years.', action: 'Open academic years' },
   bill: { title: 'Generate the original bill', description: 'Create the enrollment’s bill before calculating the dropping charge.', action: 'Open enrollments' },
-  fees: { title: 'Review the original fees', description: 'Classify each fee and check that the original charges match the bill total.', action: 'Review bill fees' },
+  fees: { title: 'Original fee records need attention', description: 'The system could not safely calculate charges from the original fee records. Contact system support to correct the records.', action: 'View original bill' },
   payments: { title: 'Review pending payments', description: 'Verify or reject pending payments so the balance is up to date.', action: 'Review payments' },
   date: { title: 'Choose an effective date', description: 'Select a valid date within the school’s dropping periods when you review the approval.' },
   eligibility: { title: 'Check enrollment eligibility', description: 'Dropping charges are currently available for senior high school enrollments only.' },

@@ -52,6 +52,7 @@ class BillResource extends JsonResource
             'assessmentOriginalTotal' => $gross,
             'droppingAssessment' => $this->droppingAssessment?->snapshot,
             'creditApplied' => $this->creditApplied(),
+            'appliedCredits' => $this->appliedCreditLines(),
             'creditIssued' => (float) ($this->issuedCredit?->amount ?? 0),
             'effectivePaymentTotal' => $this->effectivePaymentTotal(),
             'availableCredit' => app(StudentCreditService::class)->availableFor($this->student_id),
@@ -65,6 +66,7 @@ class BillResource extends JsonResource
             ] : null,
             'creditHistory' => StudentCredit::where('student_id', $this->student_id)->with('allocations')->get()->map(fn ($credit) => [
                 'id' => $credit->id, 'sourceBillId' => $credit->source_bill_id,
+                'kind' => $credit->kind, 'label' => $credit->label(),
                 'amount' => (float) $credit->amount, 'remaining' => $credit->remaining(),
                 'allocated' => round((float) $credit->amount - $credit->remaining(), 2),
                 'allocations' => $credit->allocations->map(fn ($allocation) => [

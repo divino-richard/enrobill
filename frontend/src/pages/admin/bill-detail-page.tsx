@@ -18,7 +18,6 @@ import { StaffBillSummary, StaffInstallmentPlan } from '@/features/bills/compone
 import { StaffRecordPayment } from '@/features/bills/components/staff-record-payment';
 import { StaffPaymentReview } from '@/features/bills/components/staff-payment-review';
 import { BillCollectionNotice } from '@/features/dropping-finance/collection-notice';
-import { BillFinanceSummary, ClassificationDialog } from '@/features/dropping-finance/bill-finance';
 import { formatPeso } from '@/lib/money';
 
 function PaymentRow({ payment, readOnly, onReview }: {
@@ -98,11 +97,6 @@ function BalanceSummary({ bill }: { bill: Bill }) {
           </div>
         </dl>
       </div>
-      {(bill.creditApplied ?? 0) > 0 && (
-        <p className="border-t px-5 py-3 text-sm text-muted-foreground">
-          Student credit applied: <span className="font-medium text-foreground tabular-nums">{formatPeso(bill.creditApplied ?? 0)}</span>
-        </p>
-      )}
     </section>
   );
 }
@@ -134,7 +128,6 @@ function BillDetailPage() {
         <div className="min-w-0"><PageHeader title={studentName} description={[bill.student?.studentNumber, program, bill.schoolYear ? `SY ${bill.schoolYear}` : null].filter(Boolean).join(' · ')} /></div>
         <div className="space-y-2 sm:text-right">
           <div className="flex flex-wrap gap-2 sm:justify-end">
-            {role === 'admin' && !dropping && <ClassificationDialog bill={bill} />}
             <Button variant="default" disabled={bill.amountPaid <= 0} onClick={() => printBillReceipt(bill, { name: studentName, studentNumber: bill.student?.studentNumber, program })}><PrinterIcon aria-hidden="true" />Print receipt</Button>
           </div>
         </div>
@@ -162,10 +155,12 @@ function BillDetailPage() {
       </CardContent>
     </Card>
 
-    {!dropping && <BillFinanceSummary bill={bill} staff />}
-    {dropping ? <div className="grid items-start gap-4 lg:grid-cols-2">
-      <Card><CardHeader><h2 className="text-base font-semibold">Charges and payments</h2><p className="text-sm text-muted-foreground">Approved charges less verified payments and applied credits.</p></CardHeader><CardContent><DroppingBillStatement bill={bill} /></CardContent></Card>
-      <section aria-labelledby="financial-history-heading" className="rounded-xl border bg-card p-4"><h2 id="financial-history-heading" className="mb-3 text-base font-semibold">Financial history</h2><details><summary className="cursor-pointer rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">View original fees and schedules</summary><div className="mt-4"><DroppingBillHistory bill={bill} staff /></div></details></section>
+    {dropping ? <div className="space-y-5">
+      <Card><CardHeader><h2 className="text-base font-semibold">Charges and payments</h2><p className="text-sm text-muted-foreground">Approved charges less verified payments and applied credits.</p></CardHeader><CardContent><DroppingBillStatement bill={bill} showCreditHistoryLink={false} className="p-0 sm:p-0" /></CardContent></Card>
+      <section aria-labelledby="original-billing-heading" className="overflow-hidden rounded-xl border bg-card">
+        <header className="space-y-1 border-b p-4"><h2 id="original-billing-heading" className="text-base font-semibold">Original billing details</h2><p className="text-sm text-muted-foreground">Historical reference only.</p></header>
+        <DroppingBillHistory bill={bill} staff />
+      </section>
     </div> : <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]"><StaffBillSummary bill={bill} /><StaffInstallmentPlan key={bill.id} bill={bill} /></div>}
 
     {reviewId !== null && <StaffPaymentReview key={`${bill.id}-${reviewId}`} bill={bill} paymentId={reviewId} readOnly={readOnly} onClose={() => setReviewId(null)} onSuccess={setNotice} />}

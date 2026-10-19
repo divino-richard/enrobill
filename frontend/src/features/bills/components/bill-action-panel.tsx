@@ -1,4 +1,5 @@
 import { PayDialog } from "./pay-dialog";
+import { appliedCreditLines } from '../credits';
 import { billStatusMeta, collectionLabel, isDroppingBill } from '@/features/bills/collection';
 import {
   CalendarClockIcon,
@@ -72,7 +73,7 @@ export function BillActionPanel({ bill }: { bill: Bill }) {
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{bill.droppingAssessment ? 'Approved charges' : 'Recorded assessment'}</dt><dd className="shrink-0 font-medium tabular-nums">{formatPeso(bill.netTotal)}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Verified payments</dt><dd className="shrink-0 tabular-nums">{formatPeso(-bill.amountPaid)}</dd></div>
-            {(bill.creditApplied ?? 0) > 0 && <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Applied credit</dt><dd className="shrink-0 tabular-nums">{formatPeso(-bill.creditApplied!)}</dd></div>}
+            {appliedCreditLines(bill, 'Applied credit').map(credit => <div key={credit.kind} className="flex justify-between gap-4"><dt className="text-muted-foreground">{credit.label}</dt><dd className="shrink-0 tabular-nums">{formatPeso(-credit.amount)}</dd></div>)}
           </dl>
           {bill.balance > 0 && <PayDialog bill={bill} disabled={hasPending} triggerClassName="min-h-10 w-full lg:w-auto" triggerLabel={hasPending ? 'Awaiting verification' : bill.collectionState === 'required_for_reenrollment' ? 'Make a payment' : 'Pay now'} />}
         </div>

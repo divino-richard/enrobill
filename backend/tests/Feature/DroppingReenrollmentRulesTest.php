@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Actions\EnsureEnrollment;
-use App\Actions\GenerateBillForEnrollment;
 use App\Enums\Role;
 use App\Models\Bill;
 use App\Models\Discount;
@@ -20,12 +19,13 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Concerns\CreatesLegacyReturningEnrollment;
 use Tests\TestCase;
 
 class DroppingReenrollmentRulesTest extends TestCase
 {
+    use CreatesLegacyReturningEnrollment;
     use RefreshDatabase;
-    use \Tests\Concerns\CreatesLegacyReturningEnrollment;
 
     private function fixture(?string $date = '2026-10-07'): array
     {
@@ -53,6 +53,7 @@ class DroppingReenrollmentRulesTest extends TestCase
 
         $return = Enrollment::findOrFail($response->json('data.id'));
         $this->actingAs($f['cashier'])->postJson("/api/admin/enrollments/$return->id/bill")->assertSuccessful();
+
         return $return->fresh();
     }
 
@@ -202,7 +203,8 @@ class DroppingReenrollmentRulesTest extends TestCase
         $bill->payments()->create(['amount' => 100, 'method' => 'cash', 'status' => 'verified', 'paid_at' => now()]);
         $bill->recalculate();
         $return = $this->startReturn($f);
-        $this->actingAs($cashier)->postJson("/api/admin/bills/{$return->bill->id}/payments", ['amount' => 1000, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
+        $this->assertSame(100.0, $return->bill->creditApplied());
+        $this->actingAs($cashier)->postJson("/api/admin/bills/{$return->bill->id}/payments", ['amount' => 900, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
         $this->travelTo(Carbon::parse('2029-06-01', 'Asia/Manila'));
         $this->assertSame('enrolled', $return->fresh()->status);
         $laterYear = SchoolYear::create(['school_year' => '2029-2030', 'start_date' => '2029-06-01', 'end_date' => '2030-03-31']);

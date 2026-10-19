@@ -9,6 +9,7 @@ import { createServer } from 'vite';
 const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false, watch: null } });
 after(() => server.close());
 const { BillCard } = await server.ssrLoadModule('/src/features/bills/components/bill-card.tsx');
+const { buildBillReceiptHtml } = await server.ssrLoadModule('/src/features/bills/receipt.ts');
 const bill = {
   id: 2, studentId: 5, schoolYear: '2026-2027', status: 'partial', collectionState: 'standard',
   total: 1300, discountTotal: 300, netTotal: 1000, amountPaid: 100, creditApplied: 100, balance: 800, amountDue: 250,
@@ -75,6 +76,25 @@ test('credit-covered bills remain settled without treating credits as verified p
   assert.match(html, /Verified payments<\/dt><dd[^>]*>₱0\.00/);
   assert.match(html, /Student credit applied/);
   assert.doesNotMatch(html, /Due now|-₱0\.00|awaiting verification/);
+});
+
+test('returning student credit is itemized separately from excess payments and cash on bills and receipts', () => {
+  const input = { ...bill, total: 18421.25, netTotal: 18421.25, discountTotal: 0, amountPaid: 0,
+    creditApplied: 3000, balance: 15421.25, payments: [], appliedCredits: [
+      { kind: 'excess_payment', label: 'Excess payment credit', amount: 900 },
+      { kind: 'returning_student', label: 'Returning student credit', amount: 2100 },
+    ] };
+  const html = renderBill(input);
+  assert.match(html, /Returning student credit<\/dt><dd[^>]*>-₱2,100\.00/);
+  assert.match(html, /Excess payment credit<\/dt><dd[^>]*>-₱900\.00/);
+  assert.match(html, /Verified payments<\/dt><dd[^>]*>₱0\.00/);
+  assert.match(html, /₱15,421\.25/);
+  assert.doesNotMatch(html, /Student credit applied|₱3,000\.00/);
+  const receipt = buildBillReceiptHtml(input, { name: 'Returning Student' });
+  assert.match(receipt, /Returning student credit<\/span><span>₱2,100\.00/);
+  assert.match(receipt, /Excess payment credit<\/span><span>₱900\.00/);
+  assert.match(receipt, /Verified payments<\/span><span>₱0\.00/);
+  assert.match(receipt, /Remaining balance<\/span><span>₱15,421\.25/);
 });
 
 test('long fee lists keep additional items accessible with a labeled disclosure', () => {

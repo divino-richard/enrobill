@@ -2,6 +2,7 @@ import { formatPeso } from "@/lib/money";
 import { paymentMethodLabel, type Bill } from "./types";
 import { approvedChargeLines, droppingAssessmentContext } from './dropping-statement';
 import { isDroppingBill } from './collection';
+import { appliedCreditLines } from './credits';
 
 // Who the receipt is billed to. The admin pages can read this off the bill's
 // embedded student; the student portal passes the signed-in user's details.
@@ -240,7 +241,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
           : ""
       }
       <div class="row"><span class="muted">${bill.droppingAssessment ? "Approved dropping charge" : dropping ? "Recorded assessment" : "Net total"}</span><span>${formatPeso(bill.netTotal)}</span></div>
-      ${(bill.creditApplied ?? 0) > 0 ? `<div class="row"><span>Student credit used</span><span>${formatPeso(bill.creditApplied ?? 0)}</span></div>` : ""}
+      ${appliedCreditLines(bill, 'Student credit used').map(credit => `<div class="row"><span>${escapeHtml(credit.label)}</span><span>${formatPeso(credit.amount)}</span></div>`).join('')}
       ${(bill.creditIssued ?? 0) > 0 ? `<div class="row"><span>Credit issued for future enrollment</span><span>${formatPeso(bill.creditIssued ?? 0)}</span></div>` : ""}
       <div class="row"><span class="muted">Verified payments</span><span>${formatPeso(totalReceived)}</span></div>
       <div class="row grand"><span>Remaining balance</span><span>${formatPeso(bill.balance)}</span></div>
