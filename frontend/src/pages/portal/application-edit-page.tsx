@@ -44,8 +44,8 @@ function ApplicationEditPage() {
     );
   }
 
-  // Only rejected applications can be edited and resubmitted.
-  if (application.status !== "rejected") {
+  // Drafts can be completed; returned or rejected applications can be updated.
+  if (!["draft", "returned", "rejected"].includes(application.status)) {
     return (
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
@@ -63,18 +63,16 @@ function ApplicationEditPage() {
   // Resubmitting is a fresh submission — only allowed while admissions are open.
   if (openTerm === null) {
     return (
-      <AdmissionsClosedNotice description="Admissions are currently closed. You can resubmit this application once admissions reopen." />
+      <AdmissionsClosedNotice description="Admissions are currently closed. You can submit this application once admissions reopen." />
     );
   }
 
   // An accepted application means the user is already enrolled — no resubmit.
   const hasAccepted = applications?.some((app) => app.status === "accepted");
   // Resubmitting would otherwise create a second active application.
-  const activeApplication = applications?.find((app) =>
-    isActiveStatus(app.status),
+  const blockingApplication = applications?.some((app) =>
+    app.id !== application.id && isActiveStatus(app.status),
   );
-  const blockingApplication =
-    activeApplication && activeApplication.id !== application.id;
 
   if (hasAccepted || blockingApplication) {
     return (

@@ -158,7 +158,7 @@ export function useSubmitApplication() {
   });
 }
 
-// Edit and resubmit a rejected application.
+// Submit an existing draft or an updated returned/rejected application.
 export function useUpdateApplication(id: number) {
   const queryClient = useQueryClient();
 

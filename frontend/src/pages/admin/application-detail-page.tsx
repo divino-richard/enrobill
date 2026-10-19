@@ -10,6 +10,7 @@ import {
   MailIcon,
   TicketPercentIcon,
   UserRoundPlusIcon,
+  UsersRoundIcon,
   XIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
 import { ApplicationSummary } from "@/features/applications/components/application-summary";
 import { ApplicationStatusBadge } from "@/features/applications/components/application-status-badge";
 import { DocumentViewerDialog } from "@/features/applications/components/document-viewer-dialog";
@@ -332,14 +334,14 @@ function AdminApplicationDetailPage() {
           </Card>
 
           {(supportsReferral || application.referral) && (
-            <Card>
-              <CardHeader>
+            <Card className={!application.referral ? "gap-0 py-0" : undefined}>
+              <CardHeader className={!application.referral ? "py-4" : undefined}>
                 <CardTitle className="text-base">Referral</CardTitle>
-                <CardDescription>
+                {application.referral && <CardDescription>
                   Link this Grade 11 applicant to the student who referred them.
                   Changes are allowed before acceptance and require an audit reason.
-                </CardDescription>
-                {canDecide && (
+                </CardDescription>}
+                {canDecide && application.referral && (
                   <CardAction>
                     <Button
                       variant="outline"
@@ -352,7 +354,7 @@ function AdminApplicationDetailPage() {
                   </CardAction>
                 )}
               </CardHeader>
-              <CardContent>
+              <CardContent className={!application.referral ? "border-t bg-muted/20 py-5" : undefined}>
                 {application.referral ? (
                   <dl className="grid gap-4 text-sm sm:grid-cols-3">
                     <div>
@@ -377,11 +379,22 @@ function AdminApplicationDetailPage() {
                     </div>
                   </dl>
                 ) : (
-                  <p className="text-muted-foreground text-sm">
-                    No referral code is linked to this application.
-                  </p>
+                  <EmptyState
+                    layout="inline"
+                    icon={UsersRoundIcon}
+                    title="No referral recorded"
+                    description={canDecide
+                      ? "Add a referral code if another student referred this applicant."
+                      : "This application has been decided. Referral changes are closed."}
+                    action={canDecide ? (
+                      <Button variant="outline" size="sm" onClick={openReferralManager}>
+                        <UserRoundPlusIcon aria-hidden="true" />
+                        Add referral
+                      </Button>
+                    ) : undefined}
+                  />
                 )}
-                {!canDecide && (
+                {!canDecide && application.referral && (
                   <p className="text-muted-foreground mt-4 border-t pt-3 text-xs">
                     Referral details are locked after the application is decided.
                   </p>

@@ -38,7 +38,7 @@ import { useAuthStore } from "@/features/auth/store";
 import type { ApplicationFormValues } from "../types";
 
 interface ApplicationFormProps {
-  // "edit" resubmits an existing (rejected) application; defaults to "create".
+  // "edit" submits an existing draft, returned, or rejected application.
   mode?: "create" | "edit";
   applicationId?: number;
   initialValues?: ApplicationFormValues;
@@ -147,11 +147,11 @@ export function ApplicationForm({
           </div>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">
-              {isEdit ? "Application resubmitted" : "Application submitted"}
+              Application submitted
             </h2>
             <p className="text-muted-foreground text-sm">
               {isEdit
-                ? "Your updated application has been resubmitted for review. You can track its status anytime."
+                ? "Your updated application has been submitted for review. You can track its status anytime."
                 : "Your application has been submitted for review. You can track its status anytime."}
             </p>
           </div>
@@ -344,9 +344,7 @@ export function ApplicationForm({
                     >
                       {isSubmitting
                         ? "Submitting…"
-                        : isEdit
-                          ? "Resubmit application"
-                          : "Submit application"}
+                        : "Submit application"}
                     </Button>
                   )}
                 </form.Subscribe>

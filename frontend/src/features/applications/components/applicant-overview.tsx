@@ -1,186 +1,223 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
-  CheckCircle2Icon,
+  ArrowRightIcon,
+  CheckIcon,
+  CircleCheckIcon,
+  CircleXIcon,
+  Clock3Icon,
+  FilePenLineIcon,
   FileTextIcon,
   PlusIcon,
+  TriangleAlertIcon,
+  type LucideIcon,
 } from "lucide-react";
-import {
-  DashboardAttention,
-  DashboardError,
-  DashboardHeader,
-  DashboardLoading,
-  DashboardMetricStrip,
-  DashboardPanel,
-  DashboardQueue,
-  type DashboardMetric,
-  type DashboardAttentionItem,
-  type DashboardQueueItem,
-} from "@/components/dashboard/dashboard-primitives";
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/features/auth/store";
 import { cn } from "@/lib/utils";
 import { useApplications } from "../hooks/use-applications";
-import {
-  APPLICATION_STATUS_META,
-  isActiveStatus,
-  type ApplicationStatus,
-} from "../types";
-import { ApplicationStatusBadge } from "./application-status-badge";
+import { isActiveStatus, type ApplicationStatus } from "../types";
 import { formatDate } from "../utils";
 
-const steps = ["Submitted", "Under review", "Decision"];
+type OverviewState = {
+  title: string;
+  description: string;
+  action: string;
+  edit?: boolean;
+  step: number;
+  stepStatus: string;
+  icon: LucideIcon;
+};
 
-export function ApplicantOverview() {
-  const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
-  const query = useApplications();
+const overviewStates: Record<ApplicationStatus, OverviewState> = {
+  draft: {
+    title: "Finish your application",
+    description: "Complete your details and required documents, then submit your application.",
+    action: "Continue application",
+    edit: true,
+    step: 0,
+    stepStatus: "Not submitted",
+    icon: FilePenLineIcon,
+  },
+  submitted: {
+    title: "Application submitted",
+    description: "Your application is waiting for review. No action is needed right now.",
+    action: "View application",
+    step: 0,
+    stepStatus: "Awaiting review",
+    icon: Clock3Icon,
+  },
+  under_review: {
+    title: "Application under review",
+    description: "The registrar is reviewing your application. No action is needed right now.",
+    action: "View application",
+    step: 1,
+    stepStatus: "In progress",
+    icon: Clock3Icon,
+  },
+  returned: {
+    title: "Update your application",
+    description: "Review the requested corrections, update your application, and submit it again.",
+    action: "Update application",
+    edit: true,
+    step: 1,
+    stepStatus: "Action needed",
+    icon: TriangleAlertIcon,
+  },
+  accepted: {
+    title: "Application accepted",
+    description: "View the admission decision and check your application for any outstanding documents.",
+    action: "View decision",
+    step: 2,
+    stepStatus: "Accepted",
+    icon: CircleCheckIcon,
+  },
+  rejected: {
+    title: "Application not accepted",
+    description: "View the admission decision for details and any available next steps.",
+    action: "View decision",
+    step: 2,
+    stepStatus: "Not accepted",
+    icon: CircleXIcon,
+  },
+};
 
-  if (query.isLoading) return <DashboardLoading />;
-  if (query.isError) return <DashboardError retry={() => query.refetch()} />;
+function statusTone(status: ApplicationStatus) {
+  if (status === "returned") return "text-amber-700 dark:text-amber-300";
+  if (status === "accepted") return "text-emerald-700 dark:text-emerald-300";
+  if (status === "rejected") return "text-destructive";
+  return "text-primary";
+}
 
-  const applications = query.data ?? [];
-  const current = applications.find((application) => isActiveStatus(application.status));
-  const latest = current ?? applications[0];
-
-  if (!latest) {
-    return (
-      <div className="mx-auto max-w-7xl space-y-5">
-        <DashboardHeader
-          description="Start and track your enrollment application."
-          context={<Badge variant="secondary">Applicant</Badge>}
-        />
-        <DashboardPanel title="Start your enrollment">
-          <div className="flex flex-col items-center px-4 py-14 text-center">
-            <FileTextIcon className="text-primary size-9" />
-            <p className="mt-4 font-medium">No application yet</p>
-            <p className="text-muted-foreground mt-1 max-w-md text-sm">
-              Choose a program and submit your requirements to begin.
-            </p>
-            <Button className="mt-5" onClick={() => navigate("/portal/application")}>
-              <PlusIcon />
-              Start application
-            </Button>
-          </div>
-        </DashboardPanel>
-      </div>
-    );
-  }
-
-  const currentStep = stepFor(latest.status);
-  const next = actionFor(latest.status);
-  const metrics: DashboardMetric[] = [
-    {
-      label: "Application status",
-      value: APPLICATION_STATUS_META[latest.status].label,
-      detail: latest.reference,
-      tone: latest.status === "returned" ? "warning" : latest.status === "accepted" ? "success" : "primary",
-    },
-    {
-      label: "Program",
-      value: latest.program,
-      detail: "Selected program",
-    },
-    {
-      label: "School year",
-      value: latest.schoolYear,
-      detail: "Enrollment intake",
-    },
-    {
-      label: "Last updated",
-      value: formatDate(latest.updatedAt),
-      detail: latest.status === "returned" ? "Your action is required" : "Application activity",
-      tone: latest.status === "returned" ? "warning" : "primary",
-    },
-  ];
-  const queue: DashboardQueueItem[] = next
-    ? [
-        {
-          label: next.title,
-          detail: next.detail,
-          actionLabel: next.label,
-          onAction: () => navigate(`/portal/application/${latest.id}${next.edit ? "/edit" : ""}`),
-          tone: latest.status === "returned" ? "warning" : "default",
-        },
-      ]
-    : [];
-  const attentionItems: DashboardAttentionItem[] = [
-    {
-      value: currentStep,
-      label: APPLICATION_STATUS_META[latest.status].label,
-      detail: latest.status === "returned" ? "Corrections are required" : `Application ${latest.reference}`,
-      onAction: () => navigate(`/portal/application/${latest.id}${next?.edit ? "/edit" : ""}`),
-      tone: latest.status === "returned" ? "warning" : "primary",
-    },
-  ];
+function ApplicationProgress({ status }: { status: ApplicationStatus }) {
+  const state = overviewStates[status];
+  const steps = ["Submission", status === "returned" ? "Corrections" : "Review", "Decision"];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-3">
-      <DashboardHeader
-        description={`Application ${latest.reference} · ${user?.name ?? "Applicant"}`}
-        context={<ApplicationStatusBadge status={latest.status} />}
-        actions={
-          <Button variant="outline" onClick={() => navigate(`/portal/application/${latest.id}`)}>
-            View application
-          </Button>
-        }
-      />
-
-      <DashboardAttention
-        label={latest.status === "draft" || latest.status === "returned" ? "Needs attention" : "Application status"}
-        summary={latest.status === "draft" || latest.status === "returned" ? "1 item" : "On track"}
-        items={attentionItems}
-      />
-      <DashboardMetricStrip metrics={metrics} />
-
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.42fr)_minmax(18rem,.78fr)]">
-        <DashboardPanel title="Application progress" description="Your position in the admission process">
-          <div className="p-5 sm:p-7">
-            <div className="relative grid grid-cols-3 gap-2">
-              <div className="bg-border absolute top-4 right-[16%] left-[16%] h-0.5" />
-              <div className="bg-primary absolute top-4 left-[16%] h-0.5 transition-all" style={{ width: `${Math.max(0, currentStep - 1) * 34}%` }} />
-              {steps.map((label, index) => {
-                const number = index + 1;
-                const complete = number < currentStep || latest.status === "accepted";
-                const active = number === currentStep;
-                return (
-                  <div key={label} className="relative flex flex-col items-center text-center">
-                    <span className={cn("bg-background text-muted-foreground flex size-8 items-center justify-center rounded-full border text-xs font-semibold", complete && "border-primary bg-primary text-primary-foreground", active && "border-primary bg-primary/10 text-primary")}>
-                      {complete ? <CheckCircle2Icon className="size-4" /> : number}
-                    </span>
-                    <p className={cn("text-muted-foreground mt-2 text-xs", (complete || active) && "text-foreground font-medium")}>{label}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="bg-muted/40 mt-7 border px-4 py-3">
-              <p className="text-sm font-medium">{APPLICATION_STATUS_META[latest.status].label}</p>
-              <p className="text-muted-foreground mt-1 text-xs leading-5">{APPLICATION_STATUS_META[latest.status].description}</p>
-            </div>
-          </div>
-        </DashboardPanel>
-        <DashboardPanel title="Next step" description="What you can do now">
-          <DashboardQueue items={queue} />
-        </DashboardPanel>
-      </div>
-    </div>
+    <section aria-labelledby="application-progress-heading" className="border-t bg-muted/20 p-5 sm:p-6">
+      <h3 id="application-progress-heading" className="mb-5 text-sm font-semibold">Application progress</h3>
+      <ol role="list" className="grid gap-5 sm:grid-cols-3 sm:gap-4">
+        {steps.map((label, index) => {
+          const complete = index < state.step;
+          const current = index === state.step;
+          return (
+            <li key={index} aria-current={current ? "step" : undefined} className="relative flex min-w-0 items-start gap-3 sm:flex-col">
+              {index < steps.length - 1 && <span aria-hidden="true" className={cn(
+                "absolute top-10 -bottom-3 left-4 w-px bg-border sm:top-4 sm:right-0 sm:bottom-auto sm:left-11 sm:h-px sm:w-auto",
+                complete && "bg-primary/30",
+              )} />}
+              <span aria-hidden="true" className={cn(
+                "relative flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-semibold text-muted-foreground",
+                complete && "border-primary/30 text-primary",
+                current && "border-current",
+                current && statusTone(status),
+              )}>
+                {complete ? <CheckIcon className="size-4" /> : index + 1}
+              </span>
+              <div className="min-w-0">
+                <p className={cn("text-sm font-medium", !complete && !current && "text-muted-foreground")}>{label}</p>
+                <p className={cn("mt-1 text-xs leading-relaxed text-muted-foreground", current && statusTone(status))}>
+                  {current && <span className="sr-only">Current stage: </span>}
+                  {complete ? "Completed" : current ? state.stepStatus : "Upcoming"}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
-function stepFor(status: ApplicationStatus) {
-  if (status === "draft") return 1;
-  if (status === "submitted" || status === "under_review" || status === "returned") return 2;
-  return 3;
-}
+export function ApplicantOverview() {
+  const user = useAuthStore((state) => state.user);
+  const query = useApplications();
+  const applications = query.data ?? [];
+  const current = applications.find((application) => isActiveStatus(application.status));
+  const latest = current ?? applications[0];
+  const state = latest ? overviewStates[latest.status] : null;
+  const StatusIcon = state?.icon ?? FileTextIcon;
+  const note = latest && (latest.status === "returned" || latest.status === "rejected")
+    ? latest.decisionNote?.trim()
+    : null;
 
-function actionFor(status: ApplicationStatus): {
-  title: string;
-  detail: string;
-  label: string;
-  edit?: boolean;
-} | null {
-  if (status === "draft") return { title: "Finish your application", detail: "Complete the remaining fields and requirements.", label: "Continue", edit: true };
-  if (status === "returned") return { title: "Correct returned requirements", detail: "Follow the reviewer note and resubmit the requested information.", label: "Fix application", edit: true };
-  if (status === "submitted" || status === "under_review") return { title: "Review your submission", detail: "No changes are required while the admission team reviews it.", label: "View" };
-  return null;
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-5">
+      <PageHeader title="My application" description={<span className="wrap-anywhere">{user?.name ?? "Track your enrollment application."}</span>} />
+
+      {query.isLoading ? (
+        <Card role="status" aria-busy="true" className="gap-6 p-5 sm:p-6">
+          <span className="sr-only">Loading your application</span>
+          <Skeleton className="h-6 w-56 max-w-full" />
+          <Skeleton className="h-4 w-full max-w-lg" />
+          <Skeleton className="h-11 w-40" />
+          <div className="grid gap-5 border-t pt-6 sm:grid-cols-3">
+            {[0, 1, 2].map(item => <Skeleton key={item} className="h-16 w-full" />)}
+          </div>
+        </Card>
+      ) : query.isError ? (
+        <Card role="alert" className="items-start gap-3 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold">Application unavailable</h2>
+          <p className="text-sm text-muted-foreground">Your application could not be loaded. Please try again.</p>
+          <Button variant="outline" className="mt-1 min-h-11" onClick={() => query.refetch()}>Try again</Button>
+        </Card>
+      ) : !latest || !state ? (
+        <Card className="p-5 sm:p-6">
+          <EmptyState
+            icon={FileTextIcon}
+            title="No application yet"
+            description="Choose a program and submit your requirements to begin."
+            action={<Button asChild className="min-h-11"><Link to="/portal/application/new"><PlusIcon aria-hidden="true" />Start application</Link></Button>}
+          />
+        </Card>
+      ) : (
+        <Card className="gap-0 py-0" aria-labelledby="application-status-heading">
+          <div className={cn("space-y-5 p-5 sm:p-6", latest.status === "returned" && "bg-amber-500/5")}>
+            <div className="flex items-start gap-3">
+              <StatusIcon aria-hidden="true" className={cn("mt-0.5 size-6 shrink-0", statusTone(latest.status))} />
+              <div role="status" aria-atomic="true" className="min-w-0 space-y-2">
+                <h2 id="application-status-heading" className="text-xl font-semibold wrap-anywhere">{state.title}</h2>
+                <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">{state.description}</p>
+              </div>
+            </div>
+
+            {note && <section aria-labelledby="application-note-heading" className="space-y-2 border-t pt-4">
+              <h3 id="application-note-heading" className="text-sm font-semibold">{latest.status === "returned" ? "Requested corrections" : "Note from the registrar"}</h3>
+              <p className="max-w-prose text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{note}</p>
+            </section>}
+
+            <Button asChild variant={state.edit ? "default" : "outline"} className="min-h-11 w-full sm:w-auto">
+              <Link to={`/portal/application/${latest.id}${state.edit ? "/edit" : ""}`}>
+                {state.action}<ArrowRightIcon aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
+
+          <ApplicationProgress status={latest.status} />
+
+          <dl className="grid gap-x-6 gap-y-5 border-t p-5 text-sm sm:grid-cols-3 sm:p-6">
+            <div className="min-w-0 sm:col-span-3">
+              <dt className="text-muted-foreground">Program</dt>
+              <dd className="mt-1 font-medium wrap-anywhere">{latest.program}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-muted-foreground">Application reference</dt>
+              <dd className="mt-1 font-medium wrap-anywhere">{latest.reference}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-muted-foreground">School year</dt>
+              <dd className="mt-1 font-medium wrap-anywhere">{latest.schoolYear}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-muted-foreground">Last updated</dt>
+              <dd className="mt-1 font-medium">{formatDate(latest.updatedAt)}</dd>
+            </div>
+          </dl>
+        </Card>
+      )}
+    </div>
+  );
 }

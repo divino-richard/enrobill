@@ -130,16 +130,16 @@ class ApplicationController extends Controller
     }
 
     /**
-     * Edit and resubmit a rejected application. Updates the answers, replaces
-     * the documents, and moves the application back to "submitted".
+     * Submit a draft or resubmit a returned or rejected application. Updates
+     * the answers and documents, and moves the application to "submitted".
      */
     public function update(Request $request, Application $application, ReferralLifecycle $referrals): ApplicationResource
     {
         abort_unless($application->user_id === $request->user()->id, 404);
         abort_unless(
-            $application->status === 'rejected',
+            in_array($application->status, ['draft', 'returned', 'rejected'], true),
             403,
-            'Only a rejected application can be edited and resubmitted.',
+            'Only draft, returned, or rejected applications can be edited and submitted.',
         );
 
         // Resubmitting is a fresh submission — only allowed while admissions open.
