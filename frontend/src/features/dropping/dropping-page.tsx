@@ -12,6 +12,7 @@ import { bannerStyles } from '@/components/ui/banner';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TablePagination } from '@/components/ui/table-pagination';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -129,7 +130,7 @@ function DroppingList({ staff, embedded = false }: { staff: boolean; embedded?: 
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const pageSize = 25;
+  const [pageSize, setPageSize] = useState(staff ? 30 : 25);
   const list = useQuery({ queryKey: ['dropping', staff], queryFn: () => fetchDroppingRequests(staff) });
   const userId = useAuthStore(state => state.user?.id);
   const enrollments = useQuery({ queryKey: ['me', 'enrollments', userId], queryFn: fetchMyEnrollments, enabled: !staff && !!userId });
@@ -166,15 +167,26 @@ function DroppingList({ staff, embedded = false }: { staff: boolean; embedded?: 
             <TableCell className="text-right"><Button asChild variant="ghost" size="icon"><Link to={detailPath(r.id)} aria-label={`View details for ${r.reference}`} title="View details"><ChevronRightIcon aria-hidden="true" /></Link></Button></TableCell>
           </TableRow>)}</TableBody>
         </Table>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+        {!staff && <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
           <p className="text-muted-foreground text-sm" role="status">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, rows.length)} of {rows.length} requests</p>
           <nav aria-label="Request pagination" className="flex items-center gap-3">
             <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
             <span className="text-muted-foreground text-sm">Page {currentPage} of {pageCount}</span>
             <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button>
           </nav>
-        </div>
+        </div>}
       </>}
+      {staff && list.isSuccess && <TablePagination
+        total={rows.length}
+        pageIndex={currentPage - 1}
+        pageSize={pageSize}
+        pageCount={rows.length === 0 ? 0 : pageCount}
+        canPreviousPage={currentPage > 1}
+        canNextPage={currentPage < pageCount}
+        onPreviousPage={() => setPage(currentPage - 1)}
+        onNextPage={() => setPage(currentPage + 1)}
+        onPageSizeChange={size => { setPageSize(size); setPage(1); }}
+      />}
     </div>
   </div>;
 }

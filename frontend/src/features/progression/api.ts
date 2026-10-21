@@ -52,10 +52,10 @@ export async function decideProgression(
 }
 
 // Enroll all promote/retain decisions into the next school year.
-export async function materializeProgression(): Promise<number> {
+export async function materializeProgression(sourceSchoolYearId?: number): Promise<number> {
   const { data } = await api.post<Wrapped<{ materialized: number }>>(
     "/admin/progression/materialize",
-    {},
+    sourceSchoolYearId === undefined ? {} : { sourceSchoolYearId },
   );
   return data.data.materialized;
 }

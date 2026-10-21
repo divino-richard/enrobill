@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeftIcon, ArrowUpRightIcon, CalendarDaysIcon, CircleAlertIcon, InfoIcon, PencilIcon, PlusIcon, UsersRoundIcon } from 'lucide-react';
-import { EmptyState, type EmptyStateContent } from '@/components/empty-state';
+import { ArrowLeftIcon, ArrowRightIcon, CircleAlertIcon, InfoIcon } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -11,9 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useDeleteTerm, useTerms, useUpdateTermStatus } from '@/features/terms/hooks';
-import { EarlyEnrollmentForm, InstallmentPolicyDialog, ReferralIncentiveForm } from '@/features/terms/term-forms';
+import { EarlyEnrollmentDialog, InstallmentPolicyDialog, ReferralIncentiveDialog } from '@/features/terms/term-forms';
 import { termLabel, type Term } from '@/features/terms/types';
 import { useSchoolYearFreebies } from '@/features/freebies/hooks';
+import type { Freebie } from '@/features/freebies/types';
+import { ReferralPolicyGuide } from '@/features/referrals/components/referral-policy-guide';
 import { DroppingPeriods } from '@/features/dropping-finance/policy-editor';
 import { formatDate } from '@/features/applications/utils';
 import { formatPeso } from '@/lib/money';
@@ -131,22 +132,6 @@ function SettingRow({ title, description, badge, hint, children }: { title: stri
     </section>
   );
 }
-function EditableSection({ title, description, badge, editLabel, editor, children, emptyState, secondaryAction }: { title: string; description: string; badge?: ReactNode; editLabel: string; editor: (onDone: () => void) => ReactNode; children?: ReactNode; emptyState?: EmptyStateContent; secondaryAction?: ReactNode }) {
-  const [editing, setEditing] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const editorRoot = useRef<HTMLDivElement>(null);
-  const [restoreFocus, setRestoreFocus] = useState(false);
-  useEffect(() => {
-    if (editing) editorRoot.current?.querySelector<HTMLElement>('button:not(:disabled), input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)')?.focus();
-    else if (restoreFocus) trigger.current?.focus();
-  }, [editing, restoreFocus]);
-  const close = () => { setRestoreFocus(true); setEditing(false); };
-  return <section aria-label={title}><Card className="gap-0 py-0">
-    <header className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5"><div className="flex min-w-0 flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">{title}</h2>{badge}</div>{!editing && !emptyState && <Button ref={trigger} variant="outline" size="sm" onClick={() => setEditing(true)}><PencilIcon aria-hidden="true" />{editLabel}</Button>}</header>
-    {(!emptyState || editing) && <p className="max-w-prose px-4 py-3 text-[0.8125rem] leading-relaxed text-muted-foreground">{description}</p>}
-    {editing ? <div ref={editorRoot} className="border-t p-4">{editor(close)}</div> : emptyState ? <div className="p-4"><EmptyState {...emptyState} layout="inline" action={<><Button ref={trigger} variant="outline" size="sm" onClick={() => setEditing(true)}><PlusIcon aria-hidden="true" />{editLabel}</Button>{secondaryAction}</>} /></div> : children}
-  </Card></section>;
-}
 function LoadingSettings() {
   return <Card role="status" className="gap-0 py-0"><span className="sr-only">Loading settings…</span><div className="border-b px-4 py-3"><Skeleton className="h-6 w-48" /></div><div className="p-4"><Skeleton className="h-16 w-full" /></div></Card>;
 }
@@ -159,17 +144,87 @@ function IncentivesSection({ term }: { term: Term }) {
   if (query.isError) return <SettingsError busy={query.isFetching} retry={() => void query.refetch()} />;
   const early = query.data.find(item => item.type === 'early_enrollment');
   const referral = query.data.find(item => item.type === 'referral');
-  const referralsLink = <Button asChild variant="ghost" size="sm" className="text-primary"><Link to="/admin/referrals">View referrals<ArrowUpRightIcon className="size-3.5" aria-hidden="true" /></Link></Button>;
   return <div className="space-y-3">
-    <EditableSection title="Early-enrollment freebie" description="A voucher-based benefit for Grade 11 students enrolled within the offer window." badge={<StateBadge active={!!early?.isActive} yes="Enabled" no={early ? 'Disabled' : 'Not configured'} />} editLabel={early ? 'Edit freebie' : 'Set up freebie'} editor={onDone => <EarlyEnrollmentForm term={term} onDone={onDone} />}
-      emptyState={!early ? { icon: CalendarDaysIcon, title: 'No enrollment window yet', description: 'Set the dates for eligible Grade 11 students to receive this freebie.' } : undefined}>
-      {early && <dl className="grid divide-y border-t text-sm sm:grid-cols-2 sm:divide-x sm:divide-y-0"><div className="space-y-1.5 px-4 py-3"><dt className="text-[0.8125rem] font-medium text-muted-foreground">Window starts</dt><dd className="font-medium">{early.startsOn ? formatDate(early.startsOn) : 'No start date'}</dd></div><div className="space-y-1.5 px-4 py-3"><dt className="text-[0.8125rem] font-medium text-muted-foreground">Window ends</dt><dd className="font-medium">{early.endsOn ? formatDate(early.endsOn) : 'No end date'}</dd></div></dl>}
-    </EditableSection>
-    <EditableSection title="Referral tuition incentive" description="A referral benefit for eligible Grade 11 applicants and Grade 12 referrers." badge={<StateBadge active={!!referral?.isActive} yes="Enabled" no={referral ? 'Disabled' : 'Not configured'} />} editLabel={referral ? 'Edit incentive' : 'Set up incentive'} editor={onDone => <ReferralIncentiveForm term={term} onDone={onDone} />}
-      emptyState={!referral ? { icon: UsersRoundIcon, title: 'No referral incentive yet', description: 'Set up the tuition benefit. Each student must qualify with their own voucher.' } : undefined} secondaryAction={referralsLink}>
-      {referral && <div className="flex flex-wrap items-center justify-between gap-4 border-t px-4 py-3"><dl className="space-y-1.5 text-sm"><dt className="text-[0.8125rem] font-medium text-muted-foreground">Voucher eligibility</dt><dd className="font-medium">Each student qualifies with their own voucher.</dd></dl>{referralsLink}</div>}
-    </EditableSection>
+    <EarlyEnrollmentSection term={term} early={early} />
+    <ReferralIncentiveSection term={term} referral={referral} />
   </div>;
+}
+
+function EarlyEnrollmentSection({ term, early }: { term: Term; early?: Freebie }) {
+  const [notice, setNotice] = useState('');
+
+  return (
+    <section aria-label="Early-enrollment freebie">
+      <Card className="gap-0 py-0">
+        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold">Early-enrollment freebie</h2>
+            <StateBadge active={!!early?.isActive} yes="Enabled" no={early ? 'Disabled' : 'Not configured'} />
+          </div>
+          <EarlyEnrollmentDialog
+            term={term}
+            existing={early}
+            onEdit={() => setNotice('')}
+            onSaved={() => setNotice('Early-enrollment freebie updated.')}
+          />
+        </header>
+        <p className="max-w-prose px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+          A voucher-based benefit for Grade 11 students enrolled within the offer window.
+        </p>
+        {early ? (
+          <dl className="grid divide-y border-t text-sm sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <div className="space-y-1.5 px-4 py-3">
+              <dt className="font-medium text-muted-foreground">Window starts</dt>
+              <dd className="font-medium">{early.startsOn ? formatDate(early.startsOn) : 'No start date'}</dd>
+            </div>
+            <div className="space-y-1.5 px-4 py-3">
+              <dt className="font-medium text-muted-foreground">Window ends</dt>
+              <dd className="font-medium">{early.endsOn ? formatDate(early.endsOn) : 'No end date'}</dd>
+            </div>
+          </dl>
+        ) : (
+          <div className="space-y-1 border-t px-4 py-3 text-sm">
+            <p className="font-medium">No enrollment window yet</p>
+            <p className="text-muted-foreground">Set the dates for eligible Grade 11 students to receive this freebie.</p>
+          </div>
+        )}
+        <p role="status" aria-atomic="true" className={notice ? 'border-t px-4 py-3 text-sm text-muted-foreground' : 'sr-only'}>{notice}</p>
+      </Card>
+    </section>
+  );
+}
+
+function ReferralIncentiveSection({ term, referral }: { term: Term; referral?: Freebie }) {
+  const [notice, setNotice] = useState('');
+
+  return (
+    <section aria-label="Referral tuition incentive">
+      <Card className="gap-0 py-0">
+        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold">Referral tuition incentive</h2>
+            <StateBadge active={!!referral?.isActive} yes="Enabled" no={referral ? 'Disabled' : 'Not configured'} />
+          </div>
+          <ReferralIncentiveDialog
+            term={term}
+            existing={referral}
+            onEdit={() => setNotice('')}
+            onSaved={() => setNotice('Referral incentive updated.')}
+          />
+        </header>
+        <p className="max-w-prose px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+          {referral ? 'A referral benefit for eligible Grade 11 applicants and Grade 12 referrers.' : 'No referral incentive yet. Set up the benefit for this school year.'}
+        </p>
+        <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-2">
+          <ReferralPolicyGuide />
+          <Button asChild variant="ghost" className="min-h-11 text-primary">
+            <Link to="/admin/referrals">View referrals<ArrowRightIcon aria-hidden="true" /></Link>
+          </Button>
+        </footer>
+        <p role="status" aria-atomic="true" className={notice ? 'border-t px-4 py-3 text-sm text-muted-foreground' : 'sr-only'}>{notice}</p>
+      </Card>
+    </section>
+  );
 }
 function statusActionTitle(action: StatusAction): string {
   if (action.kind === "active") {

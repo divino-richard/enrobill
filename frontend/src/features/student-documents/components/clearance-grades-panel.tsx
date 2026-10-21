@@ -22,7 +22,6 @@ import {
   FilePreviewDialog,
   type PendingFile,
 } from "@/components/file-preview-dialog";
-import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format-bytes";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { fetchStudentDocumentBlob, fetchStudentDocumentViewUrl } from "../api";
@@ -42,8 +41,36 @@ import {
 // Every slot a student is expected to fill across the school year.
 export const TOTAL_DOCUMENT_SLOTS = SEMESTERS.length * DOCUMENT_TYPES.length;
 
-const formatSize = (bytes: number | null) =>
-  bytes == null ? "" : formatBytes(bytes);
+function DocumentFileDetails({ document }: { document: StudentDocument }) {
+  const extensionIndex = document.fileName.lastIndexOf(".");
+  const hasExtension = extensionIndex > 0;
+  const name = Array.from(hasExtension ? document.fileName.slice(0, extensionIndex) : document.fileName);
+  const prefix = name.slice(0, -8).join("");
+  const suffix = name.slice(-8).join("") + (hasExtension ? document.fileName.slice(extensionIndex) : "");
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+      <span className="flex min-w-0 max-w-full flex-[1_1_8rem]" title={document.fileName}>
+        <span className="sr-only">{document.fileName}</span>
+        <span className="truncate" aria-hidden="true">{prefix}</span>
+        <span className="shrink-0" aria-hidden="true">{suffix}</span>
+      </span>
+      {(document.size != null || document.uploadedAt) && (
+        <span className="flex max-w-full flex-wrap items-baseline gap-x-1.5">
+          {document.size != null && (
+            <span className="whitespace-nowrap">{document.size === 0 ? "0 B" : formatBytes(document.size)}</span>
+          )}
+          {document.uploadedAt && (
+            <span className="whitespace-nowrap">
+              {document.size != null && <span className="mr-1.5" aria-hidden="true">·</span>}
+              <time dateTime={document.uploadedAt}>{format(new Date(document.uploadedAt), "MMM d, yyyy")}</time>
+            </span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
 
 // One upload slot: a semester's clearance or grade slip. Re-uploading replaces
 // whatever is already there.
@@ -122,21 +149,10 @@ function DocumentSlot({
   const locked = !uploadable || (existing !== undefined && existing.reviewStatus !== "returned");
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border p-3",
-        existing?.reviewStatus === "accepted"
-          ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900 dark:bg-emerald-950/20"
-          : existing?.reviewStatus === "returned"
-            ? "border-amber-200 bg-amber-50/40 dark:border-amber-900 dark:bg-amber-950/20"
-            : existing
-              ? "border-blue-200 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/20"
-              : "bg-muted/20",
-      )}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="rounded-lg border bg-card p-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <div className="min-w-0 space-y-0.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <FileTextIcon className="text-muted-foreground size-4 shrink-0" />
             <span className="text-sm font-medium">{label}</span>
             {existing ? (
@@ -155,15 +171,9 @@ function DocumentSlot({
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground truncate text-xs">
-            {existing
-              ? `${existing.fileName}${existing.size ? ` · ${formatSize(existing.size)}` : ""}${
-                  existing.uploadedAt
-                    ? ` · ${format(new Date(existing.uploadedAt), "MMM d, yyyy")}`
-                    : ""
-                }`
-              : hint}
-          </p>
+          {existing ? <DocumentFileDetails document={existing} /> : (
+            <p className="text-muted-foreground text-xs">{hint}</p>
+          )}
           {existing?.reviewStatus === "returned" && existing.reviewNote && (
             <p className="text-amber-800 dark:text-amber-200 mt-1 text-xs">
               <span className="font-medium">Returned:</span> {existing.reviewNote}

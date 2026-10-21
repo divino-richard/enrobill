@@ -1,7 +1,14 @@
 import { CompactProgramLabel } from "@/components/compact-program-label";
 import { PageHeader } from "@/components/page-header";
 import { TablePanel, TableToolbar } from "@/components/table-panel";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { format } from "date-fns";
 import {
   getCoreRowModel,
@@ -70,6 +77,7 @@ import {
 } from "@/features/program-transfers/hooks";
 import {
   TRANSFER_STATUS_META,
+  type TransferDecisionInput,
   type TransferRequest,
   type TransferRequestStatus,
 } from "@/features/program-transfers/types";
@@ -126,13 +134,29 @@ function SortHeader({
 function ViewRequestDialog({
   request,
   onOpenChange,
+  onDecision,
+  blocked,
+  contentRef,
+  children,
 }: {
   request: TransferRequest | null;
   onOpenChange: (open: boolean) => void;
+  onDecision: (
+    request: TransferRequest,
+    decision: TransferDecisionInput["status"],
+    trigger: HTMLButtonElement,
+  ) => void;
+  blocked: boolean;
+  contentRef: Ref<HTMLDivElement>;
+  children: ReactNode;
 }) {
   return (
     <Dialog open={request !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent
+        ref={contentRef}
+        className="w-[calc(100%-2rem)] max-w-3xl"
+        showCloseButton={!blocked}
+      >
         <DialogHeader>
           <div className="flex items-center justify-between gap-3 mt-4">
             <div>
@@ -195,11 +219,31 @@ function ViewRequestDialog({
           </div>
         )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </DialogFooter>
+        {request?.status === "pending" && (
+          <DialogFooter className="flex-row flex-wrap justify-end border-t pt-4">
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              disabled={blocked}
+              onClick={(event) =>
+                onDecision(request, "rejected", event.currentTarget)
+              }
+            >
+              <XIcon />
+              Reject
+            </Button>
+            <Button
+              disabled={blocked}
+              onClick={(event) =>
+                onDecision(request, "approved", event.currentTarget)
+              }
+            >
+              <CheckIcon />
+              Accept
+            </Button>
+          </DialogFooter>
+        )}
+        {children}
       </DialogContent>
     </Dialog>
   );
@@ -238,25 +282,37 @@ function AdminTransferRequestsPage() {
   } | null>(null);
   const [note, setNote] = useState("");
   const [viewing, setViewing] = useState<TransferRequest | null>(null);
+  const decisionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const detailsContentRef = useRef<HTMLDivElement | null>(null);
 
-  const openDecision = useCallback(
-    (request: TransferRequest, decision: "approved" | "rejected") => {
-      setNote("");
-      decide.reset();
-      setPendingDecision({ request, decision });
-    },
-    [decide],
-  );
+  function openDecision(
+    request: TransferRequest,
+    decision: TransferDecisionInput["status"],
+    trigger: HTMLButtonElement,
+  ) {
+    if (request.status !== "pending" || decide.isPending) return;
+    decisionTriggerRef.current = trigger;
+    setNote("");
+    decide.reset();
+    setPendingDecision({ request, decision });
+  }
 
   function confirmDecision() {
-    if (!pendingDecision) return;
+    if (!pendingDecision || decide.isPending) return;
     decide.mutate(
       {
         id: pendingDecision.request.id,
         status: pendingDecision.decision,
         note: note.trim() || undefined,
       },
-      { onSuccess: () => setPendingDecision(null) },
+      {
+        onSuccess: (updatedRequest) => {
+          setViewing((current) =>
+            current?.id === updatedRequest.id ? updatedRequest : current,
+          );
+          setPendingDecision(null);
+        },
+      },
     );
   }
 
@@ -344,28 +400,11 @@ function AdminTransferRequestsPage() {
               <EyeIcon />
               View details
             </DropdownMenuItem>
-            {row.original.status === "pending" && (
-              <>
-                <DropdownMenuItem
-                  onClick={() => openDecision(row.original, "approved")}
-                >
-                  <CheckIcon />
-                  Accept
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => openDecision(row.original, "rejected")}
-                >
-                  <XIcon />
-                  Reject
-                </DropdownMenuItem>
-              </>
-            )}
           </RowActions>
         ),
       },
     ],
-    [programLabel, openDecision],
+    [programLabel],
   );
 
   // TanStack Table returns non-memoizable functions; the React Compiler lint
@@ -501,93 +540,103 @@ function AdminTransferRequestsPage() {
 
       <ViewRequestDialog
         request={viewing}
+        onDecision={openDecision}
+        blocked={pendingDecision !== null || decide.isPending}
+        contentRef={detailsContentRef}
         onOpenChange={(open) => {
-          if (!open) setViewing(null);
-        }}
-      />
-
-      <AlertDialog
-        open={pendingDecision !== null}
-        onOpenChange={(open) => {
-          if (!open && !decide.isPending) setPendingDecision(null);
+          if (!open && !pendingDecision && !decide.isPending) setViewing(null);
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {isReject
-                ? "Reject this transfer request?"
-                : "Accept this transfer request?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingDecision && (
-                <>
-                  {pendingDecision.request.studentName} is requesting to move
-                  from{" "}
-                  <span className="font-medium">
-                    {programLabel(pendingDecision.request.fromProgramCode)}
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-medium">
-                    {programLabel(pendingDecision.request.toProgramCode)}
+        <AlertDialog
+          open={pendingDecision !== null}
+          onOpenChange={(open) => {
+            if (!open && !decide.isPending) setPendingDecision(null);
+          }}
+        >
+          <AlertDialogContent
+            className="w-[calc(100%-2rem)]"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              const trigger = decisionTriggerRef.current;
+              (trigger?.isConnected ? trigger : detailsContentRef.current)?.focus();
+            }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {isReject
+                  ? "Reject this transfer request?"
+                  : "Accept this transfer request?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDecision && (
+                  <>
+                    {pendingDecision.request.studentName} is requesting to move
+                    from{" "}
+                    <span className="font-medium">
+                      {programLabel(pendingDecision.request.fromProgramCode)}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-medium">
+                      {programLabel(pendingDecision.request.toProgramCode)}
+                    </span>
+                    .{" "}
+                    {!isReject &&
+                      "Accepting moves them to the new program right away."}
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            {isReject && (
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="transfer-decision-note"
+                  className="text-sm font-medium"
+                >
+                  Note to the student{" "}
+                  <span className="text-muted-foreground font-normal">
+                    (optional)
                   </span>
-                  .{" "}
-                  {!isReject &&
-                    "Accepting moves them to the new program right away."}
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+                </label>
+                <Textarea
+                  id="transfer-decision-note"
+                  rows={3}
+                  value={note}
+                  disabled={decide.isPending}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Reason for rejecting this request…"
+                />
+              </div>
+            )}
 
-          {isReject && (
-            <div className="space-y-1.5">
-              <label
-                htmlFor="transfer-decision-note"
-                className="text-sm font-medium"
-              >
-                Note to the student{" "}
-                <span className="text-muted-foreground font-normal">
-                  (optional)
-                </span>
-              </label>
-              <Textarea
-                id="transfer-decision-note"
-                rows={3}
-                value={note}
+            {decide.isError && (
+              <p role="alert" className="text-destructive text-sm">
+                {getErrorMessage(decide.error)}
+              </p>
+            )}
+
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={decide.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
                 disabled={decide.isPending}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Reason for rejecting this request…"
-              />
-            </div>
-          )}
-
-          {decide.isError && (
-            <p className="text-destructive text-sm">
-              {getErrorMessage(decide.error)}
-            </p>
-          )}
-
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={decide.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={decide.isPending}
-              className={
-                isReject
-                  ? cn(buttonVariants({ variant: "destructive" }))
-                  : undefined
-              }
-              onClick={(event) => {
-                event.preventDefault();
-                confirmDecision();
-              }}
-            >
-              {decide.isPending ? "Working…" : isReject ? "Reject" : "Accept"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                className={
+                  isReject
+                    ? cn(buttonVariants({ variant: "destructive" }))
+                    : undefined
+                }
+                onClick={(event) => {
+                  event.preventDefault();
+                  confirmDecision();
+                }}
+              >
+                {decide.isPending ? "Working…" : isReject ? "Reject" : "Accept"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </ViewRequestDialog>
     </div>
   );
 }

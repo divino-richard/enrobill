@@ -10,6 +10,7 @@ import type {
   EnrollmentRecord,
   Student,
   StudentFormValues,
+  StudentProgramContext,
 } from "./types";
 
 interface Wrapped<T> {
@@ -42,8 +43,8 @@ export async function fetchStudent(id: number): Promise<Student> {
 
 // The authenticated user's own student record (404 if not a student yet).
 export async function fetchMyStudent(): Promise<Student> {
-  const { data } = await api.get<Wrapped<Student>>("/me/student");
-  return data.data;
+  const { data } = await api.get<Wrapped<Student> & { meta: StudentProgramContext }>("/me/student");
+  return { ...data.data, programContext: data.meta };
 }
 
 // The authenticated student's per-term enrollment history.

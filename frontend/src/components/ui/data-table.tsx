@@ -3,7 +3,6 @@ import {
   type RowData,
   type Table as TanstackTable,
 } from "@tanstack/react-table";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -13,15 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 // Per-column styling hook used by the columns' `meta`.
 declare module "@tanstack/react-table" {
@@ -126,59 +118,19 @@ export function DataTable<TData>({
         </Table>
       </div>
 
-      <div className={cn("flex flex-col items-center justify-between gap-3 sm:flex-row", compact && "gap-3 border-t px-3 py-3 [&_p]:text-[0.8125rem] [&_span]:text-[0.8125rem]")}>
-        <p className="text-muted-foreground text-sm">
-          {total} {total === 1 ? "result" : "results"}
-        </p>
-
-        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">Rows</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => table.setPageSize(Number(value))}
-            >
-              <SelectTrigger size={compact ? "default" : "sm"} className="w-[4.5rem]" aria-label="Rows per page">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {pageSizeOptions.map((option) => (
-                  <SelectItem key={option} value={String(option)}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <span className="text-muted-foreground text-sm">
-            Page {pageCount === 0 ? 0 : pageIndex + 1} of {pageCount}
-          </span>
-
-          <div className="flex gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className={cn("size-8", compact && "size-9")}
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <ChevronLeftIcon />
-              <span className="sr-only">Previous page</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className={cn("size-8", compact && "size-9")}
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              <ChevronRightIcon />
-              <span className="sr-only">Next page</span>
-            </Button>
-          </div>
-        </div>
-      </div>
+      <TablePagination
+        total={total}
+        pageIndex={pageIndex}
+        pageSize={pageSize}
+        pageCount={pageCount}
+        pageSizeOptions={pageSizeOptions}
+        compact={compact}
+        canPreviousPage={table.getCanPreviousPage()}
+        canNextPage={table.getCanNextPage()}
+        onPreviousPage={() => table.previousPage()}
+        onNextPage={() => table.nextPage()}
+        onPageSizeChange={(size) => table.setPageSize(size)}
+      />
     </div>
   );
 }

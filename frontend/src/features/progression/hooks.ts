@@ -46,6 +46,9 @@ function useCloseoutInvalidation() {
   return () => {
     queryClient.invalidateQueries({ queryKey: progressionQueryKey });
     queryClient.invalidateQueries({ queryKey: studentsQueryKey });
+    queryClient.invalidateQueries({ queryKey: ["admin", "enrollments"] });
+    queryClient.invalidateQueries({ queryKey: ["me", "student"] });
+    queryClient.invalidateQueries({ queryKey: ["me", "enrollments"] });
   };
 }
 
@@ -66,7 +69,7 @@ export function useDecideProgression() {
 export function useMaterializeProgression() {
   const invalidate = useCloseoutInvalidation();
   return useMutation({
-    mutationFn: () => materializeProgression(),
+    mutationFn: (sourceSchoolYearId?: number) => materializeProgression(sourceSchoolYearId),
     onSuccess: invalidate,
   });
 }

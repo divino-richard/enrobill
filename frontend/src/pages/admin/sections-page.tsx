@@ -1,8 +1,9 @@
 import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
 import { CompactProgramLabel } from "@/components/compact-program-label";
 import { PageHeader } from "@/components/page-header";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
+  MoreHorizontalIcon,
   MoreVerticalIcon,
   ArrowRightLeftIcon,
   LayoutGridIcon,
@@ -39,6 +40,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -57,9 +60,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import {
   Select,
@@ -90,6 +90,9 @@ import type {
   SectionStudent,
   UnsectionedStudent,
 } from "@/features/sections/types";
+import { getSectionAssignmentState } from "@/features/sections/assignment-state";
+import { AddStudentsContent } from "@/features/sections/add-students-content";
+import { MoveStudentForm } from "@/features/sections/move-student-form";
 
 type Selection = number | "unsectioned" | null;
 
@@ -433,72 +436,134 @@ function SectionListItem({
   );
 }
 
-// The detail panel for a selected section: header stats + roster table.
+// The detail panel for a selected section: identity, actions and roster.
 function SectionDetail({
   section,
   allSections,
   unsectioned,
+  studentsLoading,
+  studentsError,
+  onRetryStudents,
   onEdit,
   onDelete,
 }: {
   section: Section;
   allSections: Section[];
   unsectioned: UnsectionedStudent[];
+  studentsLoading: boolean;
+  studentsError: string | null;
+  onRetryStudents: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const programLabel = useProgramLabel();
   const assign = useAssignSection();
+  const [addOpen, setAddOpen] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [assignmentAction, setAssignmentAction] = useState<{
+    kind: "move" | "remove";
+    student: SectionStudent;
+  } | null>(null);
+  const [destinationId, setDestinationId] = useState<number | null>(null);
+  const assignmentTrigger = useRef<HTMLButtonElement | null>(null);
+  const addTrigger = useRef<HTMLButtonElement>(null);
+  const sectionProgramName = programLabel(section.program);
+  const compactProgramName = sectionProgramName.replace(/\s*\([^)]*\)/g, "").trim() || sectionProgramName;
 
-  const moveTargets = allSections.filter(
-    (s) =>
-      s.id !== section.id &&
-      s.program === section.program &&
-      s.yearLevel === section.yearLevel &&
-      s.assignedCount < s.capacity,
+  const { moveTargets, addable, moveUnavailableTitle, moveUnavailableReason } = getSectionAssignmentState(
+    section, allSections, unsectioned,
   );
-  const addable = unsectioned.filter(
-    (u) => u.program === section.program && u.yearLevel === section.yearLevel,
-  );
-  const hasSpace = section.assignedCount < section.capacity;
-  const pct =
-    section.capacity > 0
-      ? Math.round((section.assignedCount / section.capacity) * 100)
-      : 0;
+
+  async function changeAssignment(student: SectionStudent | UnsectionedStudent, sectionId: number | null) {
+    if (assign.isPending) return;
+    setFeedback("");
+    try {
+      await assign.mutateAsync({ enrollmentId: student.enrollmentId, sectionId });
+      const target = allSections.find(candidate => candidate.id === sectionId);
+      setFeedback(sectionId === null
+        ? `${student.name} is now unsectioned and remains enrolled.`
+        : `${student.name} was assigned to ${programLabel(target?.program)} · ${target?.name}.`);
+      setAddOpen(false);
+      setAssignmentAction(null);
+    } catch {
+      // Keep the dialog open and show the server's validation error.
+    }
+  }
+
+  function openAssignmentAction(kind: "move" | "remove", student: SectionStudent, trigger: HTMLButtonElement | null) {
+    assign.reset();
+    assignmentTrigger.current = trigger;
+    setDestinationId(null);
+    setAssignmentAction({ kind, student });
+  }
+
+  function restoreAssignmentFocus(event: Event) {
+    event.preventDefault();
+    const trigger = assignmentTrigger.current;
+    if (trigger?.isConnected) trigger.focus();
+    else addTrigger.current?.focus();
+  }
 
   return (
     <Card className="gap-0 overflow-hidden rounded-none border-0 py-0 shadow-none">
-      <CardHeader className="gap-2 border-b px-4 py-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <header className="@container/section-header border-b px-4 py-4">
+        <div className="grid items-start gap-4 @xl/section-header:grid-cols-[minmax(0,1fr)_auto] @xl/section-header:gap-6">
           <div className="min-w-0">
-            <CardTitle className="text-base">
-              <CompactProgramLabel label={programLabel(section.program)} /> · {section.name}
-            </CardTitle>
-            <CardDescription>
-              {labelFor(YEAR_LEVEL_OPTIONS, section.yearLevel)} ·{" "}
-              {section.assignedCount}/{section.capacity} seats · {pct}% full
-            </CardDescription>
+            <h2 className="break-words text-lg leading-6 font-semibold">
+              <span title={sectionProgramName} aria-label={sectionProgramName}>{compactProgramName}</span> · {section.name}
+            </h2>
+            <p className="mt-1 flex items-baseline gap-2 text-sm leading-5">
+              <span className="shrink-0 text-muted-foreground">Adviser</span>
+              <span className="min-w-0 break-words">{section.adviser?.name ?? "Not assigned"}</span>
+            </p>
           </div>
-          <div className="ml-auto flex min-w-0 items-center gap-4">
-            <div className="min-w-0 text-right"><p className="text-muted-foreground text-xs">Section adviser</p><p className="mt-0.5 break-words text-sm font-medium">{section.adviser?.name ?? "Not assigned"}</p></div>
+          <div className="flex items-center gap-2">
+          <Dialog open={addOpen} onOpenChange={open => {
+            if (assign.isPending) return;
+            setAddOpen(open);
+            if (open) assign.reset();
+          }}>
+            <DialogTrigger asChild>
+              <Button ref={addTrigger} variant="outline" size="sm" disabled={assign.isPending}><UserPlusIcon />Add students</Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90svh] w-[calc(100%-2rem)] overflow-y-auto" showCloseButton={!assign.isPending}>
+              <DialogHeader>
+                <DialogTitle>Add students to {compactProgramName} · {section.name}</DialogTitle>
+                <DialogDescription>
+                  {compactProgramName} · {labelFor(YEAR_LEVEL_OPTIONS, section.yearLevel)}
+                </DialogDescription>
+              </DialogHeader>
+              <div aria-busy={assign.isPending}>
+                <AddStudentsContent
+                  students={addable}
+                  availableSeats={Math.max(0, section.capacity - section.assignedCount)}
+                  loading={studentsLoading}
+                  error={studentsError}
+                  busy={assign.isPending}
+                  onRetry={onRetryStudents}
+                  onAdd={student => void changeAssignment(student, section.id)}
+                />
+                {assign.isPending && <p role="status" className="mt-3 text-sm text-muted-foreground">Adding student…</p>}
+                {assign.isError && <p role="alert" className="mt-3 text-sm text-destructive">{getErrorMessage(assign.error)}</p>}
+              </div>
+              <DialogFooter>
+                <DialogClose asChild><Button variant="outline" disabled={assign.isPending}>Close</Button></DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label="Section actions"><MoreVerticalIcon /></Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" disabled={assign.isPending} aria-label={`Section settings for ${compactProgramName} · ${section.name}`}><MoreVerticalIcon /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!hasSpace || addable.length === 0 || assign.isPending}><UserPlusIcon className="mr-2 size-4" />Add students</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
-                  <DropdownMenuLabel>Add to {section.name}</DropdownMenuLabel>
-                  {addable.map((student) => <DropdownMenuItem key={student.enrollmentId} onClick={() => assign.mutate({ enrollmentId: student.enrollmentId, sectionId: section.id })}>{student.name}<span className="text-muted-foreground ml-3 text-xs">{student.studentNumber ?? "—"}</span></DropdownMenuItem>)}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
               <DropdownMenuItem onClick={onEdit}><PencilIcon />Edit section</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onDelete} className="text-destructive"><Trash2Icon />Delete section</DropdownMenuItem>
+              <DropdownMenuItem onClick={onDelete} variant="destructive"><Trash2Icon />Delete section</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           </div>
         </div>
-      </CardHeader>
+        <p role="status" className={feedback ? "mt-3 text-sm text-muted-foreground" : "sr-only"}>{feedback}</p>
+        {assign.isError && !addOpen && !assignmentAction && <p role="alert" className="mt-3 text-sm text-destructive">{getErrorMessage(assign.error)}</p>}
+      </header>
       <CardContent className="px-0 pb-0">
         {section.students.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
@@ -517,7 +582,7 @@ function SectionDetail({
               <TableRow>
                 <TableHead>Student</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Move</TableHead>
+                <TableHead className="w-20 text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -525,36 +590,88 @@ function SectionDetail({
                 <RosterRow
                   key={student.enrollmentId}
                   student={student}
-                  moveTargets={moveTargets}
                   busy={assign.isPending}
-                  onMove={(sectionId) =>
-                    assign.mutate({
-                      enrollmentId: student.enrollmentId,
-                      sectionId,
-                    })
-                  }
+                  onMove={trigger => openAssignmentAction("move", student, trigger)}
+                  onRemove={trigger => openAssignmentAction("remove", student, trigger)}
                 />
               ))}
             </TableBody>
           </Table>
         )}
       </CardContent>
+      <Dialog
+        open={assignmentAction?.kind === "move"}
+        onOpenChange={open => { if (!open && !assign.isPending) setAssignmentAction(null); }}
+      >
+        <DialogContent
+          className="max-h-[90svh] w-[calc(100%-2rem)] overflow-y-auto"
+          showCloseButton={!assign.isPending}
+          onCloseAutoFocus={restoreAssignmentFocus}
+        >
+          <DialogHeader>
+            <DialogTitle>Move to another section</DialogTitle>
+            <DialogDescription>
+              {assignmentAction?.student.name} is currently in {compactProgramName} · {section.name}.
+              {moveTargets.length > 0 && " Choose their new section below."}
+            </DialogDescription>
+          </DialogHeader>
+          <MoveStudentForm
+            targets={moveTargets}
+            unavailableTitle={moveUnavailableTitle}
+            unavailableReason={moveUnavailableReason}
+            selectedId={destinationId}
+            busy={assign.isPending}
+            error={assign.isError ? getErrorMessage(assign.error) : null}
+            onSelect={setDestinationId}
+            onCancel={() => setAssignmentAction(null)}
+            onMove={sectionId => {
+              if (assignmentAction) void changeAssignment(assignmentAction.student, sectionId);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+      <AlertDialog
+        open={assignmentAction?.kind === "remove"}
+        onOpenChange={open => { if (!open && !assign.isPending) setAssignmentAction(null); }}
+      >
+        <AlertDialogContent onCloseAutoFocus={restoreAssignmentFocus}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this section assignment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {assignmentAction?.student.name} will leave {section.program.toUpperCase()} · {section.name} and
+              return to the Unsectioned list. They will stay enrolled and can be assigned to another matching section.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {assign.isError && <p role="alert" className="text-sm text-destructive">{getErrorMessage(assign.error)}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={assign.isPending}>Keep assignment</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={assign.isPending}
+              onClick={event => {
+                event.preventDefault();
+                if (assignmentAction) void changeAssignment(assignmentAction.student, null);
+              }}
+            >{assign.isPending ? "Removing…" : "Remove from section"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
 
 function RosterRow({
   student,
-  moveTargets,
   busy,
   onMove,
+  onRemove,
 }: {
   student: SectionStudent;
-  moveTargets: Section[];
   busy: boolean;
-  onMove: (sectionId: number | null) => void;
+  onMove: (trigger: HTMLButtonElement | null) => void;
+  onRemove: (trigger: HTMLButtonElement | null) => void;
 }) {
-  const programLabel = useProgramLabel();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const openingDialog = useRef(false);
   return (
     <TableRow>
       <TableCell>
@@ -568,38 +685,36 @@ function RosterRow({
       <TableCell>
         <StatusChip status={student.status} />
       </TableCell>
-      <TableCell className="text-right">
-        <DropdownMenu>
+      <TableCell className="w-20 text-center">
+        <DropdownMenu onOpenChange={open => { if (open) openingDialog.current = false; }}>
           <DropdownMenuTrigger asChild disabled={busy}>
-            <Button variant="ghost" size="icon-sm">
-              <ArrowRightLeftIcon />
-              <span className="sr-only">Move {student.name}</span>
+            <Button
+              ref={trigger}
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground"
+              aria-label={`Actions for ${student.name}`}
+            >
+              <MoreHorizontalIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-52 w-fit">
-            <DropdownMenuLabel>Move to</DropdownMenuLabel>
+          <DropdownMenuContent
+            align="end"
+            className="w-44 max-w-[calc(100vw-2rem)]"
+            onCloseAutoFocus={event => { if (openingDialog.current) event.preventDefault(); }}
+          >
+            <DropdownMenuItem onSelect={() => {
+              openingDialog.current = true;
+              onMove(trigger.current);
+            }} className="min-h-11">
+              <ArrowRightLeftIcon />Move
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {moveTargets.length === 0 ? (
-              <DropdownMenuItem disabled>
-                No other section with space
-              </DropdownMenuItem>
-            ) : (
-              moveTargets.map((target) => (
-                <DropdownMenuItem
-                  key={target.id}
-                  onClick={() => onMove(target.id)}
-                >
-                  {programLabel(target.program)} — {target.name}
-                  <span className="text-muted-foreground ml-auto text-xs tabular-nums">
-                    {target.assignedCount}/{target.capacity}
-                  </span>
-                </DropdownMenuItem>
-              ))
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => onMove(null)}>
-              <UserMinusIcon />
-              Remove from section
+            <DropdownMenuItem variant="destructive" onSelect={() => {
+              openingDialog.current = true;
+              onRemove(trigger.current);
+            }} className="min-h-11">
+              <UserMinusIcon />Remove
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -687,6 +802,18 @@ function UnsectionedDetail({
   );
 }
 
+function SchoolYearLabel({ schoolYear, isActive }: { schoolYear: string; isActive: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2" title={isActive ? "Active school year" : undefined}>
+      <span>SY {schoolYear}</span>
+      {isActive && <>
+        <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+        <span className="sr-only"> (active)</span>
+      </>}
+    </span>
+  );
+}
+
 function SectionsPage() {
   const { data: terms } = useTerms();
   const schoolYears = useMemo(() => terms ?? [], [terms]);
@@ -709,6 +836,7 @@ function SectionsPage() {
     pickedSchoolYearId ??
     (schoolYears.find((sy) => sy.isActive) ?? schoolYears[0])?.id ??
     null;
+  const selectedSchoolYear = schoolYears.find(sy => sy.id === schoolYearId);
 
   const filters = useMemo(
     () => ({
@@ -793,13 +921,14 @@ function SectionsPage() {
           onValueChange={(v) => setPickedSchoolYearId(Number(v))}
         >
           <SelectTrigger className="w-fit min-w-44">
-            <SelectValue placeholder="School year" />
+            <SelectValue placeholder="School year">
+              {selectedSchoolYear && <SchoolYearLabel {...selectedSchoolYear} />}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {schoolYears.map((sy) => (
-              <SelectItem key={sy.id} value={String(sy.id)}>
-                SY {sy.schoolYear}
-                {sy.isActive ? " - active" : ""}
+              <SelectItem key={sy.id} value={String(sy.id)} textValue={`SY ${sy.schoolYear}${sy.isActive ? " (active)" : ""}`}>
+                <SchoolYearLabel {...sy} />
               </SelectItem>
             ))}
           </SelectContent>
@@ -913,9 +1042,13 @@ function SectionsPage() {
           <div>
             {selectedSection ? (
               <SectionDetail
+                key={selectedSection.id}
                 section={selectedSection}
                 allSections={sections}
                 unsectioned={unsectioned}
+                studentsLoading={unsectionedQuery.isPending}
+                studentsError={unsectionedQuery.isError ? "Available students could not be loaded. Please try again." : null}
+                onRetryStudents={() => void unsectionedQuery.refetch()}
                 onEdit={() => openEdit(selectedSection)}
                 onDelete={() => setDeleting(selectedSection)}
               />

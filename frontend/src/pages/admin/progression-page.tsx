@@ -9,15 +9,10 @@ import {
   ArrowRightIcon,
   CheckCircle2Icon,
   CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   CircleAlertIcon,
   FileTextIcon,
   GraduationCapIcon,
-  MoveUpIcon,
-  RotateCcwIcon,
   SearchIcon,
-  Undo2Icon,
   UsersIcon,
   XIcon,
 } from "lucide-react";
@@ -25,6 +20,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TablePagination } from "@/components/ui/table-pagination";
+import { DecisionSection } from "@/features/progression/decision-section";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -89,7 +86,6 @@ import {
   type Semester,
 } from "@/features/progression/types";
 
-const PER_PAGE = 30;
 const ALL = "all"; // Radix Select can't hold an empty-string value.
 
 const SEMESTER_LABEL: Record<Semester, string> = {
@@ -144,13 +140,14 @@ function ProgressionPage() {
   const [program, setProgram] = useState("");
   const [clearance, setClearance] = useState<"eligible" | "incomplete" | "">("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(30);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const programGroups = useProgramGroups();
 
   const filters: RosterFilters = {
     page,
-    perPage: PER_PAGE,
+    perPage: pageSize,
     search: debouncedSearch,
     status,
     grade,
@@ -195,7 +192,7 @@ function ProgressionPage() {
         {progressionOpen && summary?.readyToEnroll ? (
           <Button
             disabled={materialize.isPending || !summary.nextYear}
-            onClick={() => materialize.mutate()}
+            onClick={() => materialize.mutate(undefined)}
             title={
               summary.nextYear
                 ? undefined
@@ -211,6 +208,28 @@ function ProgressionPage() {
           </Button>
         ) : null}
       </div>
+
+      {summary?.carryForward && (
+        <Alert>
+          <UsersIcon />
+          <AlertTitle>Finish enrollment for SY {summary.carryForward.targetYear.schoolYear}</AlertTitle>
+          <AlertDescription>
+            <p>
+              {summary.carryForward.count} {summary.carryForward.count === 1 ? 'student has' : 'students have'} a
+              recorded promotion or retention from SY {summary.carryForward.sourceYear.schoolYear} but
+              no enrollment for the new year. Create their pending enrollments to continue billing and enrollment processing.
+            </p>
+            <Button
+              className="mt-3"
+              size="sm"
+              disabled={materialize.isPending}
+              onClick={() => materialize.mutate(summary.carryForward!.sourceYear.id)}
+            >
+              {materialize.isPending ? 'Creating enrollments…' : `Create ${summary.carryForward.count} ${summary.carryForward.count === 1 ? 'enrollment' : 'enrollments'}`}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {decide.isSuccess && <ResultAlert verb="Recorded" count={decide.data} />}
       {decide.isError && (
@@ -322,38 +341,19 @@ function ProgressionPage() {
             onSelect={(id) => setSelectedId(id)}
           />
 
-          {meta && meta.total > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t px-3 py-3">
-              <p className="text-muted-foreground text-sm">
-                {(meta.page - 1) * meta.perPage + 1}–
-                {Math.min(meta.page * meta.perPage, meta.total)} of {meta.total}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  disabled={meta.page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  <ChevronLeftIcon />
-                  <span className="sr-only">Previous page</span>
-                </Button>
-                <span className="text-muted-foreground text-sm tabular-nums">
-                  Page {meta.page} of {meta.lastPage}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  disabled={meta.page >= meta.lastPage}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  <ChevronRightIcon />
-                  <span className="sr-only">Next page</span>
-                </Button>
-              </div>
-            </div>
+          {meta && (
+            <TablePagination
+              total={meta.total}
+              pageIndex={meta.page - 1}
+              pageSize={pageSize}
+              pageCount={meta.total === 0 ? 0 : meta.lastPage}
+              canPreviousPage={meta.page > 1}
+              canNextPage={meta.page < meta.lastPage}
+              disabled={rosterQuery.isFetching}
+              onPreviousPage={() => setPage(meta.page - 1)}
+              onNextPage={() => setPage(meta.page + 1)}
+              onPageSizeChange={(size) => { setPageSize(size); resetPage(); }}
+            />
           )}
         </TablePanel>
       )}
@@ -548,7 +548,7 @@ function StudentSheet({
 }) {
   return (
     <Sheet open={student !== null} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-lg">
+      <SheetContent className="flex flex-col gap-0 overflow-y-auto p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
         {/* Keyed per student so the open document viewer resets on switch. */}
         {student && <StudentReview key={student.studentId} student={student} />}
       </SheetContent>
@@ -608,10 +608,6 @@ function StudentReview({ student }: { student: RosterStudent }) {
       { onSuccess: () => setReturning(null) },
     );
   }
-
-  const primary = student.isTopGrade
-    ? { verb: "Graduate", kind: "graduate" as const, Icon: GraduationCapIcon }
-    : { verb: "Promote", kind: "promote" as const, Icon: MoveUpIcon };
 
   return (
     <>
@@ -729,59 +725,17 @@ function StudentReview({ student }: { student: RosterStudent }) {
           </p>
         )}
 
-        <section className="space-y-3 border-t pt-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Decision</h3>
-            {!decided && <ReadinessBadge student={student} />}
-          </div>
-          {decided ? (
-            <DecidedPanel
-              student={student}
-              pending={revert.isPending}
-              onUndo={() =>
-                student.decisionId && revert.mutate([student.decisionId])
-              }
-            />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() =>
-                  decide.mutate({
-                    studentIds: [student.studentId],
-                    decision: "retain",
-                  })
-                }
-              >
-                <RotateCcwIcon />
-                Retain
-              </Button>
-              <Button
-                disabled={busy || !student.eligible}
-                title={
-                  student.eligible
-                    ? undefined
-                    : `Clear all four to ${primary.verb.toLowerCase()}`
-                }
-                onClick={() =>
-                  decide.mutate({
-                    studentIds: [student.studentId],
-                    decision: primary.kind,
-                  })
-                }
-              >
-                <primary.Icon />
-                {primary.verb}
-                {!student.isTopGrade && (
-                  <span className="opacity-80">
-                    → {labelFor(YEAR_LEVEL_OPTIONS, student.nextYearLevel ?? "")}
-                  </span>
-                )}
-              </Button>
-            </div>
-          )}
-        </section>
+        <DecisionSection
+          student={student}
+          busy={reviewBusy}
+          pendingDecision={decide.isPending ? decide.variables.decision : null}
+          undoPending={revert.isPending}
+          error={decided
+            ? (revert.isError ? getErrorMessage(revert.error) : null)
+            : (decide.isError ? getErrorMessage(decide.error) : null)}
+          onDecide={decision => decide.mutate({ studentIds: [student.studentId], decision })}
+          onUndo={() => { if (student.decisionId) revert.mutate([student.decisionId]); }}
+        />
       </div>
 
       <DocumentViewerDialog
@@ -848,44 +802,6 @@ function StudentReview({ student }: { student: RosterStudent }) {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  );
-}
-
-function DecidedPanel({
-  student,
-  pending,
-  onUndo,
-}: {
-  student: RosterStudent;
-  pending: boolean;
-  onUndo: () => void;
-}) {
-  const meta = student.decision ? DECISION_META[student.decision] : null;
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-1.5 text-sm">
-        <Badge variant="secondary" className="font-normal">
-          {labelFor(YEAR_LEVEL_OPTIONS, student.fromYearLevel ?? "")}
-        </Badge>
-        <ArrowRightIcon className="text-muted-foreground size-3.5" />
-        <Badge variant="outline" className={cn("font-normal", meta?.className)}>
-          {student.decision === "graduate"
-            ? "Graduated"
-            : labelFor(YEAR_LEVEL_OPTIONS, student.toYearLevel ?? "")}
-        </Badge>
-      </div>
-      {student.revertable ? (
-        <Button variant="outline" disabled={pending} onClick={onUndo}>
-          <Undo2Icon />
-          Undo decision
-        </Button>
-      ) : (
-        <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <CircleAlertIcon className="size-3.5" />
-          The next-year bill is paid, so this can no longer be undone here.
-        </p>
-      )}
-    </div>
   );
 }
 

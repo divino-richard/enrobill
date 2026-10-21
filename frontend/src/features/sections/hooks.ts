@@ -32,7 +32,7 @@ export function useUnsectionedStudents(filters: SectionFilters) {
 function useInvalidateSections() {
   const queryClient = useQueryClient();
   return () => {
-    queryClient.invalidateQueries({ queryKey: sectionsQueryKey });
+    return queryClient.invalidateQueries({ queryKey: sectionsQueryKey });
   };
 }
 

@@ -33,6 +33,13 @@ class ProgressionController extends Controller
     public function index(): JsonResponse
     {
         $active = SchoolYear::active();
+        $previous = $active ? $this->previousYear($active) : null;
+        $outstanding = $previous ? $this->closeout->pendingEnrollmentDecisions($previous)->count() : 0;
+        $carryForward = $outstanding > 0 ? [
+            'sourceYear' => $this->yearRef($previous),
+            'targetYear' => $this->yearRef($active),
+            'count' => $outstanding,
+        ] : null;
 
         if ($active === null || ! $active->isProgressionOpen()) {
             return response()->json([
@@ -42,14 +49,13 @@ class ProgressionController extends Controller
                     'progressionOpen' => false,
                     'pending' => 0,
                     'readyToEnroll' => 0,
+                    'carryForward' => $carryForward,
                 ],
             ]);
         }
 
         $next = $this->closeout->nextYear($active);
-        $readyToEnroll = $this->closeout->decisions($active)
-            ->filter->needsMaterialization()
-            ->count();
+        $readyToEnroll = $this->closeout->pendingEnrollmentDecisions($active)->count();
 
         return response()->json([
             'data' => [
@@ -58,6 +64,7 @@ class ProgressionController extends Controller
                 'progressionOpen' => true,
                 'pending' => $this->closeout->pendingStudents($active)->count(),
                 'readyToEnroll' => $readyToEnroll,
+                'carryForward' => $carryForward,
             ],
         ]);
     }
@@ -353,11 +360,30 @@ class ProgressionController extends Controller
      */
     public function materialize(Request $request): JsonResponse
     {
-        $active = $this->openYearOrAbort();
+        $validated = $request->validate([
+            'sourceSchoolYearId' => ['sometimes', 'integer', 'exists:school_years,id'],
+        ]);
 
-        $count = $this->closeout->materialize($active, $request->user()?->id);
+        if (isset($validated['sourceSchoolYearId'])) {
+            // Finish recorded decisions into the active year without reopening
+            // its predecessor or allowing new decisions outside their window.
+            $active = SchoolYear::active();
+            $source = $active ? $this->previousYear($active) : null;
+            abort_unless($source && $source->id === (int) $validated['sourceSchoolYearId'],
+                422, 'Only the previous school year can be carried into the active year.');
+        } else {
+            $source = $this->openYearOrAbort();
+        }
+
+        $count = $this->closeout->materialize($source, $request->user()?->id);
 
         return response()->json(['data' => ['materialized' => $count]]);
+    }
+
+    private function previousYear(SchoolYear $active): ?SchoolYear
+    {
+        return SchoolYear::where('school_year', '<', $active->school_year)
+            ->orderByDesc('school_year')->first();
     }
 
     /**

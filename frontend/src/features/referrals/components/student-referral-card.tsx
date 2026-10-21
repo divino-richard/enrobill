@@ -1,6 +1,6 @@
 import { bannerStyles } from "@/components/ui/banner";
 import { useId, useState } from "react";
-import { ArrowRightIcon, CheckIcon, CopyIcon, LoaderCircleIcon, UsersRoundIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon, CircleCheckIcon, Clock3Icon, CopyIcon, LoaderCircleIcon, UsersRoundIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useCreateMyReferralCode, useMyReferrals } from "@/features/referrals/hooks";
 import { referralStatusClassName, referralStatusLabel, type MyReferralSummary } from "@/features/referrals/types";
@@ -133,7 +134,7 @@ export function StudentReferralCard({ showWhenUnavailable = false, compact = fal
               ? "self-start sm:self-auto"
               : "self-start motion-reduce:transition-none sm:self-auto"}
           >
-            {unavailableReason ? (compact && campaignEnabled && targetSchoolYear && !summary.eligibleToRefer && !summary.code ? "View requirements" : "View referral") : canShareCode ? "Share your code" : canCreateCode ? "Start referring" : "View referral"}
+            {unavailableReason ? (compact && campaignEnabled && targetSchoolYear && !summary.eligibleToRefer && !summary.code ? "View requirements" : "View referral") : canShareCode ? "View referrals" : canCreateCode ? "Start referring" : "View referral"}
             <ArrowRightIcon aria-hidden="true" className="motion-safe:transition-transform motion-safe:group-hover/button:translate-x-0.5" />
           </Button>
         </SheetTrigger>
@@ -166,16 +167,18 @@ type ReferralDetailsProps = {
 export function StudentReferralDetails({ summary, onCreate, onCopy, creating = false, copyState = "idle", createError }: ReferralDetailsProps) {
   const { targetSchoolYear, referrals, successfulCount, canCreateCode, canShareCode, benefitStatus, unavailable, hasProgress, requirementsOnly } = referralView(summary);
   const benefit = BENEFIT_DETAILS[benefitStatus];
+  const benefitApplied = benefitStatus === "applied" || benefitStatus === "applied_no_balance";
   const eligibilityId = useId();
   const codeHelpId = useId();
   const createErrorId = useId();
+  const progressId = useId();
+  const showProgress = !requirementsOnly && Boolean(summary.code?.code || hasProgress);
 
   return <>
-    <SheetHeader className="shrink-0 border-b p-5 pr-16">
+    <SheetHeader className="shrink-0 border-b p-5 pr-16 sm:px-6 sm:pr-16">
       <SheetTitle className="text-lg font-semibold">{requirementsOnly ? "Referral requirements" : "Referral tuition incentive"}</SheetTitle>
       <SheetDescription>
-        {targetSchoolYear ? `SY ${targetSchoolYear.schoolYear} · ` : ""}
-        {requirementsOnly ? "Eligibility and Grade 12 benefit conditions." : "Your code, referred applicants, and Grade 12 benefit."}
+        {targetSchoolYear ? `School year ${targetSchoolYear.schoolYear}` : "Eligibility and Grade 12 benefit conditions."}
       </SheetDescription>
     </SheetHeader>
     <SheetClose asChild>
@@ -183,7 +186,7 @@ export function StudentReferralDetails({ summary, onCreate, onCopy, creating = f
         <XIcon aria-hidden="true" />
       </Button>
     </SheetClose>
-    <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5 text-sm leading-relaxed">
+    <div role="region" aria-label="Referral overview" tabIndex={0} className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5 text-sm leading-relaxed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring sm:p-6">
       {unavailable && <section aria-labelledby={eligibilityId} className="space-y-2">
         <h3 id={eligibilityId} className="text-base font-semibold">{unavailable.title}</h3>
         <p>{unavailable.reason}</p>
@@ -191,20 +194,20 @@ export function StudentReferralDetails({ summary, onCreate, onCopy, creating = f
           <p className="text-muted-foreground">If your enrollment history looks incorrect, contact Northlink to have it checked.</p>}
       </section>}
 
-      {(summary.code?.code || canCreateCode) && <section aria-label="Your referral code" className={unavailable ? "space-y-3 border-t pt-5" : "space-y-3"}>
-        <h3 className="text-base font-semibold">Your referral code</h3>
+      {(summary.code?.code || canCreateCode) && <section aria-label="Your referral code" className="bg-muted/30 space-y-3 rounded-xl border p-4">
+        <h3 className="font-semibold">Your referral code</h3>
         {summary.code?.code ? <>
-          <div className="flex flex-wrap items-center gap-3">
-            <code className="text-primary dark:text-foreground min-w-0 select-all break-all font-mono text-lg font-semibold tracking-wide sm:text-xl">{summary.code.code}</code>
-            {canShareCode && <Button variant="outline" className="min-h-11" onClick={onCopy} aria-describedby={codeHelpId}>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <code className="text-primary dark:text-foreground min-w-0 select-all break-all font-mono text-lg font-semibold tracking-wide">{summary.code.code}</code>
+            {canShareCode && <Button variant="outline" className="min-h-11 shrink-0 bg-background" onClick={onCopy} aria-describedby={codeHelpId}>
               {copyState === "copied" ? <CheckIcon aria-hidden="true" /> : <CopyIcon aria-hidden="true" />}
               {copyState === "copied" ? "Copied" : "Copy code"}
             </Button>}
           </div>
           <p id={codeHelpId} className="text-muted-foreground">{canShareCode
-            ? "Share this code with new or transferee Grade 11 applicants. They enter it before submitting their application. You can share the same code with more than one applicant."
+            ? "Share with new or transferee Grade 11 applicants."
             : "Your existing code is kept for reference. It cannot be shared while referrals are unavailable."}</p>
-          {canShareCode && <div role="status" aria-live="polite">
+          {canShareCode && <div role="status" aria-live="polite" className={copyState === "idle" ? "sr-only" : undefined}>
             {copyState === "copied" && "Code copied. Ready to share."}
             {copyState === "error" && <p className="text-destructive">Couldn't copy automatically. Select the code above and copy it manually.</p>}
           </div>}
@@ -218,46 +221,76 @@ export function StudentReferralDetails({ summary, onCreate, onCopy, creating = f
         </>}
       </section>}
 
-      <section aria-label="Grade 12 benefit" className="space-y-3 border-t pt-5">
-        <h3 className="text-base font-semibold">{hasProgress ? "Your Grade 12 tuition benefit" : "Grade 12 benefit requirements"}</h3>
-        {hasProgress && <div className="space-y-2">
-          <Badge variant="outline" className={referralStatusClassName(benefitStatus) + " h-auto whitespace-normal text-left text-sm"}>
-            {benefit?.label ?? referralStatusLabel(benefitStatus)}
-          </Badge>
-          <p>{benefit?.description ?? "Contact Northlink if you need help understanding your benefit status."}</p>
-          {successfulCount > 0 && <p className="font-medium tabular-nums">{successfulCount} enrolled {successfulCount === 1 ? "referral" : "referrals"}</p>}
-        </div>}
-        <ul className="list-disc space-y-2 pl-5">
-          <li>At least one referred Grade 11 student must become officially enrolled.</li>
-          <li>You need an active voucher for your own Grade 12 enrollment.</li>
-        </ul>
-        <p>The benefit covers your remaining unpaid Grade 12 bill, including miscellaneous fees, after your voucher.</p>
-        <p className="text-muted-foreground">Payments made before this benefit is applied are not refunded or carried forward.</p>
-      </section>
+      {showProgress && <section aria-labelledby={progressId} className="space-y-5">
+        <h3 id={progressId} className="text-base font-semibold">Your progress</h3>
+        {hasProgress && <section aria-label="Grade 12 benefit" className="flex items-start gap-3">
+          {benefitApplied
+            ? <CircleCheckIcon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-300" />
+            : <Clock3Icon aria-hidden="true" className="text-muted-foreground mt-0.5 size-5 shrink-0" />}
+          <div className="min-w-0 space-y-2">
+            <h4 className="wrap-anywhere font-medium">{benefit?.label ?? referralStatusLabel(benefitStatus)}</h4>
+            <p className="text-muted-foreground">{benefit?.description ?? "Contact Northlink if you need help understanding your benefit status."}</p>
+            {successfulCount > 0 && <p className="font-medium tabular-nums">{successfulCount} enrolled {successfulCount === 1 ? "referral" : "referrals"}</p>}
+          </div>
+        </section>}
 
-      {!requirementsOnly && (summary.code?.code || hasProgress) && <section className="space-y-3 border-t pt-5" aria-label="Referral progress">
-        <h3 className="text-base font-semibold">Referred applicants</h3>
-        {referrals.length ? <>
-          <p className="text-muted-foreground">A referral counts toward your benefit when the student is officially enrolled.</p>
-          <ul className="divide-y">
-            {referrals.map(referral => <li key={referral.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+        <section aria-label="Referral progress" className={hasProgress ? "space-y-2 border-t pt-4" : "space-y-2"}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h4 className="font-medium">Referred applicants</h4>
+            {referrals.length > 0 && <span className="text-muted-foreground tabular-nums">{referrals.length} {referrals.length === 1 ? "applicant" : "applicants"}</span>}
+          </div>
+          {referrals.length ? <ul className="divide-y">
+            {referrals.map(referral => <li key={referral.id} className="flex flex-col items-start gap-2 py-3 min-[400px]:flex-row min-[400px]:items-center min-[400px]:justify-between min-[400px]:gap-4">
               <span className="min-w-0 wrap-anywhere">{referral.referredDisplay ?? "Applicant"}</span>
-              <Badge variant="outline" className={referralStatusClassName(referral.status) + " h-auto whitespace-normal text-left text-sm"}>{referralStatusLabel(referral.status)}</Badge>
+              <Badge variant="outline" className={referralStatusClassName(referral.status) + " h-auto max-w-full whitespace-normal text-left text-sm wrap-anywhere min-[400px]:max-w-3/5"}>{referralStatusLabel(referral.status)}</Badge>
             </li>)}
-          </ul>
-        </> : <p className="text-muted-foreground">{canShareCode
-          ? "No applications linked yet. Applicants appear here after submitting an application with your code."
-          : "No linked applications to display."}</p>}
+          </ul> : <p className="text-muted-foreground">{canShareCode
+            ? "No applications linked yet. Applicants appear here after submitting an application with your code."
+            : "No linked applications to display."}</p>}
+        </section>
       </section>}
 
-      <details className="border-t">
-        <summary className="focus-visible:outline-ring min-h-11 cursor-pointer content-center rounded-sm py-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-4">More about the tuition benefit</summary>
-        <ul className="text-muted-foreground list-disc space-y-3 pt-2 pl-5">
-          <li>The referred Grade 11 applicant qualifies at application acceptance. Your referral requirement is met when that student becomes officially enrolled.</li>
-          <li>Each student needs their own active voucher. A missing voucher for one student does not block the other student’s benefit.</li>
-          <li>Your Grade 12 benefit is awarded once per school year. Additional applicants can still qualify for their own benefit.</li>
-        </ul>
-      </details>
+      <StudentReferralRequirements defaultOpen={requirementsOnly} />
     </div>
   </>;
+}
+
+export function StudentReferralRequirements({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  return <Accordion type="single" collapsible defaultValue={defaultOpen ? "requirements" : undefined} className="border-t">
+    <AccordionItem value="requirements">
+      <AccordionTrigger className="py-4">
+        <span className="space-y-1">
+          <span className="block font-semibold">How referrals work</span>
+          <span className="text-muted-foreground block font-normal">Eligibility, vouchers, and benefit coverage</span>
+        </span>
+      </AccordionTrigger>
+      <AccordionContent className="space-y-5 pb-0 leading-relaxed">
+        <section aria-label="Code eligibility" className="space-y-2">
+          <h4 className="font-medium">Who can create a code</h4>
+          <p className="text-muted-foreground">To create a referral code, you must have been enrolled in Grade 11 in the previous school year.</p>
+        </section>
+        <section aria-label="Sharing your code" className="space-y-2">
+          <h4 className="font-medium">Sharing your code</h4>
+          <p className="text-muted-foreground">New or transferee Grade 11 applicants enter your code before submitting their application. You can share the same code with more than one applicant.</p>
+        </section>
+        <section aria-label="Grade 12 benefit requirements" className="space-y-3">
+          <h4 className="font-medium">Grade 12 benefit requirements</h4>
+          <ul className="text-muted-foreground list-disc space-y-2 pl-5">
+            <li>At least one referred Grade 11 student must become officially enrolled.</li>
+            <li>You need an active voucher for your own Grade 12 enrollment.</li>
+          </ul>
+          <p>The benefit covers your remaining unpaid Grade 12 bill, including miscellaneous fees, after your voucher.</p>
+          <p className="text-muted-foreground">Payments made before this benefit is applied are not refunded or carried forward.</p>
+        </section>
+        <section aria-label="Benefits for each student" className="space-y-3">
+          <h4 className="font-medium">Benefits for each student</h4>
+          <ul className="text-muted-foreground list-disc space-y-3 pl-5">
+            <li>The referred Grade 11 applicant qualifies at application acceptance. Your referral requirement is met when that student becomes officially enrolled.</li>
+            <li>Each student needs their own active voucher. A missing voucher for one student does not block the other student’s benefit.</li>
+            <li>Your Grade 12 benefit is awarded once per school year. Additional applicants can still qualify for their own benefit.</li>
+          </ul>
+        </section>
+      </AccordionContent>
+    </AccordionItem>
+  </Accordion>;
 }

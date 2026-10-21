@@ -90,7 +90,8 @@ function ProgramsPage() {
     return next;
   }, {replace: true});
   const { data: student, isLoading, isError } = useMyStudent();
-  const { data: enrollments } = useMyEnrollments();
+  const enrollmentQuery = useMyEnrollments();
+  const enrollments = enrollmentQuery.data;
   const programLabel = useProgramLabel();
   const returning = useStudentReturn();
   const formDownload = useMutation({
@@ -101,7 +102,7 @@ function ProgramsPage() {
   const { data: myDocuments } = useMyDocuments();
   const uploadedDocuments = myDocuments?.length ?? 0;
 
-  if (isLoading) {
+  if (isLoading || enrollmentQuery.isLoading) {
     return (
       <div className="space-y-4 mx-auto max-w-7xl">
         <Skeleton className="h-9 w-44 rounded-md" />
@@ -124,16 +125,32 @@ function ProgramsPage() {
     );
   }
 
+  if (enrollmentQuery.isError) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="My Program" />
+        <EmptyState
+          icon={HistoryIcon}
+          title="Enrollment records unavailable"
+          description="We couldn't load your enrollment records. Please try again."
+          action={<Button variant="outline" onClick={() => enrollmentQuery.refetch()}>Try again</Button>}
+        />
+      </div>
+    );
+  }
+
   const records = enrollments ?? [];
-  // The enrollment for the open term, if any — otherwise fall back to the
-  // student's own record for the headline.
   const postDrop = student.status === 'dropped' || (!!returning.data?.source && returning.data.state !== 'enrolled');
-  const current = postDrop ? records[0] ?? null : records.find((r) => r.isCurrent) ?? records[0] ?? null;
-  const history = records.filter((r) => r !== current);
+  // A prior enrollment is historical even when no replacement has been created.
+  // Dropped students still review their last enrollment alongside the return flow.
+  const current = postDrop ? records[0] ?? null : records.find((r) => r.isCurrent) ?? null;
+  const history = records.filter((r) => !r.isCurrent);
 
   const currentProgram = current?.program ?? student.trackOrStrand;
   const currentYearLevel = current?.yearLevel ?? student.yearLevel;
-  const currentSchoolYear = current?.schoolYear ?? student.schoolYear;
+  const currentSchoolYear = current?.schoolYear ?? (postDrop ? student.schoolYear : student.programContext?.activeSchoolYear);
+  const pendingProgression = student.programContext?.pendingProgression;
+  const needsEnrollment = !postDrop && !current && !['graduated', 'inactive'].includes(student.status);
   const selectedTab = postDrop && activeTab === 'transfer' ? 'overview' : activeTab;
 
   return (
@@ -196,6 +213,8 @@ function ProgramsPage() {
               <CardAction className="flex items-center gap-2">
                 {current ? (
                   <EnrollmentStatusBadge status={current.status} />
+                ) : needsEnrollment ? (
+                  <Badge variant="outline">Awaiting enrollment</Badge>
                 ) : (
                   <StudentStatusBadge status={student.status} />
                 )}
@@ -223,14 +242,25 @@ function ProgramsPage() {
               <h2 className="mb-4 text-sm font-semibold">Enrollment details</h2>
               <dl className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
                 <Detail label="Student number" value={student.studentNumber} />
-                <Detail
+                {current && <Detail
                   label="Enrolled on"
                   value={formatDate(current?.enrolledAt ?? null)}
-                />
+                />}
                 {current?.status === 'dropped' && returning.data?.source?.id === current.id && (
                   <Detail label="Dropped on" value={formatDate(returning.data.effectiveDroppingDate)} />
                 )}
               </dl>
+              {!postDrop && !current && (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  {pendingProgression ? (
+                    <>Your {pendingProgression.decision === 'promote' ? 'promotion' : 'retention'} is recorded. The registrar still needs to create your enrollment {pendingProgression.schoolYear ? `for SY ${pendingProgression.schoolYear}` : 'for the next school year'}.</>
+                  ) : currentSchoolYear ? (
+                    <>You have no enrollment for SY {currentSchoolYear}. Your previous enrollments are available in History.</>
+                  ) : (
+                    <>No active academic year. Your previous enrollments are available in History.</>
+                  )}
+                </p>
+              )}
               {formDownload.isPending && <p role="status" className="mt-4 text-sm text-muted-foreground">Downloading dropping form…</p>}
               {formDownload.isError && <p role="alert" className="mt-4 text-sm text-destructive">{getErrorMessage(formDownload.error)}</p>}
             </CardContent>
@@ -255,7 +285,7 @@ function ProgramsPage() {
             <CardHeader className="border-b">
               <CardTitle className="text-base">Enrollment history</CardTitle>
               <CardDescription>
-                Your program and level across past terms.
+                Your enrollment records from other academic years.
               </CardDescription>
             </CardHeader>
             <CardContent>

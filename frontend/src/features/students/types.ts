@@ -5,7 +5,17 @@ export type StudentStatus =
   | "graduated"
   | "dropped";
 
+export interface StudentProgramContext {
+  activeSchoolYear: string | null;
+  pendingProgression: {
+    decision: "promote" | "retain";
+    schoolYear: string | null;
+  } | null;
+}
+
 export interface Student {
+  // Included by the signed-in student's profile endpoint.
+  programContext?: StudentProgramContext;
   id: number;
   studentNumber: string;
   status: StudentStatus;

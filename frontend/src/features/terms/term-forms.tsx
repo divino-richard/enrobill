@@ -1,15 +1,17 @@
 import { useId, useState } from "react";
 import { addMonths, differenceInMonths, format } from "date-fns";
+import { PencilIcon, PlusIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldLabel } from "@/components/form/field-label";
 import { DatePicker } from "@/components/form/date-picker";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { useCreateTerm, useUpdateTermPolicy } from "./hooks";
-import { useSchoolYearFreebies, useUpsertFreebie } from "@/features/freebies/hooks";
+import { useUpsertFreebie } from "@/features/freebies/hooks";
 import type { Freebie } from "@/features/freebies/types";
+import { ReferralPolicyGuide } from "@/features/referrals/components/referral-policy-guide";
 import type { Term } from "./types";
 
 interface PolicyState {
@@ -192,47 +194,41 @@ export function InstallmentPolicyDialog({ term }: { term: Term }) {
   );
 }
 
-export function EarlyEnrollmentForm({ term, onDone }: { term: Term; onDone: () => void }) {
-  const { data: freebies, isLoading, isError, isFetching, refetch } = useSchoolYearFreebies(term.id);
-  const existing = (freebies ?? []).find((f) => f.type === "early_enrollment");
-  const save = useUpsertFreebie(term.id);
-
-  if (isError) return <div role="alert" className="space-y-3 text-sm"><p>Unable to load early-enrollment settings.</p><Button variant="outline" disabled={isFetching} onClick={() => refetch()}>Try again</Button></div>;
-  if (isLoading) {
-    return <p className="text-muted-foreground py-6 text-sm">Loading…</p>;
-  }
-
-  return (
-    <FreebieFields
-      key={existing?.id ?? "new"}
-      term={term}
-      existing={existing ?? null}
-      save={save}
-      onDone={onDone}
-    />
-  );
-}
-
-function FreebieFields({
+export function EarlyEnrollmentDialog({
   term,
   existing,
-  save,
-  onDone,
+  onEdit,
+  onSaved,
 }: {
   term: Term;
-  existing: Freebie | null;
-  save: ReturnType<typeof useUpsertFreebie>;
-  onDone: () => void;
+  existing?: Freebie;
+  onEdit: () => void;
+  onSaved: () => void;
 }) {
+  const save = useUpsertFreebie(term.id);
+  const [open, setOpen] = useState(false);
+  const fieldId = useId();
+  const savedStart = existing ? existing.startsOn ?? "" : term.startDate?.slice(0, 10) ?? "";
+  const savedEnd = existing ? existing.endsOn ?? "" : term.endDate?.slice(0, 10) ?? "";
   const [enabled, setEnabled] = useState(existing?.isActive ?? false);
-  const [startsOn, setStartsOn] = useState(
-    existing?.startsOn ?? term.startDate?.slice(0, 10) ?? "",
-  );
-  const [endsOn, setEndsOn] = useState(
-    existing?.endsOn ?? term.endDate?.slice(0, 10) ?? "",
-  );
+  const [startsOn, setStartsOn] = useState(savedStart);
+  const [endsOn, setEndsOn] = useState(savedEnd);
+  const hasChanges = !existing || enabled !== existing.isActive || startsOn !== savedStart || endsOn !== savedEnd;
+
+  function changeOpen(next: boolean) {
+    if (save.isPending) return;
+    if (next) {
+      setEnabled(existing?.isActive ?? false);
+      setStartsOn(savedStart);
+      setEndsOn(savedEnd);
+      save.reset();
+      onEdit();
+    }
+    setOpen(next);
+  }
 
   async function handleSave() {
+    if (!hasChanges || save.isPending) return;
     try {
       await save.mutateAsync({
         type: "early_enrollment",
@@ -241,185 +237,212 @@ function FreebieFields({
         startsOn: startsOn || null,
         endsOn: endsOn || null,
       });
-      onDone();
+      setOpen(false);
+      onSaved();
     } catch {
       // Surfaced via save.isError.
     }
   }
 
   return (
-    <>
-      <div className="space-y-4">
-        <label className="flex items-start gap-3 text-sm">
-          <Checkbox
-            disabled={save.isPending}
-            checked={enabled}
-            onCheckedChange={(checked) => setEnabled(checked === true)}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="font-medium">Enable early-enrollment freebie</span>
-            <span className="text-muted-foreground block text-xs">
-              Offered to Grade 11 students enrolled within the window below.
-            </span>
-          </span>
-        </label>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="freebie-start">Window start</FieldLabel>
-            <DatePicker
-              id="freebie-start"
-              disabled={save.isPending}
-              value={startsOn}
-              onChange={setStartsOn}
-              placeholder="Open-ended"
-              startMonth={TERM_DATE_START}
-              endMonth={TERM_DATE_END}
-              disabledDates={[]}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="freebie-end">Window end</FieldLabel>
-            <DatePicker
-              id="freebie-end"
-              disabled={save.isPending}
-              value={endsOn}
-              onChange={setEndsOn}
-              placeholder="Open-ended"
-              startMonth={TERM_DATE_START}
-              endMonth={TERM_DATE_END}
-              disabledDates={[]}
-            />
-          </div>
-        </div>
-      </div>
-
-      {save.isError && (
-        <p role="alert" className="text-destructive text-sm">{getErrorMessage(save.error)}</p>
-      )}
-
-      <DialogFooter className="mt-5 border-t pt-4">
-        <Button variant="outline" onClick={onDone} disabled={save.isPending}>
-          Cancel
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="min-h-11">
+          {existing ? <PencilIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}
+          {existing ? "Edit freebie" : "Set up freebie"}
         </Button>
-        <Button onClick={handleSave} disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save freebie"}
-        </Button>
-      </DialogFooter>
-    </>
+      </DialogTrigger>
+      <DialogContent className="w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto" showCloseButton={false}>
+        <DialogHeader className="pr-8 text-left">
+          <DialogTitle>{existing ? "Edit early-enrollment freebie" : "Set up early-enrollment freebie"}</DialogTitle>
+          <DialogDescription>SY {term.schoolYear}</DialogDescription>
+        </DialogHeader>
+        <DialogClose asChild>
+          <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-2 size-11" aria-label="Close early-enrollment freebie" disabled={save.isPending}>
+            <XIcon aria-hidden="true" />
+          </Button>
+        </DialogClose>
+        <form className="space-y-4" aria-busy={save.isPending} onSubmit={event => { event.preventDefault(); void handleSave(); }}>
+          <label htmlFor={fieldId} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+            <Checkbox
+              id={fieldId}
+              aria-describedby={`${fieldId}-description`}
+              disabled={save.isPending}
+              checked={enabled}
+              onCheckedChange={(checked) => setEnabled(checked === true)}
+            />
+            Enable early-enrollment freebie
+          </label>
+          <p id={`${fieldId}-description`} className="text-muted-foreground text-sm leading-relaxed">
+            Offered to Grade 11 students enrolled within the window below.
+          </p>
+
+          <div className="grid gap-4">
+            <div className="space-y-1.5 [&_button[data-slot=popover-trigger]]:min-h-11">
+              <FieldLabel htmlFor={`${fieldId}-start`}>Window start</FieldLabel>
+              <DatePicker
+                id={`${fieldId}-start`}
+                disabled={save.isPending}
+                value={startsOn}
+                onChange={setStartsOn}
+                placeholder="Open-ended"
+                startMonth={TERM_DATE_START}
+                endMonth={TERM_DATE_END}
+                disabledDates={[]}
+              />
+            </div>
+            <div className="space-y-1.5 [&_button[data-slot=popover-trigger]]:min-h-11">
+              <FieldLabel htmlFor={`${fieldId}-end`}>Window end</FieldLabel>
+              <DatePicker
+                id={`${fieldId}-end`}
+                disabled={save.isPending}
+                value={endsOn}
+                onChange={setEndsOn}
+                placeholder="Open-ended"
+                startMonth={TERM_DATE_START}
+                endMonth={TERM_DATE_END}
+                disabledDates={[]}
+              />
+            </div>
+          </div>
+
+          {save.isError && (
+            <p role="alert" className="text-destructive text-sm">{getErrorMessage(save.error)}</p>
+          )}
+
+          <DialogFooter className="flex-row flex-wrap justify-end border-t pt-4">
+            <Button type="button" variant="outline" className="min-h-11" onClick={() => changeOpen(false)} disabled={save.isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" className="min-h-11" disabled={!hasChanges || save.isPending}>
+              {save.isPending ? "Saving…" : "Save freebie"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-export function ReferralIncentiveForm({
+export function ReferralIncentiveDialog({
   term,
-  onDone,
+  existing,
+  onEdit,
+  onSaved,
 }: {
   term: Term;
-  onDone: () => void;
+  existing?: Freebie;
+  onEdit: () => void;
+  onSaved: () => void;
 }) {
-  const { data: freebies, isLoading, isError, isFetching, refetch } = useSchoolYearFreebies(term.id);
-  const existing = (freebies ?? []).find((item) => item.type === "referral");
   const save = useUpsertFreebie(term.id);
-
-  if (isError) {
-    return <div role="alert" className="space-y-3 py-4 text-sm">
-      <p>We couldn't load the campaign settings. Retry before making changes.</p>
-      <Button variant="outline" disabled={isFetching} onClick={() => refetch()}>{isFetching ? "Retrying…" : "Try again"}</Button>
-    </div>;
-  }
-
-  if (isLoading) {
-    return <p className="text-muted-foreground py-6 text-sm">Loading…</p>;
-  }
-
-  return (
-    <ReferralFreebieFields
-      key={existing?.id ?? "new"}
-      existing={existing ?? null}
-      save={save}
-      onDone={onDone}
-    />
-  );
-}
-
-function ReferralFreebieFields({
-  existing,
-  save,
-  onDone,
-}: {
-  existing: Freebie | null;
-  save: ReturnType<typeof useUpsertFreebie>;
-  onDone: () => void;
-}) {
+  const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(existing?.isActive ?? false);
+  const hasChanges = !existing || enabled !== existing.isActive;
+
+  function changeOpen(next: boolean) {
+    if (save.isPending) return;
+    if (next) {
+      setEnabled(existing?.isActive ?? false);
+      save.reset();
+      onEdit();
+    }
+    setOpen(next);
+  }
 
   async function handleSave() {
+    if (!hasChanges || save.isPending) return;
     try {
       await save.mutateAsync({
         type: "referral",
         name: existing?.name ?? "Referral Tuition Incentive",
         isActive: enabled,
       });
-      onDone();
+      setOpen(false);
+      onSaved();
     } catch {
       // Surfaced via save.isError.
     }
   }
 
   return (
-    <>
-      <div className="space-y-4">
-        <label className="flex items-start gap-3 text-sm">
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="min-h-11">
+          {existing ? <PencilIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}
+          {existing ? "Edit incentive" : "Set up incentive"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto" showCloseButton={false}>
+        <DialogHeader className="pr-8 text-left">
+          <DialogTitle>{existing ? "Edit referral incentive" : "Set up referral incentive"}</DialogTitle>
+          <DialogDescription>SY {term.schoolYear}</DialogDescription>
+        </DialogHeader>
+        <DialogClose asChild>
+          <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-2 size-11" aria-label="Close referral incentive" disabled={save.isPending}>
+            <XIcon aria-hidden="true" />
+          </Button>
+        </DialogClose>
+        <ReferralIncentiveEditor
+          enabled={enabled}
+          onEnabledChange={setEnabled}
+          hasChanges={hasChanges}
+          saving={save.isPending}
+          error={save.isError ? getErrorMessage(save.error) : undefined}
+          onCancel={() => changeOpen(false)}
+          onSave={() => void handleSave()}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function ReferralIncentiveEditor({
+  enabled,
+  onEnabledChange,
+  hasChanges,
+  saving,
+  error,
+  onCancel,
+  onSave,
+}: {
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  hasChanges: boolean;
+  saving: boolean;
+  error?: string;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const fieldId = useId();
+
+  return (
+    <form className="space-y-4" aria-busy={saving} onSubmit={event => {
+      event.preventDefault();
+      if (hasChanges && !saving) onSave();
+    }}>
+      <div className="space-y-3">
+        <label htmlFor={fieldId} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
           <Checkbox
-            disabled={save.isPending}
+            id={fieldId}
+            disabled={saving}
             checked={enabled}
-            onCheckedChange={(checked) => setEnabled(checked === true)}
-            className="mt-0.5"
+            onCheckedChange={checked => onEnabledChange(checked === true)}
           />
-          <span>
-            <span className="font-medium">
-              Enable referral tuition incentive
-            </span>
-            <span className="text-muted-foreground block text-xs">
-              Allow eligible students to create codes and applicants to claim
-              referrals during normal admissions. No separate date window.
-            </span>
-          </span>
+          Enable referral tuition incentive
         </label>
-
-        <div className="space-y-4 text-sm">
-          <h3 className="font-medium">Two students. Two eligibility checks.</h3>
-          <dl className="divide-y">
-            <div className="pb-3">
-              <dt className="font-medium">Grade 11 applicant</dt>
-              <dd className="text-muted-foreground mt-1 text-xs leading-relaxed">A new or transferee student qualifies when their application with a valid referral code is accepted.</dd>
-            </div>
-            <div className="pt-3">
-              <dt className="font-medium">Grade 12 referrer</dt>
-              <dd className="text-muted-foreground mt-1 text-xs leading-relaxed">Qualifies after one referred Grade 11 student is officially enrolled. Awarded once per school year; extra referrals do not add credit.</dd>
-            </div>
-          </dl>
-          <p className="text-muted-foreground border-s border-border pl-3 text-xs leading-relaxed">Each student needs their own active voucher. The remaining unpaid bill, including miscellaneous fees, is then waived. A missing voucher on one side does not block the other.</p>
-          <p className="text-muted-foreground text-xs">Disabling the campaign does not revoke successful referrals or applied benefits.</p>
-        </div>
+        <ReferralPolicyGuide disabled={saving} />
       </div>
-
-      {save.isError && (
-        <p role="alert" className="text-destructive text-sm">
-          {getErrorMessage(save.error)}
-        </p>
-      )}
-
-      <DialogFooter className="mt-5 border-t pt-4">
-        <Button variant="outline" onClick={onDone} disabled={save.isPending}>
+      {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
+      <DialogFooter className="flex-row flex-wrap justify-end border-t pt-4">
+        <Button type="button" variant="outline" className="min-h-11" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save incentive"}
+        <Button type="submit" className="min-h-11" disabled={!hasChanges || saving}>
+          {saving ? "Saving…" : "Save changes"}
         </Button>
       </DialogFooter>
-    </>
+    </form>
   );
 }
 

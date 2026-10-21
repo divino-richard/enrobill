@@ -9,7 +9,7 @@ const server = await createServer({
   server: { middlewareMode: true, hmr: false, ws: false, watch: null },
 });
 after(() => server.close());
-const { StudentReferralCard, StudentReferralDetails } = await server.ssrLoadModule(
+const { StudentReferralCard, StudentReferralDetails, StudentReferralRequirements } = await server.ssrLoadModule(
   "/src/features/referrals/components/student-referral-card.tsx",
 );
 const { Sheet } = await server.ssrLoadModule('/src/components/ui/sheet.tsx');
@@ -46,7 +46,7 @@ test("the dashboard exposes one closed referral entry point, not the full workfl
     code: { id: 1, code: "PRIVATE-REFERRAL-CODE", isActive: true },
     referrals: [{ id: 1, referredDisplay: "Sample S.", status: "claimed" }],
   });
-  assert.match(html, /Share your code/);
+  assert.match(html, /View referrals/);
   assert.match(html, /aria-haspopup="dialog"/);
   assert.match(html, /aria-expanded="false"/);
   assert.doesNotMatch(html, /PRIVATE-REFERRAL-CODE|Sample S\.|How the tuition benefit works/);
@@ -93,7 +93,7 @@ test("compact unavailable referrals offer a quiet, accessible requirements entry
 test("compact eligible referrals keep code creation and sharing prominent", () => {
   for (const [summary, action] of [
     [{ ...base, code: null }, "Start referring"],
-    [{ ...base, code: { id: 1, code: "ACTIVE", isActive: true } }, "Share your code"],
+    [{ ...base, code: { id: 1, code: "ACTIVE", isActive: true } }, "View referrals"],
   ]) {
     const html = renderBanner(summary, { compact: true, showWhenUnavailable: true });
     assert.match(html, /<section[^>]+aria-label="Referral tuition incentive"/);
@@ -140,19 +140,49 @@ test('ineligible students see requirements instead of a disabled workflow', () =
   assert.doesNotMatch(html, /Create referral code|Waiting for a student|No enrolled referral yet|0 successful|Only one is required|Referred applicants|No applications linked/);
 });
 
-test('benefit conditions remain visible before optional help in every drawer state', () => {
+test('code and live progress share one view while program rules stay collapsed', () => {
+  const summary = { ...base, code: { code: 'PRIVATE-CODE', isActive: true }, successfulCount: 1,
+    benefitStatus: 'pending', referrals: [{ id: 1, referredDisplay: 'Sample S.', status: 'successful' }] };
+  const html = renderDetails(summary);
+  assert.doesNotMatch(html, /role="tab(list|panel)?"/);
+  assert.match(html, /PRIVATE-CODE/);
+  assert.match(html, /Copy code/);
+  assert.match(html, /Your progress/);
+  assert.match(html, /Waiting for Grade 12 enrollment/);
+  assert.match(html, /Sample S\./);
+  assert.match(html, /Student enrolled/);
+  assert.match(html, /aria-expanded="false"[^>]*data-slot="accordion-trigger"/);
+  assert.match(html, /How referrals work/);
+  assert.doesNotMatch(html, /At least one referred|Payments made before|Your Grade 12 benefit is awarded/);
+  assert.ok(html.indexOf('PRIVATE-CODE') < html.indexOf('Your progress'));
+  assert.ok(html.indexOf('Sample S.') < html.indexOf('How referrals work'));
+});
+
+test('requirements preserve all program conditions when expanded', () => {
+  const html = renderToStaticMarkup(createElement(StudentReferralRequirements, { defaultOpen: true }));
+  assert.match(html, /aria-expanded="true"[^>]*data-slot="accordion-trigger"/);
+  assert.match(html, /At least one referred Grade 11 student must become officially enrolled/);
+  assert.match(html, /active voucher for your own Grade 12 enrollment/);
+  assert.match(html, /remaining unpaid Grade 12 bill, including miscellaneous fees, after your voucher/);
+  assert.match(html, /Payments made before this benefit is applied are not refunded or carried forward/);
+  assert.match(html, /Each student needs their own active voucher/);
+  assert.match(html, /Your Grade 12 benefit is awarded once per school year/);
+  assert.match(html, /before submitting their application/);
+  assert.match(html, /same code with more than one applicant/);
+  assert.doesNotMatch(html, /Referred applicants|Copy code|Your progress/);
+});
+
+test('unavailable students without progress see requirements expanded automatically', () => {
   for (const summary of [
     { ...base, eligibleToRefer: false, code: null },
-    { ...base, code: null },
-    { ...base, code: { code: 'ACTIVE', isActive: true } },
-    { ...base, benefitStatus: 'applied', successfulCount: 1 },
+    { ...base, targetSchoolYear: null, code: null },
+    { ...base, campaignEnabled: false, code: null },
+    { ...base, code: { code: 'INACTIVE', isActive: false } },
   ]) {
     const html = renderDetails(summary);
-    const visible = html.split('<details')[0];
-    assert.match(visible, /At least one referred Grade 11 student must become officially enrolled/);
-    assert.match(visible, /active voucher for your own Grade 12 enrollment/);
-    assert.match(visible, /remaining unpaid Grade 12 bill, including miscellaneous fees, after your voucher/);
-    assert.match(visible, /Payments made before this benefit is applied are not refunded or carried forward/);
+    assert.match(html, /aria-expanded="true"[^>]*data-slot="accordion-trigger"/);
+    assert.match(html, /Grade 12 benefit requirements/);
+    assert.doesNotMatch(html, /Your progress|Referred applicants|Copy code/);
   }
 });
 
@@ -189,10 +219,13 @@ test('eligible students can create or copy a code without a premature waiting st
   assert.match(fresh, /You’re eligible to create a code/);
   assert.match(fresh, /Create referral code/);
   assert.doesNotMatch(fresh, /disabled=""|No enrolled referral yet|Referred applicants|No applications linked/);
-  const active = renderDetails({ ...base, code: { code: 'SHARE-ME', isActive: true } });
+  const summary = { ...base, code: { code: 'SHARE-ME', isActive: true } };
+  const active = renderDetails(summary);
   assert.match(active, /SHARE-ME/);
   assert.match(active, /Copy code/);
-  assert.match(active, /No applications linked yet/);
+  const updates = renderDetails(summary);
+  assert.match(updates, /No applications linked yet/);
+  assert.doesNotMatch(updates, /View referral code/);
   assert.doesNotMatch(active, /Create referral code|No enrolled referral yet|0 successful/);
 });
 
@@ -222,14 +255,15 @@ test('creation and copy feedback preserve pending, failure and success states', 
   assert.match(renderDetails(active, { copyState: 'error' }), /Select the code above and copy it manually/);
 });
 
-test('drawer actions and help offer larger labeled targets without shrinking essential text', () => {
+test('drawer actions and the scroll area retain accessible labels and focus targets', () => {
   for (const summary of [{ ...base, code: null }, { ...base, code: { code: 'ACTIVE', isActive: true } }]) {
     const html = renderDetails(summary);
     const close = html.match(/<button[^>]*aria-label="Close referral details"[^>]*>/)?.[0];
     assert.match(close, /size-11/);
     const action = html.match(/<button[^>]*>(?:<svg[\s\S]*?<\/svg>)?(?:Create referral code|Copy code)<\/button>/)?.[0];
     assert.match(action, /min-h-11/);
-    assert.match(html, /<summary[^>]*min-h-11[^>]*>/);
+    assert.match(html, /role="region"[^>]*aria-label="Referral overview"[^>]*tabindex="0"/);
+    assert.match(html, /aria-expanded="false"[^>]*data-slot="accordion-trigger"/);
     assert.doesNotMatch(html, /text-xs/);
   }
 });

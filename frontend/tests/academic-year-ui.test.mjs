@@ -10,6 +10,8 @@ const server = await createServer({ server: { middlewareMode: true, hmr: false, 
 after(() => server.close());
 const { default: TermsPage } = await server.ssrLoadModule('/src/pages/admin/terms-page.tsx');
 const { default: TermDetailPage } = await server.ssrLoadModule('/src/pages/admin/term-detail-page.tsx');
+const { ReferralIncentiveEditor } = await server.ssrLoadModule('/src/features/terms/term-forms.tsx');
+const { ReferralPolicyDetails } = await server.ssrLoadModule('/src/features/referrals/components/referral-policy-guide.tsx');
 const { TooltipProvider } = await server.ssrLoadModule('/src/components/ui/tooltip.tsx');
 const term = {
   id: 7, schoolYear: '2026-2027', startDate: '2026-10-05', endDate: '2027-09-24',
@@ -108,7 +110,83 @@ test('incentives preserve separate configurations and their saved states', () =>
   assert.match(panel, /Oct 31, 2026/);
   assert.match(panel, /Edit freebie/);
   assert.match(panel, /Edit incentive/);
+  const early = panel.match(/<section aria-label="Early-enrollment freebie">[\s\S]*?<\/section>/)?.[0] ?? '';
+  assert.match(early, /<button[^>]*aria-haspopup="dialog"[^>]*>[\s\S]*?Edit freebie<\/button>/);
+  assert.match(early, /Window starts/);
+  assert.match(early, /Window ends/);
+  assert.doesNotMatch(early, /role="checkbox"|Save freebie|Cancel/);
   assert.doesNotMatch(panel, /No enrollment window yet|No referral incentive yet|Set up incentive/);
+});
+
+test('referral cards offer the guide without showing detailed policy in any saved state', () => {
+  for (const referral of [undefined, freebies[1], { ...freebies[1], isActive: true }]) {
+    const campaigns = referral ? [freebies[0], referral] : [freebies[0]];
+    const panel = selectedPanel(renderPage('/admin/terms/7?section=incentives', [term], campaigns));
+    const summary = panel.match(/<section aria-label="Referral tuition incentive">[\s\S]*?<\/section>/)?.[0];
+    assert.ok(summary);
+    assert.match(summary, /<button[^>]*aria-haspopup="dialog"[^>]*>[\s\S]*?How referrals work<\/button>/);
+    assert.equal((summary.match(/How referrals work/g) ?? []).length, 1);
+    assert.match(summary, /<button[^>]*aria-haspopup="dialog"[^>]*>[\s\S]*?(?:Edit incentive|Set up incentive)<\/button>/);
+    assert.match(summary, /role="status"/);
+    assert.doesNotMatch(summary, /<details|role="checkbox"|Save changes|Each student qualifies with their own voucher/);
+    assert.doesNotMatch(summary, /Their application is accepted|miscellaneous fees|Voucher requirement|Previous payments|Disabling stops|once per school year/);
+  }
+});
+
+test('the shared referral guide keeps eligibility, billing, and campaign rules together', () => {
+  const html = renderToStaticMarkup(createElement(ReferralPolicyDetails));
+  assert.match(html, /Grade 11 in the previous school year/);
+  assert.match(html, /before submitting their application/);
+  assert.match(html, /Students cannot refer themselves/);
+  assert.match(html, /Their application is accepted with a valid referral code/);
+  assert.match(html, /One referred Grade 11 student must be officially enrolled/);
+  assert.match(html, /awarded once per school year/);
+  assert.match(html, /Extra referrals do not add credit/);
+  assert.match(html, /Each student must have their own active voucher/);
+  assert.match(html, /a missing voucher for one student does not block the other/);
+  assert.match(html, /remaining unpaid bill, including miscellaneous fees, after their voucher is applied/);
+  assert.match(html, /Previous payments are not refunded or carried forward/);
+  assert.match(html, /no additional credit is issued/);
+  assert.match(html, /during normal admissions\. No separate date window is needed/);
+  assert.match(html, /Disabling stops new referral codes and claims/);
+  assert.match(html, /Existing successful referrals and applied benefits are kept/);
+});
+
+function renderReferralEditor(props = {}) {
+  return renderToStaticMarkup(createElement(ReferralIncentiveEditor, {
+    enabled: true, hasChanges: false, saving: false,
+    onEnabledChange: () => {}, onCancel: () => {}, onSave: () => {},
+    ...props,
+  }));
+}
+
+test('referral editor protects unchanged and pending submissions while keeping cancellation available', () => {
+  const unchanged = renderReferralEditor();
+  assert.match(unchanged, /<button[^>]*type="submit"[^>]*disabled=""[^>]*>Save changes<\/button>/);
+  const cancel = unchanged.match(/<button[^>]*>Cancel<\/button>/)?.[0];
+  assert.ok(cancel);
+  assert.doesNotMatch(cancel, / disabled=""/);
+  const changed = renderReferralEditor({ enabled: false, hasChanges: true });
+  assert.match(changed, /role="checkbox"[^>]*aria-checked="false"/);
+  const submit = changed.match(/<button[^>]*type="submit"[^>]*>/)?.[0];
+  assert.ok(submit);
+  assert.doesNotMatch(submit, / disabled=""/);
+  const pending = renderReferralEditor({ enabled: false, hasChanges: true, saving: true });
+  assert.match(pending, /aria-busy="true"/);
+  assert.match(pending, /role="checkbox"[^>]*disabled=""/);
+  assert.match(pending, /<button[^>]*disabled=""[^>]*>Cancel<\/button>/);
+  assert.match(pending, /<button[^>]*disabled=""[^>]*>Saving…<\/button>/);
+});
+
+test('a failed referral save keeps the draft and access to the guide without repeating its content', () => {
+  const html = renderReferralEditor({ enabled: false, hasChanges: true, error: 'Unable to save. Please try again.' });
+  assert.match(html, /role="alert"[^>]*>Unable to save\. Please try again\./);
+  assert.match(html, /role="checkbox"[^>]*aria-checked="false"/);
+  assert.match(html, /<button[^>]*type="button"[^>]*aria-haspopup="dialog"[^>]*>[\s\S]*?How referrals work<\/button>/);
+  assert.doesNotMatch(html, /Grade 11 applicant|Grade 12 referrer|No separate date window|Existing successful referrals|miscellaneous fees/);
+  const id = html.match(/<label for="([^"]+)"/)?.[1];
+  assert.ok(id);
+  assert.ok(html.includes(`id="${id}"`));
 });
 
 test('unconfigured incentives explain the next step without presenting them as saved but disabled', () => {
@@ -117,6 +195,7 @@ test('unconfigured incentives explain the next step without presenting them as s
   assert.match(panel, /No referral incentive yet/);
   assert.match(panel, /Set up freebie/);
   assert.match(panel, /Set up incentive/);
+  assert.match(panel, /<button[^>]*aria-haspopup="dialog"[^>]*>[\s\S]*?Set up freebie<\/button>/);
   assert.match(panel, /href="\/admin\/referrals"/);
   assert.doesNotMatch(panel, /Disabled|Edit freebie|Edit incentive/);
 });

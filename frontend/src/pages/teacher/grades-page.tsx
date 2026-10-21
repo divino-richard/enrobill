@@ -1,14 +1,16 @@
 import { PageHeader } from "@/components/page-header";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import {
   CheckCircle2Icon,
   ChevronRightIcon,
+  CircleAlertIcon,
   EyeIcon,
   FileTextIcon,
   GraduationCapIcon,
   Loader2Icon,
   SearchIcon,
+  RefreshCwIcon,
   UploadIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +51,7 @@ import {
 } from "@/features/student-documents/api";
 import { useTeacherGrades, useUploadTeacherGrade } from "@/features/teacher-grades/hooks";
 import type { TeacherGradeStudent } from "@/features/teacher-grades/types";
+import { getTeacherRosterError, getTeacherRosterState } from "@/features/teacher-grades/roster-state";
 
 function SemesterStatus({
   semester,
@@ -135,10 +138,10 @@ function GradeSlot({
 
   return (
     <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <FileTextIcon className="text-muted-foreground size-4" />
+          <div className="flex flex-wrap items-center gap-2">
+            <FileTextIcon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
             <span className="text-sm font-medium">{semesterName}</span>
             {existing ? (
               <Badge variant="outline" className={REVIEW_STATUS_META[existing.reviewStatus].className}>
@@ -162,7 +165,7 @@ function GradeSlot({
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
           {upload.isPending && <span className="text-muted-foreground text-xs tabular-nums">{progress}%</span>}
           {existing && !upload.isPending && (
             <Button size="sm" variant="outline" onClick={() => onView(existing)}>
@@ -210,6 +213,7 @@ export default function TeacherGradesPage() {
   const [schoolYearId, setSchoolYearId] = useState<number>();
   const query = useTeacherGrades(schoolYearId);
   const [search, setSearch] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [viewing, setViewing] = useState<StudentDocument | null>(null);
   const selectedContext = (() => {
@@ -219,77 +223,110 @@ export default function TeacherGradesPage() {
     }
     return null;
   })();
-  const sections = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return query.data?.sections ?? [];
-    return (query.data?.sections ?? [])
-      .map((section) => ({
-        ...section,
-        students: section.students.filter((student) =>
-          `${student.name} ${student.studentNumber}`.toLowerCase().includes(term),
-        ),
-      }))
-      .filter((section) => section.students.length > 0);
-  }, [query.data?.sections, search]);
+  const { sections, studentCount, hasStudents, searchTerm, emptyState } = useMemo(
+    () => getTeacherRosterState(query.data, search),
+    [query.data, search],
+  );
+  const rosterError = getTeacherRosterError(query.error);
+  const statusMessage = query.isLoading
+    ? "Loading students…"
+    : query.isFetching
+      ? "Refreshing students…"
+      : query.isError
+        ? ""
+        : studentCount === 0
+          ? `${emptyState.title}. ${emptyState.description}`
+          : `${studentCount} ${studentCount === 1 ? "student" : "students"}${searchTerm ? (studentCount === 1 ? " matches your search" : " match your search") : " in your advisory sections"}.`;
+
+  function changeSchoolYear(yearId: number | undefined) {
+    setSearch("");
+    setSelectedStudentId(null);
+    setViewing(null);
+    setSchoolYearId(yearId);
+  }
+
+  function clearSearch() {
+    setSearch("");
+    searchInput.current?.focus();
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <PageHeader title="My students" description={<>Students in sections where you are the assigned adviser
-            {query.data?.schoolYear ? ` · SY ${query.data.schoolYear}` : ""}.</>} />
-        </div>
-        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[10rem_18rem]">
-          <Select
-            value={String(schoolYearId ?? query.data?.schoolYearId ?? "")}
-            onValueChange={(value) => setSchoolYearId(Number(value))}
-            disabled={!query.data?.schoolYears.length}
-          >
-            <SelectTrigger className="w-full" aria-label="School year">
-              <SelectValue placeholder="School year" />
-            </SelectTrigger>
-            <SelectContent>
-              {query.data?.schoolYears.map((year) => (
-                <SelectItem key={year.id} value={String(year.id)}>
-                  SY {year.schoolYear}{year.isActive ? " · Active" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="relative">
-            <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+        <PageHeader title="My students" description="Students in your advisory sections." />
+        {query.isSuccess && <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+          {query.data.schoolYears.length > 1 ? (
+            <Select
+              value={String(query.data.schoolYearId)}
+              onValueChange={value => changeSchoolYear(Number(value))}
+            >
+              <SelectTrigger className="w-full data-[size=default]:h-11 sm:w-52" aria-label="School year">
+                <SelectValue placeholder="School year">
+                  SY {query.data.schoolYear}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {query.data.schoolYears.map(year => (
+                  <SelectItem key={year.id} value={String(year.id)}>
+                    SY {year.schoolYear}{year.isActive ? " · Active" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-sm text-muted-foreground">SY {query.data.schoolYear}</p>
+          )}
+          {hasStudents && <div className="relative w-full sm:w-72">
+            <SearchIcon aria-hidden="true" className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
+              ref={searchInput}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search student or number…"
-              className="pl-9"
+              type="search"
+              aria-label="Search students by name or student number"
+              placeholder="Search name or student number…"
+              className="h-11 pl-9"
             />
-          </div>
-        </div>
+          </div>}
+        </div>}
       </div>
+      <p role="status" aria-atomic="true" className="sr-only">{statusMessage}</p>
 
       {query.isLoading ? (
-        <div className="space-y-4">
+        <div className="space-y-4" aria-hidden="true">
           <Skeleton className="h-48 rounded-xl" />
           <Skeleton className="h-48 rounded-xl" />
         </div>
       ) : query.isError ? (
-        <div role="alert" className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-14 text-center">
-          <p className="text-muted-foreground text-sm">We couldn't load your handled students.</p>
-          <Button variant="outline" onClick={() => query.refetch()}>Try again</Button>
-        </div>
+        <TeacherRosterFeedback
+          title={rosterError.title}
+          description={rosterError.description}
+          error
+          icon={<CircleAlertIcon aria-hidden="true" className="size-7 text-muted-foreground" />}
+          action={<Button
+            variant="outline"
+            className="min-h-11"
+            disabled={query.isFetching}
+            onClick={() => {
+              if (rosterError.resetYear && schoolYearId !== undefined) changeSchoolYear(undefined);
+              else void query.refetch();
+            }}
+          >{query.isFetching ? "Checking…" : rosterError.action}</Button>}
+        />
       ) : sections.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-14 text-center">
-          <GraduationCapIcon className="text-muted-foreground size-8" />
-          <div>
-            <p className="font-medium">{search ? "No students match your search" : "No handled students yet"}</p>
-            <p className="text-muted-foreground mt-1 max-w-md text-sm">
-              {search
-                ? "Try another name or student number."
-                : "Ask an admin to assign you as a section adviser in the Sections tab."}
-            </p>
-          </div>
-        </div>
+        <TeacherRosterFeedback
+          title={emptyState.title}
+          description={emptyState.description}
+          icon={emptyState.kind === "search"
+            ? <SearchIcon aria-hidden="true" className="size-7 text-muted-foreground" />
+            : <GraduationCapIcon aria-hidden="true" className="size-7 text-muted-foreground" />}
+          action={emptyState.kind === "search"
+            ? <Button variant="outline" className="min-h-11" onClick={clearSearch}>Clear search</Button>
+            : <Button variant="outline" className="min-h-11" disabled={query.isFetching} onClick={() => void query.refetch()}>
+                <RefreshCwIcon aria-hidden="true" className={query.isFetching ? "animate-spin motion-reduce:animate-none" : undefined} />
+                {query.isFetching ? "Refreshing…" : "Refresh students"}
+              </Button>}
+        />
       ) : (
         <div className="space-y-4">
           {sections.map((section) => (
@@ -350,7 +387,7 @@ export default function TeacherGradesPage() {
           if (!open) setSelectedStudentId(null);
         }}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
           {selectedContext && (
             <>
               <SheetHeader className="border-b pr-12">
@@ -394,5 +431,26 @@ export default function TeacherGradesPage() {
         fetchBlob={fetchStudentDocumentBlob}
       />
     </div>
+  );
+}
+
+function TeacherRosterFeedback({
+  title, description, icon, action, error = false,
+}: {
+  title: string;
+  description: string;
+  icon: ReactNode;
+  action: ReactNode;
+  error?: boolean;
+}) {
+  return (
+    <Card className="items-center gap-4 px-5 py-8 text-center shadow-none sm:py-10" role={error ? "alert" : undefined}>
+      {icon}
+      <div className="max-w-md space-y-2">
+        <h2 className="text-base font-semibold">{title}</h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+      </div>
+      {action}
+    </Card>
   );
 }

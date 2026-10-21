@@ -72,6 +72,14 @@ class YearEndCloseout
             ->first();
     }
 
+    /** @return Collection<int, ProgressionDecision> */
+    public function pendingEnrollmentDecisions(SchoolYear $year): Collection
+    {
+        return $this->decisions($year)->filter->needsMaterialization()
+            ->filter(fn (ProgressionDecision $decision) => $decision->student?->enrollments()
+                ->where('school_year_id', $year->id)->where('status', 'enrolled')->exists());
+    }
+
     /**
      * Record a decision for each eligible student in the ending year. Ineligible
      * students (e.g. promoting a top-grade student) are skipped. Returns the count
@@ -113,7 +121,7 @@ class YearEndCloseout
     {
         $next = $this->nextYear($year);
 
-        $pending = $this->decisions($year)->filter->needsMaterialization();
+        $pending = $this->pendingEnrollmentDecisions($year);
 
         if ($pending->isEmpty()) {
             return 0;

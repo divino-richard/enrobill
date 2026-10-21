@@ -68,4 +68,9 @@ export interface ProgressionSummary {
   // Students still awaiting a year-end decision.
   pending: number;
   readyToEnroll: number;
+  carryForward: {
+    sourceYear: YearRef;
+    targetYear: YearRef;
+    count: number;
+  } | null;
 }
