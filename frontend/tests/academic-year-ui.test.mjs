@@ -147,7 +147,7 @@ test('the shared referral guide keeps eligibility, billing, and campaign rules t
   assert.match(html, /remaining unpaid bill, including miscellaneous fees, after their voucher is applied/);
   assert.match(html, /Previous payments are not refunded or carried forward/);
   assert.match(html, /no additional credit is issued/);
-  assert.match(html, /during normal admissions\. No separate date window is needed/);
+  assert.match(html, /Set an enrollment cutoff before enabling referrals during normal admissions/);
   assert.match(html, /Disabling stops new referral codes and claims/);
   assert.match(html, /Existing successful referrals and applied benefits are kept/);
 });
@@ -155,6 +155,8 @@ test('the shared referral guide keeps eligibility, billing, and campaign rules t
 function renderReferralEditor(props = {}) {
   return renderToStaticMarkup(createElement(ReferralIncentiveEditor, {
     enabled: true, hasChanges: false, saving: false,
+    cutoff: '2026-11-30', cutoffLocked: false, onCutoffChange: () => {},
+    startDate: term.startDate, endDate: term.endDate,
     onEnabledChange: () => {}, onCancel: () => {}, onSave: () => {},
     ...props,
   }));
@@ -204,4 +206,33 @@ test('missing years show recovery and unknown sections fall back to overview', (
   assert.match(renderPage('/admin/terms/999'), /Academic year not found/);
   assert.match(renderPage('/admin/terms/999'), /href="\/admin\/terms"/);
   assert.match(selectedPanel(renderPage('/admin/terms/7?section=unknown')), /Deactivate year/);
+});
+
+
+test('the referral deadline is visible and published cutoffs cannot be edited', () => {
+  const html = renderReferralEditor({ cutoffLocked: true });
+  assert.match(html, /Referral enrollment cutoff/);
+  const picker = html.match(/<button[^>]*id="[^"]+-cutoff"[^>]*>/)?.[0];
+  assert.ok(picker);
+  assert.match(picker, /aria-haspopup="dialog"/);
+  assert.match(picker, /disabled=""/);
+  assert.match(html, /November 30th, 2026/);
+  const missingCutoff = renderReferralEditor({ cutoff: '', hasChanges: true });
+  assert.match(missingCutoff, /Select cutoff date/);
+  assert.match(missingCutoff, /<button[^>]*type="submit"[^>]*disabled=""[^>]*>Save changes<\/button>/);
+});
+
+test('referral cutoff validation rejects dates outside the year and accepts both boundaries', () => {
+  for (const [cutoff, valid] of [['2027-10-03', false], ['2027-10-04', true], ['2028-08-25', true], ['2028-08-26', false]]) {
+    const html = renderReferralEditor({ cutoff, hasChanges: true, startDate: '2027-10-04', endDate: '2028-08-25' });
+    const submit = html.match(/<button[^>]*type="submit"[^>]*>/)?.[0];
+    assert.ok(submit);
+    assert.equal(submit.includes('disabled=""'), !valid, cutoff);
+    const picker = html.match(/<button[^>]*id="[^"]+-cutoff"[^>]*>/)?.[0];
+    assert.ok(picker);
+    if (!valid) {
+      assert.match(picker, /aria-invalid="true"/);
+      assert.match(html, /role="alert"[^>]*>Choose a date/);
+    }
+  }
 });

@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\Application;
 use App\Models\Program;
 use App\Models\Student;
+use App\Services\ReferralPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -114,7 +115,7 @@ class ApplicationResource extends JsonResource
             'id' => $this->referral->id,
             'code' => $referralCode?->code,
             'referrerDisplay' => self::studentDisplay($referrer),
-            'status' => $this->referral->status,
+            'status' => app(ReferralPeriod::class)->status($this->referral),
         ];
     }
 

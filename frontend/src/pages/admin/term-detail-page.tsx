@@ -213,7 +213,7 @@ function ReferralIncentiveSection({ term, referral }: { term: Term; referral?: F
           />
         </header>
         <p className="max-w-prose px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-          {referral ? 'A referral benefit for eligible Grade 11 applicants and Grade 12 referrers.' : 'No referral incentive yet. Set up the benefit for this school year.'}
+          {referral ? (referral.endsOn ? `Enrollment cutoff: ${formatDate(referral.endsOn)} at 11:59 PM Philippine time. Creating a code reserves the Grade 12 benefit until qualification or this cutoff.` : 'Set an enrollment cutoff to enable new referral codes and resolve existing payment holds.') : 'No referral incentive yet. Set up the benefit for this school year.'}
         </p>
         <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-2">
           <ReferralPolicyGuide />

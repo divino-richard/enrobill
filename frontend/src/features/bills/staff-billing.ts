@@ -1,4 +1,4 @@
-import type { BillInstallment, BillPayment } from './types';
+import type { Bill, BillInstallment, BillPayment } from './types';
 import { formatPeso } from '@/lib/money';
 
 export type PaymentDecision = 'verify' | 'reject';
@@ -11,11 +11,11 @@ export function formatBillDate(value: string | null): string {
   }).format(date);
 }
 
-export function paymentDecisions(payment: BillPayment, readOnly: boolean): PaymentDecision[] {
-  return !readOnly && payment.status === 'pending' ? ['verify', 'reject'] : [];
+export function paymentDecisions(payment: BillPayment, readOnly: boolean, guard?: Bill['referralPaymentGuard']): PaymentDecision[] {
+  return !readOnly && payment.status === 'pending' ? guard ? ['reject'] : ['verify', 'reject'] : [];
 }
 
-export function paymentDecisionCopy(decision: PaymentDecision, payment: BillPayment) {
+export function paymentDecisionCopy(decision: PaymentDecision, payment: BillPayment, guard?: Bill['referralPaymentGuard']) {
   const amount = formatPeso(payment.amount);
   if (decision === 'verify') return {
     title: `Verify ${amount}?`,
@@ -24,7 +24,9 @@ export function paymentDecisionCopy(decision: PaymentDecision, payment: BillPaym
   };
   return {
     title: `Reject ${amount}?`,
-    description: 'This payment will not reduce the balance. The student will be notified and can submit another payment.',
+    description: guard
+      ? 'This payment will not reduce the balance. The student will be notified. New payments remain on hold until the referral is resolved.'
+      : 'This payment will not reduce the balance. The student will be notified and can submit another payment.',
     confirm: 'Confirm rejection', busy: 'Rejecting…', success: `Payment of ${amount} rejected. The balance is unchanged.`,
   };
 }

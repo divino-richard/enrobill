@@ -42,11 +42,12 @@ export function PaymentProofPreview({ payment }: { payment: BillPayment }) {
   );
 }
 
-export function PaymentDecisionConfirmation({ decision, payment, busy, error, onBack, onConfirm, backRef }: {
+export function PaymentDecisionConfirmation({ decision, payment, busy, error, onBack, onConfirm, backRef, guard }: {
   decision: PaymentDecision; payment: BillPayment; busy: boolean; error: string | null;
+  guard?: Bill['referralPaymentGuard'];
   onBack: () => void; onConfirm: () => void; backRef?: Ref<HTMLButtonElement>;
 }) {
-  const copy = paymentDecisionCopy(decision, payment);
+  const copy = paymentDecisionCopy(decision, payment, guard);
   return (
     <div aria-busy={busy} className="space-y-5">
       <AlertDialogHeader>
@@ -75,7 +76,7 @@ export function StaffPaymentReview({ bill, paymentId, readOnly, onClose, onSucce
   const confirmationBack = useRef<HTMLButtonElement>(null);
   const busy = verify.isPending || reject.isPending;
   const payment = bill.payments?.find(item => item.id === paymentId);
-  const allowed = payment ? paymentDecisions(payment, readOnly) : [];
+  const allowed = payment ? paymentDecisions(payment, readOnly, bill.referralPaymentGuard) : [];
 
   async function confirm() {
     if (!payment || !decision || !allowed.includes(decision) || inFlight.current) return;
@@ -135,6 +136,7 @@ export function StaffPaymentReview({ bill, paymentId, readOnly, onClose, onSucce
             ) : <p className="text-sm text-muted-foreground">No proof attached.</p>}
           </div>
           {readOnly && <p className="text-sm text-muted-foreground">Only cashiers can verify or reject payments.</p>}
+          {payment.status === 'pending' && bill.referralPaymentGuard && <p role="status" className="text-sm text-muted-foreground">Payment verification is on hold while this student's referral is resolved.</p>}
           {allowed.length > 0 && <div className="flex flex-wrap justify-end gap-2">
             {allowed.map(action => (
               <Button key={action} variant={action === 'verify' ? 'default' : 'outline'} disabled={busy} onClick={event => { decisionTrigger.current = event.currentTarget; setDecision(action); setError(null); }}>
@@ -148,7 +150,7 @@ export function StaffPaymentReview({ bill, paymentId, readOnly, onClose, onSucce
                 onEscapeKeyDown={event => { if (inFlight.current) event.preventDefault(); }}
                 onOpenAutoFocus={event => { event.preventDefault(); confirmationBack.current?.focus(); }}
                 onCloseAutoFocus={event => { event.preventDefault(); if (decisionTrigger.current?.isConnected) decisionTrigger.current.focus(); }}>
-                <PaymentDecisionConfirmation decision={decision} payment={payment} busy={busy} error={error} backRef={confirmationBack} onConfirm={() => void confirm()} onBack={backToReview} />
+                <PaymentDecisionConfirmation decision={decision} payment={payment} busy={busy} error={error} backRef={confirmationBack} guard={bill.referralPaymentGuard} onConfirm={() => void confirm()} onBack={backToReview} />
               </AlertDialogContent>
             </AlertDialog>
           )}

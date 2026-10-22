@@ -45,4 +45,16 @@ class Freebie extends Model
     {
         return $this->hasMany(IncentiveAward::class);
     }
+
+    public function hasValidReferralCutoff(): bool
+    {
+        if ($this->type !== 'referral' || $this->ends_on === null) {
+            return false;
+        }
+
+        $year = $this->schoolYear;
+
+        return ($year->start_date === null || $this->ends_on->gte($year->start_date))
+            && ($year->end_date === null || $this->ends_on->lte($year->end_date));
+    }
 }

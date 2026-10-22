@@ -6,6 +6,7 @@ use App\Actions\ReferralLifecycle;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
 use App\Models\SchoolYear;
+use App\Services\ReferralPeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -169,6 +170,12 @@ class ApplicationController extends Controller
         $this->validateApplication($request);
 
         DB::transaction(function () use ($application, $request, $schoolYear, $referrals) {
+            $application = Application::whereKey($application->id)->lockForUpdate()->firstOrFail();
+            abort_unless(
+                in_array($application->status, ['draft', 'returned', 'rejected'], true),
+                403,
+                'Only draft, returned, or rejected applications can be edited and submitted.',
+            );
             $application->update([
                 'status' => 'submitted',
                 'submitted_at' => now(),
@@ -217,6 +224,7 @@ class ApplicationController extends Controller
             'data' => [
                 'valid' => true,
                 'referrerDisplay' => ApplicationResource::studentDisplay($code->referrer),
+                'enrollmentCutoff' => app(ReferralPeriod::class)->closesAt($schoolYear->id)?->toDateString(),
             ],
         ]);
     }

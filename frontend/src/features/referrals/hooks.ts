@@ -26,6 +26,7 @@ export function useMyReferrals(schoolYearId?: number, enabled = true) {
     queryKey: [...myReferralsQueryKey, schoolYearId],
     queryFn: () => fetchMyReferrals(schoolYearId),
     enabled,
+    refetchInterval: (query) => query.state.data?.code && !query.state.data?.enrollmentCutoffPassed ? 30_000 : false,
   });
 }
 
@@ -40,6 +41,8 @@ export function useCreateMyReferralCode() {
         summary,
       );
       queryClient.invalidateQueries({ queryKey: myReferralsQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["me", "bill"] });
+      queryClient.invalidateQueries({ queryKey: ["me", "bills"] });
     },
   });
 }

@@ -54,6 +54,7 @@ function ReferralCodeField({
     code: string;
     schoolYear: string;
     referrerDisplay: string;
+    enrollmentCutoff?: string | null;
   } | null>(null);
 
   return (
@@ -86,6 +87,7 @@ function ReferralCodeField({
                 code,
                 schoolYear,
                 referrerDisplay: result.referrerDisplay,
+                enrollmentCutoff: result.enrollmentCutoff,
               });
               return undefined;
             } catch (error) {
@@ -134,11 +136,16 @@ function ReferralCodeField({
                     Checking referral code…
                   </p>
                 ) : isMatched ? (
+                  <>
                   <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2Icon className="size-3.5" />
                     Code confirmed for {matched.referrerDisplay}. It will be
                     linked when you submit.
                   </p>
+                  {matched.enrollmentCutoff && <p className="mt-1 text-xs text-muted-foreground">
+                    Referral cutoff: {matched.enrollmentCutoff} at 11:59 PM Philippine time. Your application must be accepted by then for your benefit; complete enrollment by then for your referrer’s benefit.
+                  </p>}
+                  </>
                 ) : (
                   <FieldInfo field={field} />
                 )}

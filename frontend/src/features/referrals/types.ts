@@ -28,6 +28,9 @@ export interface MyReferralSummary {
   } | null;
   eligibleToRefer?: boolean;
   campaignEnabled?: boolean;
+  enrollmentCutoff?: string | null;
+  enrollmentCutoffPassed?: boolean;
+  ineligibilityReason?: string | null;
   successfulCount?: number;
   benefitStatus?: string | null;
   referrals?: MyReferral[] | null;
@@ -36,6 +39,7 @@ export interface MyReferralSummary {
 export interface ReferralCodeValidation {
   valid: true;
   referrerDisplay: string;
+  enrollmentCutoff?: string | null;
 }
 
 export interface ApplicationReferralSummary {
@@ -119,6 +123,8 @@ export const REFERRAL_STATUS_LABELS: Record<string, string> = {
   qualified: "Qualified",
   rejected: "Rejected",
   cancelled: "Cancelled",
+  closed: "Closed by registrar",
+  expired: "Cutoff passed",
   canceled: "Cancelled",
   withdrawn: "Withdrawn",
 };
@@ -135,7 +141,7 @@ export function referralStatusLabel(status?: string | null): string {
 }
 
 export function referralStatusClassName(status?: string | null): string {
-  if (!status) {
+  if (!status || status === 'closed' || status === 'expired') {
     return "border-muted bg-muted text-muted-foreground";
   }
 

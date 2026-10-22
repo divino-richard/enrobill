@@ -54,12 +54,12 @@ export function ReferralPolicyDetails() {
         <dl className="space-y-3">
           <div className="space-y-1">
             <dt className="font-medium">Grade 11 applicant</dt>
-            <dd className="text-muted-foreground">Their application is accepted with a valid referral code.</dd>
+            <dd className="text-muted-foreground">Their application is accepted with a valid referral code by the enrollment cutoff.</dd>
           </div>
           <div className="space-y-1">
             <dt className="font-medium">Grade 12 referrer</dt>
             <dd className="space-y-1 text-muted-foreground">
-              <p>One referred Grade 11 student must be officially enrolled.</p>
+              <p>One referred Grade 11 student must be officially enrolled by the enrollment cutoff.</p>
               <p>The Grade 12 benefit is awarded once per school year. Extra referrals do not add credit, but additional applicants can still qualify for their own benefit.</p>
             </dd>
           </div>
@@ -80,10 +80,15 @@ export function ReferralPolicyDetails() {
           Previous payments are not refunded or carried forward. If the bill is already covered, no additional credit is issued.
         </p>
       </section>
+      <section className="space-y-2 border-t pt-5" aria-label="Unresolved referrals">
+        <h3 className="font-semibold">Resolving a payment hold</h3>
+        <p className="text-muted-foreground">Creating a code reserves the Grade 12 benefit and pauses payments on the referrer’s bill when it has an active voucher. Bills can still be generated. Create the code before submitting or recording any Grade 12 payment.</p>
+        <p className="text-muted-foreground">The hold ends when the benefit is applied or the school’s enrollment cutoff passes without a qualifying referral. Rejection does not end the reservation early: another applicant may still qualify. A later enrollment cannot earn the referrer benefit after the cutoff.</p>
+      </section>
       <section className="space-y-2 border-t pt-5" aria-label="Incentive settings">
         <h3 className="font-semibold">Enabling or disabling the incentive</h3>
         <p className="text-muted-foreground">
-          Enabling allows eligible students to create codes and applicants to claim referrals during normal admissions. No separate date window is needed.
+          Set an enrollment cutoff before enabling referrals during normal admissions. The cutoff ends at 11:59 PM Philippine time and is locked once codes are issued.
         </p>
         <p className="text-muted-foreground">
           Disabling stops new referral codes and claims. Existing successful referrals and applied benefits are kept.

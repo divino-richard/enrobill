@@ -1,4 +1,5 @@
 import { PayDialog } from "./pay-dialog";
+import { ReferralPaymentNotice } from './referral-payment-notice';
 import { appliedCreditLines } from '../credits';
 import { billStatusMeta, collectionLabel, isDroppingBill } from '@/features/bills/collection';
 import {
@@ -97,6 +98,7 @@ export function BillActionPanel({ bill }: { bill: Bill }) {
       {bill.amountPaid > 0 && <Button variant="outline" size="sm" onClick={() => printBillReceipt(bill, billReceiptParty(bill, userName))}><DownloadIcon aria-hidden="true" />Receipt</Button>}
     </div>
 
+    <ReferralPaymentNotice bill={bill} />
     <section aria-label="Balance and payment" className="overflow-hidden rounded-xl border bg-card">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
         {settled ? <div className="flex items-center gap-3">

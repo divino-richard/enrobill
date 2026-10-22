@@ -11,6 +11,7 @@ use App\Models\ReferralCode;
 use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\ReferralPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -42,6 +43,9 @@ class ReferralLifecycle
         }
 
         return DB::transaction(function () use ($referrer, $targetYear, $actor, $qualifyingEnrollment) {
+            Student::whereKey($referrer->id)->lockForUpdate()->firstOrFail();
+            SchoolYear::whereKey($targetYear->id)->lockForUpdate()->firstOrFail();
+            $this->assertActiveReferralCampaign($targetYear->fresh());
             $existing = ReferralCode::query()
                 ->where('school_year_id', $targetYear->id)
                 ->where('referrer_student_id', $referrer->id)
@@ -49,15 +53,18 @@ class ReferralLifecycle
                 ->first();
 
             if ($existing !== null) {
-                // Explicit issuance also reactivates a previously disabled code; its
-                // opaque value remains stable for links already shared by the owner.
-                $existing->update([
-                    'qualifying_enrollment_id' => $qualifyingEnrollment->id,
-                    'issued_by' => $actor?->id ?? $existing->issued_by,
-                    'is_active' => true,
-                ]);
+                if (! $existing->is_active) {
+                    throw ValidationException::withMessages(['referralCode' => 'This referral code is inactive. Contact the registrar.']);
+                }
 
-                return $existing->fresh();
+                return $existing;
+
+            }
+
+            if ($this->hasGrade12Payments($referrer, $targetYear)) {
+                throw ValidationException::withMessages([
+                    'referrer' => 'Create a referral code before paying your Grade 12 bill. A payment has already been submitted or recorded; contact the registrar to review it.',
+                ]);
             }
 
             return ReferralCode::create([
@@ -68,7 +75,7 @@ class ReferralLifecycle
                 'code' => $this->uniqueOpaqueCode(),
                 'is_active' => true,
             ]);
-        });
+        }, 3);
     }
 
     /**
@@ -142,7 +149,9 @@ class ReferralLifecycle
                 }
 
                 throw ValidationException::withMessages([
-                    'referralCode' => 'An accepted referral can no longer be changed.',
+                    'referralCode' => $referral->status === Referral::STATUS_CLOSED
+                        ? 'This referral was closed by the registrar and cannot be changed.'
+                        : 'An accepted referral can no longer be changed.',
                 ]);
             }
 
@@ -183,14 +192,25 @@ class ReferralLifecycle
     ): ?Referral {
         $referral = Referral::query()->where('application_id', $application->id)->first();
 
-        if ($referral === null || $referral->status === Referral::STATUS_CANCELLED) {
+        if ($referral === null || in_array($referral->status, [Referral::STATUS_CANCELLED, Referral::STATUS_CLOSED], true)) {
             return null;
         }
 
         $this->assertAcceptedEnrollmentMatches($application, $referredEnrollment, $referral);
 
         $accepted = DB::transaction(function () use ($referral, $referredEnrollment, $actor) {
+            // Match enrollment/payment settlement before locking the referral.
+            Student::whereKey($referredEnrollment->student_id)->lockForUpdate()->firstOrFail();
+            Student::whereKey($referral->referrer_student_id)->lockForUpdate()->firstOrFail();
             $referral = Referral::query()->lockForUpdate()->findOrFail($referral->id);
+
+            if (in_array($referral->status, [Referral::STATUS_CANCELLED, Referral::STATUS_CLOSED], true)) {
+                return null;
+            }
+
+            if ($referral->status === Referral::STATUS_CLAIMED && app(ReferralPeriod::class)->hasEnded($referral->school_year_id)) {
+                return null;
+            }
 
             if ($referral->status === Referral::STATUS_CLAIMED) {
                 $referral->update([
@@ -214,6 +234,10 @@ class ReferralLifecycle
             return $referral->fresh();
         });
 
+        if ($accepted === null) {
+            return null;
+        }
+
         // Usually there is no bill yet at acceptance, but this also repairs an
         // already-billed enrollment without requiring a separate operator action.
         ($this->reconcile)($referredEnrollment->fresh());
@@ -236,7 +260,7 @@ class ReferralLifecycle
                 ->lockForUpdate()
                 ->first();
 
-            if ($referral === null || $referral->status === Referral::STATUS_CANCELLED) {
+            if ($referral === null || in_array($referral->status, [Referral::STATUS_CANCELLED, Referral::STATUS_CLOSED], true)) {
                 return;
             }
 
@@ -291,7 +315,17 @@ class ReferralLifecycle
         }
 
         $successful = DB::transaction(function () use ($referral, $referredEnrollment) {
+            // Serialize qualification with collection on the referrer's account.
+            Student::whereKey($referral->referrer_student_id)->lockForUpdate()->firstOrFail();
             $referral = Referral::query()->lockForUpdate()->findOrFail($referral->id);
+
+            if (! in_array($referral->status, [Referral::STATUS_ACCEPTED, Referral::STATUS_SUCCESSFUL], true)) {
+                return null;
+            }
+
+            if ($referral->status === Referral::STATUS_ACCEPTED && app(ReferralPeriod::class)->hasEnded($referral->school_year_id)) {
+                return null;
+            }
 
             if ($referral->status === Referral::STATUS_ACCEPTED) {
                 $referral->update([
@@ -334,6 +368,10 @@ class ReferralLifecycle
 
             return $referral->fresh();
         });
+
+        if ($successful === null) {
+            return null;
+        }
 
         if ($successful->referrer_enrollment_id !== null) {
             $referrerEnrollment = Enrollment::query()->find($successful->referrer_enrollment_id);
@@ -533,6 +571,13 @@ class ReferralLifecycle
             ]);
         }
 
+        $period = app(ReferralPeriod::class);
+        if ($period->closesAt($targetYear->id) === null || $period->hasEnded($targetYear->id)) {
+            throw ValidationException::withMessages([
+                'referralCode' => 'Referral codes require an open enrollment cutoff configured by the school.',
+            ]);
+        }
+
         $active = Freebie::query()
             ->where('school_year_id', $targetYear->id)
             ->where('type', IncentiveAward::TYPE_REFERRAL)
@@ -544,6 +589,14 @@ class ReferralLifecycle
                 'referralCode' => 'The referral program is not active for this school year.',
             ]);
         }
+    }
+
+    public function hasGrade12Payments(Student $student, SchoolYear $year): bool
+    {
+        return $student->bills()->where('school_year_id', $year->id)
+            ->whereHas('enrollment', fn ($query) => $query->where('year_level', 'grade_12'))
+            ->whereHas('payments', fn ($query) => $query->whereIn('status', ['pending', 'verified']))
+            ->exists();
     }
 
     private function normalizeCode(string $code): string

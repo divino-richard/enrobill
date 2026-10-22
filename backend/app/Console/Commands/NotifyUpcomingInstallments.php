@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Actions\NotifyStudent;
 use App\Models\Bill;
+use App\Services\ReferralPaymentGuard;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
@@ -27,7 +28,7 @@ class NotifyUpcomingInstallments extends Command
         $notified = 0;
         $bills = Bill::where('status', '!=', 'paid')->with(['student', 'installments', 'droppingAssessment', 'adjustments'])->lazyById();
         foreach ($bills as $bill) {
-            if (! $bill->student || $bill->balance() <= 0) {
+            if (! $bill->student || $bill->balance() <= 0 || app(ReferralPaymentGuard::class)->forBill($bill) !== null) {
                 continue;
             }
             foreach ($bill->installmentSchedule() as $row) {

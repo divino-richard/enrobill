@@ -56,9 +56,11 @@ function PaymentSubmissionSummary({ payment, billNumber }: { payment: SubmittedP
   </section>;
 }
 
-export function PayDialog({ bill, disabled, triggerClassName, triggerLabel = 'Make a payment' }: {
+export function PayDialog({ bill, disabled: externallyDisabled, triggerClassName, triggerLabel = 'Make a payment' }: {
   bill: Bill; disabled?: boolean; triggerClassName?: string; triggerLabel?: string;
 }) {
+  const held = !!bill.referralPaymentGuard;
+  const disabled = externallyDisabled || held;
   const navigate = useNavigate();
   const channelsQuery = useActivePaymentChannels();
   const channels = channelsQuery.data ?? [];
@@ -175,7 +177,7 @@ export function PayDialog({ bill, disabled, triggerClassName, triggerLabel = 'Ma
     }
   }
   function changeOpen(next: boolean) {
-    if (lock.current) return;
+    if (lock.current || (next && held)) return;
     if (next && (!openedBefore.current || (!method && !reference && !note && !receipt))) {
       // A fresh payment starts at the current due amount; keep an unfinished
       // payment's amount alongside its method, receipt, and other details.
@@ -194,7 +196,7 @@ export function PayDialog({ bill, disabled, triggerClassName, triggerLabel = 'Ma
 
   return <Dialog open={open} onOpenChange={changeOpen}>
     <span ref={returnFocusRef} tabIndex={-1} aria-label="Bill payment" className={cn('outline-none', triggerClassName?.includes('w-full') && 'w-full')}>
-      <DialogTrigger asChild><Button ref={triggerRef} disabled={disabled} className={triggerClassName}><UploadIcon aria-hidden="true" />{triggerLabel}</Button></DialogTrigger>
+      <DialogTrigger asChild><Button ref={triggerRef} disabled={disabled} className={triggerClassName}><UploadIcon aria-hidden="true" />{held ? 'Payment on hold' : triggerLabel}</Button></DialogTrigger>
     </span>
     <DialogContent showCloseButton={false} className={cn('flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 shadow-none', success ? 'max-w-md' : 'max-w-xl')} onEscapeKeyDown={event => { if (lock.current) event.preventDefault(); }} onInteractOutside={event => { if (lock.current) event.preventDefault(); }} onCloseAutoFocus={event => {
       event.preventDefault();
@@ -290,7 +292,7 @@ export function PayDialog({ bill, disabled, triggerClassName, triggerLabel = 'Ma
           </fieldset>
           <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
           {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
-          {disabled && <p role="status" className="mt-4 text-sm">A payment is already awaiting verification. Check Payments for its status before submitting another.</p>}
+          {disabled && <p role="status" className="mt-4 text-sm">{held ? bill.referralPaymentGuard?.message : 'A payment is already awaiting verification. Check Payments for its status before submitting another.'}</p>}
         </div>
         <footer className="shrink-0 border-t bg-card px-5 py-4 sm:px-6">
           <p role="status" className={busy ? 'mb-3 text-xs text-muted-foreground' : 'sr-only'}>{busy ? progress !== null ? `Uploading receipt… ${progress}%` : 'Submitting payment for verification…' : ''}</p>

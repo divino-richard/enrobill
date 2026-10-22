@@ -247,7 +247,7 @@ export function EarlyEnrollmentDialog({
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="min-h-11">
+        <Button variant="outline">
           {existing ? <PencilIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}
           {existing ? "Edit freebie" : "Set up freebie"}
         </Button>
@@ -338,12 +338,14 @@ export function ReferralIncentiveDialog({
   const save = useUpsertFreebie(term.id);
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(existing?.isActive ?? false);
-  const hasChanges = !existing || enabled !== existing.isActive;
+  const [cutoff, setCutoff] = useState(existing?.endsOn ?? "");
+  const hasChanges = !existing || enabled !== existing.isActive || cutoff !== (existing.endsOn ?? "");
 
   function changeOpen(next: boolean) {
     if (save.isPending) return;
     if (next) {
       setEnabled(existing?.isActive ?? false);
+      setCutoff(existing?.endsOn ?? "");
       save.reset();
       onEdit();
     }
@@ -357,6 +359,7 @@ export function ReferralIncentiveDialog({
         type: "referral",
         name: existing?.name ?? "Referral Tuition Incentive",
         isActive: enabled,
+        endsOn: cutoff || null,
       });
       setOpen(false);
       onSaved();
@@ -368,7 +371,7 @@ export function ReferralIncentiveDialog({
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="min-h-11">
+        <Button variant="outline">
           {existing ? <PencilIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}
           {existing ? "Edit incentive" : "Set up incentive"}
         </Button>
@@ -384,6 +387,11 @@ export function ReferralIncentiveDialog({
           </Button>
         </DialogClose>
         <ReferralIncentiveEditor
+          startDate={term.startDate}
+          endDate={term.endDate}
+          cutoff={cutoff}
+          cutoffLocked={existing?.cutoffLocked ?? false}
+          onCutoffChange={setCutoff}
           enabled={enabled}
           onEnabledChange={setEnabled}
           hasChanges={hasChanges}
@@ -398,6 +406,11 @@ export function ReferralIncentiveDialog({
 }
 
 export function ReferralIncentiveEditor({
+  startDate,
+  endDate,
+  cutoff,
+  cutoffLocked = false,
+  onCutoffChange,
   enabled,
   onEnabledChange,
   hasChanges,
@@ -406,6 +419,11 @@ export function ReferralIncentiveEditor({
   onCancel,
   onSave,
 }: {
+  startDate: string | null;
+  endDate: string | null;
+  cutoff: string;
+  cutoffLocked?: boolean;
+  onCutoffChange: (value: string) => void;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
   hasChanges: boolean;
@@ -415,11 +433,19 @@ export function ReferralIncentiveEditor({
   onSave: () => void;
 }) {
   const fieldId = useId();
+  const firstDate = startDate ? new Date(`${startDate}T00:00:00`) : undefined;
+  const lastDate = endDate ? new Date(`${endDate}T00:00:00`) : undefined;
+  const cutoffError = cutoff && startDate && cutoff < startDate
+    ? `Choose a date on or after ${format(firstDate!, "MMM d, yyyy")}.`
+    : cutoff && endDate && cutoff > endDate
+      ? `Choose a date on or before ${format(lastDate!, "MMM d, yyyy")}.`
+      : undefined;
+  const canSave = hasChanges && !saving && !cutoffError && (!enabled || cutoff !== "");
 
   return (
     <form className="space-y-4" aria-busy={saving} onSubmit={event => {
       event.preventDefault();
-      if (hasChanges && !saving) onSave();
+      if (canSave) onSave();
     }}>
       <div className="space-y-3">
         <label htmlFor={fieldId} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
@@ -431,6 +457,25 @@ export function ReferralIncentiveEditor({
           />
           Enable referral tuition incentive
         </label>
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor={`${fieldId}-cutoff`}>Referral enrollment cutoff</label>
+          <DatePicker
+            id={`${fieldId}-cutoff`}
+            value={cutoff}
+            onChange={onCutoffChange}
+            disabled={saving || cutoffLocked}
+            placeholder="Select cutoff date"
+            startMonth={firstDate ?? TERM_DATE_START}
+            endMonth={lastDate ?? TERM_DATE_END}
+            disabledDates={[
+              ...(firstDate ? [{ before: firstDate }] : []),
+              ...(lastDate ? [{ after: lastDate }] : []),
+            ]}
+            aria-invalid={!!cutoffError}
+            aria-describedby={cutoffError ? `${fieldId}-cutoff-error` : undefined}
+          />
+          {cutoffError && <p id={`${fieldId}-cutoff-error`} role="alert" className="text-sm text-destructive">{cutoffError}</p>}
+        </div>
         <ReferralPolicyGuide disabled={saving} />
       </div>
       {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
@@ -438,7 +483,7 @@ export function ReferralIncentiveEditor({
         <Button type="button" variant="outline" className="min-h-11" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" className="min-h-11" disabled={!hasChanges || saving}>
+        <Button type="submit" className="min-h-11" disabled={!canSave}>
           {saving ? "Saving…" : "Save changes"}
         </Button>
       </DialogFooter>

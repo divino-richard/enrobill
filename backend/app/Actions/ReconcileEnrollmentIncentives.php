@@ -61,7 +61,8 @@ class ReconcileEnrollmentIncentives
             $existing ??= $this->adoptLegacyEarlyAdjustment($bill, $enrollment);
 
             $unapplied = $awards->where('status', IncentiveAward::STATUS_ELIGIBLE);
-            if ($unapplied->isEmpty() && $existing === null) {
+            $previouslyCovered = $awards->where('status', IncentiveAward::STATUS_APPLIED_NO_BALANCE);
+            if ($unapplied->isEmpty() && $previouslyCovered->isEmpty() && $existing === null) {
                 return $existing;
             }
 
@@ -79,6 +80,19 @@ class ReconcileEnrollmentIncentives
             // remains paid and is never converted into a refund/negative balance.
             $credit = round(max($baseNet - $verifiedPayments, 0), 2);
 
+            // A reversed payment can reopen a previously covered bill. Preserve
+            // that earned benefit without creating a refund or duplicate credit.
+            $hasVoucher = $this->hasActiveAppliedVoucher($bill);
+            if (! $hasVoucher) {
+                $unapplied = collect();
+            }
+            if ($credit > 0) {
+                $unapplied = $unapplied->merge($previouslyCovered);
+            } elseif ($unapplied->isEmpty() && $existing === null) {
+                return null;
+            }
+            $canRedeem = $hasVoucher || $previouslyCovered->isNotEmpty();
+
             $adjustment = $existing;
             $changed = false;
 
@@ -90,7 +104,7 @@ class ReconcileEnrollmentIncentives
                     $adjustment->update(['amount' => $credit]);
                     $changed = true;
                 }
-            } elseif ($unapplied->isNotEmpty() && $this->hasActiveAppliedVoucher($bill)) {
+            } elseif ($unapplied->isNotEmpty() && $canRedeem) {
                 if ($credit <= 0) {
                     IncentiveAward::query()
                         ->whereKey($unapplied->modelKeys())
@@ -120,10 +134,10 @@ class ReconcileEnrollmentIncentives
                 return $existing;
             }
 
-            if ($unapplied->isNotEmpty() && $this->hasActiveAppliedVoucher($bill)) {
+            if ($unapplied->isNotEmpty() && $canRedeem) {
                 IncentiveAward::query()
                     ->whereKey($unapplied->modelKeys())
-                    ->where('status', IncentiveAward::STATUS_ELIGIBLE)
+                    ->whereIn('status', [IncentiveAward::STATUS_ELIGIBLE, IncentiveAward::STATUS_APPLIED_NO_BALANCE])
                     ->update([
                         'bill_adjustment_id' => $adjustment->id,
                         'status' => IncentiveAward::STATUS_APPLIED,

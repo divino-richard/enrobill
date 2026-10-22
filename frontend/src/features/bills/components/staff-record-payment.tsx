@@ -24,9 +24,11 @@ export function StaffRecordPayment({ bill, onSuccess }: { bill: Bill; onSuccess:
   const trigger = useRef<HTMLButtonElement>(null);
   const record = useRecordPayment(bill.id);
   const pending = bill.payments?.some(payment => payment.status === 'pending') ?? false;
+  const held = !!bill.referralPaymentGuard;
 
   function changeOpen(next: boolean) {
     if (saving.current) return;
+    if (next && held) return;
     if (next) {
       setAmount(bill.amountDue > 0 ? String(Math.min(bill.amountDue, bill.balance)) : '');
       setMethod('cash'); setPaidAt(paymentToday()); setReference(''); setNote(''); setError(null); record.reset();
@@ -36,7 +38,7 @@ export function StaffRecordPayment({ bill, onSuccess }: { bill: Bill; onSuccess:
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving.current || pending) return;
+    if (saving.current || pending || held) return;
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0 || Math.round(value * 100) > Math.round(bill.balance * 100)) {
       setError(`Enter an amount from ₱0.01 to ${formatPeso(bill.balance)}.`);
@@ -56,7 +58,7 @@ export function StaffRecordPayment({ bill, onSuccess }: { bill: Bill; onSuccess:
   }
 
   return <Dialog open={open} onOpenChange={changeOpen}>
-    <DialogTrigger asChild><Button ref={trigger} variant={pending ? 'outline' : 'default'} disabled={pending || bill.balance <= 0}><PlusIcon aria-hidden="true" />Record payment</Button></DialogTrigger>
+    <DialogTrigger asChild><Button ref={trigger} variant={pending || held ? 'outline' : 'default'} disabled={held || pending || bill.balance <= 0}><PlusIcon aria-hidden="true" />Record payment</Button></DialogTrigger>
     <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto" showCloseButton={!record.isPending} onCloseAutoFocus={event => {
       if (trigger.current?.disabled) {
         event.preventDefault();
@@ -65,7 +67,8 @@ export function StaffRecordPayment({ bill, onSuccess }: { bill: Bill; onSuccess:
     }}>
       <DialogHeader><DialogTitle>Record payment</DialogTitle><DialogDescription>Balance: {formatPeso(bill.balance)}. Due now: {formatPeso(bill.amountDue)}. Only record money the school has received; this is saved as a verified payment.</DialogDescription></DialogHeader>
       <form className="space-y-4" onSubmit={event => void save(event)} aria-busy={record.isPending}>
-        <fieldset disabled={record.isPending} className="space-y-4">
+        {held && <p role="status" className="text-sm text-muted-foreground">Payment collection is on hold while this student's referral is resolved.</p>}
+        <fieldset disabled={record.isPending || held} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5"><FieldLabel htmlFor="staff-payment-amount" required>Amount</FieldLabel><Input id="staff-payment-amount" type="number" inputMode="decimal" min="0.01" max={bill.balance} step="0.01" required value={amount} onChange={event => setAmount(event.target.value)} /></div>
             <div className="space-y-1.5"><FieldLabel htmlFor="staff-payment-method" required>Method</FieldLabel><Select value={method} onValueChange={value => setMethod(value as PaymentMethod)} disabled={record.isPending}><SelectTrigger id="staff-payment-method" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{PAYMENT_METHOD_OPTIONS.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
@@ -76,7 +79,7 @@ export function StaffRecordPayment({ bill, onSuccess }: { bill: Bill; onSuccess:
         </fieldset>
         {pending && <p role="alert" className="text-sm text-muted-foreground">A payment is now awaiting verification. Close this form and review it before recording another payment.</p>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <DialogFooter><Button type="button" variant="outline" disabled={record.isPending} onClick={() => changeOpen(false)}>Cancel</Button><Button type="submit" disabled={record.isPending || pending}>{record.isPending ? 'Recording…' : 'Record payment'}</Button></DialogFooter>
+        <DialogFooter><Button type="button" variant="outline" disabled={record.isPending} onClick={() => changeOpen(false)}>Cancel</Button><Button type="submit" disabled={record.isPending || pending || held}>{record.isPending ? 'Recording…' : 'Record payment'}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>;

@@ -151,7 +151,7 @@ function BillDetailPage() {
       <CardContent className="p-0">
       {pending.length > 0 && <ul aria-label="Payments awaiting verification" className="divide-y">{pending.map(payment => <PaymentRow key={payment.id} payment={payment} readOnly={readOnly} onReview={() => setReviewId(payment.id)} />)}</ul>}
       {history.length > 0 && <ul aria-label="Payment history" className={pending.length > 0 ? 'divide-y border-t' : 'divide-y'}>{history.map(payment => <PaymentRow key={payment.id} payment={payment} readOnly={readOnly} onReview={() => setReviewId(payment.id)} />)}</ul>}
-      {payments.length === 0 && <p className="p-4 text-sm text-muted-foreground">{bill.balance <= 0 ? 'No payment records. This bill has no remaining balance.' : readOnly ? 'No payments recorded yet.' : 'No payments recorded yet. Use Record payment when the school receives a payment.'}</p>}
+      {payments.length === 0 && <p className="p-4 text-sm text-muted-foreground">{bill.balance <= 0 ? 'No payment records. This bill has no remaining balance.' : readOnly || bill.referralPaymentGuard ? 'No payments recorded yet.' : 'No payments recorded yet. Use Record payment when the school receives a payment.'}</p>}
       </CardContent>
     </Card>
 

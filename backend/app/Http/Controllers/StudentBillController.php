@@ -8,6 +8,7 @@ use App\Models\Bill;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Services\ReferralPaymentGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -141,6 +142,7 @@ class StudentBillController extends Controller
             Student::lockForUpdate()->findOrFail($bill->student_id);
             Enrollment::whereKey($bill->enrollment_id)->lockForUpdate()->first();
             $bill = Bill::lockForUpdate()->findOrFail($bill->id);
+            app(ReferralPaymentGuard::class)->assertCanPay($bill);
 
             // Only one payment may be under review at a time — the student must wait
             // for it to be verified or rejected before submitting another.

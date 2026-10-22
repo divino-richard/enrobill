@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AdminReferralResource;
 use App\Models\Referral;
+use App\Services\ReferralPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -15,7 +16,7 @@ class ReferralController extends Controller
     {
         $validated = $request->validate([
             'schoolYearId' => ['nullable', 'integer', 'exists:school_years,id'],
-            'status' => ['nullable', 'string', 'in:'.implode(',', Referral::STATUSES)],
+            'status' => ['nullable', 'string', 'in:'.implode(',', [...Referral::STATUSES, 'expired'])],
             'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -32,6 +33,8 @@ class ReferralController extends Controller
                 'updater',
                 'accepter',
                 'canceller',
+                'referredEnrollment',
+                'incentiveAwards',
             ])
             ->when(
                 isset($validated['schoolYearId']),
@@ -39,7 +42,18 @@ class ReferralController extends Controller
             )
             ->when(
                 isset($validated['status']),
-                fn ($query) => $query->where('status', $validated['status']),
+                function ($query) use ($validated) {
+                    $expiredYear = fn ($q) => $q->where('type', 'referral')->whereDate('ends_on', '<', now(ReferralPeriod::TIMEZONE)->toDateString());
+                    if ($validated['status'] === 'expired') {
+                        $query->whereIn('status', [Referral::STATUS_CLAIMED, Referral::STATUS_ACCEPTED])
+                            ->whereHas('targetSchoolYear.freebies', $expiredYear);
+                    } else {
+                        $query->where('status', $validated['status']);
+                        if (in_array($validated['status'], [Referral::STATUS_CLAIMED, Referral::STATUS_ACCEPTED], true)) {
+                            $query->whereDoesntHave('targetSchoolYear.freebies', $expiredYear);
+                        }
+                    }
+                },
             )
             ->when(isset($validated['search']), function ($query) use ($validated) {
                 $needle = '%'.trim($validated['search']).'%';

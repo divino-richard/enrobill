@@ -1,3 +1,4 @@
+import { formatDate } from "@/features/applications/utils";
 import { bannerStyles } from "@/components/ui/banner";
 import { useId, useState } from "react";
 import { ArrowRightIcon, CheckIcon, CircleCheckIcon, Clock3Icon, CopyIcon, LoaderCircleIcon, UsersRoundIcon, XIcon } from "lucide-react";
@@ -22,6 +23,10 @@ const BENEFIT_DETAILS: Record<string, { label: string; description: string }> = 
   not_earned: {
     label: "No enrolled referral yet",
     description: "Your referral requirement is met once a referred Grade 11 student becomes officially enrolled.",
+  },
+  expired: {
+    label: "Referral cutoff passed",
+    description: "No referral qualified by the cutoff. Your Grade 12 bill is now payable without the referral benefit. Later enrollment cannot earn this benefit.",
   },
   pending: {
     label: "Waiting for Grade 12 enrollment",
@@ -51,6 +56,10 @@ function referralView(summary: MyReferralSummary) {
   const benefitStatus = summary.benefitStatus ?? (successfulCount > 0 ? "pending" : "not_earned");
   const unavailable = !targetSchoolYear
     ? { kind: "no_year", title: "Referral codes are not available yet", reason: "Codes will be available when Northlink sets up the upcoming school year." }
+    : summary.ineligibilityReason
+      ? { kind: "payment_started", title: "Referral participation is unavailable", reason: summary.ineligibilityReason }
+    : summary.enrollmentCutoffPassed
+      ? { kind: "expired", title: "Referral enrollment has closed", reason: "New codes and claims are closed. Benefits earned before the cutoff are kept." }
     : !campaignEnabled
       ? { kind: "paused", title: "Referrals are paused", reason: "The referral campaign is paused. Existing progress and applied benefits are kept." }
       : summary.code?.isActive === false
@@ -194,6 +203,11 @@ export function StudentReferralDetails({ summary, onCreate, onCopy, creating = f
           <p className="text-muted-foreground">If your enrollment history looks incorrect, contact Northlink to have it checked.</p>}
       </section>}
 
+      {summary.enrollmentCutoff && <section aria-label="Referral enrollment cutoff" className="space-y-1">
+        <h3 className="font-semibold">Enrollment cutoff · {formatDate(summary.enrollmentCutoff)}</h3>
+        <p className="text-muted-foreground">A referred Grade 11 student must complete enrollment by 11:59 PM Philippine time on this date to earn your Grade 12 benefit.</p>
+      </section>}
+
       {(summary.code?.code || canCreateCode) && <section aria-label="Your referral code" className="bg-muted/30 space-y-3 rounded-xl border p-4">
         <h3 className="font-semibold">Your referral code</h3>
         {summary.code?.code ? <>
@@ -212,7 +226,7 @@ export function StudentReferralDetails({ summary, onCreate, onCopy, creating = f
             {copyState === "error" && <p className="text-destructive">Couldn't copy automatically. Select the code above and copy it manually.</p>}
           </div>}
         </> : <>
-          <p className="text-muted-foreground">You’re eligible to create a code for Grade 11 applicants to enter on their Northlink application.</p>
+          <p className="text-muted-foreground">Create your code before making any Grade 12 payment. Creating it reserves your benefit and pauses collection on your voucher-backed Grade 12 bill until you qualify or the enrollment cutoff passes. Do not send a payment during this hold.</p>
           <Button className="min-h-11" onClick={onCreate} disabled={creating} aria-describedby={createError ? createErrorId : undefined}>
             {creating && <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
             {creating ? "Creating code…" : "Create referral code"}
@@ -281,6 +295,7 @@ export function StudentReferralRequirements({ defaultOpen = false }: { defaultOp
           </ul>
           <p>The benefit covers your remaining unpaid Grade 12 bill, including miscellaneous fees, after your voucher.</p>
           <p className="text-muted-foreground">Payments made before this benefit is applied are not refunded or carried forward.</p>
+          <p className="text-muted-foreground">Creating a code reserves your Grade 12 benefit until a referral qualifies or the school’s enrollment cutoff passes. Rejected or withdrawn applicants can be replaced before that date. If none qualify by the cutoff, your bill becomes payable without the referral benefit.</p>
         </section>
         <section aria-label="Benefits for each student" className="space-y-3">
           <h4 className="font-medium">Benefits for each student</h4>

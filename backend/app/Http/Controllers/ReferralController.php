@@ -10,6 +10,7 @@ use App\Models\Referral;
 use App\Models\ReferralCode;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Services\ReferralPeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -90,14 +91,17 @@ class ReferralController extends Controller
      */
     private function summary(Student $student, ?SchoolYear $targetYear): array
     {
-        $campaignActive = $targetYear !== null
+        $period = app(ReferralPeriod::class);
+        $cutoff = $targetYear ? $period->closesAt($targetYear->id) : null;
+        $ended = $targetYear !== null && $period->hasEnded($targetYear->id);
+        $campaignActive = $cutoff !== null && ! $ended && $targetYear !== null
             && (bool) $targetYear->is_active
             && (bool) $targetYear->admission_open
             && Freebie::query()
-            ->where('school_year_id', $targetYear->id)
-            ->where('type', IncentiveAward::TYPE_REFERRAL)
-            ->where('is_active', true)
-            ->exists();
+                ->where('school_year_id', $targetYear->id)
+                ->where('type', IncentiveAward::TYPE_REFERRAL)
+                ->where('is_active', true)
+                ->exists();
         $code = $targetYear === null
             ? null
             : ReferralCode::query()
@@ -122,7 +126,12 @@ class ReferralController extends Controller
                 ->where('beneficiary', IncentiveAward::BENEFICIARY_REFERRER_GRADE_12)
                 ->first();
 
+        $alreadyPaid = $targetYear !== null && $code === null && app(ReferralLifecycle::class)->hasGrade12Payments($student, $targetYear);
+
         return [
+            'enrollmentCutoff' => $cutoff?->toDateString(),
+            'enrollmentCutoffPassed' => $ended,
+            'ineligibilityReason' => $alreadyPaid ? 'A Grade 12 payment has already been submitted or recorded. Referral participation must start before payment. Contact the registrar to review your account.' : null,
             'targetSchoolYear' => $targetYear ? [
                 'id' => $targetYear->id,
                 'schoolYear' => $targetYear->school_year,
@@ -137,14 +146,14 @@ class ReferralController extends Controller
                 ],
                 'isActive' => (bool) $code->is_active,
             ] : null,
-            'eligibleToRefer' => $campaignActive
+            'eligibleToRefer' => ! $alreadyPaid && $campaignActive
                 && $this->hasQualifyingEnrollment($student, $targetYear),
             'successfulCount' => $successfulCount,
-            'benefitStatus' => $award?->status ?? ($successfulCount > 0 ? 'pending' : 'not_earned'),
+            'benefitStatus' => $award?->status ?? ($successfulCount > 0 ? 'pending' : ($ended && $code !== null ? 'expired' : 'not_earned')),
             'referrals' => $referrals->map(fn (Referral $referral) => [
                 'id' => $referral->id,
                 'referredDisplay' => $this->referredDisplay($referral),
-                'status' => $referral->status,
+                'status' => $period->status($referral),
             ])->values()->all(),
         ];
     }

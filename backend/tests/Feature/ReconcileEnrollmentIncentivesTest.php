@@ -208,6 +208,50 @@ class ReconcileEnrollmentIncentivesTest extends TestCase
             ->count());
     }
 
+    public function test_incentive_explanation_uses_the_voucher_actually_applied_to_an_existing_bill(): void
+    {
+        $year = $this->createSchoolYear();
+        $freebie = $this->createFreebie($year, IncentiveAward::TYPE_REFERRAL);
+        $voucher = $this->createDiscount('Assigned voucher', 'voucher', 600);
+        [$enrollment, $bill] = $this->createBilledEnrollment($year, 'grade_12', $voucher);
+        $this->createReferralAward($enrollment, $freebie, IncentiveAward::BENEFICIARY_REFERRER_GRADE_12);
+        $admin = User::factory()->create(['role' => Role::Admin]);
+
+        $this->actingAs($admin)->getJson("/api/admin/enrollments/{$enrollment->id}/incentives")
+            ->assertOk()
+            ->assertJsonPath('data.hasVoucher', false)
+            ->assertJsonPath('data.awards.0.reason', 'Eligible, but this enrollment does not have a valid voucher.');
+
+        $this->applyDiscount($bill, $voucher);
+        $this->getJson("/api/admin/enrollments/{$enrollment->id}/incentives")
+            ->assertOk()->assertJsonPath('data.hasVoucher', true);
+    }
+
+    #[DataProvider('reversibleLegacyPayments')]
+    public function test_reversing_a_legacy_payment_reconciles_the_already_earned_referral_benefit(float $paid): void
+    {
+        $year = $this->createSchoolYear();
+        $freebie = $this->createFreebie($year, IncentiveAward::TYPE_REFERRAL);
+        $voucher = $this->createDiscount('Voucher', 'voucher', 600);
+        [$enrollment, $bill] = $this->createBilledEnrollment($year, 'grade_12', $voucher);
+        $this->applyDiscount($bill, $voucher);
+        $this->createReferralAward($enrollment, $freebie, IncentiveAward::BENEFICIARY_REFERRER_GRADE_12);
+        $payment = $this->createVerifiedPayment($bill, $paid);
+        $bill->recalculate();
+        app(ReconcileEnrollmentIncentives::class)($enrollment);
+        $this->assertSame(400.0 - $paid, (float) $bill->adjustments()->whereNotNull('incentive_key')->sum('amount'));
+
+        $this->actingAs(User::factory()->create(['role' => Role::Cashier]))
+            ->postJson("/api/admin/bills/{$bill->id}/payments/{$payment->id}/reject")
+            ->assertOk()->assertJsonPath('data.balance', 0);
+        $this->assertSame(400.0, (float) $bill->adjustments()->whereNotNull('incentive_key')->sum('amount'));
+    }
+
+    public static function reversibleLegacyPayments(): array
+    {
+        return [[100.0], [400.0]];
+    }
+
     private function createSchoolYear(): SchoolYear
     {
         return SchoolYear::create([

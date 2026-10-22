@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Enums\Role;
+use App\Http\Controllers\Admin\ApplicationController;
 use App\Models\Application;
 use App\Models\Program;
 use App\Models\SchoolYear;
 use App\Models\User;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -87,6 +90,34 @@ class ApplicationSubmissionTest extends TestCase
         $this->actingAs($otherUser)->putJson("/api/applications/{$application->id}", $this->payload())
             ->assertNotFound();
         $this->assertSame('returned', $application->fresh()->status);
+    }
+
+    public function test_acceptance_during_resubmission_cannot_be_overwritten(): void
+    {
+        $application = $this->createApplicantApplication('returned');
+        $accepted = false;
+        Event::listen(TransactionBeginning::class, function () use ($application, &$accepted) {
+            if (! $accepted) {
+                $accepted = true;
+                Application::whereKey($application->id)->update(['status' => 'accepted']);
+            }
+        });
+
+        $this->actingAs($application->user)->putJson("/api/applications/{$application->id}", $this->payload())
+            ->assertForbidden();
+
+        $this->assertTrue($accepted);
+        $this->assertSame('Original', $application->fresh()->given_name);
+    }
+
+    public function test_opening_a_stale_application_cannot_replace_its_accepted_status(): void
+    {
+        $application = $this->createApplicantApplication('submitted');
+        Application::whereKey($application->id)->update(['status' => 'accepted']);
+
+        app(ApplicationController::class)->review($application);
+
+        $this->assertSame('accepted', $application->fresh()->status);
     }
 
     public function test_closed_admissions_prevent_submission(): void

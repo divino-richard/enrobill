@@ -31,7 +31,7 @@ import {
 } from "@/features/referrals/types";
 import { useTerms } from "@/features/terms/hooks";
 
-const STATUS_OPTIONS = ["claimed", "accepted", "successful", "cancelled"];
+const STATUS_OPTIONS = ["claimed", "accepted", "successful", "cancelled", "expired", "closed"];
 
 function ReferralsPage() {
   const navigate = useNavigate();
@@ -173,6 +173,7 @@ function ReferralsPage() {
     <div className="min-w-0 space-y-4">
       <div>
         <PageHeader title="Referrals" />
+        <p className="mt-2 text-sm text-muted-foreground">The school-year referral cutoff determines when payment holds end. Earned benefits are preserved.</p>
       </div>
 
       <TablePanel>

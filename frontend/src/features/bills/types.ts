@@ -120,6 +120,7 @@ export interface ReturnRequirements {
 }
 
 export interface Bill {
+  referralPaymentGuard?: { reason: 'referral_pending' | 'referral_credit_pending'; message: string; cutoff?: string | null } | null;
   collectionState?: 'standard' | 'deferred_until_reenrollment' | 'required_for_reenrollment';
   returnRequirements?: ReturnRequirements | null;
   historicalInstallments?: { id: number; label: string; amount: number; dueDate: string | null }[];

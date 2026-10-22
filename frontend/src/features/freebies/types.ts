@@ -10,6 +10,7 @@ export interface Freebie {
   startsOn: string | null;
   endsOn: string | null;
   minReferrals: number | null;
+  cutoffLocked?: boolean;
 }
 
 export interface FreebieUpsertInput {

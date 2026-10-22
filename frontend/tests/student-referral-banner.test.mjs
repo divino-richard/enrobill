@@ -216,7 +216,7 @@ test('existing progress remains accessible when code creation or sharing is unav
 
 test('eligible students can create or copy a code without a premature waiting status', () => {
   const fresh = renderDetails({ ...base, code: null });
-  assert.match(fresh, /You’re eligible to create a code/);
+  assert.match(fresh, /Create your code before making any Grade 12 payment/);
   assert.match(fresh, /Create referral code/);
   assert.doesNotMatch(fresh, /disabled=""|No enrolled referral yet|Referred applicants|No applications linked/);
   const summary = { ...base, code: { code: 'SHARE-ME', isActive: true } };
@@ -266,4 +266,20 @@ test('drawer actions and the scroll area retain accessible labels and focus targ
     assert.match(html, /aria-expanded="false"[^>]*data-slot="accordion-trigger"/);
     assert.doesNotMatch(html, /text-xs/);
   }
+});
+
+
+test("referral participation explains the reservation before creating a code", () => {
+  const html = renderDetails({ ...base, enrollmentCutoff: "2026-11-30" });
+  assert.match(html, /Create your code before making any Grade 12 payment/);
+  assert.match(html, /pauses collection/);
+  assert.match(html, /Enrollment cutoff/);
+  assert.match(html, /11:59 PM Philippine time/);
+});
+
+test("an expired reservation explains payment release without offering a new code", () => {
+  const html = renderDetails({ ...base, campaignEnabled: false, enrollmentCutoffPassed: true,
+    enrollmentCutoff: "2026-11-30", benefitStatus: "expired", code: { id: 1, code: "SAVEDCODE", isActive: true } });
+  assert.match(html, /Your Grade 12 bill is now payable without the referral benefit/);
+  assert.doesNotMatch(html, /Copy code|Create referral code/);
 });

@@ -24,11 +24,15 @@ class Referral extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    /** Explicit registrar resolution; application retries must not reopen it. */
+    public const STATUS_CLOSED = 'closed';
+
     public const STATUSES = [
         self::STATUS_CLAIMED,
         self::STATUS_ACCEPTED,
         self::STATUS_SUCCESSFUL,
         self::STATUS_CANCELLED,
+        self::STATUS_CLOSED,
     ];
 
     protected function casts(): array

@@ -22,7 +22,13 @@ export function useUpsertFreebie(schoolYearId: number) {
     mutationFn: (input: FreebieUpsertInput) =>
       upsertFreebie(schoolYearId, input),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: freebiesQueryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: freebiesQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ["admin", "bills"] }),
+        queryClient.invalidateQueries({ queryKey: ["me", "bill"] }),
+        queryClient.invalidateQueries({ queryKey: ["me", "bills"] }),
+        queryClient.invalidateQueries({ queryKey: ["me", "referrals"] }),
+      ]);
     },
   });
 }

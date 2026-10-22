@@ -25,6 +25,7 @@ class FreebieResource extends JsonResource
             'startsOn' => $this->starts_on?->toDateString(),
             'endsOn' => $this->ends_on?->toDateString(),
             'minReferrals' => $this->min_referrals,
+            'cutoffLocked' => $this->hasValidReferralCutoff() && $this->schoolYear->referralCodes()->exists(),
         ];
     }
 }

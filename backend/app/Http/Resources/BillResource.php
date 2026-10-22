@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Bill;
 use App\Models\StudentCredit;
+use App\Services\ReferralPaymentGuard;
 use App\Services\ReturningEnrollmentRules;
 use App\Services\StudentCreditService;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ class BillResource extends JsonResource
             'enrollmentStatus' => $this->enrollment?->status,
             'status' => $this->status,
             'collectionState' => $this->collectionState(),
+            'referralPaymentGuard' => app(ReferralPaymentGuard::class)->forBill($this->resource),
             'returnRequirements' => app(ReturningEnrollmentRules::class)->billReturnRequirements($this->resource),
             'historicalInstallments' => $this->historicalInstallments(),
             'noDownpayment' => (bool) ($this->whenLoaded('enrollment', fn () => $this->enrollment?->no_downpayment, false)),

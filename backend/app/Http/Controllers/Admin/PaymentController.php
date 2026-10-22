@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\NotifyStudent;
+use App\Actions\ReconcileEnrollmentIncentives;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BillResource;
 use App\Models\Bill;
@@ -11,6 +12,7 @@ use App\Models\Payment;
 use App\Models\Student;
 use App\Services\Currency;
 use App\Services\PaymentArrangementService;
+use App\Services\ReferralPaymentGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -33,6 +35,7 @@ class PaymentController extends Controller
         ]);
 
         return $this->locked($bill, function (Bill $bill) use ($request, $input) {
+            app(ReferralPaymentGuard::class)->assertCanPay($bill);
             abort_if($bill->payments()->where('status', 'pending')->exists(), 422, 'Review the pending payment before recording another payment.');
             $this->validateAmount($bill, (float) $input['amount']);
             $bill->payments()->create([
@@ -55,6 +58,7 @@ class PaymentController extends Controller
                 return;
             }
             abort_unless($payment->status === 'pending', 422, 'Only a pending payment can be verified.');
+            app(ReferralPaymentGuard::class)->assertCanPay($bill);
             $this->validateAmount($bill, (float) $payment->amount);
             $payment->update(['status' => 'verified']);
             $this->settle($bill);
@@ -74,6 +78,9 @@ class PaymentController extends Controller
             $this->protectFinalizedPayment($bill, $payment);
             $payment->update(['status' => 'rejected']);
             $bill->recalculate();
+            if ($bill->enrollment !== null) {
+                app(ReconcileEnrollmentIncentives::class)($bill->enrollment);
+            }
             $this->notifyPayment($bill, 'Payment rejected', 'Your submitted payment of ₱'.number_format((float) $payment->amount, 2).' was rejected. It has not reduced your balance.', $bill->collectionState() !== 'deferred_until_reenrollment');
         });
     }

@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\ReferralPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,7 +40,7 @@ class AdminReferralResource extends JsonResource
                 'studentNumber' => $referred->student_number,
                 'name' => trim($referred->first_name.' '.$referred->last_name),
             ] : null,
-            'status' => $this->status,
+            'status' => app(ReferralPeriod::class)->status($this->resource),
             'claimedAt' => $this->claimed_at?->toIso8601String(),
             'acceptedAt' => $this->accepted_at?->toIso8601String(),
             'successfulAt' => $this->successful_at?->toIso8601String(),

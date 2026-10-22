@@ -11,6 +11,7 @@ const { approvedChargeLines } = await server.ssrLoadModule('/src/features/bills/
 const { BillStatement } = await server.ssrLoadModule('/src/features/bills/components/bill-ledger.tsx');
 const { DroppingBillHistory } = await server.ssrLoadModule('/src/features/bills/components/dropping-statement.tsx');
 const { BillActionPanel } = await server.ssrLoadModule('/src/features/bills/components/bill-action-panel.tsx');
+const { ReferralPaymentNotice } = await server.ssrLoadModule('/src/features/bills/components/referral-payment-notice.tsx');
 const { default: BillDetailPage } = await server.ssrLoadModule('/src/pages/portal/bill-detail-page.tsx');
 const { buildBillReceiptHtml } = await server.ssrLoadModule('/src/features/bills/receipt.ts');
 const { BillCollectionNotice } = await server.ssrLoadModule('/src/features/dropping-finance/collection-notice.tsx');
@@ -148,4 +149,35 @@ test('the student bill page omits re-enrollment requirements while retaining bil
   assert.match(html,/Enrollment bill/); assert.match(html,/Tuition Fee/); assert.match(html,/>Schedule</); assert.match(html,/>Payments</);
   assert.match(html,/Net total/); assert.match(html,/Outstanding balance/);
   client.clear();
+});
+
+test('a referral hold disables student payments and explains why before money is sent', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const input = { ...bill, collectionState: 'standard', enrollmentStatus: 'enrolled', droppingAssessment: null,
+    referralPaymentGuard: { reason: 'referral_pending', cutoff: '2027-10-12', message: 'Your benefit applies when a referred student enrolls. If no referral qualifies by the cutoff, payments resume.' } };
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(MemoryRouter, null, createElement(BillActionPanel, { bill: input }))));
+  client.clear();
+  assert.match(html, /Referral benefit pending/);
+  assert.match(html, /<time dateTime="2027-10-12"[^>]*>Oct 12, 2027<\/time>/);
+  assert.match(html, /If no referral qualifies by the cutoff, payments resume/);
+  assert.doesNotMatch(html, /Philippine time|Do not send a payment/);
+  const pay = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(([button]) => button.includes('Payment on hold'))?.[0];
+  assert.ok(pay);
+  assert.match(pay, /^<button[^>]*disabled=""/);
+});
+
+test('earned referral notices omit the cutoff and missing deadlines have a separate state', () => {
+  const earned = markup(ReferralPaymentNotice, { ...bill, referralPaymentGuard: {
+    reason: 'referral_credit_pending', cutoff: '2027-10-12', message: 'Your referral qualified. Payments stay paused while the benefit is applied to your bill.',
+  } });
+  assert.match(earned, /Applying referral benefit/);
+  assert.match(earned, /Your referral qualified/);
+  assert.doesNotMatch(earned, /Enrollment cutoff|<time/);
+  const missing = markup(ReferralPaymentNotice, { ...bill, referralPaymentGuard: {
+    reason: 'referral_pending', cutoff: null, message: 'Payments are paused while the school sets the referral cutoff. Contact the registrar for an update.',
+  } });
+  assert.match(missing, /Referral cutoff pending/);
+  assert.match(missing, /Contact the registrar/);
+  assert.doesNotMatch(missing, /<time/);
+  assert.equal(markup(ReferralPaymentNotice, { ...bill, referralPaymentGuard: null }), '');
 });

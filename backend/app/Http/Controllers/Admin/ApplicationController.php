@@ -113,11 +113,11 @@ class ApplicationController extends Controller
      */
     public function review(Application $application): ApplicationResource
     {
-        if ($application->status === 'submitted') {
-            $application->update(['status' => 'under_review']);
-        }
+        Application::whereKey($application->id)
+            ->where('status', 'submitted')
+            ->update(['status' => 'under_review']);
 
-        return new ApplicationResource($application->load($this->applicationRelations()));
+        return new ApplicationResource($application->refresh()->load($this->applicationRelations()));
     }
 
     /**
@@ -197,6 +197,9 @@ class ApplicationController extends Controller
         $actor = $request->user();
 
         DB::transaction(function () use ($application, $referrals, $code, $actor, $validated) {
+            $application = Application::whereKey($application->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($application->status, self::DECIDABLE_STATUSES, true), 422,
+                'A referral can only be corrected before the application is accepted or rejected.');
             $application->loadMissing('referral.referralCode');
             $current = $application->referral?->referralCode?->code;
 
@@ -239,6 +242,9 @@ class ApplicationController extends Controller
         );
 
         DB::transaction(function () use ($application, $status, $note, $discountId, $notify, $actor) {
+            $application = Application::whereKey($application->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($application->status, self::DECIDABLE_STATUSES, true), 422,
+                'This application has already been decided and cannot be changed.');
             $application->update([
                 'status' => $status,
                 'decision_note' => $note,
@@ -303,7 +309,7 @@ class ApplicationController extends Controller
             }
         });
 
-        $application->load('user');
+        $application->refresh()->load('user');
         $sendEmail($application, $status);
 
         return new ApplicationResource($application->load($this->applicationRelations()));

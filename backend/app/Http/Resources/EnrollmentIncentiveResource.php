@@ -59,8 +59,10 @@ class EnrollmentIncentiveResource extends JsonResource
 
     private function hasValidVoucher(): bool
     {
-        if ($this->bill !== null && $this->bill->hasActiveVoucher()) {
-            return true;
+        // Once billed, redemption depends on the posted voucher adjustment,
+        // not a voucher that was merely selected during admission.
+        if ($this->bill !== null) {
+            return $this->bill->hasActiveVoucher();
         }
 
         return $this->discount !== null

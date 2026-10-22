@@ -255,3 +255,18 @@ test('schedule prioritizes unpaid obligations, keeps server-calculated remaining
   assert.equal(formatBillDate('invalid'), '—');
   assert.equal(formatBillDate('2026-10-04T16:30:00Z'), 'Oct 5, 2026');
 });
+
+test('staff bills omit the student referral banner while keeping payment restrictions', () => {
+  const guarded = { ...bill, payments: [], referralPaymentGuard: { reason: 'referral_pending', message: 'Your referral benefit is reserved. Do not send a payment while this hold is active.' } };
+  const html = renderBill(guarded);
+  assert.doesNotMatch(html, /Referral benefit reserved|Your referral benefit|Do not send a payment/);
+  assert.doesNotMatch(renderBill(guarded, 'admin'), /Referral benefit reserved|Your referral benefit|Do not send a payment/);
+  const record = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(([button]) => button.includes('Record payment'))?.[0];
+  assert.ok(record);
+  assert.match(record, /^<button[^>]*disabled=""/);
+  assert.doesNotMatch(html, /Use Record payment when the school receives/);
+  assert.deepEqual(paymentDecisions(payment, false, guarded.referralPaymentGuard), ['reject']);
+  assert.deepEqual(paymentDecisions(payment, true, guarded.referralPaymentGuard), []);
+  assert.deepEqual(paymentDecisions(payment, false, null), ['verify', 'reject']);
+  assert.match(paymentDecisionCopy('reject', payment, guarded.referralPaymentGuard).description, /New payments remain on hold/);
+});

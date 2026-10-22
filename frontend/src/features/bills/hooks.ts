@@ -77,6 +77,7 @@ export function useBill(billId: number) {
   return useQuery({
     queryKey: billQueryKey(billId),
     queryFn: () => fetchBill(billId),
+    refetchInterval: query => query.state.data?.referralPaymentGuard ? 30_000 : false,
   });
 }
 
@@ -141,6 +142,7 @@ export function useMyBill() {
   return useQuery({
     queryKey: myBillQueryKey,
     queryFn: fetchMyBill,
+    refetchInterval: query => query.state.data?.referralPaymentGuard ? 30_000 : false,
     // A 404 means "no bill yet" — don't retry.
     retry: false,
   });
@@ -152,6 +154,7 @@ export function useMyBills() {
   return useQuery({
     queryKey: myBillsQueryKey,
     queryFn: fetchMyBills,
+    refetchInterval: query => query.state.data?.some(bill => bill.referralPaymentGuard) ? 30_000 : false,
     retry: false,
   });
 }
