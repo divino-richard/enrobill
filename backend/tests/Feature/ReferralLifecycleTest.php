@@ -632,6 +632,7 @@ class ReferralLifecycleTest extends TestCase
         $startYear = (int) substr($name, 0, 4);
 
         return SchoolYear::create([
+            'fees_published_at' => now(),
             'school_year' => $name,
             'start_date' => "{$startYear}-06-01",
             'end_date' => ($startYear + 1).'-03-31',

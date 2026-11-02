@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SchoolYearFeeResource;
 use App\Models\SchoolYear;
 use App\Models\SchoolYearFee;
+use App\Support\InstallmentAmounts;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -30,6 +32,26 @@ class FeeController extends Controller
         return SchoolYearFeeResource::collection($fees);
     }
 
+    public function preview(Request $request): JsonResponse
+    {
+        $input = $request->validate(['school_year_id' => ['required', 'integer', Rule::exists('school_years', 'id')]]);
+
+        return DB::transaction(function () use ($input) {
+            $year = SchoolYear::whereKey($input['school_year_id'])->sharedLock()->firstOrFail();
+            $fees = $year->fees()->get();
+
+            return response()->json(['data' => collect(SchoolYear::YEAR_LEVELS)->map(function ($level) use ($year, $fees) {
+                $total = round((float) $fees->whereIn('year_level', ['all', $level])->sum('amount'), 2);
+
+                return [
+                    'yearLevel' => $level,
+                    'total' => $total,
+                    ...InstallmentAmounts::calculate($total, (float) $year->downpayment_value, (int) $year->installment_count),
+                ];
+            })]);
+        });
+    }
+
     /**
      * Add a fee item to a school year's schedule.
      */
@@ -37,16 +59,22 @@ class FeeController extends Controller
     {
         $validated = $this->validateFee($request, withSchoolYear: true);
 
-        $fee = SchoolYearFee::create([
-            'school_year_id' => $validated['schoolYearId'],
-            'year_level' => $validated['yearLevel'],
-            'category' => $validated['category'],
-            'dropping_component' => $validated['droppingComponent'] ?? null,
-            'name' => $validated['name'],
-            'type' => $validated['type'],
-            'amount' => $validated['amount'],
-            'sequence' => $validated['sequence'] ?? 0,
-        ]);
+        $fee = DB::transaction(function () use ($validated) {
+            $year = SchoolYear::whereKey($validated['schoolYearId'])->lockForUpdate()->firstOrFail();
+            $year->assertFeesDraft();
+
+            return SchoolYearFee::create([
+                'school_year_id' => $validated['schoolYearId'],
+                'year_level' => $validated['yearLevel'],
+                'category' => $validated['category'],
+                'dropping_component' => $validated['droppingComponent'] ?? null,
+                'name' => $validated['name'],
+                'type' => $validated['type'],
+                'amount' => $validated['amount'],
+                'sequence' => $validated['sequence'] ?? 0,
+            ]);
+
+        });
 
         return new SchoolYearFeeResource($fee);
     }
@@ -58,15 +86,21 @@ class FeeController extends Controller
     {
         $validated = $this->validateFee($request, withSchoolYear: false);
 
-        $fee->update([
-            'year_level' => $validated['yearLevel'],
-            'category' => $validated['category'],
-            'dropping_component' => array_key_exists('droppingComponent', $validated) ? $validated['droppingComponent'] : $fee->dropping_component,
-            'name' => $validated['name'],
-            'type' => $validated['type'],
-            'amount' => $validated['amount'],
-            'sequence' => $validated['sequence'] ?? $fee->sequence,
-        ]);
+        DB::transaction(function () use ($fee, $validated) {
+            $year = SchoolYear::whereKey($fee->school_year_id)->lockForUpdate()->firstOrFail();
+            $year->assertFeesDraft();
+            $fee->refresh();
+            $fee->update([
+                'year_level' => $validated['yearLevel'],
+                'category' => $validated['category'],
+                'dropping_component' => array_key_exists('droppingComponent', $validated) ? $validated['droppingComponent'] : $fee->dropping_component,
+                'name' => $validated['name'],
+                'type' => $validated['type'],
+                'amount' => $validated['amount'],
+                'sequence' => $validated['sequence'] ?? $fee->sequence,
+            ]);
+
+        });
 
         return new SchoolYearFeeResource($fee->fresh());
     }
@@ -76,7 +110,11 @@ class FeeController extends Controller
      */
     public function destroy(SchoolYearFee $fee): Response
     {
-        $fee->delete();
+        DB::transaction(function () use ($fee) {
+            $year = SchoolYear::whereKey($fee->school_year_id)->lockForUpdate()->firstOrFail();
+            $year->assertFeesDraft();
+            $fee->delete();
+        });
 
         return response()->noContent();
     }
@@ -92,28 +130,21 @@ class FeeController extends Controller
             'toSchoolYearId' => ['required', 'integer', Rule::exists('school_years', 'id')],
         ]);
 
-        $target = SchoolYear::findOrFail($validated['toSchoolYearId']);
+        $target = DB::transaction(function () use ($validated) {
+            $target = SchoolYear::whereKey($validated['toSchoolYearId'])->lockForUpdate()->firstOrFail();
+            $target->assertFeesDraft();
+            if ($target->fees()->exists()) {
+                throw ValidationException::withMessages(['toSchoolYearId' => 'That school year already has fees. Clear them first.']);
+            }
+            $source = SchoolYear::whereKey($validated['fromSchoolYearId'])->sharedLock()->firstOrFail();
+            if ($source->fees_published_at === null) {
+                throw ValidationException::withMessages(['fromSchoolYearId' => 'Only published fee schedules can be copied.']);
+            }
+            $target->fees()->createMany($source->fees()->get()->map(fn (SchoolYearFee $fee) => $fee->only([
+                'year_level', 'category', 'dropping_component', 'name', 'type', 'amount', 'sequence',
+            ]))->all());
 
-        if ($target->fees()->exists()) {
-            throw ValidationException::withMessages([
-                'toSchoolYearId' => 'That school year already has fees. Clear them first.',
-            ]);
-        }
-
-        $source = SchoolYear::with('fees')->findOrFail($validated['fromSchoolYearId']);
-
-        DB::transaction(function () use ($source, $target) {
-            $target->fees()->createMany(
-                $source->fees->map(fn (SchoolYearFee $fee) => [
-                    'year_level' => $fee->year_level,
-                    'category' => $fee->category,
-                    'dropping_component' => $fee->dropping_component,
-                    'name' => $fee->name,
-                    'type' => $fee->type,
-                    'amount' => $fee->amount,
-                    'sequence' => $fee->sequence,
-                ])->all(),
-            );
+            return $target;
         });
 
         return SchoolYearFeeResource::collection(

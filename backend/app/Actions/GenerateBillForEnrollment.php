@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\Bill;
 use App\Models\Discount;
 use App\Models\Enrollment;
+use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Services\ReturningEnrollmentRules;
 use App\Services\StudentCreditService;
@@ -55,6 +56,12 @@ class GenerateBillForEnrollment
             ($this->reconcileIncentives)($enrollment);
 
             return $existing->fresh();
+        }
+
+        $schoolYear = SchoolYear::whereKey($schoolYear->id)->lockForUpdate()->firstOrFail();
+        $enrollment->setRelation('schoolYear', $schoolYear);
+        if ($schoolYear->fees_published_at === null) {
+            throw ValidationException::withMessages(['fees' => 'Publish the fee schedule before generating new bills.']);
         }
 
         // Older pending returns may predate the settlement-first rule.

@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Models\Bill;
+use App\Support\InstallmentAmounts;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -26,13 +27,8 @@ class GenerateInstallmentSchedule
 
         $waiveDownpayment = (bool) ($bill->enrollment?->no_downpayment);
 
-        $downpayment = 0.0;
-        if (! $waiveDownpayment && $schoolYear !== null) {
-            $downpayment = round(min((float) $schoolYear->downpayment_value, $net), 2);
-            $downpayment = max($downpayment, 0);
-        }
-
-        $remaining = round($net - $downpayment, 2);
+        $amounts = InstallmentAmounts::calculate($net, $waiveDownpayment ? 0 : (float) ($schoolYear?->downpayment_value ?? 0), $count);
+        $downpayment = $amounts['downpayment'];
         $anchor = $schoolYear?->start_date ? Carbon::parse($schoolYear->start_date) : Carbon::today();
 
         $rows = [];
@@ -47,19 +43,14 @@ class GenerateInstallmentSchedule
             ];
         }
 
-        if ($remaining > 0) {
-            $base = floor($remaining / $count * 100) / 100;
-            $allocated = 0.0;
-            for ($i = 1; $i <= $count; $i++) {
-                $amount = $i === $count ? round($remaining - $allocated, 2) : $base;
-                $allocated = round($allocated + $amount, 2);
-                $rows[] = [
-                    'sequence' => $sequence++,
-                    'label' => 'Installment '.$i,
-                    'amount' => $amount,
-                    'due_date' => $anchor->copy()->addMonths($i)->toDateString(),
-                ];
-            }
+        foreach ($amounts['installments'] as $index => $amount) {
+            $i = $index + 1;
+            $rows[] = [
+                'sequence' => $sequence++,
+                'label' => 'Installment '.$i,
+                'amount' => $amount,
+                'due_date' => $anchor->copy()->addMonths($i)->toDateString(),
+            ];
         }
 
         DB::transaction(function () use ($bill, $rows) {

@@ -22,6 +22,7 @@ class SchoolYearResource extends JsonResource
             'startDate' => $this->start_date?->format('Y-m-d'),
             'endDate' => $this->end_date?->format('Y-m-d'),
             'isActive' => (bool) $this->is_active,
+            'feesPublishedAt' => $this->fees_published_at?->toIso8601String(),
             'admissionOpen' => (bool) $this->admission_open,
             // Effective progression state (schedule + override + active).
             'progressionOpen' => $this->isProgressionOpen(),

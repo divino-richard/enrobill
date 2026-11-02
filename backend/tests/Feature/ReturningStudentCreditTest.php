@@ -34,7 +34,7 @@ class ReturningStudentCreditTest extends TestCase
             'status' => 'dropped', 'first_name' => 'Returning', 'last_name' => 'Student']);
         Program::firstOrCreate(['code' => 'stem'], ['name' => 'STEM', 'category' => 'academic', 'is_active' => true]);
         $oldYear = SchoolYear::create(['school_year' => '2026-2027', 'start_date' => '2026-06-01', 'end_date' => '2027-03-31']);
-        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31',
+        $year = SchoolYear::create(['fees_published_at' => now(), 'school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31',
             'is_active' => true, 'admission_open' => true, 'downpayment_value' => 170, 'installment_count' => 12]);
         $year->fees()->create(['name' => 'Tuition', 'amount' => $fees, 'category' => 'tuition', 'type' => 'default', 'year_level' => 'all']);
         $source = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $oldYear->id,

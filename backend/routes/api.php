@@ -176,6 +176,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/programs', [ProgramController::class, 'index']);
 
     // The school year currently admitting (or null) — gates applications.
+    Route::get('/fee-estimate', [SchoolYearController::class, 'estimate']);
     Route::get('/open-term', [SchoolYearController::class, 'open']);
 
     // Application document uploads — issue a pre-signed S3 URL so the browser
@@ -255,6 +256,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/transfer-requests/{transferRequest}/decide', [AdminProgramTransferRequestController::class, 'decide']);
 
         // School years — managing periods (read endpoint is shared below).
+        Route::post('/admin/school-years/{schoolYear}/fees/publish', [\App\Http\Controllers\Admin\FeePublicationController::class, 'publish']);
+        Route::post('/admin/school-years/{schoolYear}/fees/draft', [\App\Http\Controllers\Admin\FeePublicationController::class, 'draft']);
         Route::post('/admin/school-years', [AdminSchoolYearController::class, 'store']);
         Route::put('/admin/school-years/{schoolYear}', [AdminSchoolYearController::class, 'update']);
         Route::put('/admin/school-years/{schoolYear}/installment-policy', [AdminSchoolYearController::class, 'updatePolicy']);
@@ -295,6 +298,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Global per-school-year fee schedule (by year level).
         Route::get('/admin/fees', [AdminFeeController::class, 'index']);
+        Route::get('/admin/fees/preview', [AdminFeeController::class, 'preview']);
         Route::post('/admin/fees', [AdminFeeController::class, 'store']);
         Route::post('/admin/fees/copy', [AdminFeeController::class, 'copy']);
         Route::put('/admin/fees/{fee}', [AdminFeeController::class, 'update']);

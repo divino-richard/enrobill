@@ -11,17 +11,28 @@ import {
 
 // A consistent "⋯" trigger for per-row table actions. Pass DropdownMenuItem /
 // DropdownMenuSeparator children.
-export function RowActions({ children }: { children: ReactNode }) {
+export function RowActions({
+  children,
+  label = "Open row actions",
+  disabled = false,
+  className = "",
+}: {
+  children: ReactNode;
+  label?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          className="text-muted-foreground size-8"
+          className={`text-muted-foreground size-8 ${className}`}
+          disabled={disabled}
+          aria-label={label}
         >
           <MoreHorizontalIcon className="size-4" />
-          <span className="sr-only">Open row actions</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44 w-fit">

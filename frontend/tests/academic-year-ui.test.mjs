@@ -236,3 +236,11 @@ test('referral cutoff validation rejects dates outside the year and accepts both
     }
   }
 });
+
+test('draft fees block opening admissions and link to the matching fee schedule', () => {
+  const panel = selectedPanel(renderPage('/admin/terms/7', [{ ...term, admissionOpen: false, feesPublishedAt: null }]));
+  const button = panel.match(/<button[^>]*>Open admissions<\/button>/)?.[0];
+  assert.match(button ?? '', /disabled=""/);
+  assert.match(panel, /href="\/admin\/fees\?school_year_id=7"/);
+  assert.match(panel, /Publish the fee schedule before opening admissions/);
+});

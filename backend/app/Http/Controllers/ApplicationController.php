@@ -95,6 +95,7 @@ class ApplicationController extends Controller
         }
 
         $application = DB::transaction(function () use ($user, $request, $schoolYear, $referrals) {
+            $schoolYear = $this->openSchoolYearOrFail($schoolYear->id);
             $application = $user->applications()->create([
                 // Temporary unique value; replaced with the readable reference
                 // once the auto-incremented id exists.
@@ -170,6 +171,7 @@ class ApplicationController extends Controller
         $this->validateApplication($request);
 
         DB::transaction(function () use ($application, $request, $schoolYear, $referrals) {
+            $schoolYear = $this->openSchoolYearOrFail($schoolYear->id);
             $application = Application::whereKey($application->id)->lockForUpdate()->firstOrFail();
             abort_unless(
                 in_array($application->status, ['draft', 'returned', 'rejected'], true),
@@ -233,9 +235,11 @@ class ApplicationController extends Controller
      * The school year currently accepting applications, or a validation error if
      * admissions are closed.
      */
-    private function openSchoolYearOrFail(): SchoolYear
+    private function openSchoolYearOrFail(?int $lockedYearId = null): SchoolYear
     {
-        $schoolYear = SchoolYear::admitting();
+        $schoolYear = $lockedYearId === null ? SchoolYear::admitting()
+            : SchoolYear::whereKey($lockedYearId)->where('is_active', true)->where('admission_open', true)
+                ->whereNotNull('fees_published_at')->sharedLock()->first();
 
         if ($schoolYear === null) {
             throw ValidationException::withMessages([

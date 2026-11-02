@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  fetchFeeEstimate,
+  fetchFeePaymentPreview,
+  setFeePublication,
   copyFees,
   createFee,
   deleteFee,
@@ -55,5 +58,44 @@ export function useCopyFees() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: feesQueryKey });
     },
+  });
+}
+
+export function useFeeEstimate(schoolYear: string, yearLevel: string) {
+  return useQuery({
+    queryKey: ['fee-estimate', schoolYear, yearLevel],
+    queryFn: () => fetchFeeEstimate(schoolYear, yearLevel),
+    enabled: Boolean(schoolYear && yearLevel),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
+    refetchInterval: 60_000,
+    retry: false,
+  });
+}
+
+export function useFeePublication() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'publish' | 'draft' }) => setFeePublication(id, action),
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['admin', 'terms'] }),
+        client.invalidateQueries({ queryKey: ['open-term'] }),
+        client.invalidateQueries({ queryKey: ['fee-estimate'] }),
+        client.invalidateQueries({ queryKey: feesQueryKey }),
+      ]);
+    },
+  });
+}
+
+export function useFeePaymentPreview(schoolYearId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: [...feesQueryKey, 'payment-preview', schoolYearId],
+    queryFn: () => fetchFeePaymentPreview(schoolYearId),
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
   });
 }

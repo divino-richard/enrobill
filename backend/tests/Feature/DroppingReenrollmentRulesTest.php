@@ -36,7 +36,7 @@ class DroppingReenrollmentRulesTest extends TestCase
         $cashier = User::factory()->create(['role' => Role::Cashier]);
         $student = Student::create(['user_id' => $user->id, 'student_number' => 'DEF-'.$user->id, 'first_name' => 'Deferred', 'last_name' => 'Student', 'status' => 'dropped', 'track_or_strand' => 'stem', 'year_level' => 'grade_11']);
         $oldYear = SchoolYear::create(['school_year' => '2026-2027', 'start_date' => '2026-06-01', 'end_date' => '2027-03-31']);
-        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'downpayment_value' => 200, 'installment_count' => 4]);
+        $year = SchoolYear::create(['fees_published_at' => now(), 'school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'is_active' => true, 'downpayment_value' => 200, 'installment_count' => 4]);
         $old = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $oldYear->id, 'status' => 'dropped', 'track' => 'stem', 'year_level' => 'grade_11']);
         $drop = DroppingRequest::create(['student_id' => $student->id, 'enrollment_id' => $old->id, 'status' => 'confirmed', 'effective_date' => $date, 'confirmed_at' => now(), 'snapshot' => [], 'submissions' => [], 'events' => []]);
         $bill = Bill::create(['student_id' => $student->id, 'school_year_id' => $oldYear->id, 'enrollment_id' => $old->id, 'total' => 100, 'amount_paid' => 0, 'status' => 'unpaid']);
@@ -207,7 +207,7 @@ class DroppingReenrollmentRulesTest extends TestCase
         $this->actingAs($cashier)->postJson("/api/admin/bills/{$return->bill->id}/payments", ['amount' => 900, 'method' => 'cash', 'paidAt' => '2027-10-07'])->assertSuccessful();
         $this->travelTo(Carbon::parse('2029-06-01', 'Asia/Manila'));
         $this->assertSame('enrolled', $return->fresh()->status);
-        $laterYear = SchoolYear::create(['school_year' => '2029-2030', 'start_date' => '2029-06-01', 'end_date' => '2030-03-31']);
+        $laterYear = SchoolYear::create(['fees_published_at' => now(), 'school_year' => '2029-2030', 'start_date' => '2029-06-01', 'end_date' => '2030-03-31']);
         $later = Enrollment::create(['student_id' => $student->id, 'school_year_id' => $laterYear->id, 'status' => 'pending', 'track' => 'stem', 'year_level' => 'grade_12']);
         Bill::create(['student_id' => $student->id, 'school_year_id' => $laterYear->id, 'enrollment_id' => $later->id, 'total' => 0, 'amount_paid' => 0, 'status' => 'paid']);
         $this->assertTrue($later->canActivate());

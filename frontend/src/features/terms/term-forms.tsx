@@ -35,6 +35,7 @@ const policyComplete = (policy: PolicyState) =>
   policy.value !== "" && policy.count !== "" &&
   Number.isFinite(Number(policy.value)) && Number(policy.value) >= 0 &&
   Number(policy.value) <= 99999999.99 &&
+  Math.abs(Number(policy.value) * 100 - Math.round(Number(policy.value) * 100)) < 0.000001 &&
   Number.isInteger(Number(policy.count)) && Number(policy.count) >= 1 && Number(policy.count) <= 24;
 
 function SchedulePreview({
@@ -82,6 +83,15 @@ function PolicyFields({
 }) {
   const count = Number(policy.count);
   const fieldId = useId();
+  const [touched, setTouched] = useState({ value: false, count: false });
+  const amount = Number(policy.value);
+  const valueError = !policy.value.trim() ? 'Enter a downpayment. Use 0 if none is required.'
+    : !Number.isFinite(amount) || amount < 0 || amount > 99999999.99 ? 'Enter an amount from ₱0 to ₱99,999,999.99.'
+    : Math.abs(amount * 100 - Math.round(amount * 100)) >= 0.000001 ? 'Use no more than two decimal places.' : '';
+  const countError = !policy.count.trim() ? 'Enter the number of monthly installments.'
+    : !Number.isInteger(count) || count < 1 || count > 24 ? 'Enter a whole number from 1 to 24.' : '';
+  const showValueError = Boolean(valueError && (touched.value || policy.value !== ''));
+  const showCountError = Boolean(countError && (touched.count || policy.count !== ''));
 
   return (
     <div className="space-y-4 sm:col-span-2">
@@ -91,9 +101,14 @@ function PolicyFields({
       </details>}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <FieldLabel htmlFor={`${fieldId}-amount`}>Downpayment (₱)</FieldLabel>
+          <FieldLabel required htmlFor={`${fieldId}-amount`}>Downpayment (₱)</FieldLabel>
           <Input
             id={`${fieldId}-amount`}
+            required
+            inputMode="decimal"
+            aria-invalid={showValueError}
+            aria-describedby={`${fieldId}-amount-help${showValueError ? ` ${fieldId}-amount-error` : ''}`}
+            onBlur={() => setTouched(previous => ({ ...previous, value: true }))}
             type="number"
             min={0}
             max={99999999.99}
@@ -101,19 +116,29 @@ function PolicyFields({
             value={policy.value}
             onChange={(e) => onChange({ value: e.target.value })}
           />
+          <p id={`${fieldId}-amount-help`} className="text-xs text-muted-foreground">₱0–₱99,999,999.99, up to two decimal places.</p>
+          {showValueError && <p id={`${fieldId}-amount-error`} role="alert" className="text-sm text-destructive">{valueError}</p>}
         </div>
         <div className="space-y-1.5">
-          <FieldLabel htmlFor={`${fieldId}-count`} hint="Splits the balance after the downpayment into this many equal monthly dues. More installments means a smaller amount per month.">
+          <FieldLabel required htmlFor={`${fieldId}-count`} hint="Splits the balance after the downpayment into this many equal monthly dues. More installments means a smaller amount per month.">
             Monthly installments
           </FieldLabel>
           <Input
             id={`${fieldId}-count`}
+            required
+            inputMode="numeric"
+            step={1}
+            aria-invalid={showCountError}
+            aria-describedby={`${fieldId}-count-help${showCountError ? ` ${fieldId}-count-error` : ''}`}
+            onBlur={() => setTouched(previous => ({ ...previous, count: true }))}
             type="number"
             min={1}
             max={24}
             value={policy.count}
             onChange={(e) => onChange({ count: e.target.value })}
           />
+          <p id={`${fieldId}-count-help`} className="text-xs text-muted-foreground">Choose 1–24 monthly installments after the downpayment.</p>
+          {showCountError && <p id={`${fieldId}-count-error`} role="alert" className="text-sm text-destructive">{countError}</p>}
         </div>
       </div>
       {startDate && endDate && Number.isInteger(count) && count >= 1 && count <= 24 && (
@@ -158,7 +183,7 @@ export function InstallmentPolicyDialog({ term }: { term: Term }) {
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">Edit policy</Button>
+        <Button  variant="outline" disabled={!!term.feesPublishedAt}>Edit policy</Button>
       </DialogTrigger>
       <DialogContent className="w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto" showCloseButton={!save.isPending}>
         <DialogHeader className="pr-6 text-left">
@@ -258,7 +283,7 @@ export function EarlyEnrollmentDialog({
           <DialogDescription>SY {term.schoolYear}</DialogDescription>
         </DialogHeader>
         <DialogClose asChild>
-          <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-2 size-11" aria-label="Close early-enrollment freebie" disabled={save.isPending}>
+          <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-2" aria-label="Close early-enrollment freebie" disabled={save.isPending}>
             <XIcon aria-hidden="true" />
           </Button>
         </DialogClose>
@@ -311,10 +336,10 @@ export function EarlyEnrollmentDialog({
           )}
 
           <DialogFooter className="flex-row flex-wrap justify-end border-t pt-4">
-            <Button type="button" variant="outline" className="min-h-11" onClick={() => changeOpen(false)} disabled={save.isPending}>
+            <Button type="button" variant="outline"  onClick={() => changeOpen(false)} disabled={save.isPending}>
               Cancel
             </Button>
-            <Button type="submit" className="min-h-11" disabled={!hasChanges || save.isPending}>
+            <Button type="submit"  disabled={!hasChanges || save.isPending}>
               {save.isPending ? "Saving…" : "Save freebie"}
             </Button>
           </DialogFooter>
@@ -382,7 +407,7 @@ export function ReferralIncentiveDialog({
           <DialogDescription>SY {term.schoolYear}</DialogDescription>
         </DialogHeader>
         <DialogClose asChild>
-          <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-2 size-11" aria-label="Close referral incentive" disabled={save.isPending}>
+          <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-2" aria-label="Close referral incentive" disabled={save.isPending}>
             <XIcon aria-hidden="true" />
           </Button>
         </DialogClose>
@@ -480,10 +505,10 @@ export function ReferralIncentiveEditor({
       </div>
       {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
       <DialogFooter className="flex-row flex-wrap justify-end border-t pt-4">
-        <Button type="button" variant="outline" className="min-h-11" onClick={onCancel} disabled={saving}>
+        <Button type="button" variant="outline"  onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" className="min-h-11" disabled={!canSave}>
+        <Button type="submit"  disabled={!canSave}>
           {saving ? "Saving…" : "Save changes"}
         </Button>
       </DialogFooter>
@@ -517,9 +542,11 @@ const toISO = (date: Date) => format(date, "yyyy-MM-dd");
 export function NewTermDialog({
   open,
   onOpenChange,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: (term: Term) => void;
 }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -551,13 +578,14 @@ export function NewTermDialog({
   async function handleCreate() {
     if (!canCreate) return;
     try {
-      await create.mutateAsync({
+      const term = await create.mutateAsync({
         startDate,
         endDate,
         ...policyToInput(policy),
       });
       reset();
       onOpenChange(false);
+      onCreated?.(term);
     } catch {
       // Surfaced below via create.isError.
     }
@@ -576,8 +604,7 @@ export function NewTermDialog({
         <DialogHeader>
           <DialogTitle>New school year</DialogTitle>
           <DialogDescription>
-            Set the dates the year runs and its installment policy. Activate it to
-            start enrollment.
+            Set the dates and installment policy. Draft fees are copied from the latest earlier published year, or the default template. Review and publish them before opening admissions.
           </DialogDescription>
         </DialogHeader>
 
@@ -620,6 +647,8 @@ export function NewTermDialog({
             />
           </div>
 
+          <p className="text-sm text-muted-foreground sm:col-span-2">The academic year must run for 3–12 months.{bounds && ` Choose an end date between ${format(bounds.min, 'd MMM yyyy')} and ${format(bounds.max, 'd MMM yyyy')}.`}</p>
+          {startDate && endDate && !endValid && <p role="alert" className="text-sm text-destructive sm:col-span-2">Choose an end date within the allowed range.</p>}
           <div className="bg-muted/40 rounded-lg border px-3 py-2.5 sm:col-span-2">
             <p className="text-muted-foreground text-xs">School Year</p>
             <p className="font-medium">

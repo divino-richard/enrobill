@@ -1,37 +1,30 @@
-import { DashboardMetricStrip } from "@/components/dashboard/dashboard-primitives";
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { FeePublication } from '@/features/fees/fee-publication';
 import { PageHeader } from "@/components/page-header";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import {
-  CoinsIcon,
-  GraduationCapIcon,
-  LibraryIcon,
   PencilIcon,
   PlusIcon,
   Trash2Icon,
-  type LucideIcon,
+  CheckIcon,
+  SlidersHorizontalIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { FeeDialog } from '@/features/fees/fee-dialog';
+import { RowActions } from '@/components/row-actions';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
+  TableFooter,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,254 +42,70 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FieldLabel } from "@/components/form/field-label";
 import { formatPeso } from "@/lib/money";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { useAuthStore } from '@/features/auth/store';
+import { NewTermDialog } from '@/features/terms/term-forms';
+import type { Term } from '@/features/terms/types';
 import { useTerms } from "@/features/terms/hooks";
 import {
-  useCreateFee,
   useDeleteFee,
   useFees,
-  useUpdateFee,
 } from "@/features/fees/hooks";
 import {
   FEE_CATEGORY_OPTIONS,
-  FEE_TYPE_OPTIONS,
-  FEE_YEAR_LEVEL_OPTIONS,
   feeYearLevelLabel,
-  type FeeCategory,
-  type FeeInput,
-  type FeeType,
   type FeeYearLevel,
   type SchoolYearFee,
 } from "@/features/fees/types";
 
-interface FeeFormState {
-  yearLevel: FeeYearLevel;
-  category: FeeCategory;
-  name: string;
-  type: FeeType;
-  amount: string;
-}
-
-const EMPTY_FEE: FeeFormState = {
-  yearLevel: "all",
-  category: "other",
-  name: "",
-  type: "default",
-  amount: "",
-};
-
-// Per-category presentation (icon + colour chip) for the breakdown cards.
-const CATEGORY_META: Record<string, { icon: LucideIcon }> = {
-  tuition: { icon: GraduationCapIcon },
-  miscellaneous: { icon: LibraryIcon },
-  other: { icon: CoinsIcon },
-};
-
-function FeeDialog({
-  open,
-  schoolYearId,
-  editing,
-  onOpenChange,
-}: {
-  open: boolean;
-  schoolYearId: number | null;
-  editing: SchoolYearFee | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const create = useCreateFee();
-  const update = useUpdateFee(editing?.id ?? 0);
-  const mutation = editing ? update : create;
-
-  const [form, setForm] = useState<FeeFormState>(
-    editing
-      ? {
-          yearLevel: editing.yearLevel,
-          category: editing.category,
-          name: editing.name,
-          type: editing.type,
-          amount: String(editing.amount),
-        }
-      : EMPTY_FEE,
-  );
-
-  const valid = form.name.trim() !== "" && form.amount !== "";
-
-  async function handleSave() {
-    if (!valid) return;
-    const payload: FeeInput = {
-      yearLevel: form.yearLevel,
-      category: form.category,
-      name: form.name.trim(),
-      type: form.type,
-      amount: Number(form.amount),
-      ...(editing ? {} : { schoolYearId: schoolYearId ?? undefined }),
-    };
-    try {
-      await mutation.mutateAsync(payload);
-      onOpenChange(false);
-    } catch {
-      // Surfaced via mutation.isError.
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{editing ? "Edit fee" : "Add fee"}</DialogTitle>
-          <DialogDescription>
-            Fees apply by year level. Use “All levels” for fees everyone pays, or
-            target a level (e.g. a Grade 12 add-on).
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <FieldLabel required>Category</FieldLabel>
-            <Select
-              value={form.category}
-              onValueChange={(v) =>
-                setForm((prev) => ({ ...prev, category: v as FeeCategory }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FEE_CATEGORY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <FieldLabel required>Year level</FieldLabel>
-            <Select
-              value={form.yearLevel}
-              onValueChange={(v) =>
-                setForm((prev) => ({ ...prev, yearLevel: v as FeeYearLevel }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FEE_YEAR_LEVEL_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <FieldLabel required>Type</FieldLabel>
-            <Select
-              value={form.type}
-              onValueChange={(v) =>
-                setForm((prev) => ({ ...prev, type: v as FeeType }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FEE_TYPE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5 sm:col-span-2">
-            <FieldLabel required>Fee name</FieldLabel>
-            <Input
-              value={form.name}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, name: e.target.value }))
-              }
-              placeholder="Tuition"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <FieldLabel required>Amount (₱)</FieldLabel>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={form.amount}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, amount: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-
-        {mutation.isError && (
-          <p className="text-destructive text-sm">
-            {getErrorMessage(mutation.error)}
-          </p>
-        )}
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={mutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={!valid || mutation.isPending}>
-            {mutation.isPending ? "Saving…" : editing ? "Save" : "Add fee"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function FeesPage() {
-  const { data: terms } = useTerms();
-  const schoolYears = terms ?? [];
-  const activeYear = schoolYears.find((sy) => sy.isActive);
+  const years = useTerms();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const isAdmin = useAuthStore(state => state.user?.role === 'admin');
+  const [creating, setCreating] = useState(false);
+  const schoolYears = years.data ?? [];
+  const selectedId = params.get('school_year_id');
+  const effectiveId = selectedId !== null ? Number(selectedId) : (schoolYears.find(year => year.isActive)?.id ?? schoolYears[0]?.id);
+  const selectedYear = schoolYears.find(year => year.id === effectiveId);
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const effectiveId = selectedId ?? activeYear?.id ?? null;
+  return <div className="mx-auto max-w-5xl space-y-5 [--muted-foreground:#626c7d] dark:[--muted-foreground:#aeb4c3]">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <PageHeader title="Fees" description="Manage tuition and charges for the academic year." />
+      {!years.isPending && !years.isError && schoolYears.length > 0 && <Select value={selectedYear ? String(selectedYear.id) : ''} onValueChange={value => setParams({ school_year_id: value })}>
+        <SelectTrigger className="min-w-44 bg-card" aria-label="School year"><SelectValue placeholder="Select year" /></SelectTrigger>
+        <SelectContent>{schoolYears.map(year => <SelectItem key={year.id} value={String(year.id)}>SY {year.schoolYear}{year.isActive ? ' · Active' : ''}</SelectItem>)}</SelectContent>
+      </Select>}
+    </div>
+    {years.isPending ? <div role="status" className="space-y-4"><span className="sr-only">Loading academic years…</span><Skeleton className="h-24 w-full" /><Skeleton className="h-72 w-full" /></div>
+      : years.isError ? <section role="alert" className="space-y-3 rounded-xl border bg-card p-5"><h2 className="font-semibold">Unable to load academic years</h2><p className="text-sm text-muted-foreground">Try again to select a year and review its fees.</p><Button variant="outline" disabled={years.isFetching} onClick={() => void years.refetch()}>Try again</Button></section>
+      : schoolYears.length === 0 ? <section className="space-y-3 rounded-xl border border-dashed p-6"><h2 className="font-semibold">No academic years yet</h2><p className="text-sm text-muted-foreground">{isAdmin ? 'Create an academic year to start reviewing its draft fees.' : 'Ask an administrator to create an academic year before setting up fees.'}</p>{isAdmin && <Button onClick={() => setCreating(true)}>Create academic year</Button>}</section>
+      : !selectedYear ? <section role="alert" className="space-y-3 rounded-xl border bg-card p-5"><h2 className="font-semibold">Academic year not found</h2><p className="text-sm text-muted-foreground">This link may be out of date. Select an available year above.</p><Button variant="outline" onClick={() => setParams({})}>Use current or latest year</Button></section>
+      : <FeeSchedule key={selectedYear.id} term={selectedYear} />}
+    {isAdmin && <NewTermDialog open={creating} onOpenChange={setCreating} onCreated={term => navigate(`/admin/fees?school_year_id=${term.id}`)} />}
+  </div>;
+}
 
-  const { data, isLoading, isError, refetch } = useFees(
-    effectiveId ?? undefined,
-  );
+function FeeSchedule({ term }: { term: Term }) {
+  const canEdit = !term.feesPublishedAt;
+  const effectiveId = term.id;
+  const { data, isLoading, isError, isFetching, refetch } = useFees(term.id);
   const fees = data ?? [];
-
+  const [view, setView] = useState<Exclude<FeeYearLevel, 'all'>>('grade_11');
+  const isAdmin = useAuthStore(state => state.user?.role === 'admin');
+  const annualTotal = (level: string) => fees.filter(fee => fee.yearLevel === 'all' || fee.yearLevel === level).reduce((total, fee) => total + fee.amount, 0);
+  const [notice, setNotice] = useState('');
+  const addTrigger = useRef<HTMLButtonElement>(null);
+  const editTrigger = useRef<HTMLButtonElement | null>(null);
   const remove = useDeleteFee();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SchoolYearFee | null>(null);
   const [deleting, setDeleting] = useState<SchoolYearFee | null>(null);
 
-  const totals = useMemo(() => {
-    const rows = data ?? [];
-    const grade11 = rows
-      .filter((f) => f.yearLevel === "all" || f.yearLevel === "grade_11")
-      .reduce((sum, f) => sum + f.amount, 0);
-    const grade12 = rows
-      .filter((f) => f.yearLevel === "all" || f.yearLevel === "grade_12")
-      .reduce((sum, f) => sum + f.amount, 0);
-    return { grade11, grade12 };
-  }, [data]);
-
-  // Fees grouped by category (in schedule order) with a subtotal each, mirroring
-  // the official Schedule of Fees breakdown.
+  // Keep the official category and sequence order while filtering the editor.
   const groups = useMemo(() => {
-    const rows = data ?? [];
+    const rows = (data ?? []).filter(fee => fee.yearLevel === 'all' || fee.yearLevel === view);
     return FEE_CATEGORY_OPTIONS.map((cat) => {
       const items = rows
         .filter((f) => f.category === cat.value)
@@ -304,18 +113,27 @@ function FeesPage() {
       return {
         ...cat,
         items,
-        subtotal: items.reduce((sum, f) => sum + f.amount, 0),
+        subtotal: items.reduce((total, fee) => total + fee.amount, 0),
       };
     }).filter((group) => group.items.length > 0);
-  }, [data]);
+  }, [data, view]);
+
+  function restoreFocus() {
+    const target = editTrigger.current;
+    if (target?.isConnected) target.focus();
+    else addTrigger.current?.focus();
+  }
 
   function openAdd() {
+    editTrigger.current = addTrigger.current;
     setEditing(null);
+    setNotice('');
     setDialogOpen(true);
   }
 
   function openEdit(fee: SchoolYearFee) {
     setEditing(fee);
+    setNotice('');
     setDialogOpen(true);
   }
 
@@ -323,194 +141,95 @@ function FeesPage() {
     if (!deleting) return;
     try {
       await remove.mutateAsync(deleting.id);
-    } catch {
-      // no-op
-    } finally {
+      setNotice(`“${deleting.name}” removed from the fee schedule.`);
       setDeleting(null);
+    } catch {
+      // Keep the dialog and error visible for recovery.
     }
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <PageHeader title="Fees" />
+      <p role="status" aria-atomic="true" className={notice ? 'text-sm text-muted-foreground' : 'sr-only'}>{notice}</p>
+      <section aria-label="Fee schedule" className="min-w-0 overflow-hidden rounded-xl border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-semibold">Fee schedule</h2>
+            <Badge variant="outline" className={canEdit ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200' : ''}>{canEdit ? 'Draft' : 'Published'}</Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <FeePublication term={term} fees={isLoading || isError ? undefined : data} />
+            {canEdit && <Button ref={addTrigger}  onClick={openAdd} disabled={isLoading || isError}><PlusIcon aria-hidden="true" />Add fee</Button>}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={effectiveId ? String(effectiveId) : ""}
-            onValueChange={(v) => setSelectedId(Number(v))}
-          >
-            <SelectTrigger className="h-9 min-w-44 bg-card" aria-label="School year">
-              <SelectValue placeholder="Select year" />
-            </SelectTrigger>
-            <SelectContent>
-              {schoolYears.map((sy) => (
-                <SelectItem key={sy.id} value={String(sy.id)}>
-                  SY {sy.schoolYear}
-                  {sy.isActive ? " · Active" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={openAdd} disabled={effectiveId === null}>
-            <PlusIcon />
-            Add fee
-          </Button>
-        </div>
-      </div>
-
-      {effectiveId !== null && !isLoading && !isError && <DashboardMetricStrip metrics={[
-        {label: "Grade 11 fees", value: formatPeso(totals.grade11), detail: "Full schedule per student", tone: "primary"},
-        {label: "Grade 12 fees", value: formatPeso(totals.grade12), detail: "Full schedule per student", tone: "primary"},
-        {label: "Fee items", value: fees.length, detail: "In the selected school year", tone: "primary"},
-        {label: "Categories", value: groups.length, detail: "Tuition and additional fees", tone: "primary"},
-      ]} />}
-      {effectiveId === null ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <p className="font-medium">No school year selected</p>
-          <p className="text-muted-foreground text-sm">
-            Create and activate a school year first.
-          </p>
-        </div>
-      ) : isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-full rounded-xl" />
-          <Skeleton className="h-72 w-full rounded-xl" />
-        </div>
-      ) : isError ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <p className="text-muted-foreground text-sm">
-            We couldn't load fees. Please try again.
-          </p>
-          <Button variant="outline" onClick={() => refetch()}>
-            Try again
-          </Button>
-        </div>
-      ) : fees.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <p className="font-medium">No fees yet</p>
-          <p className="text-muted-foreground text-sm">
-            Add the fees for this school year so bills can be generated.
-          </p>
-        </div>
-      ) : (
-        <Card className="overflow-hidden gap-0 py-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="px-4">Fee</TableHead>
-                <TableHead>Coverage</TableHead>
-                <TableHead className="px-4 text-right">Amount</TableHead>
-                <TableHead className="w-0" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.map((group) => {
-                const meta = CATEGORY_META[group.value] ?? CATEGORY_META.other;
-                const Icon = meta.icon;
-                return (
-                  <Fragment key={group.value}>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableCell colSpan={2} className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Icon className="text-muted-foreground size-4" />
-                          <span className="font-semibold">{group.label}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {group.items.length}{" "}
-                            {group.items.length === 1 ? "item" : "items"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 text-right font-semibold tabular-nums">
-                        {formatPeso(group.subtotal)}
-                      </TableCell>
+        <Tabs value={view} onValueChange={value => setView(value as Exclude<FeeYearLevel, 'all'>)} className="gap-0">
+          <TabsList aria-label="Fee schedule by grade" className="grid h-auto w-full grid-cols-2 gap-0 rounded-none border-y bg-muted/30 p-0">
+            {(['grade_11', 'grade_12'] as const).map(level => <TabsTrigger key={level} value={level} className="relative h-auto min-w-0 flex-col items-start gap-1 rounded-none border-0 border-b-2 border-transparent px-4 py-4 text-left whitespace-normal shadow-none transition-colors hover:bg-muted/60 data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:shadow-none sm:px-6">
+              <span className="flex w-full items-center justify-between gap-2"><span className="font-semibold">{feeYearLevelLabel(level)}</span>{view === level && <CheckIcon className="size-4" aria-hidden="true" />}</span>
+              <span className="text-xl font-semibold tabular-nums sm:text-2xl">{isLoading || isError ? '—' : formatPeso(annualTotal(level))}</span>
+              <span className="text-xs font-normal text-muted-foreground">per student / year</span>
+            </TabsTrigger>)}
+          </TabsList>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-4 py-2 text-xs text-muted-foreground sm:px-6">
+            <p>{formatPeso(term.downpaymentValue)} downpayment · {term.installmentCount} monthly installments</p>
+            {isAdmin && <Link to={`/admin/terms/${term.id}`} className="inline-flex min-h-11 items-center gap-1.5 rounded-sm text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"><SlidersHorizontalIcon className="size-3.5" aria-hidden="true" />Payment settings</Link>}
+          </div>
+          <TabsContent value={view} className="m-0">
+              {isLoading ? <div role="status" className="space-y-3 p-5"><span className="sr-only">Loading fees…</span><Skeleton className="h-12 w-full" /><Skeleton className="h-72 w-full" /></div>
+                : isError ? <div role="alert" className="space-y-3 px-5 py-12 text-center"><p className="text-sm text-muted-foreground">We couldn’t load fees. Please try again.</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Try again</Button></div>
+                : groups.length === 0 ? <div className="space-y-2 px-5 py-12 text-center">
+                  <p className="font-medium">{fees.length === 0 ? 'No fees yet' : 'No fees for this grade'}</p>
+                  <p className="text-sm text-muted-foreground">{canEdit ? 'Add tuition and other charges to start this schedule.' : 'This published schedule has no charges for this view.'}</p>
+                </div> : <Table className="table-fixed" aria-label={`${feeYearLevelLabel(view)} annual fee schedule`}>
+                  <TableHeader><TableRow className="hover:bg-transparent">
+                    <TableHead className="px-4 sm:px-6">Fee</TableHead>
+                    <TableHead className="hidden w-36 sm:table-cell">Applies to</TableHead>
+                    <TableHead className="w-28 px-2 text-right sm:w-32">Amount</TableHead>
+                    <TableHead className="w-14 px-1 sm:w-16"><span className="sr-only">Actions</span></TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>{groups.map(group => <Fragment key={group.value}>
+                    <TableRow className="border-b-0 bg-muted/40 hover:bg-muted/40">
+                      <TableCell className="whitespace-normal px-4 py-2.5 text-xs font-semibold sm:px-6">{group.label}</TableCell>
+                      <TableCell className="hidden sm:table-cell" />
+                      <TableCell className="px-2 text-right text-xs font-semibold tabular-nums">{formatPeso(group.subtotal)}</TableCell>
                       <TableCell />
                     </TableRow>
-                    {group.items.map((fee) => (
-                      <TableRow key={fee.id} className="group">
-                        <TableCell className="px-4 font-medium">
-                          {fee.name}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          <span className="flex items-center gap-1.5">
-                            {fee.yearLevel === "all"
-                              ? "All levels"
-                              : feeYearLevelLabel(fee.yearLevel)}
-                            {fee.type === "add_on" && (
-                              <Badge variant="outline" className="font-normal">
-                                Add-on
-                              </Badge>
-                            )}
-                          </span>
-                        </TableCell>
-                        <TableCell className="px-4 text-right font-medium tabular-nums">
-                          {formatPeso(fee.amount)}
-                        </TableCell>
-                        <TableCell className="px-4">
-                          <div className="flex items-center justify-end gap-0.5">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7"
-                              onClick={() => openEdit(fee)}
-                              aria-label={`Edit ${fee.name}`}
-                            >
-                              <PencilIcon className="size-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-muted-foreground hover:text-destructive size-7"
-                              onClick={() => setDeleting(fee)}
-                              aria-label={`Delete ${fee.name}`}
-                            >
-                              <Trash2Icon className="size-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </Fragment>
-                );
-              })}
-            </TableBody>
-            <TableFooter className="border-t-2 bg-transparent">
-              <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={2}
-                  className="text-muted-foreground px-4 py-3 text-xs font-medium tracking-wide uppercase"
-                >
-                  Grade 11 / student
-                </TableCell>
-                <TableCell className="px-4 py-3 text-right text-base font-semibold tabular-nums">
-                  {formatPeso(totals.grade11)}
-                </TableCell>
-                <TableCell />
-              </TableRow>
-              <TableRow className="border-t-0 hover:bg-transparent">
-                <TableCell
-                  colSpan={2}
-                  className="text-muted-foreground px-4 py-3 text-xs font-medium tracking-wide uppercase"
-                >
-                  Grade 12 / student
-                </TableCell>
-                <TableCell className="px-4 py-3 text-right text-base font-semibold tabular-nums">
-                  {formatPeso(totals.grade12)}
-                </TableCell>
-                <TableCell />
-              </TableRow>
-            </TableFooter>
-          </Table>
-        </Card>
-      )}
+                    {group.items.map(fee => <TableRow key={fee.id} className="group">
+                      <TableCell className="whitespace-normal px-4 py-1 font-normal sm:px-6">
+                        {canEdit ? <button type="button" className="inline-flex min-h-11 items-center rounded-sm text-left hover:text-primary hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring" aria-label={`Edit ${fee.name}`} onClick={event => { editTrigger.current = event.currentTarget; openEdit(fee); }}><span>{fee.name}<span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">{feeYearLevelLabel(fee.yearLevel)}{fee.type === 'add_on' ? ' · Additional' : ''}</span></span></button>
+                          : <span className="block py-2">{fee.name}<span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">{feeYearLevelLabel(fee.yearLevel)}{fee.type === 'add_on' ? ' · Additional' : ''}</span></span>}
+                      </TableCell>
+                      <TableCell className="hidden text-xs text-muted-foreground sm:table-cell">{feeYearLevelLabel(fee.yearLevel)}{fee.type === 'add_on' && <span className="block">Additional</span>}</TableCell>
+                      <TableCell className="px-2 py-1 text-right tabular-nums">{formatPeso(fee.amount)}</TableCell>
+                      <TableCell className="px-1 py-1">{canEdit && <RowActions className="size-9" label={`Actions for ${fee.name}`}>
+                        <DropdownMenuItem onSelect={() => { editTrigger.current = addTrigger.current; openEdit(fee); }}><PencilIcon aria-hidden="true" />Edit fee</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onSelect={() => { editTrigger.current = addTrigger.current; remove.reset(); setNotice(''); setDeleting(fee); }}><Trash2Icon aria-hidden="true" />Delete fee</DropdownMenuItem>
+                      </RowActions>}</TableCell>
+                    </TableRow>)}
+                  </Fragment>)}</TableBody>
+                  <TableFooter><TableRow className="hover:bg-transparent">
+                    <TableCell className="whitespace-normal px-4 py-4 font-semibold sm:px-6">Annual total<span className="mt-1 block text-xs font-normal text-muted-foreground">Before vouchers or discounts</span></TableCell>
+                    <TableCell className="hidden sm:table-cell" />
+                    <TableCell className="px-2 text-right font-semibold tabular-nums">{formatPeso(annualTotal(view))}</TableCell>
+                    <TableCell />
+                  </TableRow></TableFooter>
+                </Table>}
+            </TabsContent>
+          </Tabs>
+      </section>
 
       {dialogOpen && (
         <FeeDialog
           open={dialogOpen}
           schoolYearId={effectiveId}
           editing={editing}
+          initialYearLevel={view}
+          onCloseAutoFocus={restoreFocus}
           onOpenChange={setDialogOpen}
+          onSaved={fee => {
+            setNotice(`“${fee.name}” saved for ${feeYearLevelLabel(fee.yearLevel)}.`);
+            if (fee.yearLevel !== 'all') setView(fee.yearLevel);
+          }}
         />
       )}
 
@@ -520,7 +239,7 @@ function FeesPage() {
           if (!open && !remove.isPending) setDeleting(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto" onCloseAutoFocus={event => { event.preventDefault(); restoreFocus(); }}>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this fee?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -529,6 +248,7 @@ function FeesPage() {
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {remove.isError && <p role="alert" className="text-sm text-destructive">{getErrorMessage(remove.error)}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={remove.isPending}>
               Cancel

@@ -77,25 +77,34 @@ function AcademicYearDetail({ term, activeTerm }: { term: Term; activeTerm?: Ter
       <TabsContent value="overview" forceMount className="space-y-3 data-[state=inactive]:hidden">
         {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
         <Card className="gap-0 divide-y py-0">
-          <SettingRow title="School year" description={term.isActive ? 'The current year used by billing, the student portal, and dashboards.' : 'Activate this year to use it across enrollment and billing.'} badge={<StateBadge active={term.isActive} yes="Active" no="Inactive" />}>
-            <Button size="sm" variant="outline" disabled={update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('active', !term.isActive); }}>{term.isActive ? 'Deactivate year' : 'Set as active'}</Button>
-          </SettingRow>
-          <SettingRow title="Admissions" description={term.isActive ? 'Control whether applicants can submit new applications.' : 'Activate this school year before opening admissions.'} badge={<StateBadge active={term.admissionOpen} yes="Open" no="Closed" />}>
-            <Button size="sm" variant="outline" disabled={!term.isActive || update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('admission', !term.admissionOpen); }}>{term.admissionOpen ? 'Close admissions' : 'Open admissions'}</Button>
-          </SettingRow>
-          <SettingRow title="Year-end progression" description={!term.isActive ? 'Activate this year to manage promotion, retention, and graduation.' : term.progressionOverride === null ? `Follows the year-end schedule${term.endDate ? ` · ${formatDate(term.endDate)}` : ''}.` : 'A manual override is in effect.'} badge={<StateBadge active={term.progressionOpen} yes="Open" no="Closed" />}>
-            <div className="flex flex-wrap items-center gap-2">
-              {term.isActive && term.progressionOverride !== null && <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('progression', null); }}>Follow schedule</Button>}
-              <Button size="sm" variant="outline" disabled={!term.isActive || update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('progression', !term.progressionOpen); }}>{term.progressionOpen ? 'Disable progression' : 'Enable progression'}</Button>
-            </div>
+          <SettingRow title="Fee schedule" description={term.feesPublishedAt ? 'Published fees are locked. Return them to draft before editing fees or the installment policy.' : (term.isActive ? 'Review both grades and the payment plan. Publish the fees, then open admissions below.' : 'Review both grades and the payment plan. Publish the fees, activate this year, then open admissions.')} badge={<StateBadge active={!!term.feesPublishedAt} yes="Published" no="Draft" />}>
+            <Button asChild variant={term.feesPublishedAt ? "outline" : "default"}><Link to={`/admin/fees?school_year_id=${term.id}`}>{term.feesPublishedAt ? 'View fees' : 'Review fees'}</Link></Button>
           </SettingRow>
           <SettingRow title="Installment policy" hint="The balance after the downpayment is split into equal monthly payments. A larger downpayment lowers the monthly amount." description={`${formatPeso(term.downpaymentValue)} downpayment · ${term.installmentCount} monthly installment${term.installmentCount === 1 ? '' : 's'}`}>
             <InstallmentPolicyDialog term={term} />
           </SettingRow>
-          <SettingRow title="Delete academic year" description="Permanently remove this year. Years with enrollments or bills cannot be deleted.">
-            <Button ref={deleteTrigger} variant="outline" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { remove.reset(); setDeleting(true); }}>Delete year</Button>
+          <SettingRow title="School year" description={term.isActive ? 'The current year used by billing, the student portal, and dashboards.' : 'Activate this year to use it across enrollment and billing.'} badge={<StateBadge active={term.isActive} yes="Active" no="Inactive" />}>
+            <Button variant={term.feesPublishedAt && !term.isActive ? "default" : "outline"} disabled={update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('active', !term.isActive); }}>{term.isActive ? 'Deactivate year' : 'Set as active'}</Button>
+          </SettingRow>
+          <SettingRow title="Admissions" description={!term.feesPublishedAt ? 'Publish the fee schedule before opening admissions.' : term.isActive ? 'Control whether applicants can submit new applications.' : 'Activate this school year before opening admissions.'} badge={<StateBadge active={term.admissionOpen} yes="Open" no="Closed" />}>
+            <Button variant={term.feesPublishedAt && term.isActive && !term.admissionOpen ? "default" : "outline"} disabled={!term.isActive || (!term.admissionOpen && !term.feesPublishedAt) || update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('admission', !term.admissionOpen); }}>{term.admissionOpen ? 'Close admissions' : 'Open admissions'}</Button>
           </SettingRow>
         </Card>
+        <div className="pt-4"><h2 className="mb-3 text-sm font-semibold">Year-end administration</h2>
+        <Card className="gap-0 divide-y py-0">
+          <SettingRow title="Year-end progression" description={!term.isActive ? 'Activate this year to manage promotion, retention, and graduation.' : term.progressionOverride === null ? `Follows the year-end schedule${term.endDate ? ` · ${formatDate(term.endDate)}` : ''}.` : 'A manual override is in effect.'} badge={<StateBadge active={term.progressionOpen} yes="Open" no="Closed" />}>
+            <div className="flex flex-wrap items-center gap-2">
+              {term.isActive && term.progressionOverride !== null && <Button variant="ghost" className="text-muted-foreground" disabled={update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('progression', null); }}>Follow schedule</Button>}
+              <Button variant="outline" disabled={!term.isActive || update.isPending} onClick={event => { actionTrigger.current = event.currentTarget; ask('progression', !term.progressionOpen); }}>{term.progressionOpen ? 'Disable progression' : 'Enable progression'}</Button>
+            </div>
+          </SettingRow>
+        </Card>
+        </div>
+        <section className="border-t pt-3">
+          <SettingRow title="Delete academic year" description="Permanently remove this year. Years with enrollments or bills cannot be deleted.">
+            <Button ref={deleteTrigger} variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { remove.reset(); setDeleting(true); }}>Delete year</Button>
+          </SettingRow>
+        </section>
       </TabsContent>
       <TabsContent value="dropping" forceMount className="data-[state=inactive]:hidden"><DroppingPeriods term={term} /></TabsContent>
       <TabsContent value="incentives" forceMount className="data-[state=inactive]:hidden"><IncentivesSection term={term} /></TabsContent>
@@ -136,7 +145,7 @@ function LoadingSettings() {
   return <Card role="status" className="gap-0 py-0"><span className="sr-only">Loading settings…</span><div className="border-b px-4 py-3"><Skeleton className="h-6 w-48" /></div><div className="p-4"><Skeleton className="h-16 w-full" /></div></Card>;
 }
 function SettingsError({ retry, busy }: { retry: () => void; busy: boolean }) {
-  return <Card role="alert" className="flex-row flex-wrap items-center gap-3 p-4"><CircleAlertIcon className="size-4 text-muted-foreground" aria-hidden="true" /><p className="flex-1 text-sm">Unable to load these settings.</p><Button variant="outline" size="sm" disabled={busy} onClick={retry}>Try again</Button></Card>;
+  return <Card role="alert" className="flex-row flex-wrap items-center gap-3 p-4"><CircleAlertIcon className="size-4 text-muted-foreground" aria-hidden="true" /><p className="flex-1 text-sm">Unable to load these settings.</p><Button variant="outline" disabled={busy} onClick={retry}>Try again</Button></Card>;
 }
 function IncentivesSection({ term }: { term: Term }) {
   const query = useSchoolYearFreebies(term.id);
@@ -217,7 +226,7 @@ function ReferralIncentiveSection({ term, referral }: { term: Term; referral?: F
         </p>
         <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-2">
           <ReferralPolicyGuide />
-          <Button asChild variant="ghost" className="min-h-11 text-primary">
+          <Button asChild variant="ghost" className="text-primary">
             <Link to="/admin/referrals">View referrals<ArrowRightIcon aria-hidden="true" /></Link>
           </Button>
         </footer>

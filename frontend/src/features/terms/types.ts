@@ -10,6 +10,7 @@ export interface Term {
   endDate: string | null;
   isActive: boolean;
   admissionOpen: boolean;
+  feesPublishedAt: string | null;
   // Effective progression state (end-date schedule + manual override + active).
   progressionOpen: boolean;
   // Raw manual override: null = follow the schedule, true/false = forced.
@@ -34,4 +35,11 @@ export interface TermInput extends InstallmentPolicyInput {
 
 export function termLabel(term: Term): string {
   return `SY ${term.schoolYear}`;
+}
+
+// One next step for the setup journey; the backend remains authoritative.
+export function admissionReadiness(term: Term): string {
+  if (!term.feesPublishedAt) return 'Review and publish fees';
+  if (!term.isActive) return 'Activate year';
+  return term.admissionOpen ? 'Admissions open' : 'Ready to open admissions';
 }

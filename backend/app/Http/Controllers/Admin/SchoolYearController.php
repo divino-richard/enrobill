@@ -131,7 +131,11 @@ class SchoolYearController extends Controller
     {
         $validated = $request->validate($this->policyRules());
 
-        $schoolYear->update($this->policyAttributes($validated));
+        DB::transaction(function () use ($schoolYear, $validated) {
+            $schoolYear = SchoolYear::whereKey($schoolYear->id)->lockForUpdate()->firstOrFail();
+            $schoolYear->assertFeesDraft();
+            $schoolYear->update($this->policyAttributes($validated));
+        });
 
         return new SchoolYearResource($schoolYear->fresh());
     }
@@ -182,6 +186,7 @@ class SchoolYearController extends Controller
         ]);
 
         DB::transaction(function () use ($schoolYear, $validated) {
+            $schoolYear = SchoolYear::whereKey($schoolYear->id)->lockForUpdate()->firstOrFail();
             if (array_key_exists('isActive', $validated)) {
                 if ($validated['isActive']) {
                     SchoolYear::query()
@@ -203,6 +208,9 @@ class SchoolYearController extends Controller
                     throw ValidationException::withMessages([
                         'admissionOpen' => 'Activate the school year before opening admissions.',
                     ]);
+                }
+                if ($validated['admissionOpen'] && $schoolYear->fees_published_at === null) {
+                    throw ValidationException::withMessages(['admissionOpen' => 'Review and publish the fee schedule before opening admissions.']);
                 }
                 $schoolYear->admission_open = $validated['admissionOpen'];
             }

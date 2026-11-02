@@ -295,7 +295,7 @@ class DroppingFinanceTest extends TestCase
     public function test_new_bill_items_retain_their_catalog_identity_and_original_amount(): void
     {
         [, $original, $admin] = $this->fixture();
-        $year = SchoolYear::create(['school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'downpayment_value' => 100, 'installment_count' => 2]);
+        $year = SchoolYear::create(['fees_published_at' => now(), 'school_year' => '2027-2028', 'start_date' => '2027-06-01', 'end_date' => '2028-03-31', 'downpayment_value' => 100, 'installment_count' => 2]);
         $fee = SchoolYearFee::create(['school_year_id' => $year->id, 'year_level' => 'all', 'category' => 'tuition', 'type' => 'default', 'name' => 'Tuition', 'amount' => 1500]);
         $enrollment = Enrollment::create(['student_id' => $original->student_id, 'school_year_id' => $year->id, 'status' => 'pending', 'track' => 'stem', 'year_level' => 'grade_11']);
         $bill = app(GenerateBillForEnrollment::class)($enrollment);

@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Validation\ValidationException;
 
 #[Fillable([
     'school_year', 'start_date', 'end_date', 'is_active', 'admission_open',
-    'progression_open', 'downpayment_value', 'installment_count',
+    'progression_open', 'downpayment_value', 'installment_count', 'fees_published_at',
 ])]
 class SchoolYear extends Model
 {
@@ -22,6 +23,7 @@ class SchoolYear extends Model
     protected function casts(): array
     {
         return [
+            'fees_published_at' => 'datetime',
             'start_date' => 'date',
             'end_date' => 'date',
             'is_active' => 'boolean',
@@ -29,6 +31,15 @@ class SchoolYear extends Model
             'progression_open' => 'boolean',
             'downpayment_value' => 'decimal:2',
         ];
+    }
+
+    public function assertFeesDraft(): void
+    {
+        if ($this->fees_published_at !== null) {
+            throw ValidationException::withMessages([
+                'fees' => 'Return this fee schedule to draft before editing. Admissions will close until the fees are republished.',
+            ]);
+        }
     }
 
     /**
@@ -47,6 +58,7 @@ class SchoolYear extends Model
         return static::query()
             ->where('is_active', true)
             ->where('admission_open', true)
+            ->whereNotNull('fees_published_at')
             ->first();
     }
 

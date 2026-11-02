@@ -1,3 +1,4 @@
+import { FeeEstimateDialog } from '@/features/fees/fee-estimate';
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import {
@@ -340,6 +341,10 @@ export function CourseStep({ form }: CourseStepProps) {
           </form.Field>
         </div>
       </FormSection>
+      <form.Subscribe selector={state => [state.values.schoolYear, state.values.yearLevel] as const}>
+        {([schoolYear, yearLevel]) => <FeeEstimateDialog schoolYear={schoolYear} yearLevel={yearLevel} />}
+      </form.Subscribe>
+
 
       <form.Subscribe
         selector={(state) =>

@@ -24,6 +24,7 @@ class ApplicationSubmissionTest extends TestCase
         parent::setUp();
 
         SchoolYear::create([
+            'fees_published_at' => now(),
             'school_year' => '2026-2027',
             'start_date' => '2026-06-01',
             'end_date' => '2027-03-31',
@@ -173,6 +174,29 @@ class ApplicationSubmissionTest extends TestCase
             'year_level' => 'grade_11',
             'school_year' => '2026-2027',
         ]);
+    }
+
+    public static function submissionModes(): array
+    {
+        return [['post'], ['put']];
+    }
+
+    #[DataProvider('submissionModes')]
+    public function test_withdrawing_fees_during_submission_prevents_using_a_stale_open_year(string $method): void
+    {
+        $application = $this->createApplicantApplication('rejected');
+        $withdrawn = false;
+        Event::listen(TransactionBeginning::class, function () use (&$withdrawn) {
+            if (! $withdrawn) {
+                $withdrawn = true;
+                SchoolYear::query()->update(['fees_published_at' => null, 'admission_open' => false]);
+            }
+        });
+        $this->actingAs($application->user)->json(strtoupper($method),
+            $method === 'post' ? '/api/applications' : "/api/applications/{$application->id}", $this->payload())
+            ->assertUnprocessable();
+        $this->assertDatabaseCount('applications', 1);
+        $this->assertSame('rejected', $application->fresh()->status);
     }
 
     private function payload(): array

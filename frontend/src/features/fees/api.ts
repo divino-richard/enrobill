@@ -46,3 +46,22 @@ export async function copyFees(
   });
   return data.data;
 }
+
+export async function fetchFeeEstimate(schoolYear: string, yearLevel: string): Promise<import('./types').FeeEstimateData> {
+  const { data } = await api.get<Wrapped<import('./types').FeeEstimateData>>('/fee-estimate', {
+    params: { school_year: schoolYear, year_level: yearLevel },
+  });
+  return data.data;
+}
+
+export async function setFeePublication(id: number, action: 'publish' | 'draft'): Promise<import('@/features/terms/types').Term> {
+  const { data } = await api.post<Wrapped<import('@/features/terms/types').Term>>(`/admin/school-years/${id}/fees/${action}`);
+  return data.data;
+}
+
+export async function fetchFeePaymentPreview(schoolYearId: number): Promise<import('./types').FeePaymentPreview[]> {
+  const { data } = await api.get<Wrapped<import('./types').FeePaymentPreview[]>>('/admin/fees/preview', {
+    params: { school_year_id: schoolYearId },
+  });
+  return data.data;
+}

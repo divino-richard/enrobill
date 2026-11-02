@@ -8,7 +8,7 @@ use App\Support\FeeScheduleTemplate;
 class SeedFeeScheduleFromTemplate
 {
     /**
-     * Populate a school year's fee schedule from the default template
+     * Populate a draft from the latest earlier published schedule, or the default template
      * ([[FeeScheduleTemplate]]). No-op (returns 0) if it already has fees, so it's
      * safe to call on a freshly created year. Returns the number of items created.
      */
@@ -18,7 +18,18 @@ class SeedFeeScheduleFromTemplate
             return 0;
         }
 
-        $rows = FeeScheduleTemplate::rows();
+        $source = SchoolYear::query()
+            ->where('start_date', '<', $schoolYear->start_date)
+            ->whereNotNull('fees_published_at')
+            ->whereHas('fees')
+            ->orderByDesc('start_date')
+            ->sharedLock()->first();
+
+        $rows = $source
+            ? $source->fees()->orderBy('sequence')->orderBy('id')->get()->map(fn ($fee) => $fee->only([
+                'year_level', 'category', 'dropping_component', 'name', 'type', 'amount', 'sequence',
+            ]))->all()
+            : FeeScheduleTemplate::rows();
         $schoolYear->fees()->createMany($rows);
 
         return count($rows);

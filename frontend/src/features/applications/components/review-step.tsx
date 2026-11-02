@@ -1,3 +1,4 @@
+import { FeeEstimateDialog } from '@/features/fees/fee-estimate';
 import { useAuthStore } from "@/features/auth/store";
 import type { ApplicationFormApi } from "../hooks/form";
 import { ApplicationSummary } from "./application-summary";
@@ -21,6 +22,10 @@ export function ReviewStep({ form, enrollmentDate }: ReviewStepProps) {
         Please review your details before submitting. You can go back to any
         step to make changes.
       </p>
+
+      <form.Subscribe selector={state => [state.values.schoolYear, state.values.yearLevel] as const}>
+        {([schoolYear, yearLevel]) => <FeeEstimateDialog schoolYear={schoolYear} yearLevel={yearLevel} />}
+      </form.Subscribe>
 
       <ApplicationSummary
         values={form.state.values}
