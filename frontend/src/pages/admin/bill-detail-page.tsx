@@ -12,7 +12,7 @@ import { useBill } from '@/features/bills/hooks';
 import { billStatusMeta, isDroppingBill } from '@/features/bills/collection';
 import { PAYMENT_STATUS_META, paymentMethodLabel, type Bill, type BillPayment } from '@/features/bills/types';
 import { formatBillDate } from '@/features/bills/staff-billing';
-import { printBillReceipt } from '@/features/bills/receipt';
+import { billDocumentKind, printBillDocument } from '@/features/bills/receipt';
 import { DroppingBillStatement, DroppingBillHistory } from '@/features/bills/components/dropping-statement';
 import { StaffBillSummary, StaffInstallmentPlan } from '@/features/bills/components/staff-bill-reference';
 import { StaffRecordPayment } from '@/features/bills/components/staff-record-payment';
@@ -115,6 +115,7 @@ function BillDetailPage() {
   if (isError || !bill) return <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center"><p role="alert" className="text-muted-foreground">We couldn't load this bill. Try again or return to billing.</p><Button variant="outline" onClick={() => refetch()}>Try again</Button><Link to="/admin/billing" className="text-sm underline underline-offset-4">Back to billing</Link></div>;
 
   const dropping = isDroppingBill(bill);
+  const documentKind = billDocumentKind(bill);
   const payments = bill.payments ?? [];
   const pending = payments.filter(payment => payment.status === 'pending');
   const history = payments.filter(payment => payment.status !== 'pending');
@@ -128,7 +129,7 @@ function BillDetailPage() {
         <div className="min-w-0"><PageHeader title={studentName} description={[bill.student?.studentNumber, program, bill.schoolYear ? `SY ${bill.schoolYear}` : null].filter(Boolean).join(' · ')} /></div>
         <div className="space-y-2 sm:text-right">
           <div className="flex flex-wrap gap-2 sm:justify-end">
-            <Button variant="default" disabled={bill.amountPaid <= 0} onClick={() => printBillReceipt(bill, { name: studentName, studentNumber: bill.student?.studentNumber, program })}><PrinterIcon aria-hidden="true" />Print receipt</Button>
+            <Button variant="default" disabled={!documentKind} onClick={() => printBillDocument(bill, { name: studentName, studentNumber: bill.student?.studentNumber, program })}><PrinterIcon aria-hidden="true" />{documentKind === 'statement' ? 'Print statement' : 'Print receipt'}</Button>
           </div>
         </div>
       </div>

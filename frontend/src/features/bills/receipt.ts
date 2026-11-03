@@ -1,3 +1,4 @@
+import { printBrand } from '@/lib/print-brand';
 import { formatPeso } from "@/lib/money";
 import { paymentMethodLabel, type Bill } from "./types";
 import { approvedChargeLines, droppingAssessmentContext } from './dropping-statement';
@@ -35,14 +36,24 @@ function termLine(bill: Bill): string {
   return bill.schoolYear ? `SY ${bill.schoolYear}` : "—";
 }
 
-// Build the self-contained, print-optimized HTML document for a bill receipt.
-// Only verified payments are itemized — pending/rejected ones don't count as
-// money received.
+type BillDocumentKind = 'receipt' | 'statement';
+
+export function billDocumentKind(bill: Bill): BillDocumentKind | null {
+  if (bill.amountPaid > 0) return 'receipt';
+  return bill.amountPaid === 0 && bill.balance === 0 ? 'statement' : null;
+}
+
 export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
+  return buildBillDocumentHtml(bill, party, 'receipt');
+}
+
+export function buildBillDocumentHtml(bill: Bill, party: ReceiptParty, kind: BillDocumentKind): string {
+  const isStatement = kind === 'statement';
+  const title = isStatement ? 'Statement of account' : 'Payment receipt';
   const issuedAt = new Date();
   const dropping = isDroppingBill(bill);
   const approvedLines = approvedChargeLines(bill);
-  const receiptNo = `REC-${String(bill.id).padStart(6, "0")}`;
+  const reference = `${isStatement ? 'SOA' : 'REC'}-${String(bill.id).padStart(6, "0")}`;
   const verifiedPayments = (bill.payments ?? []).filter(
     (payment) => payment.status === "verified",
   );
@@ -106,7 +117,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Receipt ${escapeHtml(receiptNo)}</title>
+<title>${title} ${reference}</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -174,14 +185,11 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
 <body>
   <div class="sheet">
     <div class="head">
+      ${printBrand}
       <div>
-        <div class="brand">ENROBILL</div>
-        <div class="brand-sub">Enrollment &amp; Tuition Management</div>
-      </div>
-      <div>
-        <div class="doc-title">PAYMENT RECEIPT</div>
+        <div class="doc-title">${title.toUpperCase()}</div>
         <div class="doc-meta">
-          ${escapeHtml(receiptNo)}<br />
+          ${reference}<br />
           Issued ${escapeHtml(formatIssuedAt(issuedAt))}
         </div>
       </div>
@@ -221,7 +229,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
         : ""
     }
 
-    <table>
+    ${isStatement ? '' : `<table>
       <caption>Payments received</caption>
       <thead>
         <tr>
@@ -231,7 +239,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
       <tbody>
         ${paymentRows}
       </tbody>
-    </table>
+    </table>`}
 
     <div class="totals">
       ${!dropping ? `<div class="row"><span class="muted">Gross total</span><span>${formatPeso(bill.total)}</span></div>` : ''}
@@ -255,7 +263,7 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
     </section>` : ''}
 
     <div class="foot">
-      This is a system-generated receipt and does not require a signature.
+      ${isStatement ? 'This bill is fully settled. No payment is due.' : 'This is a system-generated receipt and does not require a signature.'}
       Generated on ${escapeHtml(formatIssuedAt(issuedAt))}.
     </div>
   </div>
@@ -263,11 +271,13 @@ export function buildBillReceiptHtml(bill: Bill, party: ReceiptParty): string {
 </html>`;
 }
 
-// Render the receipt in a hidden iframe and open the browser's print dialog,
+// Render the document in a hidden iframe and open the browser's print dialog,
 // from which the user can print or "Save as PDF". Using an iframe (rather than
 // window.open) avoids popup blockers and a visible blank window.
-export function printBillReceipt(bill: Bill, party: ReceiptParty): void {
-  const html = buildBillReceiptHtml(bill, party);
+export function printBillDocument(bill: Bill, party: ReceiptParty): void {
+  const kind = billDocumentKind(bill);
+  if (!kind) return;
+  const html = buildBillDocumentHtml(bill, party, kind);
   const frame = window.document.createElement("iframe");
   frame.style.position = "fixed";
   frame.style.right = "0";

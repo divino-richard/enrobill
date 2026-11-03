@@ -229,8 +229,7 @@ function BillsPage() {
   return (
     <div className="space-y-4 mx-auto max-w-7xl">
       <div>
-        <PageHeader title="My Bills" description={<>Select a bill to view its breakdown, payment options, and
-          download receipts.</>} />
+        <PageHeader title="My Bills" description="Select a bill to view charges and payments, or print a receipt or statement." />
       </div>
 
       {bills.length === 0 ? (

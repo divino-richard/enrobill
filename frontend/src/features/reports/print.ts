@@ -1,3 +1,4 @@
+import { printBrand } from '@/lib/print-brand';
 import { COLLECTION_LABELS } from '@/features/bills/collection';
 import {
   BILL_STATUS_META,
@@ -282,10 +283,7 @@ export function buildReportHtml(
 <body>
   <div class="sheet">
     <div class="head">
-      <div>
-        <div class="brand">ENROBILL</div>
-        <div class="brand-sub">Enrollment &amp; Tuition Management</div>
-      </div>
+      ${printBrand}
       <div>
         <div class="doc-title">FINANCE &amp; ENROLLMENT REPORT</div>
         <div class="doc-meta">
@@ -386,7 +384,7 @@ export function buildReportHtml(
 
 // Render the report in a hidden iframe and open the browser's print dialog,
 // from which the user can print or "Save as PDF" — same approach as
-// printBillReceipt in features/bills/receipt.ts.
+// printBillDocument in features/bills/receipt.ts.
 export function printReport(
   dataset: ReportDataset,
   context: ReportPrintContext,

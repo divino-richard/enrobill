@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatPeso } from "@/lib/money";
 import { formatDate } from "@/features/applications/utils";
-import { printBillReceipt } from "@/features/bills/receipt";
+import { billDocumentKind, printBillDocument } from "@/features/bills/receipt";
 import { useAuthStore } from "@/features/auth/store";
 import {
   type Bill,
@@ -52,6 +52,13 @@ export function BillActionPanel({ bill }: { bill: Bill }) {
           }`
         : null;
 
+  const documentKind = billDocumentKind(bill);
+  const printAction = documentKind && (
+    <Button variant="outline" size="sm" onClick={() => printBillDocument(bill, billReceiptParty(bill, userName))}>
+      <DownloadIcon aria-hidden="true" />{documentKind === 'statement' ? 'Print statement' : 'Receipt'}
+    </Button>
+  );
+
   if (dropping) {
     return <header className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -62,7 +69,7 @@ export function BillActionPanel({ bill }: { bill: Bill }) {
           </div>
           <p className="text-sm text-muted-foreground">{termTitle(bill)} · {billReference(bill.id)}</p>
         </div>
-        {bill.amountPaid > 0 && <Button variant="outline" size="sm" onClick={() => printBillReceipt(bill, billReceiptParty(bill, userName))}><DownloadIcon />Receipt</Button>}
+        {printAction}
       </div>
       <section aria-label="Balance and payment" className="overflow-hidden rounded-xl border bg-card">
         <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,1fr)_auto] lg:items-center lg:gap-8">
@@ -95,7 +102,7 @@ export function BillActionPanel({ bill }: { bill: Bill }) {
           {bill.createdAt && <><span aria-hidden="true">·</span><span>Issued {formatDate(bill.createdAt)}</span></>}
         </p>
       </div>
-      {bill.amountPaid > 0 && <Button variant="outline" size="sm" onClick={() => printBillReceipt(bill, billReceiptParty(bill, userName))}><DownloadIcon aria-hidden="true" />Receipt</Button>}
+      {printAction}
     </div>
 
     <ReferralPaymentNotice bill={bill} />
