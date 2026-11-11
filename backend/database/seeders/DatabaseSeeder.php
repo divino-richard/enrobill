@@ -21,8 +21,6 @@ class DatabaseSeeder extends Seeder
         $users = [
             ['name' => 'Admin User', 'email' => 'admin@northlink.edu.ph', 'role' => Role::Admin],
             ['name' => 'Cashier User', 'email' => 'cashier@northlink.edu.ph', 'role' => Role::Cashier],
-            ['name' => 'Student User', 'email' => 'student@northlink.edu.ph', 'role' => Role::Student],
-            ['name' => 'Applicant User', 'email' => 'applicant@northlink.edu.ph', 'role' => Role::Applicant],
         ];
 
         foreach ($users as $user) {

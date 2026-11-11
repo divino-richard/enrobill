@@ -2,7 +2,7 @@ import { CompactProgramLabel } from "@/components/compact-program-label";
 import { PageHeader } from "@/components/page-header";
 import { TablePanel, TableToolbar } from "@/components/table-panel";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   getCoreRowModel,
   useReactTable,
@@ -12,26 +12,15 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import {
-  CheckCircle2Icon,
-  ChevronRight,
-  CircleAlertIcon,
   FunnelXIcon,
+  LoaderCircleIcon,
   ReceiptTextIcon,
   SearchIcon,
-  SquarePenIcon,
-  WandSparklesIcon,
+  UserRoundIcon,
 } from "lucide-react";
 import { RowActions } from "@/components/row-actions";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
@@ -46,8 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { cn } from "@/lib/utils";
-import { formatPeso } from "@/lib/money";
 import { labelFor, YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 import { useAuthStore } from "@/features/auth/store";
 import { BILL_STATUS_META } from "@/features/bills/types";
@@ -73,6 +60,9 @@ function toGenerateBillTarget(enrollment: Enrollment): GenerateBillTarget {
   return {
     enrollmentId: enrollment.id,
     name: enrollment.student?.name ?? "Student",
+    studentNumber: enrollment.student?.studentNumber ?? null,
+    schoolYear: enrollment.schoolYear,
+    yearLevel: enrollment.yearLevel,
     feePreview: enrollment.feePreview ?? 0,
     voucher: enrollment.voucher ?? null,
   };
@@ -80,185 +70,54 @@ function toGenerateBillTarget(enrollment: Enrollment): GenerateBillTarget {
 
 function getEnrollmentBillingSnapshot(enrollment: Enrollment) {
   const openBills = enrollment.openBills ?? [];
-  const openBillCount = enrollment.openBillCount ?? openBills.length;
-  const openBillTotal =
-    enrollment.openBillTotal ??
-    openBills.reduce((sum, bill) => sum + bill.balance, 0);
-  const currentOpenBillCount = openBills.filter((bill) => bill.isCurrent).length;
-  const priorOpenBillCount = openBillCount - currentOpenBillCount;
+  const otherOpenBills = openBills.filter((bill) => bill.id !== enrollment.bill?.id);
   const canGenerateBill =
-    enrollment.status === "pending" && enrollment.hasBill === false;
-  const hasGeneratedBill = enrollment.hasBill === true;
+    enrollment.status === "pending" && enrollment.hasBill === false && !enrollment.bill;
 
   return {
-    openBills,
-    openBillCount,
-    openBillTotal,
-    currentOpenBillCount,
-    priorOpenBillCount,
+    otherOpenBills,
     canGenerateBill,
-    hasGeneratedBill,
   };
-}
-
-function BillingInfoDialog({
-  enrollment,
-  open,
-  onOpenChange,
-}: {
-  enrollment: Enrollment | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  if (!enrollment) return null;
-
-  const { openBills, openBillCount, canGenerateBill, hasGeneratedBill } =
-    getEnrollmentBillingSnapshot(enrollment);
-
-  const studentName = enrollment.student?.name ?? "Student";
-  const studentNumber = enrollment.student?.studentNumber ?? "No student number";
-  const statusLabel = ENROLLMENT_STATUS_META[enrollment.status].label;
-
-  const readyForBilling = canGenerateBill && openBillCount === 0;
-
-  // When not ready, surface the single blocking reason (in priority order).
-  const reason = readyForBilling
-    ? "This enrollment is ready for a cashier to generate its bill."
-    : hasGeneratedBill
-      ? "A bill has already been generated for this enrollment."
-      : !canGenerateBill
-        ? `Only pending enrollments can be billed — this one is ${statusLabel.toLowerCase()}.`
-        : `Settle or review the ${openBillCount} unpaid balance${openBillCount === 1 ? "" : "s"} below before billing.`;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Billing status</DialogTitle>
-          <DialogDescription>
-            {studentName} • {studentNumber}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <dl className="grid grid-cols-2 gap-4 border-y py-3 text-sm"><div><dt className="text-muted-foreground">Enrollment</dt><dd className="mt-1 font-medium">{statusLabel}</dd></div><div><dt className="text-muted-foreground">Existing open bills</dt><dd className="mt-1 font-medium tabular-nums">{openBillCount}</dd></div></dl>
-          <Alert
-            className={cn(
-              readyForBilling
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-                : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
-            )}
-          >
-            {readyForBilling ? <CheckCircle2Icon /> : <CircleAlertIcon />}
-            <AlertTitle>
-              {readyForBilling ? "Ready for billing" : hasGeneratedBill ? "Bill generated" : "Action required"}
-            </AlertTitle>
-            <AlertDescription
-              className={cn(
-                readyForBilling
-                  ? "text-emerald-700 dark:text-emerald-300"
-                  : "text-amber-700 dark:text-amber-300",
-              )}
-            >
-              {reason}
-            </AlertDescription>
-          </Alert>
-
-          {readyForBilling && enrollment.feePreview != null && (
-            <div className="bg-muted/40 flex items-center justify-between rounded-xl px-4 py-4 text-sm">
-              <span className="text-muted-foreground">Estimated bill</span>
-              <span className="text-xl font-semibold tabular-nums">
-                {formatPeso(enrollment.feePreview)}
-              </span>
-            </div>
-          )}
-
-          {openBillCount > 0 && (
-            <div className="space-y-2">
-              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Outstanding balance{openBillCount === 1 ? "" : "s"}
-              </p>
-              {openBills.map((bill) => (
-                <div
-                  key={bill.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium">
-                        {bill.schoolYear
-                          ? `SY ${bill.schoolYear}`
-                          : `Bill #${bill.id}`}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={cn(BILL_STATUS_META[bill.status].className)}
-                      >
-                        {BILL_STATUS_META[bill.status].label}
-                      </Badge>
-                    </div>
-                    <p className="text-muted-foreground text-xs tabular-nums">
-                      {bill.isCurrent ? "Current year" : "Prior year"} ·{" "}
-                      {formatPeso(bill.balance)} outstanding
-                    </p>
-                  </div>
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0 gap-1"
-                  >
-                    <Link to={`/admin/billing/${bill.id}`}>
-                      Open
-                      <ChevronRight />
-                    </Link>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function EnrollmentActionsCell({
   enrollment,
   isCashier,
   onGenerateBill,
-  onViewBilling,
+  disabled,
 }: {
   enrollment: Enrollment;
   isCashier: boolean;
   onGenerateBill: (target: GenerateBillTarget) => void;
-  onViewBilling: (enrollment: Enrollment) => void;
+  disabled: boolean;
 }) {
-  const navigate = useNavigate();
   const { canGenerateBill } = getEnrollmentBillingSnapshot(enrollment);
   const studentId = enrollment.student?.id ?? null;
 
   return (
-    <div className="flex items-center justify-center">
-      <RowActions>
-        <DropdownMenuItem onClick={() => onViewBilling(enrollment)}>
-          <ReceiptTextIcon />
-          Billing status
-        </DropdownMenuItem>
-
-        {isCashier && canGenerateBill && (
-          <DropdownMenuItem
-            onClick={() => onGenerateBill(toGenerateBillTarget(enrollment))}
-          >
-            <WandSparklesIcon />
-            Generate bill
+    <div className="flex items-center justify-end gap-1">
+      {isCashier && canGenerateBill ? (
+        <Button variant="outline" size="sm" disabled={disabled}
+          onClick={() => onGenerateBill(toGenerateBillTarget(enrollment))}>
+          Generate bill
+        </Button>
+      ) : null}
+      <RowActions label={`Actions for ${enrollment.student?.name ?? "student"}, SY ${enrollment.schoolYear ?? "unknown"}`} disabled={disabled}>
+        {enrollment.bill && (
+          <DropdownMenuItem asChild>
+            <Link to={`/admin/billing/${enrollment.bill.id}`}>
+              <ReceiptTextIcon />
+              View bill
+            </Link>
           </DropdownMenuItem>
         )}
 
         {studentId != null && (
-          <DropdownMenuItem onClick={() => navigate(`/admin/students/${studentId}`)}>
-            <SquarePenIcon />
-            View student
+          <DropdownMenuItem asChild>
+            <Link to={`/admin/students/${studentId}`}>
+              <UserRoundIcon />
+              View student
+            </Link>
           </DropdownMenuItem>
         )}
       </RowActions>
@@ -275,7 +134,6 @@ function EnrollmentsPage() {
   const schoolYears = terms ?? [];
 
   const [billing, setBilling] = useState<GenerateBillTarget | null>(null);
-  const [billingInfo, setBillingInfo] = useState<Enrollment | null>(null);
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
@@ -337,7 +195,7 @@ function EnrollmentsPage() {
       },
       {
         id: "enrollment",
-        header: "Enrollment",
+        header: "Program & year",
         enableSorting: false,
         meta: { className: "min-w-64" },
         cell: ({ row }) => (
@@ -347,62 +205,76 @@ function EnrollmentsPage() {
             </div>
             <div className="text-muted-foreground text-[0.8125rem]">
               {labelFor(YEAR_LEVEL_OPTIONS, row.original.yearLevel ?? "") || "No year level"}
+              {row.original.schoolYear ? ` · SY ${row.original.schoolYear}` : " · School year unavailable"}
             </div>
           </div>
         ),
       },
       {
         accessorKey: "status",
-        header: ({ column }) => <SortHeader column={column} title="Status" />,
+        header: ({ column }) => <SortHeader column={column} title="Enrollment status" />,
         meta: { className: "min-w-36" },
+        cell: ({ row }) => (
+          <Badge variant="outline" className={ENROLLMENT_STATUS_META[row.original.status].className}>
+            {ENROLLMENT_STATUS_META[row.original.status].label}
+          </Badge>
+        ),
+      },
+      {
+        id: "billing",
+        header: "Billing",
+        enableSorting: false,
+        meta: { className: "min-w-40" },
         cell: ({ row }) => {
           const billingSnapshot = getEnrollmentBillingSnapshot(row.original);
+          const bill = row.original.bill;
 
           return (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
-              <Badge
-                variant="outline"
-                className={cn(
-                  ENROLLMENT_STATUS_META[row.original.status].className,
-                )}
-              >
-                {ENROLLMENT_STATUS_META[row.original.status].label}
-              </Badge>
-
-              {billingSnapshot.openBillCount > 0 ? (
-                <p className="text-muted-foreground text-[0.8125rem]">
-                  {billingSnapshot.openBillCount} unpaid bill
-                  {billingSnapshot.openBillCount === 1 ? "" : "s"}
-                </p>
+            <div className="space-y-1 py-1.5">
+              {bill ? (
+                <Badge variant="outline" className={BILL_STATUS_META[bill.status].className}>
+                  {BILL_STATUS_META[bill.status].label}
+                </Badge>
               ) : row.original.hasBill ? (
-                <p className="text-muted-foreground text-[0.8125rem]">
+                <Badge variant="outline" className="text-muted-foreground">
                   Billed
-                </p>
+                </Badge>
               ) : billingSnapshot.canGenerateBill ? (
-                <p className="text-muted-foreground text-[0.8125rem]">
+                <Badge variant="outline" className="text-muted-foreground">
                   Awaiting bill
-                </p>
-              ) : null}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground">
+                  {row.original.hasBill === null ? "Not available" : "No bill"}
+                </Badge>
+              )}
+              {billingSnapshot.otherOpenBills.length > 0 && (
+                <div>
+                  <Badge variant="outline" className="text-muted-foreground">
+                    {billingSnapshot.otherOpenBills.length} other open bill{billingSnapshot.otherOpenBills.length === 1 ? "" : "s"}
+                  </Badge>
+                </div>
+              )}
             </div>
           );
         },
       },
       {
         id: "actions",
-        header: () => null,
+        header: () => <span className="sr-only">Actions</span>,
         enableSorting: false,
-        meta: { className: "w-14 text-center align-middle" },
+        meta: { className: "w-14 text-right align-middle" },
         cell: ({ row }) => (
           <EnrollmentActionsCell
             enrollment={row.original}
             isCashier={isCashier}
             onGenerateBill={setBilling}
-            onViewBilling={setBillingInfo}
+            disabled={query.isPlaceholderData}
           />
         ),
       },
     ],
-    [isCashier, programLabel],
+    [isCashier, programLabel, query.isPlaceholderData],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -441,120 +313,128 @@ function EnrollmentsPage() {
         <PageHeader title="Enrollments" />
       </div>
 
-      {query.isError ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <p className="text-muted-foreground text-sm">
-            We couldn't load enrollments. Please try again.
-          </p>
-        </div>
-      ) : (
-        <TablePanel>
-          <TableToolbar className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
-            <div className="relative w-full">
-              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search student name or number…"
-                className="pl-9"
+      <TablePanel>
+        <TableToolbar className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_auto]">
+          <div className="relative w-full">
+            <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              aria-label="Search enrollments"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search student name or number…"
+              className="pl-9"
+            />
+          </div>
+
+          <Select
+            value={status}
+            onValueChange={(value) => setStatus(value as StatusFilter)}
+          >
+            <SelectTrigger className="w-full" aria-label="Enrollment status">
+              <SelectValue placeholder="All enrollment statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All enrollment statuses</SelectItem>
+              {ENROLLMENT_STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={schoolYearId} onValueChange={setSchoolYearId}>
+            <SelectTrigger className="w-full" aria-label="School year">
+              <SelectValue placeholder="All school years" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All school years</SelectItem>
+              {schoolYears.map((sy) => (
+                <SelectItem key={sy.id} value={String(sy.id)}>
+                  SY {sy.schoolYear}
+                  {sy.isActive ? " - active" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={yearLevel}
+            onValueChange={(value) => setYearLevel(value as YearLevelFilter)}
+          >
+            <SelectTrigger className="w-full" aria-label="Year level">
+              <SelectValue placeholder="All year levels" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All year levels</SelectItem>
+              {YEAR_LEVEL_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={trackOrStrand}
+            onValueChange={(value) => setTrackOrStrand(value as TrackFilter)}
+          >
+            <SelectTrigger className="w-full" aria-label="Track or strand">
+              <SelectValue placeholder="All tracks / strands" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All tracks / strands</SelectItem>
+              {programGroups.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {hasFilters && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={clearFilters}
+              aria-label="Clear filters"
+              title="Clear filters"
+            >
+              <FunnelXIcon />
+            </Button>
+          )}
+        </TableToolbar>
+
+        {query.isError ? (
+          <div role="alert" className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+            <p className="text-muted-foreground text-sm">We couldn't load enrollments. Please try again.</p>
+            <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
+              {query.isFetching ? "Retrying…" : "Retry"}
+            </Button>
+          </div>
+        ) : (
+          <>
+            {query.isFetching && !query.isLoading && (
+              <div role="status" className="text-muted-foreground flex items-center gap-2 border-b px-3 py-2 text-xs">
+                <LoaderCircleIcon className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
+                Updating results…
+              </div>
+            )}
+            <div aria-busy={query.isFetching}>
+              <DataTable
+                table={table}
+                isLoading={query.isLoading}
+                emptyMessage={hasFilters ? "No enrollments match your filters." : "No enrollments yet."}
               />
             </div>
-
-            <Select
-              value={status}
-              onValueChange={(value) => setStatus(value as StatusFilter)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {ENROLLMENT_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={schoolYearId} onValueChange={setSchoolYearId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All school years" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All school years</SelectItem>
-                {schoolYears.map((sy) => (
-                  <SelectItem key={sy.id} value={String(sy.id)}>
-                    SY {sy.schoolYear}
-                    {sy.isActive ? " - active" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={yearLevel}
-              onValueChange={(value) => setYearLevel(value as YearLevelFilter)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All year levels" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All year levels</SelectItem>
-                {YEAR_LEVEL_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={trackOrStrand}
-              onValueChange={(value) => setTrackOrStrand(value as TrackFilter)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All tracks / strands" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All tracks / strands</SelectItem>
-                {programGroups.map((group) => (
-                  <SelectGroup key={group.label}>
-                    <SelectLabel>{group.label}</SelectLabel>
-                    {group.options.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {hasFilters && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={clearFilters}
-                aria-label="Clear filters"
-                title="Clear filters"
-              >
-                <FunnelXIcon />
-              </Button>
-            )}
-          </TableToolbar>
-
-          <DataTable
-            table={table}
-            isLoading={query.isLoading}
-            emptyMessage={
-              hasFilters
-                ? "No enrollments match your filters."
-                : "No enrollments yet."
-            }
-          />
-        </TablePanel>
-      )}
+          </>
+        )}
+      </TablePanel>
 
       {billing && (
         <GenerateBillDialog
@@ -566,14 +446,6 @@ function EnrollmentsPage() {
           }}
         />
       )}
-
-      <BillingInfoDialog
-        enrollment={billingInfo}
-        open={billingInfo != null}
-        onOpenChange={(open) => {
-          if (!open) setBillingInfo(null);
-        }}
-      />
     </div>
   );
 }

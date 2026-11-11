@@ -17,6 +17,7 @@ import { useGenerateBillForEnrollment } from "@/features/bills/hooks";
 import { useEnrollmentIncentives } from "@/features/referrals/hooks";
 import { referralStatusLabel } from "@/features/referrals/types";
 import { previewNet } from "@/features/bills/incentive-preview";
+import { labelFor, YEAR_LEVEL_OPTIONS } from "@/features/applications/types";
 
 // e.g. "₱7,000.00" for a fixed voucher, "50%" for a percentage one.
 function voucherValueLabel(voucher: EnrollmentVoucher): string {
@@ -32,6 +33,9 @@ function voucherValueLabel(voucher: EnrollmentVoucher): string {
 export interface GenerateBillTarget {
   enrollmentId: number;
   name: string;
+  studentNumber: string | null;
+  schoolYear: string | null;
+  yearLevel: string | null;
   feePreview: number;
   voucher: EnrollmentVoucher | null;
 }
@@ -102,7 +106,9 @@ export function GenerateBillDialog({
     ["eligible", "applied", "applied_no_balance"].includes(award.status ?? ""),
   );
   const hasFreebie = hasVoucher && (eligibleFreebies.length > 0 || earnedAwards.length > 0);
-  const incentiveReasons = incentivesQuery.data?.reasons ?? [];
+  const incentiveReasons = (incentivesQuery.data?.reasons ?? []).filter(
+    (reason) => reason !== "No incentive award has been recorded for this enrollment.",
+  );
   const awardReasons = new Set(
     incentiveAwards
       .map((award) => award.reason)
@@ -133,15 +139,35 @@ export function GenerateBillDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">
+        <DialogHeader className="gap-1.5 pr-6 text-left">
           <DialogTitle>Generate bill</DialogTitle>
           <DialogDescription>
-            {enrollment
-              ? `${enrollment.name}'s voucher and any promo they qualify for are applied automatically. Review the total, then generate the bill.`
-              : ""}
+            Vouchers and eligible incentives apply automatically.
           </DialogDescription>
         </DialogHeader>
+
+        {enrollment && (
+          <section aria-label="Enrollment details" className="space-y-3 border-b pb-4">
+            <p className="text-sm leading-5 font-semibold wrap-break-word">{enrollment.name}</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <div className="min-w-0">
+                <dt className="text-muted-foreground text-xs">Student number</dt>
+                <dd className="mt-1 text-sm wrap-break-word">{enrollment.studentNumber ?? "Not assigned"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">Grade level</dt>
+                <dd className="mt-1 text-sm">
+                  {labelFor(YEAR_LEVEL_OPTIONS, enrollment.yearLevel ?? "") || "Not assigned"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">School year</dt>
+                <dd className="mt-1 text-sm">{enrollment.schoolYear ?? "Not available"}</dd>
+              </div>
+            </dl>
+          </section>
+        )}
 
         <div className="space-y-5">
           {/* Voucher — granted by the admin on acceptance, shown for confirmation
@@ -176,27 +202,36 @@ export function GenerateBillDialog({
               </div>
             ) : (
               <div className="space-y-3">
-                {incentiveAwards.map((award) => (
-                  <div key={award.id} className="space-y-1 text-xs">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-medium">{award.freebie?.name ?? incentiveRoleLabel(award.role)}</p>
-                      <span className="text-muted-foreground">{referralStatusLabel(award.status)}</span>
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed">{award.reason ?? incentiveRoleLabel(award.role)}</p>
-                  </div>
-                ))}
-                {eligibleFreebies.filter((freebie) => !incentiveAwards.some((award) => award.freebie?.id === freebie.id)).map((freebie) => (
-                  <div key={freebie.id} className="text-sm">
-                    <p className="font-medium">{freebie.name}</p>
-                    <p className="text-muted-foreground mt-1 text-xs">{hasVoucher ? "Qualifies for the remaining-balance waiver." : "Qualifies, but an active voucher is required before credit can apply."}</p>
-                  </div>
-                ))}
+                {(incentiveAwards.length > 0 || eligibleFreebies.length > 0) && (
+                  <ul className="space-y-2">
+                    {incentiveAwards.map((award) => (
+                      <li key={`award-${award.id}`} className="space-y-1 rounded-lg border p-3 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-medium">{award.freebie?.name ?? incentiveRoleLabel(award.role)}</p>
+                          {award.status !== "eligible" && (
+                            <span className="text-muted-foreground">{referralStatusLabel(award.status)}</span>
+                          )}
+                        </div>
+                        <p className="text-muted-foreground leading-relaxed">
+                          {award.status === "eligible" && hasVoucher
+                            ? "Applies when this bill is generated."
+                            : award.reason ?? incentiveRoleLabel(award.role)}
+                        </p>
+                      </li>
+                    ))}
+                    {eligibleFreebies.filter((freebie) => !incentiveAwards.some((award) => award.freebie?.id === freebie.id)).map((freebie) => (
+                      <li key={`freebie-${freebie.id}`} className="space-y-1 rounded-lg border p-3 text-sm">
+                        <p className="font-medium">{freebie.name}</p>
+                        <p className="text-muted-foreground text-xs leading-relaxed">{hasVoucher ? "Qualifies for the remaining-balance waiver." : "Qualifies, but an active voucher is required before credit can apply."}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {additionalIncentiveReasons.length > 0 && (
                   <ul className="text-muted-foreground space-y-2 text-xs leading-relaxed">
                     {additionalIncentiveReasons.map((reason) => <li key={reason}>{reason}</li>)}
                   </ul>
                 )}
-                {hasFreebie && <p className="text-muted-foreground border-l-2 border-primary/40 pl-3 text-xs leading-relaxed">All qualifying reasons share one credit. After the voucher, the remaining bill, including miscellaneous fees, is waived once.</p>}
                 {!incentiveAwards.length && !eligibleFreebies.length && !incentiveReasons.length && <p className="text-muted-foreground text-sm">No tuition incentive is recorded for this enrollment.</p>}
               </div>
             )}
@@ -220,7 +255,7 @@ export function GenerateBillDialog({
             )}
             {hasFreebie && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Tuition incentive · one credit</span>
+                <span className="text-muted-foreground">Tuition incentive</span>
                 <span className="text-primary dark:text-foreground font-medium tabular-nums">−{formatPeso(netAfterVouchers)}</span>
               </div>
             )}

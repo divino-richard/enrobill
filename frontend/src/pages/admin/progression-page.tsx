@@ -210,24 +210,27 @@ function ProgressionPage() {
       </div>
 
       {summary?.carryForward && (
-        <Alert>
-          <UsersIcon />
-          <AlertTitle>Finish enrollment for SY {summary.carryForward.targetYear.schoolYear}</AlertTitle>
-          <AlertDescription>
-            <p>
-              {summary.carryForward.count} {summary.carryForward.count === 1 ? 'student has' : 'students have'} a
-              recorded promotion or retention from SY {summary.carryForward.sourceYear.schoolYear} but
-              no enrollment for the new year. Create their pending enrollments to continue billing and enrollment processing.
-            </p>
-            <Button
-              className="mt-3"
-              size="sm"
-              disabled={materialize.isPending}
-              onClick={() => materialize.mutate(summary.carryForward!.sourceYear.id)}
-            >
-              {materialize.isPending ? 'Creating enrollments…' : `Create ${summary.carryForward.count} ${summary.carryForward.count === 1 ? 'enrollment' : 'enrollments'}`}
-            </Button>
-          </AlertDescription>
+        <Alert className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <UsersIcon className="mt-0.5 size-5" aria-hidden="true" />
+            <div className="min-w-0 space-y-1">
+              <AlertTitle className="text-sm leading-5">
+                Finish enrollment for SY {summary.carryForward.targetYear.schoolYear}
+              </AlertTitle>
+              <AlertDescription className="max-w-[75ch] text-sm leading-6">
+                {summary.carryForward.count} {summary.carryForward.count === 1 ? 'student has' : 'students have'} a
+                recorded promotion or retention from SY {summary.carryForward.sourceYear.schoolYear} but
+                no enrollment for the new year. Create their pending enrollments to continue billing and enrollment processing.
+              </AlertDescription>
+            </div>
+          </div>
+          <Button
+            className="ml-8 self-start lg:ml-0 lg:self-center"
+            disabled={materialize.isPending}
+            onClick={() => materialize.mutate(summary.carryForward!.sourceYear.id)}
+          >
+            {materialize.isPending ? 'Creating enrollments…' : `Create ${summary.carryForward.count} ${summary.carryForward.count === 1 ? 'enrollment' : 'enrollments'}`}
+          </Button>
         </Alert>
       )}
 

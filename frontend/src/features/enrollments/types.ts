@@ -46,6 +46,7 @@ export interface Enrollment {
   enrolledAt: string | null;
   isCurrent: boolean;
   hasBill: boolean | null;
+  bill?: { id: number; status: EnrollmentBillStatus } | null;
   feePreview: number | null;
   voucher?: EnrollmentVoucher | null;
   openBillCount?: number | null;

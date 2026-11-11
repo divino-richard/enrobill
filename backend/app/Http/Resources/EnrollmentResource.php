@@ -39,6 +39,10 @@ class EnrollmentResource extends JsonResource
             'openDroppingRequestId' => $this->whenLoaded('openDroppingRequest', fn () => $this->openDroppingRequest?->id),
             // Only present on the global list, where these relations are loaded.
             'hasBill' => $this->relationLoaded('bill') ? $this->bill !== null : null,
+            'bill' => $this->whenLoaded('bill', fn () => $this->bill ? [
+                'id' => $this->bill->id,
+                'status' => $this->bill->status,
+            ] : null),
             // Fee total for this enrollment's school year + level — the cashier's
             // preview before generating a bill.
             'feePreview' => $this->whenLoaded(
