@@ -25,7 +25,7 @@ import { fetchMyEnrollments } from '@/features/students/api';
 import { useProgramLabel } from '@/features/programs/hooks';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { cn } from '@/lib/utils';
-import { STATUS_LABELS, createDroppingRequest, downloadDroppingFile, droppingAction, droppingBlob, fetchDroppingRequest, fetchDroppingRequests, type DroppingRequest, type DropStatus } from './api';
+import { STATUS_LABELS, submitDroppingRequest, downloadDroppingFile, droppingAction, droppingBlob, fetchDroppingRequest, fetchDroppingRequests, type DroppingRequest, type DroppingSubmission, type DropStatus } from './api';
 import { SubmittedDocument } from './submitted-document';
 import { ApprovedRequestCharges, ApprovedRequestReturn } from './approved-request';
 import { PendingRequestCharges } from './pending-request-charges';
@@ -77,15 +77,13 @@ function NewDroppingRequest({ onClose }: { onClose: () => void }) {
   const requests = useQuery({ queryKey: ['dropping', false], queryFn: () => fetchDroppingRequests(false) });
   const current = enrollments.data?.find(e => e.isCurrent && e.status === 'enrolled');
   const existing = requests.data?.find(r => openStatuses.includes(r.status) && (!current || r.enrollmentId === current.id));
-  const submitting = useRef(false);
   const create = useMutation({
-    mutationFn: createDroppingRequest,
+    mutationFn: submitDroppingRequest,
     onSuccess: data => {
       cache.setQueryData(['dropping', data.id], data);
       void cache.invalidateQueries({ queryKey: ['dropping', false] });
       navigate(studentDroppingPath(data.id), { replace: true });
     },
-    onSettled: () => { submitting.current = false; },
   });
   const overview = '/portal/programs?section=overview';
   const loading = enrollments.isPending || requests.isPending;
@@ -113,12 +111,8 @@ function NewDroppingRequest({ onClose }: { onClose: () => void }) {
         {loading ? <p role="status" className="text-sm text-muted-foreground">Opening request form…</p>
           : failed ? <div className="space-y-3"><p className="font-medium">Unable to open the request form</p><ErrorText error={enrollments.error || requests.error} /><Button variant="outline" onClick={() => { void enrollments.refetch(); void requests.refetch(); }}>Try again</Button></div>
           : !current ? <div className="space-y-3"><p className="font-medium">No active enrollment to drop</p><Button asChild variant="outline"><Link to={overview}>Back to Overview</Link></Button></div>
-          : <DroppingSubmissionForm busy={create.isPending} error={create.error} onCancel={onClose} onSubmit={data => {
-          if (submitting.current) return;
-          submitting.current = true;
-          data.append('enrollmentId', String(current.id));
-          create.mutate(data);
-        }} />}
+          : <DroppingSubmissionForm busy={create.isPending} error={create.error} onCancel={onClose}
+              onSubmit={data => create.mutateAsync({ ...data, enrollmentId: current.id })} />}
       </div>
     </DialogContent>
   </Dialog>;
@@ -205,7 +199,10 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
   useEffect(() => () => { previewSequence.current += 1; }, []);
   const mutation = useMutation({
-    mutationFn: ({ action, payload }: { action: string; payload?: Record<string, unknown> | FormData }) => droppingAction(id, action, staff, payload instanceof FormData ? payload : { version: query.data?.packetVersion, ...payload }),
+    mutationFn: (input: { action: 'submit'; submission: DroppingSubmission; enrollmentId: number } | { action: string; payload?: Record<string, unknown> }) => {
+      if ('submission' in input) return submitDroppingRequest({ ...input.submission, enrollmentId: input.enrollmentId, requestId: id });
+      return droppingAction(id, input.action, staff, { version: query.data?.packetVersion, ...input.payload });
+    },
     onSuccess: data => { cache.setQueryData(['dropping', id], data); cache.invalidateQueries(); setConfirmAction(null); },
   });
   const download = async (path: string, name: string) => {
@@ -294,7 +291,7 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
       </div>}
     </header>
     {studentApproved && <ApprovedRequestCharges request={r}><ApprovedRequestReturn request={r} /></ApprovedRequestCharges>}
-    <ErrorText error={mutation.error} />
+    {mutation.variables?.action !== 'submit' && <ErrorText error={mutation.error} />}
     {!staff && (r.status === 'needs_correction' || r.status === 'rejected') && lastNote && <section role="status" className="space-y-2 rounded-xl border bg-card p-5 text-sm"><h2 className="font-semibold">{r.status === 'needs_correction' ? 'Changes requested' : 'Request rejected'}</h2><p className="whitespace-pre-wrap break-words leading-relaxed text-muted-foreground">{lastNote.remarks}</p></section>}
     {reviewable && !staff && <section role="status" aria-labelledby="request-status-title" className={cn(bannerStyles({ tone: 'info' }), 'flex items-start gap-3')}><Clock3Icon className="mt-0.5 size-5 shrink-0" aria-hidden="true" /><div className="space-y-1"><h2 id="request-status-title" className="font-semibold">Waiting for school approval</h2><p className="leading-relaxed">Your enrollment stays active. We’ll notify you when there’s an update.</p></div></section>}
     <div className={studentApproved ? 'overflow-hidden rounded-xl border bg-card' : 'grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-stretch'}>
@@ -305,7 +302,7 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
         {latestSubmission ? documentList(latestSubmission) : r.snapshot.initiatedBy === 'admin' ? <div className="space-y-3"><p className="text-xs text-muted-foreground">Initiated by administrator · No signed form required</p><div className="space-y-2"><h3 className="text-sm font-medium">Reason for dropping</h3><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{r.reason}</p></div></div> : <p className="text-sm leading-relaxed text-muted-foreground">Documents have not been submitted yet.{!staff && ' Complete the form below to send your request for review.'}</p>}
         {r.status !== 'confirmed' && <ErrorText error={fileError} />}
         {r.submissions.length > 1 && <details className="border-t pt-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Previous submissions ({r.submissions.length - 1})</summary><div className="mt-5 space-y-6">{[...r.submissions].reverse().slice(1).map(submission => <section key={submission.version} className="space-y-4 border-t pt-5"><p className="text-xs text-muted-foreground">Submitted {dateLabel(submission.submittedAt)}</p>{documentList(submission)}</section>)}</div></details>}
-        {editable && <DroppingSubmissionForm key={r.submissions.length} request={r} busy={mutation.isPending} onSubmit={payload => mutation.mutate({ action: 'submit', payload })}
+        {editable && <DroppingSubmissionForm key={r.submissions.length} request={r} busy={mutation.isPending} error={mutation.variables?.action === 'submit' ? mutation.error : undefined} onSubmit={submission => mutation.mutateAsync({ action: 'submit', submission, enrollmentId: r.enrollmentId })}
           onCancel={cancelRequest} />}
         </div>
         {!staff && r.status === 'submitted' && <footer className="flex justify-end border-t bg-muted/20 px-5 py-3"><Button variant="outline" className="text-muted-foreground" disabled={mutation.isPending} onClick={cancelRequest}>Cancel request</Button></footer>}
@@ -329,7 +326,7 @@ function DroppingDetail({ id, staff, admin }: { id: number; staff: boolean; admi
       isDownloading={fileBusy}
       downloadError={fileError ? getErrorMessage(fileError) : null}
     />
-    <Dialog open={!!confirmAction} onOpenChange={open => { if (!open && !mutation.isPending) setConfirmAction(null); }}><DialogContent showCloseButton={!mutation.isPending} className="w-[calc(100%-2rem)]"><DialogHeader><DialogTitle>{confirmAction?.title}</DialogTitle><DialogDescription>{confirmAction?.description}</DialogDescription></DialogHeader><ErrorText error={mutation.error} /><div className="flex justify-end gap-2"><Button variant="outline" disabled={mutation.isPending} onClick={() => setConfirmAction(null)}>Keep request</Button><Button variant="destructive" disabled={mutation.isPending} onClick={() => confirmAction && mutation.mutate(confirmAction)}>{mutation.isPending ? 'Cancelling…' : 'Cancel request'}</Button></div></DialogContent></Dialog>
+    <Dialog open={!!confirmAction} onOpenChange={open => { if (!open && !mutation.isPending) setConfirmAction(null); }}><DialogContent showCloseButton={!mutation.isPending} className="w-[calc(100%-2rem)]"><DialogHeader><DialogTitle>{confirmAction?.title}</DialogTitle><DialogDescription>{confirmAction?.description}</DialogDescription></DialogHeader><ErrorText error={mutation.variables?.action === confirmAction?.action ? mutation.error : null} /><div className="flex justify-end gap-2"><Button variant="outline" disabled={mutation.isPending} onClick={() => setConfirmAction(null)}>Keep request</Button><Button variant="destructive" disabled={mutation.isPending} onClick={() => confirmAction && mutation.mutate(confirmAction)}>{mutation.isPending ? 'Cancelling…' : 'Cancel request'}</Button></div></DialogContent></Dialog>
   </div></Sheet>;
 }
 

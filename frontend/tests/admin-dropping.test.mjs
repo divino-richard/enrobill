@@ -122,3 +122,115 @@ test('shared form retains student submission wording and blocks dismissal while 
   assert.match(html, /disabled="">Uploading documents/);
   assert.doesNotMatch(html, /Continue to review/);
 });
+
+function submissionErrorAlert(error, request) {
+  const html = renderToStaticMarkup(createElement(DroppingSubmissionForm, {
+    busy: false, onSubmit: () => {}, error, request,
+  }));
+  const alerts = [...html.matchAll(/<p\b[^>]*role="alert"[^>]*>(.*?)<\/p>/gs)];
+  assert.equal(alerts.length, 1, 'Submission failures should appear in one accessible alert.');
+  return alerts[0][1];
+}
+
+function submissionFailure(data, status = 422) {
+  return {
+    isAxiosError: true,
+    message: `Request failed with status code ${status}`,
+    response: { status, data },
+  };
+}
+
+for (const [mode, request] of [
+  ['new request', undefined],
+  ['correction', { status: 'needs_correction', reason: 'Family circumstances' }],
+]) {
+  test(`${mode} keeps a useful server validation message`, () => {
+    const message = 'The documents must be 7 MB or less in total.';
+    assert.equal(submissionErrorAlert(submissionFailure({ message }), request), message);
+  });
+
+  test(`${mode} explains field validation when the response has no summary`, () => {
+    const alert = submissionErrorAlert(submissionFailure({ errors: {
+      reason: ['Please explain your reason for dropping.'],
+      'files.0': ['The files.0 field is required.'],
+    } }), request);
+    assert.match(alert, /Please explain your reason for dropping/);
+    assert.match(alert, /document|attachment|file 1/i);
+    assert.match(alert, /required/i);
+    assert.doesNotMatch(alert, /files\.0|Request failed with status code/);
+  });
+
+  test(`${mode} gives recovery instructions for failed document uploads`, () => {
+    const alert = submissionErrorAlert(submissionFailure({
+      message: 'The files.0 failed to upload.',
+      errors: { 'files.0': ['The files.0 failed to upload.'] },
+    }), request);
+    assert.match(alert, /upload/i);
+    assert.match(alert, /try again|retry/i);
+    assert.match(alert, /contact.*school/i);
+    assert.doesNotMatch(alert, /files\.0|Request failed with status code/);
+  });
+
+  test(`${mode} labels document metadata errors in readable language`, () => {
+    const alert = submissionErrorAlert(submissionFailure({ errors: {
+      'files.0.size': ['The files.0.size field must be at least 1.'],
+      'files.0.mime': ['The selected files.0.mime is invalid.'],
+      'files.0.name': ['The files.0.name field is required.'],
+    } }), request);
+    assert.match(alert, /Document 1 size must be at least 1/);
+    assert.match(alert, /Document 1 type is invalid/);
+    assert.match(alert, /Document 1 name is required/);
+    assert.doesNotMatch(alert, /files\.0|\.size|\.mime|\.name/);
+  });
+
+  test(`${mode} provides clear guidance for unreadable or malformed validation responses`, () => {
+    const responses = [
+      undefined,
+      null,
+      '',
+      {},
+      42,
+      { message: '   ' },
+      { message: 'The given data was invalid.' },
+      { message: 'Request failed with status code 422' },
+      { message: 'PHP Warning: unable to create a temporary file in /server/private/path.php on line 0' },
+      { message: { error: 'Validation failed' } },
+      { errors: { 'files.0': [null, 42, {}] } },
+      '<html><body>Upload error</body></html>',
+      'PHP Warning: unable to create a temporary file in /server/private/path.php on line 0',
+      '<br />PHP Warning: unable to create a temporary file<br />{"message":"The files.0 failed to upload."}',
+    ];
+    for (const data of responses) {
+      const alert = submissionErrorAlert(submissionFailure(data), request);
+      assert.match(alert, /reason/i);
+      assert.match(alert, /documents|attachments/i);
+      assert.match(alert, /try again|retry/i);
+      assert.match(alert, /contact.*school/i);
+      assert.doesNotMatch(alert, /Request failed with status code|PHP Warning|temporary file|private\/path|&lt;html|files\.0/);
+    }
+  });
+
+  test(`${mode} explains when a connection failure leaves submission unconfirmed`, () => {
+    const alert = submissionErrorAlert({ isAxiosError: true, message: 'Network Error', code: 'ERR_NETWORK' }, request);
+    assert.match(alert, /confirm/i);
+    assert.match(alert, /request/i);
+    assert.match(alert, /connection|internet/i);
+    assert.doesNotMatch(alert, /Network Error|Request failed with status code/);
+  });
+
+  test(`${mode} explains file limits when the server rejects the upload size`, () => {
+    const alert = submissionErrorAlert(submissionFailure('<html>Payload Too Large</html>', 413), request);
+    assert.match(alert, /2 MB/i);
+    assert.match(alert, /7 MB/i);
+    assert.match(alert, /document|file|attachment/i);
+    assert.doesNotMatch(alert, /Request failed with status code|&lt;html/);
+  });
+
+  test(`${mode} gives recovery steps when the server fails during submission`, () => {
+    const alert = submissionErrorAlert(submissionFailure({ message: 'SQLSTATE connection failed at /server/private/path.php' }, 500), request);
+    assert.match(alert, /check.*dropping requests/i);
+    assert.match(alert, /trying again|retry/i);
+    assert.match(alert, /contact.*school/i);
+    assert.doesNotMatch(alert, /SQLSTATE|private\/path|Request failed with status code/);
+  });
+}

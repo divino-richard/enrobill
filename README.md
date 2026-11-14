@@ -133,6 +133,24 @@ hashed `/assets/*` aggressively, and never caches `index.html`.
 - In development, requests to `/api` are proxied to the backend by Vite.
 - In production, set `VITE_API_URL` in `frontend/.env` to the full backend URL (e.g. `https://api.example.com/api`), and set `FRONTEND_URL` in `backend/.env` so CORS allows the SPA's origin.
 
+### Dropping request uploads
+
+Both new submissions and corrections upload directly from the browser to S3 using
+short-lived signed URLs. Laravel receives JSON, verifies ownership, size, and file
+type, and copies the documents to private submission storage. Verification reads
+stay in memory, so this flow does not require PHP's upload temporary folder on
+Windows or other development machines.
+
+Use the existing `s3` disk settings in `backend/.env`. The bucket's CORS rules must
+allow the frontend origin to send `PUT` requests with `Content-Type`, as for the
+other direct uploads. The backend credentials need read, write, and delete access
+under `dropping/` for verification, permanent copies, and temporary-file cleanup.
+The limits remain 12 PDF/JPG/PNG files, 2 MB per file, and 7 MB total.
+
+Update both frontend and backend together, then restart the development servers
+(or rebuild the frontend for deployment). No database migration is needed. Older
+clients using multipart uploads still depend on PHP's upload temporary folder.
+
 ## API endpoints
 
 All routes are defined in [`backend/routes/api.php`](backend/routes/api.php) and served under `/api/*`. Grouped overview:

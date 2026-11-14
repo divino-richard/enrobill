@@ -28,6 +28,7 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicationDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DroppingRequestController;
+use App\Http\Controllers\DroppingUploadController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentChannelController;
@@ -104,6 +105,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/me/re-enrollment', [StudentReturningEnrollmentController::class, 'store'])->middleware('throttle:10,1');
         Route::get('/me/dropping-requests', [DroppingRequestController::class, 'index']);
         Route::post('/me/dropping-requests', [DroppingRequestController::class, 'store']);
+        Route::post('/me/dropping-requests/uploads/presign', [DroppingUploadController::class, 'presign']);
+        Route::delete('/me/dropping-requests/uploads', [DroppingUploadController::class, 'discard']);
         Route::post('/me/dropping-requests/{dropping}/submit', [DroppingRequestController::class, 'submit'])->middleware('throttle:10,1');
         Route::post('/me/dropping-requests/{dropping}/cancel', [DroppingRequestController::class, 'cancel']);
     });

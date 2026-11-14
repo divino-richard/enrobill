@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import { FileTextIcon, FolderOpenIcon, UploadCloudIcon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,18 +7,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatBytes } from '@/lib/format-bytes';
-import { getErrorMessage } from '@/lib/get-error-message';
 import { cn } from '@/lib/utils';
-import type { DroppingRequest } from './api';
+import type { DroppingRequest, DroppingSubmission } from './api';
+import { getDroppingSubmissionError } from './submission-error';
 
 const PdfPreview = lazy(() => import('@/components/pdf-preview'));
 
 function ErrorText({ error }: { error: unknown }) {
-  return error ? <p role="alert" className="text-destructive text-sm">{getErrorMessage(error)}</p> : null;
+  return error ? <p role="alert" className="text-destructive text-sm">{getDroppingSubmissionError(error)}</p> : null;
 }
 
-export function DroppingSubmissionForm({ request, busy, onSubmit, onCancel, error: submissionError }: { request?: DroppingRequest; busy: boolean; onSubmit: (payload: FormData) => void; onCancel?: () => void; error?: unknown }) {
+export function DroppingSubmissionForm({ request, busy, onSubmit, onCancel, error: submissionError }: { request?: DroppingRequest; busy: boolean; onSubmit: (payload: DroppingSubmission) => Promise<unknown>; onCancel?: () => void; error?: unknown }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
   const [reason, setReason] = useState(request?.reason ?? '');
   const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -30,12 +31,27 @@ export function DroppingSubmissionForm({ request, busy, onSubmit, onCancel, erro
   useEffect(() => () => previews.forEach(p => URL.revokeObjectURL(p.url)), [previews]);
   function selectFiles(next: File[]) {
     setChecked(false); setError(''); setPreviewOpen(false); setPreviewIndex(0);
+    if (next.some(file => file.size === 0)) {
+      setPreviews([]); setError('One of the selected documents is empty. Choose a file that contains your signed form or attachment.'); return;
+    }
     if (next.length > 12 || next.some(f => f.size > 2 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png'].includes(f.type)) || next.reduce((s, f) => s + f.size, 0) > 7 * 1024 * 1024) {
       setPreviews([]); setError('Choose up to 12 PDF, JPG, or PNG files, each up to 2 MB and 7 MB total.'); return;
     }
     setPreviews(next.map(file => ({ file, url: URL.createObjectURL(file) })));
   }
-  return <form className={request ? "space-y-5 border-t pt-5" : "space-y-5"} onSubmit={event => { event.preventDefault(); if (busy || !checked || !files.length || !reason.trim()) return; const data = new FormData(); data.append('reason', reason); files.forEach(file => data.append('files[]', file)); onSubmit(data); }}>
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || submitting.current || !checked || !files.length || !reason.trim()) return;
+    submitting.current = true;
+    try {
+      await onSubmit({ reason, files });
+    } catch {
+      // The mutation supplies the error to the alert below and leaves the form available to retry.
+    } finally {
+      submitting.current = false;
+    }
+  }
+  return <form className={request ? "space-y-5 border-t pt-5" : "space-y-5"} onSubmit={submit}>
     {request && <h2 className="text-base font-semibold">{request.status === 'needs_correction' ? 'Update documents' : 'Documents'}</h2>}
     <div className="space-y-2"><Label htmlFor="drop-reason">Reason for dropping</Label><Textarea id="drop-reason" required maxLength={2000} value={reason} disabled={busy} onChange={e => setReason(e.target.value)} /></div>
     <div className="space-y-2">

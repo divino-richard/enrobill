@@ -10,6 +10,8 @@ use App\Models\Enrollment;
 use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Services\DroppingFinance;
+use App\Services\DroppingUploadStorage;
+use App\Support\DroppingUploads;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -121,7 +123,7 @@ class DroppingRequestController extends Controller
         try {
             // File uploads are not retryable transaction side effects. A failed attempt
             // rolls back the request and removes its uploads before a retry.
-            return DB::transaction(function () use ($request, $studentId, $input, $submission, &$stored) {
+            $result = DB::transaction(function () use ($request, $studentId, $input, $submission, &$stored) {
                 Student::lockForUpdate()->findOrFail($studentId);
                 $enrollment = Enrollment::where('student_id', $studentId)->lockForUpdate()->findOrFail($input['enrollmentId']);
                 abort_unless($enrollment->status === 'enrolled' && $enrollment->schoolYear->is_active, 422, 'An active, enrolled school year is required.');
@@ -136,7 +138,7 @@ class DroppingRequestController extends Controller
                     'snapshot' => ['studentName' => trim($student->first_name.' '.$student->last_name), 'studentNumber' => $student->student_number,
                         'schoolYear' => $enrollment->schoolYear->school_year, 'program' => $enrollment->track, 'yearLevel' => $enrollment->year_level],
                 ]);
-                $this->storeSubmission($request, $dropping, $submission['reason'], $stored);
+                $this->storeSubmission($request, $dropping, $submission, $stored);
 
                 return new DroppingRequestResource($dropping);
             });
@@ -144,6 +146,12 @@ class DroppingRequestController extends Controller
             $this->deleteUploads($stored);
             throw $error;
         }
+
+        if ($request->isJson()) {
+            app(DroppingUploadStorage::class)->discardPending($submission['files'], $studentId, $input['enrollmentId']);
+        }
+
+        return $result;
     }
 
     public function submit(Request $request, DroppingRequest $dropping)
@@ -152,19 +160,35 @@ class DroppingRequestController extends Controller
         $input = $this->validateSubmission($request);
         $stored = [];
         try {
-            return $this->locked($dropping, function ($dropping, $enrollment) use ($request, $input, &$stored) {
+            $result = $this->locked($dropping, function ($dropping, $enrollment) use ($request, $input, &$stored) {
                 abort_unless(in_array($dropping->status, ['draft', 'needs_correction'], true), 422, 'This request is not open for uploads.');
                 abort_unless($enrollment->status === 'enrolled', 422, 'The enrollment has changed. Contact Records before continuing.');
-                $this->storeSubmission($request, $dropping, $input['reason'], $stored);
+                $this->storeSubmission($request, $dropping, $input, $stored);
             }, attempts: 1);
         } catch (\Throwable $error) {
             $this->deleteUploads($stored);
             throw $error;
         }
+
+        if ($request->isJson()) {
+            app(DroppingUploadStorage::class)->discardPending($input['files'], $dropping->student_id, $dropping->enrollment_id);
+        }
+
+        return $result;
     }
 
     private function validateSubmission(Request $request): array
     {
+        if ($request->isJson()) {
+            $input = $request->validate([
+                'reason' => ['required', 'string', 'max:2000'],
+                ...DroppingUploads::metadataRules(withKey: true),
+            ]);
+            DroppingUploads::assertTotalSize($input['files']);
+
+            return $input;
+        }
+
         $input = $request->validate([
             'reason' => ['required', 'string', 'max:2000'],
             'files' => ['required', 'array', 'min:1', 'max:12'],
@@ -175,15 +199,20 @@ class DroppingRequestController extends Controller
         return $input;
     }
 
-    private function storeSubmission(Request $request, DroppingRequest $dropping, string $reason, array &$stored): void
+    private function storeSubmission(Request $request, DroppingRequest $dropping, array $input, array &$stored): void
     {
+        $reason = $input['reason'];
         $version = count($dropping->submissions) + 1;
-        foreach ($request->file('files') as $file) {
-            $disk = 's3';
-            $path = $file->store("dropping/{$dropping->id}/{$version}", ['disk' => $disk, 'visibility' => 'private']);
-            abort_unless($path, 503, 'The document could not be stored. Please try again.');
-            $stored[] = ['id' => (string) Str::uuid(), 'path' => $path, 'disk' => $disk,
-                'name' => basename($file->getClientOriginalName()), 'mime' => $file->getMimeType(), 'size' => $file->getSize()];
+        if ($request->isJson()) {
+            app(DroppingUploadStorage::class)->store($dropping, $input['files'], $stored);
+        } else {
+            foreach ($request->file('files') as $file) {
+                $disk = 's3';
+                $path = $file->store("dropping/{$dropping->id}/{$version}", ['disk' => $disk, 'visibility' => 'private']);
+                abort_unless($path, 503, 'The document could not be stored. Please try again.');
+                $stored[] = ['id' => (string) Str::uuid(), 'path' => $path, 'disk' => $disk,
+                    'name' => basename($file->getClientOriginalName()), 'mime' => $file->getMimeType(), 'size' => $file->getSize()];
+            }
         }
         $dropping->fill(['reason' => $reason, 'status' => 'submitted',
             'submissions' => [...$dropping->submissions, ['version' => $version, 'submittedAt' => now()->toIso8601String(), 'reason' => $reason, 'files' => $stored]]]);
@@ -194,7 +223,13 @@ class DroppingRequestController extends Controller
     private function deleteUploads(array $stored): void
     {
         foreach ($stored as $file) {
-            Storage::disk($file['disk'])->delete($file['path']);
+            try {
+                if (! Storage::disk($file['disk'])->delete($file['path'])) {
+                    report(new \RuntimeException('Could not remove a rolled-back dropping document.'));
+                }
+            } catch (\Throwable $error) {
+                report($error);
+            }
         }
     }
 

@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class DroppingRequestTest extends TestCase
@@ -250,6 +251,162 @@ class DroppingRequestTest extends TestCase
         $this->assertCount(1, Storage::disk('s3')->allFiles());
         $this->assertSame(['submitted'], array_column(DroppingRequest::findOrFail($id)->events, 'action'));
         $this->assertSame('enrolled', $e->fresh()->status);
+    }
+
+    private function presign(Enrollment $enrollment, array $files): array
+    {
+        return $this->postJson('/api/me/dropping-requests/uploads/presign', [
+            'enrollmentId' => $enrollment->id, 'files' => $files,
+        ])->assertOk()->assertJsonCount(count($files), 'data')->json('data');
+    }
+
+    public function test_direct_uploads_create_private_documents_and_preserve_them_through_correction(): void
+    {
+        $disk = Storage::fake('s3');
+        $e = $this->enrollment();
+        $this->actingAs($e->student->user);
+        $pdf = "%PDF-1.4\nSigned form\n%%EOF";
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJxkAAAAASUVORK5CYII=');
+        $documents = [
+            ['name' => 'form.pdf', 'mime' => 'application/pdf', 'size' => strlen($pdf)],
+            ['name' => 'letter.png', 'mime' => 'image/png', 'size' => strlen($png)],
+        ];
+        $signed = $this->presign($e, $documents);
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->assertEmpty($disk->allFiles());
+        foreach ([$pdf, $png] as $i => $content) {
+            $extension = pathinfo($documents[$i]['name'], PATHINFO_EXTENSION);
+            $this->assertMatchesRegularExpression("~^dropping/pending/$e->student_id/$e->id/[a-f0-9-]{36}\\.$extension$~", $signed[$i]['key']);
+            $this->assertNotEmpty($signed[$i]['url']);
+            $disk->put($signed[$i]['key'], $content);
+            $documents[$i]['key'] = $signed[$i]['key'];
+        }
+        $url = '/api/me/dropping-requests';
+        $payload = ['enrollmentId' => $e->id, 'reason' => 'Family circumstances', 'files' => $documents];
+        $id = $this->postJson($url, $payload)->assertSuccessful()->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.submissions.0.files.0.name', 'form.pdf')
+            ->assertJsonPath('data.submissions.0.files.1.name', 'letter.png')
+            ->assertJsonMissingPath('data.submissions.0.files.0.path')->json('data.id');
+        $this->postJson($url, $payload)->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.packetVersion', 1);
+        $this->assertDatabaseCount('student_notifications', 1);
+        $original = DroppingRequest::findOrFail($id)->submissions[0];
+        foreach ($original['files'] as $i => $file) {
+            $this->assertStringStartsNotWith('dropping/pending/', $file['path']);
+            $this->assertSame('private', $disk->getVisibility($file['path']));
+            $disk->assertMissing($signed[$i]['key']);
+        }
+
+        // A PUT URL can be reused until it expires. Its new bytes must never replace the filed document.
+        $disk->put($signed[0]['key'], 'Replaced after submission');
+        $this->get("/api/dropping-requests/$id/files/".$original['files'][0]['id'])->assertOk()->assertStreamedContent($pdf);
+        $admin = User::factory()->create(['role' => Role::Admin]);
+        $this->actingAs($admin)->postJson("/api/admin/dropping-requests/$id/decision", [
+            'version' => 1, 'outcome' => 'needs_correction', 'remarks' => 'Provide the clearer copy.',
+        ])->assertOk();
+        $this->actingAs($e->student->user);
+        $replacement = ['name' => 'clear-letter.png', 'mime' => 'image/png', 'size' => strlen($png)];
+        $replacement['key'] = $this->presign($e, [$replacement])[0]['key'];
+        $disk->put($replacement['key'], $png);
+        $correction = ['enrollmentId' => $e->id, 'reason' => 'Clear copy', 'files' => [$replacement]];
+        $this->postJson("$url/$id/submit", $correction)->assertOk()->assertJsonPath('data.packetVersion', 2);
+        $history = DroppingRequest::findOrFail($id)->submissions;
+        $this->assertSame($original, $history[0]);
+        $this->assertSame($png, $disk->get($history[1]['files'][0]['path']));
+        $this->assertSame($pdf, $disk->get($original['files'][0]['path']));
+        $disk->assertMissing($replacement['key']);
+    }
+
+    public function test_direct_upload_limits_apply_to_presigning_and_submission(): void
+    {
+        Storage::fake('s3');
+        $e = $this->enrollment();
+        $this->actingAs($e->student->user);
+        $url = '/api/me/dropping-requests';
+        $file = ['name' => 'form.pdf', 'mime' => 'application/pdf', 'size' => 2 * 1024 * 1024];
+        $this->presign($e, [$file, $file, $file, [...$file, 'size' => 1024 * 1024]]);
+        $this->presign($e, array_fill(0, 12, [...$file, 'size' => 1]));
+        foreach ([
+            [[], 'files'],
+            [array_fill(0, 13, [...$file, 'size' => 1]), 'files'],
+            [[$file, $file, $file, [...$file, 'size' => 1024 * 1024 + 1]], 'files'],
+            [[[...$file, 'size' => $file['size'] + 1]], 'files.0.size'],
+            [[[...$file, 'size' => 0]], 'files.0.size'],
+            [[[...$file, 'mime' => 'text/plain']], 'files.0.mime'],
+            [[[...$file, 'name' => '']], 'files.0.name'],
+        ] as [$files, $invalidField]) {
+            $this->postJson("$url/uploads/presign", ['enrollmentId' => $e->id, 'files' => $files])
+                ->assertUnprocessable()->assertJsonValidationErrors($invalidField);
+            $references = array_map(fn ($entry) => [...$entry, 'key' => "dropping/pending/$e->student_id/$e->id/".Str::uuid().'.pdf'], $files);
+            $this->postJson($url, ['enrollmentId' => $e->id, 'reason' => 'Family circumstances', 'files' => $references])
+                ->assertUnprocessable()->assertJsonValidationErrors($invalidField);
+        }
+        $this->assertDatabaseCount('dropping_requests', 0);
+    }
+
+    public function test_missing_or_mismatched_direct_uploads_cannot_create_a_partial_packet(): void
+    {
+        $disk = Storage::fake('s3');
+        $e = $this->enrollment();
+        $this->actingAs($e->student->user);
+        $pdf = "%PDF-1.4\nSigned form\n%%EOF";
+        $file = ['name' => 'form.pdf', 'mime' => 'application/pdf', 'size' => strlen($pdf)];
+        [$first, $second] = $this->presign($e, [$file, $file]);
+        $payload = ['enrollmentId' => $e->id, 'reason' => 'Family circumstances', 'files' => [
+            [...$file, 'key' => $first['key']], [...$file, 'key' => $second['key']],
+        ]];
+        foreach ([null, $pdf.'longer', str_repeat('x', strlen($pdf))] as $invalidContent) {
+            $disk->put($first['key'], $pdf);
+            if ($invalidContent !== null) {
+                $disk->put($second['key'], $invalidContent);
+            }
+            $this->postJson('/api/me/dropping-requests', $payload)->assertUnprocessable();
+            $this->assertDatabaseCount('dropping_requests', 0);
+            $this->assertDatabaseCount('student_notifications', 0);
+            foreach ($disk->allFiles() as $key) {
+                $this->assertStringStartsWith('dropping/pending/', $key);
+            }
+        }
+        $disk->put($first['key'], $pdf);
+        $this->postJson('/api/me/dropping-requests', [...$payload, 'files' => [$payload['files'][0], $payload['files'][0]]])->assertUnprocessable();
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $disk->put($first['key'], $pdf);
+        $disk->put($second['key'], $pdf);
+        $this->postJson('/api/me/dropping-requests', $payload)->assertSuccessful()->assertJsonPath('data.packetVersion', 1);
+        $this->assertDatabaseCount('student_notifications', 1);
+    }
+
+    public function test_only_the_owner_can_sign_use_and_clean_up_their_pending_uploads(): void
+    {
+        $disk = Storage::fake('s3');
+        $owner = $this->enrollment();
+        $other = $this->enrollment();
+        $url = '/api/me/dropping-requests';
+        $pdf = "%PDF-1.4\nSigned form\n%%EOF";
+        $file = ['name' => 'form.pdf', 'mime' => 'application/pdf', 'size' => strlen($pdf)];
+        $packet = ['enrollmentId' => $owner->id, 'files' => [$file]];
+        $this->postJson("$url/uploads/presign", $packet)->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['role' => Role::Cashier]))->postJson("$url/uploads/presign", $packet)->assertForbidden();
+        $this->actingAs($other->student->user)->postJson("$url/uploads/presign", $packet)->assertNotFound();
+        $this->actingAs($owner->student->user);
+        $key = $this->presign($owner, [$file])[0]['key'];
+        $disk->put($key, $pdf);
+        $this->actingAs($other->student->user)->postJson($url, [
+            'enrollmentId' => $other->id, 'reason' => 'Reason', 'files' => [[...$file, 'key' => $key]],
+        ])->assertUnprocessable();
+        $this->deleteJson("$url/uploads", ['enrollmentId' => $other->id, 'keys' => [$key]])->assertUnprocessable();
+        $disk->assertExists($key);
+        $this->assertDatabaseCount('dropping_requests', 0);
+        $this->actingAs($owner->student->user);
+        $permanent = 'dropping/10/1/file.pdf';
+        $disk->put($permanent, $pdf);
+        $this->deleteJson("$url/uploads", ['enrollmentId' => $owner->id, 'keys' => [$key, $permanent]])->assertUnprocessable();
+        $disk->assertExists($permanent);
+        $disk->assertExists($key);
+        $this->deleteJson("$url/uploads", ['enrollmentId' => $owner->id, 'keys' => [$key]])->assertSuccessful();
+        $this->deleteJson("$url/uploads", ['enrollmentId' => $owner->id, 'keys' => [$key]])->assertSuccessful();
+        $disk->assertMissing($key);
+        $owner->update(['status' => 'dropped']);
+        $this->postJson("$url/uploads/presign", $packet)->assertUnprocessable();
     }
 
     public function test_new_submission_respects_existing_legacy_requests_without_overwriting_them(): void
