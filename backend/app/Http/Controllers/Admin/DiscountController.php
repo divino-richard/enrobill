@@ -4,14 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DiscountResource;
-use App\Models\BillAdjustment;
 use App\Models\Discount;
-use App\Models\IncentiveAward;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class DiscountController extends Controller
 {
@@ -68,34 +64,9 @@ class DiscountController extends Controller
     {
         $attributes = $this->validateDiscount($request, $discount);
 
-        if (! $attributes['is_active'] && $this->isLockedByAppliedIncentive($discount)) {
-            throw ValidationException::withMessages([
-                'isActive' => 'This voucher unlocked a permanent tuition incentive and cannot be retired.',
-            ]);
-        }
-
         $discount->update($attributes);
 
         return new DiscountResource($discount->fresh());
-    }
-
-    /**
-     * Remove a discount from the catalog. Bills that already used it keep their
-     * adjustment (the foreign key is nulled, not cascaded).
-     */
-    public function destroy(Discount $discount): Response
-    {
-        abort_if(BillAdjustment::where('discount_id', $discount->id)->whereHas('bill.droppingAssessment')->exists(), 422,
-            'This voucher is part of an approved dropping assessment and must be retained.');
-        if ($this->isLockedByAppliedIncentive($discount)) {
-            throw ValidationException::withMessages([
-                'discount' => 'This voucher unlocked a permanent tuition incentive and cannot be deleted.',
-            ]);
-        }
-
-        $discount->delete();
-
-        return response()->noContent();
     }
 
     /**
@@ -120,24 +91,7 @@ class DiscountController extends Controller
             'category' => $validated['category'],
             'type' => 'fixed',
             'value' => $validated['value'],
-            'is_active' => $validated['isActive'] ?? true,
+            'is_active' => $validated['isActive'] ?? $discount?->is_active ?? true,
         ];
-    }
-
-    /** Preserve the voucher evidence behind an irrevocable incentive award. */
-    private function isLockedByAppliedIncentive(Discount $discount): bool
-    {
-        return BillAdjustment::query()
-            ->where('discount_id', $discount->id)
-            ->where(function ($query) {
-                $query->whereHas('bill.adjustments', fn ($adjustments) => $adjustments
-                    ->whereNotNull('incentive_key'))
-                    ->orWhereHas('bill.enrollment.incentiveAwards', fn ($awards) => $awards
-                        ->whereIn('status', [
-                            IncentiveAward::STATUS_APPLIED,
-                            IncentiveAward::STATUS_APPLIED_NO_BALANCE,
-                        ]));
-            })
-            ->exists();
     }
 }

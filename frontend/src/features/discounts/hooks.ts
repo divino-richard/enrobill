@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 import {
   createDiscount,
-  deleteDiscount,
   fetchAllDiscounts,
   fetchDiscounts,
   updateDiscount,
@@ -47,16 +46,6 @@ export function useUpdateDiscount(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: DiscountInput) => updateDiscount(id, input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: discountsQueryKey });
-    },
-  });
-}
-
-export function useDeleteDiscount() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => deleteDiscount(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: discountsQueryKey });
     },

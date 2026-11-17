@@ -311,7 +311,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/discounts', [AdminDiscountController::class, 'index']);
         Route::post('/admin/discounts', [AdminDiscountController::class, 'store']);
         Route::put('/admin/discounts/{discount}', [AdminDiscountController::class, 'update']);
-        Route::delete('/admin/discounts/{discount}', [AdminDiscountController::class, 'destroy']);
 
         // Enrollments hub — all enrollments; the cashier generates a bill for a
         // pending one (applying voucher + eligible freebies).

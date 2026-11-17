@@ -38,7 +38,7 @@ class ReturningEnrollmentController extends Controller
             'schoolYearId' => ['required', 'integer', 'exists:school_years,id'],
             'program' => ['required', 'string', Rule::exists('programs', 'code')->where('is_active', true)],
             'yearLevel' => ['required', Rule::in(SchoolYear::YEAR_LEVELS)],
-            'discountId' => ['present', 'nullable', 'integer', Rule::exists('discounts', 'id')->where('is_active', true)->where('category', 'voucher')],
+            'discountId' => ['present', 'nullable', 'integer', Rule::exists('discounts', 'id')->where('is_active', true)->where('category', 'voucher')->whereNull('deleted_at')],
         ]);
 
         return DB::transaction(function () use ($request, $student, $input) {

@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['name', 'category', 'type', 'value', 'is_active'])]
 class Discount extends Model
 {
+    use SoftDeletes;
+
     /**
      * @return array<string, string>
      */

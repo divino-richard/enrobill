@@ -9,38 +9,33 @@ import {
   type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
-import { PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { SortHeader } from "@/components/data-table-sort-header";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RowActions } from "@/components/row-actions";
 import { FieldLabel } from "@/components/form/field-label";
 import { getErrorMessage } from "@/lib/get-error-message";
 import {
   useCreateDiscount,
-  useDeleteDiscount,
   useDiscounts,
   useUpdateDiscount,
 } from "@/features/discounts/hooks";
@@ -65,6 +60,7 @@ function DiscountDialog({
   // Seeded from props on mount; the parent mounts this fresh per open.
   const [name, setName] = useState(editing?.name ?? "");
   const [value, setValue] = useState(editing ? String(editing.value) : "");
+  const [isActive, setIsActive] = useState(editing?.isActive ?? true);
 
   const valid = name.trim() !== "" && value.trim() !== "";
 
@@ -76,7 +72,7 @@ function DiscountDialog({
         name: name.trim(),
         category: "voucher",
         value: numericValue,
-        isActive: editing?.isActive ?? true,
+        isActive,
       });
       onOpenChange(false);
     } catch {
@@ -86,13 +82,9 @@ function DiscountDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{editing ? "Edit voucher" : "New voucher"}</DialogTitle>
-          <DialogDescription>
-            A voucher is a fixed peso credit (e.g. the ₱17,500 SHS voucher) the
-            cashier can apply to a student's bill.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -120,6 +112,22 @@ function DiscountDialog({
               value={value}
               onChange={(event) => setValue(event.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="voucher-status">Status</FieldLabel>
+            <Select
+              value={isActive ? "active" : "inactive"}
+              onValueChange={(status) => setIsActive(status === "active")}
+              disabled={mutation.isPending}
+            >
+              <SelectTrigger id="voucher-status" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start" className="w-(--radix-select-trigger-width)">
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -151,8 +159,6 @@ function DiscountDialog({
 }
 
 function DiscountsPage() {
-  const remove = useDeleteDiscount();
-
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const [sorting, setSorting] = useState<SortingState>([
@@ -178,7 +184,6 @@ function DiscountsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Discount | null>(null);
-  const [deleting, setDeleting] = useState<Discount | null>(null);
 
   function openNew() {
     setEditing(null);
@@ -188,15 +193,6 @@ function DiscountsPage() {
   function openEdit(discount: Discount) {
     setEditing(discount);
     setDialogOpen(true);
-  }
-
-  async function confirmDelete() {
-    if (!deleting) return;
-    try {
-      await remove.mutateAsync(deleting.id);
-    } finally {
-      setDeleting(null);
-    }
   }
 
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
@@ -249,13 +245,6 @@ function DiscountsPage() {
             <DropdownMenuItem onClick={() => openEdit(row.original)}>
               <PencilIcon />
               Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => setDeleting(row.original)}
-            >
-              <Trash2Icon />
-              Delete
             </DropdownMenuItem>
           </RowActions>
         ),
@@ -335,39 +324,6 @@ function DiscountsPage() {
           editing={editing}
         />
       )}
-
-      <AlertDialog
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open && !remove.isPending) setDeleting(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this discount?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleting
-                ? `"${deleting.name}" will be removed from the catalog. Bills that already used it keep their credit. This can't be undone.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={remove.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
-              disabled={remove.isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmDelete();
-              }}
-            >
-              {remove.isPending ? "Deleting…" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

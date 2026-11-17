@@ -46,7 +46,7 @@ class BillAdjustment extends Model
      */
     public function discount(): BelongsTo
     {
-        return $this->belongsTo(Discount::class);
+        return $this->belongsTo(Discount::class)->withTrashed();
     }
 
     /** Awards represented by this shared incentive credit. */

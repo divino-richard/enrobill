@@ -372,7 +372,7 @@ class ReportsController extends Controller
     {
         $billIds = (clone $bills)->select('id');
 
-        return Discount::query()
+        return Discount::withTrashed()
             ->where('category', 'voucher')
             ->get()
             ->map(function (Discount $discount) use ($billIds, $enrollments) {

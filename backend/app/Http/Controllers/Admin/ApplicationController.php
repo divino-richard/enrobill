@@ -138,7 +138,7 @@ class ApplicationController extends Controller
                 Rule::prohibitedIf($voucherLocked),
                 // Only an active voucher may be granted — not an arbitrary discount id.
                 Rule::exists('discounts', 'id')->where(
-                    fn ($query) => $query->where('category', 'voucher')->where('is_active', true),
+                    fn ($query) => $query->where('category', 'voucher')->where('is_active', true)->whereNull('deleted_at'),
                 ),
             ],
         ], [

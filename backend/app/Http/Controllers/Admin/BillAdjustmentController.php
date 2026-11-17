@@ -56,7 +56,7 @@ class BillAdjustmentController extends Controller
         $bill->assertMutableAssessment();
         $validated = $request->validate([
             'discountId' => [
-                'required', 'integer', 'exists:discounts,id',
+                'required', 'integer', Rule::exists('discounts', 'id')->whereNull('deleted_at'),
                 // The same discount can't be applied to a bill twice.
                 Rule::unique('bill_adjustments', 'discount_id')->where('bill_id', $bill->id),
             ],

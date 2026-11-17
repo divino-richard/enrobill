@@ -229,7 +229,8 @@ class Bill extends Model
         return $this->adjustments()
             ->whereHas('discount', fn ($query) => $query
                 ->where('category', 'voucher')
-                ->where('is_active', true))
+                ->where('is_active', true)
+                ->whereNull('discounts.deleted_at'))
             ->exists();
     }
 

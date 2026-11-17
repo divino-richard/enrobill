@@ -63,7 +63,3 @@ export async function updateDiscount(
   );
   return data.data;
 }
-
-export async function deleteDiscount(id: number): Promise<void> {
-  await api.delete(`/admin/discounts/${id}`);
-}

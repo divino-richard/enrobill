@@ -66,6 +66,7 @@ class EnrollmentIncentiveResource extends JsonResource
         }
 
         return $this->discount !== null
+            && ! $this->discount->trashed()
             && $this->discount->category === 'voucher'
             && (bool) $this->discount->is_active;
     }
