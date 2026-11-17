@@ -11,12 +11,25 @@ import {
   Loader2Icon,
   SearchIcon,
   RefreshCwIcon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { RowActions } from "@/components/row-actions";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -49,7 +62,7 @@ import {
   fetchStudentDocumentBlob,
   fetchStudentDocumentViewUrl,
 } from "@/features/student-documents/api";
-import { useTeacherGrades, useUploadTeacherGrade } from "@/features/teacher-grades/hooks";
+import { useRemoveTeacherGrade, useTeacherGrades, useUploadTeacherGrade } from "@/features/teacher-grades/hooks";
 import type { TeacherGradeStudent } from "@/features/teacher-grades/types";
 import { getTeacherRosterError, getTeacherRosterState } from "@/features/teacher-grades/roster-state";
 
@@ -94,11 +107,14 @@ function GradeSlot({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadTeacherGrade(student.id, schoolYearId);
+  const remove = useRemoveTeacherGrade(student.id);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [pending, setPending] = useState<PendingFile | null>(null);
   const [progress, setProgress] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
   const semesterName = SEMESTERS.find((item) => item.value === semester)?.label ?? semester;
-  const locked = existing !== undefined && existing.reviewStatus !== "returned";
+  const locked = existing?.reviewStatus === "accepted";
+  const busy = upload.isPending || remove.isPending;
 
   function clearPending() {
     setPending((current) => {
@@ -136,9 +152,20 @@ function GradeSlot({
     }
   }
 
+  async function confirmRemove() {
+    if (!existing || locked || busy) return;
+    try {
+      await remove.mutateAsync(existing.id);
+      setConfirmingRemove(false);
+      setLocalError(null);
+    } catch {
+      // Keep the confirmation open so the teacher can retry.
+    }
+  }
+
   return (
     <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <FileTextIcon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
@@ -165,17 +192,33 @@ function GradeSlot({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-          {upload.isPending && <span className="text-muted-foreground text-xs tabular-nums">{progress}%</span>}
-          {existing && !upload.isPending && (
-            <Button size="sm" variant="outline" onClick={() => onView(existing)}>
+        <div className="flex shrink-0 items-center gap-1">
+          {existing && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => onView(existing)}>
               <EyeIcon /> View
             </Button>
           )}
-          {!locked && (
-            <Button size="sm" disabled={upload.isPending} onClick={() => inputRef.current?.click()}>
+          {existing && !locked && (
+            <RowActions label={`${semesterName} grade actions`} disabled={busy}>
+              <DropdownMenuItem onSelect={() => {
+                setLocalError(null);
+                upload.reset();
+                inputRef.current?.click();
+              }}>
+                <RefreshCwIcon /> Replace
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => {
+                remove.reset();
+                setConfirmingRemove(true);
+              }}>
+                <Trash2Icon /> Remove
+              </DropdownMenuItem>
+            </RowActions>
+          )}
+          {!existing && (
+            <Button size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>
               {upload.isPending ? <Loader2Icon className="animate-spin" /> : <UploadIcon />}
-              {existing ? "Replace" : "Upload"}
+              Upload
             </Button>
           )}
         </div>
@@ -205,6 +248,37 @@ function GradeSlot({
         description={`${student.name} · check that every page is complete and readable.`}
         confirmLabel={existing ? "Replace grade slip" : "Upload grade slip"}
       />
+      <AlertDialog
+        open={confirmingRemove && existing !== undefined && !locked}
+        onOpenChange={(open) => {
+          if (!remove.isPending) setConfirmingRemove(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove grade slip?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove the {semesterName} grade slip for {student.name}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {remove.isError && (
+            <p role="alert" className="text-destructive text-sm">{getErrorMessage(remove.error)}</p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={remove.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmRemove();
+              }}
+            >
+              {remove.isPending ? "Removing…" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

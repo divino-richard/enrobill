@@ -279,6 +279,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/teacher/grades', [TeacherGradeController::class, 'index']);
         Route::post('/teacher/students/{student}/grades/presign', [TeacherGradeController::class, 'presign']);
         Route::post('/teacher/students/{student}/grades', [TeacherGradeController::class, 'store']);
+        Route::delete('/teacher/students/{student}/grades/{document}', [TeacherGradeController::class, 'destroy']);
     });
 
     // Accounting endpoints — available to admins and cashiers.

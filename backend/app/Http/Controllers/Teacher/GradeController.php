@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentDocumentResource;
 use App\Models\Enrollment;
+use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
 use App\Models\SemesterStanding;
 use App\Models\Student;
@@ -12,6 +13,8 @@ use App\Models\StudentDocument;
 use App\Support\TeacherStudentAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -158,37 +161,70 @@ class GradeController extends Controller
         );
         abort_unless(str_starts_with($validated['key'], $prefix), 422, 'Unrecognized upload.');
 
-        [$existing, $standing] = $this->assertSlotWritable($student, $schoolYear, $validated['semester']);
         $disk = Storage::disk('s3');
         abort_unless($disk->exists($validated['key']), 422, 'The uploaded grade slip could not be found. Upload it again.');
         abort_unless($disk->size($validated['key']) === $validated['size'], 422, 'The uploaded file size does not match. Upload it again.');
         abort_unless($disk->mimeType($validated['key']) === $validated['content_type'], 422, 'The uploaded file type does not match. Upload it again.');
 
-        $supersededKey = $existing?->s3_key;
+        [$document, $supersededKey] = DB::transaction(function () use ($request, $student, $schoolYear, $validated) {
+            // Admin review takes the same lock before accepting this slot.
+            $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeStudent($request, $student, $schoolYear->id);
+            [$existing, $standing] = $this->assertSlotWritable($student, $schoolYear, $validated['semester']);
+            $supersededKey = $existing?->s3_key;
 
-        $document = $student->documents()->updateOrCreate(
-            [
-                'school_year_id' => $schoolYear->id,
-                'semester' => $validated['semester'],
-                'type' => 'grades',
-            ],
-            [
-                's3_key' => $validated['key'],
-                'file_name' => $validated['file_name'],
-                'size' => $validated['size'],
-                'content_type' => $validated['content_type'],
-            ],
-        );
+            $document = $student->documents()->updateOrCreate(
+                [
+                    'school_year_id' => $schoolYear->id,
+                    'semester' => $validated['semester'],
+                    'type' => 'grades',
+                ],
+                [
+                    's3_key' => $validated['key'],
+                    'file_name' => $validated['file_name'],
+                    'size' => $validated['size'],
+                    'content_type' => $validated['content_type'],
+                ],
+            );
 
-        if ($standing?->noteFor('grades') !== null) {
-            $standing->update(['grades_note' => null]);
-        }
+            if ($standing?->noteFor('grades') !== null) {
+                $standing->update(['grades_note' => null]);
+            }
+
+            return [$document, $supersededKey];
+        });
 
         if ($supersededKey !== null && $supersededKey !== $validated['key']) {
             $disk->delete($supersededKey);
         }
 
         return new StudentDocumentResource($document);
+    }
+
+    public function destroy(Request $request, Student $student, StudentDocument $document): Response
+    {
+        abort_unless($document->student_id === $student->id && $document->type === 'grades', 404);
+        $schoolYear = $this->authorizeStudent($request, $student, $document->school_year_id);
+
+        $key = DB::transaction(function () use ($request, $student, $schoolYear, $document) {
+            $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeStudent($request, $student, $schoolYear->id);
+            [$existing, $standing] = $this->assertSlotWritable($student, $schoolYear, $document->semester);
+            abort_unless($existing !== null && $existing->id === $document->id, 404);
+
+            $key = $existing->s3_key;
+            $existing->delete();
+
+            if ($standing?->noteFor('grades') !== null) {
+                $standing->update(['grades_note' => null]);
+            }
+
+            return $key;
+        });
+
+        Storage::disk('s3')->delete($key);
+
+        return response()->noContent();
     }
 
     private function authorizeStudent(Request $request, Student $student, int $schoolYearId): SchoolYear
@@ -215,11 +251,20 @@ class GradeController extends Controller
             ->where('semester', $semester)
             ->first();
 
+        abort_if(
+            $standing?->isAccepted('grades') ?? false,
+            422,
+            'This grade slip has been approved and can no longer be replaced or removed.',
+        );
+
         if ($existing !== null) {
-            abort_unless(
-                $standing?->isReturned('grades') ?? false,
+            abort_if(
+                ProgressionDecision::query()
+                    ->where('student_id', $student->id)
+                    ->where('from_school_year_id', $schoolYear->id)
+                    ->exists(),
                 422,
-                'This grade slip is locked. It can only be replaced after an admin returns it with a reason.',
+                'This school year has already been evaluated, so its grade slips can no longer be replaced or removed.',
             );
         }
 

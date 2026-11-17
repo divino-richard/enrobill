@@ -20,6 +20,10 @@ export async function fetchTeacherGrades(schoolYearId?: number): Promise<Teacher
   return data.data;
 }
 
+export async function removeTeacherGrade(studentId: number, documentId: number): Promise<void> {
+  await api.delete(`/teacher/students/${studentId}/grades/${documentId}`);
+}
+
 export async function uploadTeacherGrade(
   studentId: number,
   schoolYearId: number,

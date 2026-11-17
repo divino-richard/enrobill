@@ -14,6 +14,7 @@ use App\Models\StudentDocument;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -234,51 +235,52 @@ class ProgressionController extends Controller
             'note' => ['nullable', 'string', 'max:1000', 'required_if:accepted,false'],
         ]);
 
-        // Only students actually enrolled in the active year can be reviewed.
-        $isEnrolled = Student::query()
-            ->whereKey($validated['studentId'])
-            ->whereHas('enrollments', fn ($q) => $q
-                ->where('school_year_id', $active->id)
-                ->where('status', 'enrolled'))
-            ->exists();
-
-        abort_unless($isEnrolled, 404);
-
         $field = $validated['field'];
 
-        // A slot can't be accepted without the file that proves it.
-        if ($validated['accepted']) {
-            $uploaded = StudentDocument::query()
-                ->where('student_id', $validated['studentId'])
+        $student = DB::transaction(function () use ($request, $active, $validated, $field) {
+            // Teacher grade changes take the same lock before checking approval.
+            $student = Student::whereKey($validated['studentId'])->lockForUpdate()->firstOrFail();
+            $isEnrolled = $student->enrollments()
                 ->where('school_year_id', $active->id)
-                ->where('semester', $validated['semester'])
-                ->where('type', $field)
+                ->where('status', 'enrolled')
                 ->exists();
 
-            if (! $uploaded) {
-                throw ValidationException::withMessages([
-                    'accepted' => "Upload the {$field} for this semester before accepting it.",
-                ]);
+            abort_unless($isEnrolled, 404);
+
+            // A slot can't be accepted without the file that proves it.
+            if ($validated['accepted']) {
+                $uploaded = StudentDocument::query()
+                    ->where('student_id', $student->id)
+                    ->where('school_year_id', $active->id)
+                    ->where('semester', $validated['semester'])
+                    ->where('type', $field)
+                    ->exists();
+
+                if (! $uploaded) {
+                    throw ValidationException::withMessages([
+                        'accepted' => "Upload the {$field} for this semester before accepting it.",
+                    ]);
+                }
             }
-        }
 
-        SemesterStanding::updateOrCreate(
-            [
-                'student_id' => $validated['studentId'],
-                'school_year_id' => $active->id,
-                'semester' => $validated['semester'],
-            ],
-            [
-                ($field === 'clearance' ? 'clearance_cleared' : 'grades_passed') => $validated['accepted'],
-                ($field === 'clearance' ? 'clearance_note' : 'grades_note') => $validated['accepted']
-                    ? null
-                    : $validated['note'],
-                'reviewed_by' => $request->user()?->id,
-                'reviewed_at' => now(),
-            ],
-        );
+            SemesterStanding::updateOrCreate(
+                [
+                    'student_id' => $student->id,
+                    'school_year_id' => $active->id,
+                    'semester' => $validated['semester'],
+                ],
+                [
+                    ($field === 'clearance' ? 'clearance_cleared' : 'grades_passed') => $validated['accepted'],
+                    ($field === 'clearance' ? 'clearance_note' : 'grades_note') => $validated['accepted']
+                        ? null
+                        : $validated['note'],
+                    'reviewed_by' => $request->user()?->id,
+                    'reviewed_at' => now(),
+                ],
+            );
 
-        $student = Student::findOrFail($validated['studentId']);
+            return $student;
+        });
 
         $fieldLabel = $field === 'clearance' ? 'Clearance' : 'Grades';
         $semesterLabel = $validated['semester'] === 'first' ? '1st Semester' : '2nd Semester';
