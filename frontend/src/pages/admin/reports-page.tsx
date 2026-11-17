@@ -1,6 +1,6 @@
 import { COLLECTION_LABELS } from '@/features/bills/collection';
 import { useState, type ReactNode } from "react";
-import { BarChart3Icon, CalendarRangeIcon, ReceiptTextIcon } from "lucide-react";
+import { BarChart3Icon, CalendarRangeIcon, FunnelXIcon, ReceiptTextIcon } from "lucide-react";
 import {
   DashboardHeader,
   DashboardLoading,
@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -28,14 +29,16 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/features/applications/utils";
+import { YEAR_LEVEL_OPTIONS, type YearLevel } from "@/features/applications/types";
 import {
   BILL_STATUS_META,
   PAYMENT_STATUS_META,
   paymentMethodLabel,
+  type BillStatus,
 } from "@/features/bills/types";
 import { discountValueLabel } from "@/features/discounts/types";
-import { ENROLLMENT_STATUS_META } from "@/features/enrollments/types";
-import { useProgramLabel } from "@/features/programs/hooks";
+import { ENROLLMENT_STATUS_META, ENROLLMENT_STATUS_OPTIONS, type EnrollmentStatus } from "@/features/enrollments/types";
+import { useProgramLabel, usePrograms } from "@/features/programs/hooks";
 import { useReports } from "@/features/reports/hooks";
 import { printReport } from "@/features/reports/print";
 import type {
@@ -50,9 +53,9 @@ import { formatPeso } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 const PERIOD_OPTIONS: { value: ReportPeriod; label: string }[] = [
-  { value: "month", label: "This month" },
-  { value: "quarter", label: "This quarter" },
-  { value: "year", label: "School year view" },
+  { value: "month", label: "Last 30 days" },
+  { value: "quarter", label: "Last 90 days" },
+  { value: "year", label: "Full school year" },
 ];
 
 const number = new Intl.NumberFormat("en-PH");
@@ -74,6 +77,13 @@ function ReportsPage() {
   } = useTerms();
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [period, setPeriod] = useState<ReportPeriod>("year");
+  const [yearLevel, setYearLevel] = useState<YearLevel | "all">("all");
+  const [program, setProgram] = useState("all");
+  const [sectionId, setSectionId] = useState("all");
+  const [enrollmentStatus, setEnrollmentStatus] = useState<EnrollmentStatus | "all">("all");
+  const [billingStatus, setBillingStatus] = useState<BillStatus | "unbilled" | "all">("all");
+  const [activeTab, setActiveTab] = useState("collections");
+  const { data: programs = [] } = usePrograms();
   const programLabel = useProgramLabel();
 
   const defaultTerm = terms?.find((term) => term.isActive) ?? terms?.[0] ?? null;
@@ -86,8 +96,31 @@ function ReportsPage() {
     data: dataset,
     isLoading: reportLoading,
     isError: reportError,
+    isFetching: reportFetching,
+    isPlaceholderData,
     refetch,
-  } = useReports({ schoolYearId: selectedTerm?.id, period });
+  } = useReports({
+    schoolYearId: selectedTerm?.id,
+    period,
+    yearLevel: yearLevel === "all" ? undefined : yearLevel,
+    program: program === "all" ? undefined : program,
+    sectionId: sectionId === "all" ? undefined : sectionId,
+    enrollmentStatus: enrollmentStatus === "all" ? undefined : enrollmentStatus,
+    billingStatus: billingStatus === "all" ? undefined : billingStatus,
+  });
+
+  const hasFilters = selectedTerm?.id !== defaultTerm?.id || period !== "year" ||
+    yearLevel !== "all" || program !== "all" || sectionId !== "all" ||
+    enrollmentStatus !== "all" || billingStatus !== "all";
+  const resetFilters = () => {
+    setSelectedTermId(null);
+    setPeriod("year");
+    setYearLevel("all");
+    setProgram("all");
+    setSectionId("all");
+    setEnrollmentStatus("all");
+    setBillingStatus("all");
+  };
 
   if (termsLoading || reportLoading) return <DashboardLoading />;
 
@@ -122,13 +155,28 @@ function ReportsPage() {
 
   const periodLabel =
     PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? "";
+  const sections = (dataset.filterOptions?.sections ?? []).filter((section) =>
+    (yearLevel === "all" || section.yearLevel === yearLevel) &&
+    (program === "all" || section.program === program),
+  );
+  const selectedSection = sections.find((section) => String(section.id) === sectionId);
+  const sectionLabel = (section: ReportDataset["filterOptions"]["sections"][number]) =>
+    `${section.name} · ${yearLevelLabel(section.yearLevel)} · ${programLabel(section.program).replace(/\s*\([^)]*\)/g, "").trim()}`;
+  const reportUpdating = reportFetching || isPlaceholderData;
+  const filterLabels = [
+    yearLevel === "all" ? "All grade levels" : yearLevelLabel(yearLevel),
+    program === "all" ? "All programs / strands" : programLabel(program),
+    sectionId === "all" ? "All sections" : sectionId === "unassigned" ? "Unassigned section" : `Section: ${selectedSection ? sectionLabel(selectedSection) : sectionId}`,
+    enrollmentStatus === "all" ? "All enrollment statuses" : `Enrollment: ${ENROLLMENT_STATUS_META[enrollmentStatus].label}`,
+    billingStatus === "all" ? "All billing statuses" : `Billing: ${billingStatus === "unbilled" ? "Not billed" : BILL_STATUS_META[billingStatus].label}`,
+  ];
   const averageBill = dataset.summary.billsGenerated
     ? Math.round(dataset.summary.totalBilled / dataset.summary.billsGenerated)
     : 0;
   const metrics: DashboardMetric[] = [
     {
       label: "Total billed",
-      explanation: "Fees billed during the selected reporting period.",
+      explanation: "Fees billed for the selected academic year and filters.",
       value: formatPeso(dataset.summary.totalBilled),
       detail: `${number.format(dataset.summary.billsGenerated)} bills · ${formatPeso(averageBill)} average`,
       tone: "primary",
@@ -242,18 +290,20 @@ function ReportsPage() {
         context={selectedTerm?.isActive ? <Badge variant="secondary">Active term</Badge> : null}
       />
 
-      <Card className="gap-4 px-5 py-4 sm:flex-row sm:flex-wrap sm:items-end">
-        <div className="mr-4 sm:self-center"><p className="text-sm font-semibold">Report scope</p><p className="text-muted-foreground mt-1 text-xs">{periodLabel}</p></div>
-        <ReportFilter label="Academic year">
+      <Card className="grid gap-4 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4">
+        <ReportFilter label="Academic year" id="report-year">
           <Select
             value={selectedTerm ? String(selectedTerm.id) : undefined}
-            onValueChange={setSelectedTermId}
+            onValueChange={(value) => {
+              setSelectedTermId(value);
+              setSectionId("all");
+            }}
           >
-            <SelectTrigger className="w-full min-w-44 bg-card sm:w-auto">
+            <SelectTrigger id="report-year" className="w-full text-left *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1">
               <CalendarRangeIcon className="text-muted-foreground size-4" />
               <SelectValue placeholder="School year" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" align="start" className="w-(--radix-select-trigger-width) min-w-0">
               {terms.map((term) => (
                 <SelectItem key={term.id} value={String(term.id)}>
                   SY {term.schoolYear}
@@ -262,16 +312,89 @@ function ReportsPage() {
             </SelectContent>
           </Select>
         </ReportFilter>
-        <ReportFilter label="Reporting period">
+        <ReportFilter label="Grade level" id="report-grade">
+          <Select value={yearLevel} onValueChange={(value) => {
+            setYearLevel(value as YearLevel | "all");
+            setSectionId("all");
+          }}>
+            <SelectTrigger id="report-grade" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All grade levels</SelectItem>
+              {YEAR_LEVEL_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ReportFilter>
+        <ReportFilter label="Program / strand" id="report-program">
+          <Select value={program} onValueChange={(value) => {
+            setProgram(value);
+            setSectionId("all");
+          }}>
+            <SelectTrigger id="report-program" className="w-full" title={program === "all" ? undefined : programLabel(program)}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All programs / strands</SelectItem>
+              {programs.map((item) => (
+                <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ReportFilter>
+        <ReportFilter label="Section" id="report-section">
+          <Select value={sectionId} onValueChange={setSectionId} disabled={isPlaceholderData}>
+            <SelectTrigger id="report-section" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sections</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {sections.map((section) => (
+                <SelectItem key={section.id} value={String(section.id)}>{sectionLabel(section)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ReportFilter>
+        <ReportFilter label="Enrollment status" id="report-enrollment-status">
+          <Select value={enrollmentStatus} onValueChange={(value) => setEnrollmentStatus(value as EnrollmentStatus | "all")}>
+            <SelectTrigger id="report-enrollment-status" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All enrollment statuses</SelectItem>
+              {ENROLLMENT_STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ReportFilter>
+        <ReportFilter label="Billing status" id="report-billing-status">
+          <Select value={billingStatus} onValueChange={(value) => setBillingStatus(value as typeof billingStatus)}>
+            <SelectTrigger id="report-billing-status" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All billing statuses</SelectItem>
+              <SelectItem value="unbilled">Not billed</SelectItem>
+              <SelectItem value="unpaid">Unpaid</SelectItem>
+              <SelectItem value="partial">Partially paid</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+            </SelectContent>
+          </Select>
+        </ReportFilter>
+        <ReportFilter label="Recent activity" id="report-period">
           <Select
             value={period}
             onValueChange={(value) => setPeriod(value as ReportPeriod)}
           >
-            <SelectTrigger className="w-full min-w-40 bg-card sm:w-auto">
+            <SelectTrigger id="report-period" className="w-full text-left *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1">
               <BarChart3Icon className="text-muted-foreground size-4" />
               <SelectValue placeholder="Period" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" align="start" className="w-(--radix-select-trigger-width) min-w-0">
               {PERIOD_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
@@ -280,18 +403,23 @@ function ReportsPage() {
             </SelectContent>
           </Select>
         </ReportFilter>
-        <div className="text-muted-foreground min-w-0 text-sm sm:ml-auto sm:pb-2">
-          Updated <span className="font-medium text-foreground">{formatDate(dataset.updatedAt)}</span>
-        </div>
+        <div className="flex items-end gap-2">
+        {hasFilters && (
+          <Button type="button" variant="outline" size="icon" onClick={resetFilters} aria-label="Reset filters" title="Reset filters">
+            <FunnelXIcon />
+          </Button>
+        )}
         <Button
           type="button"
-          className="w-full sm:w-auto"
+          className="flex-1"
+          disabled={reportUpdating}
           onClick={() =>
             printReport(
               dataset,
               {
                 schoolYear: selectedTerm ? `SY ${selectedTerm.schoolYear}` : "—",
                 periodLabel,
+                filters: filterLabels,
               },
               programLabel,
             )
@@ -300,11 +428,14 @@ function ReportsPage() {
           <ReceiptTextIcon />
           Export snapshot
         </Button>
+        </div>
       </Card>
 
+      {reportUpdating && <p role="status" className="text-muted-foreground text-sm">{reportFetching ? "Updating report…" : "Waiting for connection to update report…"}</p>}
+      <div className="space-y-4" aria-busy={reportUpdating}>
       <DashboardMetricStrip metrics={metrics} />
 
-      <Tabs defaultValue="collections" className="gap-3">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
         <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl bg-card p-1 shadow-xs ring-1 ring-foreground/10 sm:flex sm:w-fit">
           <TabsTrigger className="w-full px-2 sm:w-auto sm:px-4" value="collections">Collections</TabsTrigger>
           <TabsTrigger className="w-full px-2 sm:w-auto sm:px-4" value="enrollment">Enrollment</TabsTrigger>
@@ -315,7 +446,7 @@ function ReportsPage() {
           <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(19rem,.65fr)]">
             <ReportBreakdown
               title="Billing position"
-              description="Selected period"
+              description="Selected academic year"
               data={financialData}
               comparison
               empty="No billing activity found for this reporting window."
@@ -335,7 +466,7 @@ function ReportsPage() {
           <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
             <ReportBreakdown
               title="Enrollment composition"
-              description="Selected period"
+              description="Selected academic year"
               data={enrollmentData}
               empty="No enrollments found for this reporting window."
             />
@@ -366,14 +497,15 @@ function ReportsPage() {
           <CreditActivityPanel rows={dataset.creditActivity} />
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }
 
-function ReportFilter({ label, children }: { label: string; children: ReactNode }) {
+function ReportFilter({ label, id, children }: { label: string; id: string; children: ReactNode }) {
   return (
-    <div className="min-w-0 flex-1 space-y-1.5 sm:flex-none">
-      <span className="text-muted-foreground block text-[0.8125rem] font-medium">{label}</span>
+    <div className="min-w-0 space-y-1.5">
+      <Label htmlFor={id} className="text-muted-foreground block text-[0.8125rem] font-medium">{label}</Label>
       {children}
     </div>
   );

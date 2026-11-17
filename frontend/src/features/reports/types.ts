@@ -105,6 +105,14 @@ export interface ChannelAuditRow extends PaymentChannel {
 
 export interface ReportDataset {
   updatedAt: string;
+  filterOptions: {
+    sections: {
+      id: number;
+      name: string;
+      program: string;
+      yearLevel: string;
+    }[];
+  };
   summary: ReportSummary;
   billStatuses: BillStatusSnapshot[];
   paymentMethods: PaymentMethodSnapshot[];

@@ -10,11 +10,11 @@ import { ENROLLMENT_STATUS_META } from "@/features/enrollments/types";
 import { formatPeso } from "@/lib/money";
 import type { ReportDataset } from "./types";
 
-// Context the caller already has (selected term + period label) — kept
-// separate from ReportDataset since neither lives on the API response.
+// Selected report scope supplied by the page.
 export interface ReportPrintContext {
   schoolYear: string;
   periodLabel: string;
+  filters: string[];
 }
 
 function escapeHtml(value: string): string {
@@ -287,7 +287,9 @@ export function buildReportHtml(
       <div>
         <div class="doc-title">FINANCE &amp; ENROLLMENT REPORT</div>
         <div class="doc-meta">
-          ${escapeHtml(context.schoolYear)} · ${escapeHtml(context.periodLabel)}<br />
+          ${escapeHtml(context.schoolYear)}<br />
+          ${context.filters.map(escapeHtml).join(" · ")}<br />
+          Recent activity: ${escapeHtml(context.periodLabel)}<br />
           Generated ${escapeHtml(formatIssuedAt(issuedAt))}
         </div>
       </div>

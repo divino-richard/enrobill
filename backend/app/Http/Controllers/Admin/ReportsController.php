@@ -11,9 +11,12 @@ use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\PaymentChannel;
 use App\Models\SchoolYear;
+use App\Models\Section;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 class ReportsController extends Controller
 {
@@ -41,7 +44,7 @@ class ReportsController extends Controller
      * Finance and enrollment snapshot for a school year. `school_year_id`
      * defaults to the active year; `period` (month|quarter|year) only narrows
      * the two recent-activity tables — everything else stays scoped to the
-     * whole selected school year, same as the staff dashboard.
+     * whole selected school year and enrollment cohort.
      */
     public function index(Request $request): JsonResponse
     {
@@ -49,6 +52,17 @@ class ReportsController extends Controller
         $schoolYear = $schoolYearId !== null
             ? SchoolYear::query()->find($schoolYearId)
             : SchoolYear::active();
+        $id = $schoolYear?->id;
+
+        $filters = $request->validate([
+            'year_level' => ['nullable', Rule::in(SchoolYear::YEAR_LEVELS)],
+            'program' => ['nullable', 'string', 'max:255'],
+            'section_id' => $request->input('section_id') === 'unassigned'
+                ? ['nullable', Rule::in(['unassigned'])]
+                : ['nullable', 'integer', Rule::exists('sections', 'id')->where('school_year_id', $id)],
+            'enrollment_status' => ['nullable', Rule::in(self::ENROLLMENT_STATUSES)],
+            'billing_status' => ['nullable', Rule::in([...self::BILL_STATUSES, 'unbilled'])],
+        ]);
 
         $period = in_array($request->string('period')->value(), ['month', 'quarter', 'year'], true)
             ? $request->string('period')->value()
@@ -60,34 +74,96 @@ class ReportsController extends Controller
             default => null,
         };
 
-        $id = $schoolYear?->id;
+        $enrollments = $this->enrollmentQuery($id, $filters);
+        $bills = $this->billQuery($id, $filters, $enrollments);
 
         return response()->json(['data' => [
             'updatedAt' => now()->toIso8601String(),
-            'summary' => $this->summary($id),
-            'billStatuses' => $this->billStatuses($id),
-            'paymentMethods' => $this->paymentMethods($id),
-            'topBalances' => $this->topBalances($id),
-            'enrollmentStatuses' => $this->enrollmentStatuses($id),
-            'programMix' => $this->programMix($id),
-            'enrollmentActivity' => $this->enrollmentActivity($id, $since),
-            'vouchers' => $this->vouchers($id),
-            'creditActivity' => $this->creditActivity($id, $since),
-            'channelAudits' => $this->channelAudits($id),
+            'filterOptions' => [
+                'sections' => Section::query()
+                    ->when(
+                        $id !== null,
+                        fn ($q) => $q->where('school_year_id', $id),
+                        fn ($q) => $q->whereRaw('1 = 0'),
+                    )
+                    ->orderBy('program')->orderBy('year_level')->orderBy('name')
+                    ->get(['id', 'name', 'program', 'year_level'])
+                    ->map(fn (Section $section) => [
+                        'id' => $section->id,
+                        'name' => $section->name,
+                        'program' => $section->program,
+                        'yearLevel' => $section->year_level,
+                    ])->all(),
+            ],
+            'summary' => $this->summary($bills, $enrollments),
+            'billStatuses' => $this->billStatuses($bills),
+            'paymentMethods' => $this->paymentMethods($bills),
+            'topBalances' => $this->topBalances($bills),
+            'enrollmentStatuses' => $this->enrollmentStatuses($enrollments),
+            'programMix' => $this->programMix($enrollments),
+            'enrollmentActivity' => $this->enrollmentActivity($enrollments, $since),
+            'vouchers' => $this->vouchers($bills, $enrollments),
+            'creditActivity' => $this->creditActivity($bills, $since),
+            'channelAudits' => $this->channelAudits($bills),
         ]]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function summary(?int $schoolYearId): array
+    private function enrollmentQuery(?int $schoolYearId, array $filters): Builder
     {
-        $bills = Bill::query()->when(
+        $query = Enrollment::query()->when(
             $schoolYearId !== null,
             fn ($q) => $q->where('school_year_id', $schoolYearId),
             fn ($q) => $q->whereRaw('1 = 0'),
         );
 
+        foreach (['year_level' => 'year_level', 'program' => 'track', 'enrollment_status' => 'status'] as $filter => $column) {
+            if (isset($filters[$filter])) {
+                $query->where($column, $filters[$filter]);
+            }
+        }
+
+        if (isset($filters['section_id'])) {
+            $filters['section_id'] === 'unassigned'
+                ? $query->whereNull('section_id')
+                : $query->where('section_id', $filters['section_id']);
+        }
+
+        if (isset($filters['billing_status'])) {
+            $filters['billing_status'] === 'unbilled'
+                ? $query->whereDoesntHave('bill')
+                : $query->whereHas('bill', fn ($q) => $q->where('status', $filters['billing_status']));
+        }
+
+        return $query;
+    }
+
+    private function billQuery(?int $schoolYearId, array $filters, Builder $enrollments): Builder
+    {
+        $query = Bill::query()->when(
+            $schoolYearId !== null,
+            fn ($q) => $q->where('school_year_id', $schoolYearId),
+            fn ($q) => $q->whereRaw('1 = 0'),
+        );
+
+        if (isset($filters['year_level']) || isset($filters['program'])
+            || isset($filters['section_id']) || isset($filters['enrollment_status'])) {
+            $query->whereIn('enrollment_id', (clone $enrollments)->select('id'));
+        }
+
+        if (isset($filters['billing_status'])) {
+            $filters['billing_status'] === 'unbilled'
+                ? $query->whereRaw('1 = 0')
+                : $query->where('status', $filters['billing_status']);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function summary(Builder $bills, Builder $enrollments): array
+    {
         $records = (clone $bills)->with(['adjustments', 'droppingAssessment', 'creditAllocations'])->get();
         $collected = round($records->sum('amount_paid'), 2);
         $voucherCredits = (float) BillAdjustment::query()
@@ -114,12 +190,7 @@ class ReportsController extends Controller
             'pendingPayments' => $pendingPayments,
             'collectionRate' => $billed > 0 ? round($collected / $billed * 100, 1) : 0,
             'billsGenerated' => (int) (clone $bills)->count(),
-            'activeStudents' => (int) Enrollment::query()
-                ->when(
-                    $schoolYearId !== null,
-                    fn ($q) => $q->where('school_year_id', $schoolYearId),
-                    fn ($q) => $q->whereRaw('1 = 0'),
-                )
+            'activeStudents' => (int) (clone $enrollments)
                 ->where('status', 'enrolled')
                 ->count(),
             'voucherCredits' => round($voucherCredits, 2),
@@ -130,14 +201,8 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function billStatuses(?int $schoolYearId): array
+    private function billStatuses(Builder $bills): array
     {
-        $bills = Bill::query()->when(
-            $schoolYearId !== null,
-            fn ($q) => $q->where('school_year_id', $schoolYearId),
-            fn ($q) => $q->whereRaw('1 = 0'),
-        );
-
         $byStatus = (clone $bills)->with(['adjustments', 'droppingAssessment'])->get()->groupBy('status');
 
         return collect(self::BILL_STATUSES)->map(function (string $status) use ($byStatus) {
@@ -155,15 +220,9 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function paymentMethods(?int $schoolYearId): array
+    private function paymentMethods(Builder $bills): array
     {
-        $billIds = Bill::query()
-            ->when(
-                $schoolYearId !== null,
-                fn ($q) => $q->where('school_year_id', $schoolYearId),
-                fn ($q) => $q->whereRaw('1 = 0'),
-            )
-            ->select('id');
+        $billIds = (clone $bills)->select('id');
 
         $byMethod = Payment::query()
             ->whereIn('bill_id', $billIds)
@@ -195,16 +254,11 @@ class ReportsController extends Controller
      *
      * @return array<int, array<string, mixed>>
      */
-    private function topBalances(?int $schoolYearId): array
+    private function topBalances(Builder $bills): array
     {
-        if ($schoolYearId === null) {
-            return [];
-        }
-
-        return Bill::query()
-            ->where('school_year_id', $schoolYearId)
+        return (clone $bills)
             ->where('status', '!=', 'paid')
-            ->with(['student', 'schoolYear', 'adjustments', 'installments', 'payments'])
+            ->with(['student', 'enrollment', 'schoolYear', 'adjustments', 'installments', 'payments'])
             ->get()
             ->map(function (Bill $bill) {
                 $netTotal = $bill->netTotal();
@@ -236,14 +290,9 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function enrollmentStatuses(?int $schoolYearId): array
+    private function enrollmentStatuses(Builder $enrollments): array
     {
-        $byStatus = Enrollment::query()
-            ->when(
-                $schoolYearId !== null,
-                fn ($q) => $q->where('school_year_id', $schoolYearId),
-                fn ($q) => $q->whereRaw('1 = 0'),
-            )
+        $byStatus = (clone $enrollments)
             ->selectRaw('status, count(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
@@ -262,20 +311,14 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function programMix(?int $schoolYearId): array
+    private function programMix(Builder $enrollments): array
     {
-        if ($schoolYearId === null) {
-            return [];
-        }
-
-        $all = Enrollment::query()
-            ->where('school_year_id', $schoolYearId)
+        $all = (clone $enrollments)
             ->selectRaw('track, year_level, count(*) as students, sum(no_downpayment) as no_downpayment')
             ->groupBy('track', 'year_level')
             ->get();
 
-        $billed = Enrollment::query()
-            ->where('school_year_id', $schoolYearId)
+        $billed = (clone $enrollments)
             ->whereHas('bill')
             ->selectRaw('track, year_level, count(*) as billed')
             ->groupBy('track', 'year_level')
@@ -298,14 +341,9 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function enrollmentActivity(?int $schoolYearId, ?Carbon $since): array
+    private function enrollmentActivity(Builder $enrollments, ?Carbon $since): array
     {
-        if ($schoolYearId === null) {
-            return [];
-        }
-
-        return Enrollment::query()
-            ->where('school_year_id', $schoolYearId)
+        return (clone $enrollments)
             ->when($since !== null, fn ($q) => $q->where('created_at', '>=', $since))
             ->with(['student', 'bill'])
             ->latest()
@@ -330,20 +368,14 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function vouchers(?int $schoolYearId): array
+    private function vouchers(Builder $bills, Builder $enrollments): array
     {
-        $billIds = Bill::query()
-            ->when(
-                $schoolYearId !== null,
-                fn ($q) => $q->where('school_year_id', $schoolYearId),
-                fn ($q) => $q->whereRaw('1 = 0'),
-            )
-            ->select('id');
+        $billIds = (clone $bills)->select('id');
 
         return Discount::query()
             ->where('category', 'voucher')
             ->get()
-            ->map(function (Discount $discount) use ($billIds, $schoolYearId) {
+            ->map(function (Discount $discount) use ($billIds, $enrollments) {
                 $adjustments = BillAdjustment::query()
                     ->where('discount_id', $discount->id)
                     ->whereIn('bill_id', $billIds);
@@ -351,13 +383,8 @@ class ReportsController extends Controller
                 $recipients = (clone $adjustments)->distinct()->count('bill_id');
                 $amountApplied = round((float) (clone $adjustments)->sum('amount'), 2);
 
-                $granted = Enrollment::query()
+                $granted = (clone $enrollments)
                     ->where('discount_id', $discount->id)
-                    ->when(
-                        $schoolYearId !== null,
-                        fn ($q) => $q->where('school_year_id', $schoolYearId),
-                        fn ($q) => $q->whereRaw('1 = 0'),
-                    )
                     ->count();
 
                 return [
@@ -382,15 +409,9 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function creditActivity(?int $schoolYearId, ?Carbon $since): array
+    private function creditActivity(Builder $bills, ?Carbon $since): array
     {
-        $billIds = Bill::query()
-            ->when(
-                $schoolYearId !== null,
-                fn ($q) => $q->where('school_year_id', $schoolYearId),
-                fn ($q) => $q->whereRaw('1 = 0'),
-            )
-            ->select('id');
+        $billIds = (clone $bills)->select('id');
 
         return BillAdjustment::query()
             ->whereIn('bill_id', $billIds)
@@ -436,15 +457,9 @@ class ReportsController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function channelAudits(?int $schoolYearId): array
+    private function channelAudits(Builder $bills): array
     {
-        $billIds = Bill::query()
-            ->when(
-                $schoolYearId !== null,
-                fn ($q) => $q->where('school_year_id', $schoolYearId),
-                fn ($q) => $q->whereRaw('1 = 0'),
-            )
-            ->select('id');
+        $billIds = (clone $bills)->select('id');
 
         return PaymentChannel::query()
             ->orderBy('id')
