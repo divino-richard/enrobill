@@ -4,11 +4,25 @@ import {
   EyeIcon,
   FileTextIcon,
   Loader2Icon,
+  RefreshCwIcon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RowActions } from "@/components/row-actions";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Card,
   CardContent,
@@ -25,7 +39,7 @@ import {
 import { formatBytes } from "@/lib/format-bytes";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { fetchStudentDocumentBlob, fetchStudentDocumentViewUrl } from "../api";
-import { useMyDocuments, useUploadMyDocument } from "../hooks";
+import { useMyDocuments, useRemoveMyDocument, useUploadMyDocument } from "../hooks";
 import {
   ACCEPT_ATTR,
   ACCEPTED_MIME,
@@ -95,6 +109,8 @@ function DocumentSlot({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadMyDocument();
+  const remove = useRemoveMyDocument();
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [progress, setProgress] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
   // Picked but not yet sent — the student reviews it in the preview first.
@@ -143,10 +159,18 @@ function DocumentSlot({
     }
   }
 
-  const busy = upload.isPending;
-  // Locked the moment a file exists — only an explicit return unlocks it,
-  // whether it's still awaiting review or was already accepted.
-  const locked = !uploadable || (existing !== undefined && existing.reviewStatus !== "returned");
+  const busy = upload.isPending || remove.isPending;
+  const locked = !uploadable || existing?.reviewStatus === "accepted";
+
+  async function confirmRemove() {
+    if (!existing || locked || busy) return;
+    try {
+      await remove.mutateAsync(existing.id);
+      setConfirmingRemove(false);
+    } catch {
+      // Keep the confirmation open with the error so the student can retry.
+    }
+  }
 
   return (
     <div className="rounded-lg border bg-card p-3">
@@ -182,26 +206,43 @@ function DocumentSlot({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {busy && (
+          {upload.isPending && (
             <span className="text-muted-foreground text-xs tabular-nums">
               {progress}%
             </span>
           )}
-          {existing && !busy && (
-            <Button variant="outline" size="sm" onClick={() => onView(existing)}>
+          {existing && (
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => onView(existing)}>
               <EyeIcon />
               View
             </Button>
           )}
-          {!locked && (
+          {existing && !locked && (
+            <RowActions label={`${semesterLabel} clearance actions`} disabled={busy}>
+              <DropdownMenuItem onSelect={() => {
+                setLocalError(null);
+                upload.reset();
+                inputRef.current?.click();
+              }}>
+                <RefreshCwIcon /> Replace
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => {
+                setLocalError(null);
+                remove.reset();
+                setConfirmingRemove(true);
+              }}>
+                <Trash2Icon /> Remove
+              </DropdownMenuItem>
+            </RowActions>
+          )}
+          {!existing && !locked && (
             <Button
-              variant={existing ? "outline" : "default"}
               size="sm"
               disabled={busy}
               onClick={() => inputRef.current?.click()}
             >
               {busy ? <Loader2Icon className="animate-spin" /> : <UploadIcon />}
-              {busy ? "Uploading…" : existing ? "Replace" : "Upload"}
+              {busy ? "Uploading…" : "Upload"}
             </Button>
           )}
         </div>
@@ -210,7 +251,7 @@ function DocumentSlot({
       {/* Validation errors belong on the slot; upload failures show in the
           preview dialog, which stays open so the student can retry. */}
       {(localError || (upload.isError && !pending)) && (
-        <p className="text-destructive mt-2 text-xs">
+        <p role="alert" className="text-destructive mt-2 text-xs">
           {localError ?? getErrorMessage(upload.error)}
         </p>
       )}
@@ -228,13 +269,13 @@ function DocumentSlot({
       />
 
       <FilePreviewDialog
-        pending={pending}
+        pending={locked ? null : pending}
         onOpenChange={(open) => {
           if (!open) clearPending();
         }}
         onConfirm={() => void confirmUpload()}
         onChooseAnother={() => inputRef.current?.click()}
-        isUploading={busy}
+        isUploading={upload.isPending}
         progress={progress}
         error={upload.isError ? getErrorMessage(upload.error) : null}
         title={existing ? `Replace ${label}` : `Upload ${label}`}
@@ -245,6 +286,37 @@ function DocumentSlot({
         }
         confirmLabel={existing ? "Replace file" : "Upload this file"}
       />
+      <AlertDialog
+        open={confirmingRemove && existing !== undefined && !locked}
+        onOpenChange={(open) => {
+          if (!remove.isPending) setConfirmingRemove(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove clearance?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove your {semesterLabel} clearance? You will need to upload a new file for review.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {remove.isError && (
+            <p role="alert" className="text-destructive text-sm">{getErrorMessage(remove.error)}</p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={remove.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmRemove();
+              }}
+            >
+              {remove.isPending ? "Removing…" : "Remove clearance"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -296,6 +368,7 @@ export function ClearanceGradesPanel() {
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
           Upload your clearance each semester. Teachers upload grade slips;
           the registrar reviews both at the end of the school year.
+          {" "}You can replace or remove your clearance until it is accepted.
         </p>
       </section>
 

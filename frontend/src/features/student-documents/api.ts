@@ -18,6 +18,10 @@ export async function fetchMyDocuments(history = false): Promise<StudentDocument
   return data.data;
 }
 
+export async function removeMyDocument(documentId: number): Promise<void> {
+  await api.delete(`/me/documents/${documentId}`);
+}
+
 /**
  * Upload one document straight to S3 via a pre-signed URL, then record it against
  * its semester/type slot. Same strategy as application documents: the file never

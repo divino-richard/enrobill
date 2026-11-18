@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchMyDocuments, uploadMyDocument } from "./api";
+import { fetchMyDocuments, removeMyDocument, uploadMyDocument } from "./api";
 import type { Semester, StudentDocumentType } from "./types";
 
 export const myDocumentsQueryKey = ["me", "documents"] as const;
@@ -28,8 +28,21 @@ export function useUploadMyDocument() {
       file: File;
       onProgress?: (percent: number) => void;
     }) => uploadMyDocument(semester, type, file, onProgress),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: myDocumentsQueryKey });
+    onSuccess: (document) => {
+      queryClient.removeQueries({ queryKey: ["student-documents", document.id] });
+      return queryClient.invalidateQueries({ queryKey: myDocumentsQueryKey });
+    },
+  });
+}
+
+export function useRemoveMyDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: removeMyDocument,
+    onSuccess: (_, documentId) => {
+      queryClient.removeQueries({ queryKey: ["student-documents", documentId] });
+      return queryClient.invalidateQueries({ queryKey: myDocumentsQueryKey });
     },
   });
 }

@@ -218,9 +218,8 @@ class ProgressionController extends Controller
      * Accept or return one clearance/grades requirement for a semester of the
      * active year — one field at a time, so accepting one never touches the
      * other's stored state. Gates the promote/graduate decision; no
-     * enrollment or billing impact. Returning requires a reason: it's the
-     * only way the student learns what to fix, and it's what unlocks the
-     * file for them to replace.
+     * enrollment or billing impact. Returning requires a reason so the
+     * student or teacher knows what to fix before replacing the file.
      */
     public function review(Request $request, NotifyStudent $notify): JsonResponse
     {

@@ -4,8 +4,8 @@ export type Semester = "first" | "second";
 export type StudentDocumentType = "clearance" | "grades";
 
 // Where a document stands with the registrar. "returned" means it was
-// reviewed and sent back with a reason — the only status besides "pending"
-// that lets the student replace or remove the file.
+// reviewed and sent back with a reason. Students can replace or remove their
+// clearance while it is pending or returned.
 export type ReviewStatus = "pending" | "accepted" | "returned";
 
 export interface StudentDocument {

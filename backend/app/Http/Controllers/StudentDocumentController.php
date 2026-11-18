@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -75,6 +76,8 @@ class StudentDocumentController extends Controller
             'size' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BYTES],
         ]);
 
+        $this->assertClearanceWritable($student, $schoolYear, $validated['semester']);
+
         $key = sprintf(
             'students/%s/%s/%s/%s/%s.%s',
             $student->id,
@@ -118,55 +121,40 @@ class StudentDocumentController extends Controller
             'content_type' => ['required', 'string', Rule::in(array_keys(self::ALLOWED_TYPES))],
         ]);
 
-        // Only ever accept a key this student was actually issued, so a crafted
-        // request can't attach someone else's object to their own record.
-        $prefix = sprintf('students/%s/%s/', $student->id, $schoolYear->id);
+        // Keep each upload in its own slot so replacing or removing one
+        // semester's clearance cannot delete another semester's file.
+        $prefix = sprintf('students/%s/%s/%s/clearance/', $student->id, $schoolYear->id, $validated['semester']);
         abort_unless(str_starts_with($validated['key'], $prefix), 422, 'Unrecognized upload.');
 
-        $existing = $student->documents()
-            ->where('school_year_id', $schoolYear->id)
-            ->where('semester', $validated['semester'])
-            ->where('type', $validated['type'])
-            ->first();
+        [$document, $supersededKey] = DB::transaction(function () use ($student, $schoolYear, $validated) {
+            // Registrar review takes the same lock before accepting a file.
+            $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
+            [$existing, $standing] = $this->assertClearanceWritable($student, $schoolYear, $validated['semester']);
+            $supersededKey = $existing?->s3_key;
 
-        $standing = null;
-
-        if ($existing !== null) {
-            $standing = $this->standingFor($student, $schoolYear, $validated['semester']);
-
-            // Locked unless the registrar explicitly returned it — a file
-            // still awaiting review is just as locked as an accepted one.
-            abort_unless(
-                $standing?->isReturned($validated['type']) ?? false,
-                422,
-                'This file is locked and can no longer be replaced. It\'ll unlock once the registrar returns it with a reason.',
+            $document = $student->documents()->updateOrCreate(
+                [
+                    'school_year_id' => $schoolYear->id,
+                    'semester' => $validated['semester'],
+                    'type' => $validated['type'],
+                ],
+                [
+                    's3_key' => $validated['key'],
+                    'file_name' => $validated['file_name'],
+                    'size' => $validated['size'],
+                    'content_type' => $validated['content_type'],
+                ],
             );
 
-            if ($existing->s3_key !== $validated['key']) {
-                Storage::disk('s3')->delete($existing->s3_key);
+            if ($standing?->clearance_note !== null) {
+                $standing->update(['clearance_note' => null]);
             }
-        }
 
-        $document = $student->documents()->updateOrCreate(
-            [
-                'school_year_id' => $schoolYear->id,
-                'semester' => $validated['semester'],
-                'type' => $validated['type'],
-            ],
-            [
-                's3_key' => $validated['key'],
-                'file_name' => $validated['file_name'],
-                'size' => $validated['size'],
-                'content_type' => $validated['content_type'],
-            ],
-        );
+            return [$document, $supersededKey];
+        });
 
-        // A fresh upload resolves any prior return — clear the stale reason
-        // so it isn't shown next to a file the registrar hasn't seen yet.
-        if ($standing !== null && $standing->noteFor($validated['type']) !== null) {
-            $standing->update([
-                $validated['type'] === 'clearance' ? 'clearance_note' : 'grades_note' => null,
-            ]);
+        if ($supersededKey !== null && $supersededKey !== $validated['key']) {
+            Storage::disk('s3')->delete($supersededKey);
         }
 
         return new StudentDocumentResource($document);
@@ -188,30 +176,19 @@ class StudentDocumentController extends Controller
         abort_unless($document->student_id === $student->id, 404);
         abort_unless($document->type === 'clearance', 403, 'Grades are managed by your teacher.');
 
-        $decided = ProgressionDecision::query()
-            ->where('student_id', $student->id)
-            ->where('from_school_year_id', $document->school_year_id)
-            ->exists();
-
-        abort_if(
-            $decided,
-            422,
-            'This school year has already been evaluated, so its documents can no longer be removed.',
-        );
-
         $schoolYear = SchoolYear::findOrFail($document->school_year_id);
-        $standing = $this->standingFor($student, $schoolYear, $document->semester);
+        $key = DB::transaction(function () use ($student, $schoolYear, $document) {
+            $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
+            [$existing] = $this->assertClearanceWritable($student, $schoolYear, $document->semester);
+            abort_unless($existing?->id === $document->id, 404);
 
-        // Locked unless the registrar explicitly returned it — a file still
-        // awaiting review is just as locked as an accepted one.
-        abort_unless(
-            $standing?->isReturned($document->type) ?? false,
-            422,
-            'This file is locked and can no longer be removed. It\'ll unlock once the registrar returns it with a reason.',
-        );
+            $key = $existing->s3_key;
+            $existing->delete();
 
-        Storage::disk('s3')->delete($document->s3_key);
-        $document->delete();
+            return $key;
+        });
+
+        Storage::disk('s3')->delete($key);
 
         return response()->noContent();
     }
@@ -282,12 +259,38 @@ class StudentDocumentController extends Controller
         return $schoolYear;
     }
 
-    private function standingFor(Student $student, SchoolYear $schoolYear, string $semester): ?SemesterStanding
+    /** @return array{StudentDocument|null, SemesterStanding|null} */
+    private function assertClearanceWritable(Student $student, SchoolYear $schoolYear, string $semester): array
     {
-        return SemesterStanding::query()
+        $standing = SemesterStanding::query()
             ->where('student_id', $student->id)
             ->where('school_year_id', $schoolYear->id)
             ->where('semester', $semester)
             ->first();
+
+        abort_if(
+            $standing?->isAccepted('clearance') ?? false,
+            422,
+            'This clearance has been accepted and can no longer be replaced or removed.',
+        );
+
+        $existing = $student->documents()
+            ->where('school_year_id', $schoolYear->id)
+            ->where('semester', $semester)
+            ->where('type', 'clearance')
+            ->first();
+
+        if ($existing !== null) {
+            abort_if(
+                ProgressionDecision::query()
+                    ->where('student_id', $student->id)
+                    ->where('from_school_year_id', $schoolYear->id)
+                    ->exists(),
+                422,
+                'This school year has already been evaluated, so its clearance files can no longer be replaced or removed.',
+            );
+        }
+
+        return [$existing, $standing];
     }
 }

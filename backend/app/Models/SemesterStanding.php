@@ -50,10 +50,7 @@ class SemesterStanding extends Model
         return $type === 'clearance' ? $this->clearance_note : $this->grades_note;
     }
 
-    /**
-     * Whether the given document type was explicitly sent back with a
-     * reason — the only state that lets the student replace/remove the file.
-     */
+    /** Whether the given document type was explicitly sent back with a reason. */
     public function isReturned(string $type): bool
     {
         return ! $this->isAccepted($type) && $this->noteFor($type) !== null;
