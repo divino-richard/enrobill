@@ -17,7 +17,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // One account per role for development/testing. Password: "password".
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \RuntimeException('Demo users may only be seeded in local or testing environments.');
+        }
+
+        // Demo accounts for local development and testing only.
         $users = [
             ['name' => 'Admin User', 'email' => 'admin@northlink.edu.ph', 'role' => Role::Admin],
             ['name' => 'Cashier User', 'email' => 'cashier@northlink.edu.ph', 'role' => Role::Cashier],

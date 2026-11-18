@@ -14,6 +14,8 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentNotification;
 use App\Models\User;
+use App\Support\DroppingUploads;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -21,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class DroppingRequestTest extends TestCase
@@ -52,10 +55,20 @@ class DroppingRequestTest extends TestCase
     private function packet(int $id): void
     {
         Storage::fake('s3');
-        $this->post('/api/me/dropping-requests/'.$id.'/submit', [
+        $enrollment = DroppingRequest::findOrFail($id)->enrollment;
+        $this->postJson('/api/me/dropping-requests/'.$id.'/submit', [
             'reason' => 'Family circumstances',
-            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')],
-        ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('data.status', 'submitted');
+            'files' => [$this->pendingFile($enrollment)],
+        ])->assertOk()->assertJsonPath('data.status', 'submitted');
+    }
+
+    private function pendingFile(Enrollment $enrollment, string $name = 'signed-form.pdf'): array
+    {
+        $contents = "%PDF-1.4\nSigned form\n%%EOF";
+        $key = DroppingUploads::makeKey($enrollment->student_id, $enrollment->id, 'application/pdf');
+        Storage::disk('s3')->put($key, $contents);
+
+        return ['key' => $key, 'name' => $name, 'mime' => 'application/pdf', 'size' => strlen($contents)];
     }
 
     private function adminDropFixture(int $paid = 100): array
@@ -224,10 +237,10 @@ class DroppingRequestTest extends TestCase
         $e = $this->enrollment();
         $this->actingAs($e->student->user)->getJson('/api/me/dropping-requests')->assertOk()->assertJsonCount(0, 'data');
         $this->postJson('/api/me/dropping-requests', ['enrollmentId' => $e->id])->assertUnprocessable()->assertJsonValidationErrors(['reason', 'files']);
-        $this->post('/api/me/dropping-requests', [
+        $this->postJson('/api/me/dropping-requests', [
             'enrollmentId' => $e->id, 'reason' => 'Reason',
-            'files' => [UploadedFile::fake()->create('script.html', 10, 'text/html')],
-        ], ['Accept' => 'application/json'])->assertUnprocessable();
+            'files' => [['name' => 'script.html', 'mime' => 'text/html', 'size' => 10, 'key' => 'invalid']],
+        ])->assertUnprocessable();
         $this->assertDatabaseCount('dropping_requests', 0);
         $this->assertEmpty(Storage::disk('s3')->allFiles());
         $this->assertSame('enrolled', $e->fresh()->status);
@@ -238,13 +251,13 @@ class DroppingRequestTest extends TestCase
         Storage::fake('s3');
         $e = $this->enrollment();
         $this->actingAs($e->student->user);
-        $payload = fn () => ['enrollmentId' => $e->id, 'reason' => 'Family circumstances',
-            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')]];
-        $id = $this->post('/api/me/dropping-requests', $payload(), ['Accept' => 'application/json'])
+        $payload = ['enrollmentId' => $e->id, 'reason' => 'Family circumstances',
+            'files' => [$this->pendingFile($e)]];
+        $id = $this->postJson('/api/me/dropping-requests', $payload)
             ->assertSuccessful()->assertJsonPath('data.status', 'submitted')
             ->assertJsonPath('data.packetVersion', 1)->assertJsonPath('data.reason', 'Family circumstances')
             ->assertJsonCount(1, 'data.submissions.0.files')->json('data.id');
-        $this->post('/api/me/dropping-requests', $payload(), ['Accept' => 'application/json'])
+        $this->postJson('/api/me/dropping-requests', $payload)
             ->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.packetVersion', 1);
         $this->assertDatabaseCount('dropping_requests', 1);
         $this->assertDatabaseCount('student_notifications', 1);
@@ -258,6 +271,53 @@ class DroppingRequestTest extends TestCase
         return $this->postJson('/api/me/dropping-requests/uploads/presign', [
             'enrollmentId' => $enrollment->id, 'files' => $files,
         ])->assertOk()->assertJsonCount(count($files), 'data')->json('data');
+    }
+
+    public function test_multipart_submissions_are_rejected_without_creating_documents(): void
+    {
+        $disk = Storage::fake('s3');
+        $e = $this->enrollment();
+        $this->actingAs($e->student->user);
+        $payload = ['enrollmentId' => $e->id, 'reason' => 'Family circumstances',
+            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')]];
+        $this->post('/api/me/dropping-requests', $payload, ['Accept' => 'application/json'])->assertStatus(415);
+        $this->assertDatabaseCount('dropping_requests', 0);
+
+        $id = $this->draft($e);
+        $this->post("/api/me/dropping-requests/$id/submit", $payload, ['Accept' => 'application/json'])->assertStatus(415);
+        $this->assertSame([], DroppingRequest::findOrFail($id)->submissions);
+        $this->assertEmpty($disk->allFiles());
+    }
+
+    public function test_local_document_disks_and_file_serving_routes_are_unavailable(): void
+    {
+        foreach (['local', 'public'] as $disk) {
+            try {
+                Storage::disk($disk);
+                $this->fail("The $disk document disk must not be available.");
+            } catch (\InvalidArgumentException $error) {
+                $this->assertStringContainsString('does not have a configured driver', $error->getMessage());
+            }
+        }
+
+        $this->get('/storage/document.pdf')->assertNotFound();
+        $this->put('/storage/document.pdf')->assertNotFound();
+    }
+
+    public function test_official_form_is_downloaded_from_s3(): void
+    {
+        $pdf = "%PDF-1.4\nOfficial form from S3\n%%EOF";
+        Storage::fake('s3')->put('forms/official-dropping-form.pdf', $pdf);
+        $this->actingAs($this->enrollment()->student->user)
+            ->get('/api/dropping-requests/form')->assertOk()
+            ->assertDownload('official-dropping-form.pdf')->assertStreamedContent($pdf);
+    }
+
+    public function test_missing_s3_form_does_not_fall_back_to_the_bundled_file(): void
+    {
+        Storage::fake('s3');
+        $this->actingAs($this->enrollment()->student->user)
+            ->get('/api/dropping-requests/form')->assertNotFound();
     }
 
     public function test_direct_uploads_create_private_documents_and_preserve_them_through_correction(): void
@@ -291,6 +351,7 @@ class DroppingRequestTest extends TestCase
         $this->assertDatabaseCount('student_notifications', 1);
         $original = DroppingRequest::findOrFail($id)->submissions[0];
         foreach ($original['files'] as $i => $file) {
+            $this->assertArrayNotHasKey('disk', $file);
             $this->assertStringStartsNotWith('dropping/pending/', $file['path']);
             $this->assertSame('private', $disk->getVisibility($file['path']));
             $disk->assertMissing($signed[$i]['key']);
@@ -414,10 +475,10 @@ class DroppingRequestTest extends TestCase
         Storage::fake('s3');
         $e = $this->enrollment();
         $id = $this->draft($e);
-        $this->post('/api/me/dropping-requests', [
+        $this->postJson('/api/me/dropping-requests', [
             'enrollmentId' => $e->id, 'reason' => 'New reason',
-            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')],
-        ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.status', 'draft');
+            'files' => [$this->pendingFile($e)],
+        ])->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.status', 'draft');
         $this->assertDatabaseCount('dropping_requests', 1);
         $this->assertEmpty(Storage::disk('s3')->allFiles());
         $this->packet($id);
@@ -428,15 +489,20 @@ class DroppingRequestTest extends TestCase
         Storage::fake('s3');
         $disk = Storage::disk('s3');
         $e = $this->enrollment();
-        $valid = UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf');
-        $failed = \Mockery::mock(UploadedFile::fake()->create('attachment.pdf', 20, 'application/pdf'))->makePartial();
-        $failed->shouldReceive('store')->once()->andReturn(false);
-        $this->actingAs($e->student->user)->post('/api/me/dropping-requests', [
+        $valid = $this->pendingFile($e);
+        $failed = $this->pendingFile($e, 'attachment.pdf');
+        $driver = \Mockery::mock($disk->getDriver());
+        $driver->shouldReceive('copy')->with($valid['key'], \Mockery::type('string'), ['visibility' => 'private'])
+            ->once()->andReturnUsing(fn ($source, $destination, $config) => $disk->getDriver()->copy($source, $destination, $config));
+        $driver->shouldReceive('copy')->with($failed['key'], \Mockery::type('string'), ['visibility' => 'private'])
+            ->once()->andThrow(new HttpException(503, 'S3 unavailable'));
+        Storage::set('s3', new FilesystemAdapter($driver, $disk->getAdapter(), $disk->getConfig()));
+        $this->actingAs($e->student->user)->postJson('/api/me/dropping-requests', [
             'enrollmentId' => $e->id, 'reason' => 'Reason', 'files' => [$valid, $failed],
-        ], ['Accept' => 'application/json'])->assertStatus(503);
+        ])->assertStatus(503);
         $this->assertDatabaseCount('dropping_requests', 0);
         $this->assertDatabaseCount('student_notifications', 0);
-        $this->assertEmpty($disk->allFiles());
+        $this->assertEqualsCanonicalizing([$valid['key'], $failed['key']], $disk->allFiles());
     }
 
     public function test_new_submission_requires_own_active_enrollment(): void
@@ -446,14 +512,15 @@ class DroppingRequestTest extends TestCase
         $other = $this->enrollment();
         $this->actingAs($e->student->user);
         $payload = fn ($id) => ['enrollmentId' => $id, 'reason' => 'Reason',
-            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')]];
-        $this->post('/api/me/dropping-requests', $payload($other->id), ['Accept' => 'application/json'])->assertNotFound();
+            'files' => [['name' => 'signed-form.pdf', 'mime' => 'application/pdf', 'size' => 20,
+                'key' => DroppingUploads::makeKey($e->student_id, $id, 'application/pdf')]]];
+        $this->postJson('/api/me/dropping-requests', $payload($other->id))->assertNotFound();
         $e->update(['status' => 'dropped']);
-        $this->post('/api/me/dropping-requests', $payload($e->id), ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->postJson('/api/me/dropping-requests', $payload($e->id))->assertUnprocessable();
         $inactive = $this->enrollment();
         $this->actingAs($inactive->student->user);
         $inactive->schoolYear->update(['is_active' => false]);
-        $this->post('/api/me/dropping-requests', $payload($inactive->id), ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->postJson('/api/me/dropping-requests', $payload($inactive->id))->assertUnprocessable();
         $this->assertDatabaseCount('dropping_requests', 0);
         $this->assertEmpty(Storage::disk('s3')->allFiles());
     }
@@ -473,10 +540,10 @@ class DroppingRequestTest extends TestCase
         $originalItems = $bill->items->toArray();
         ProgressionDecision::create(['student_id' => $e->student_id, 'from_school_year_id' => $e->school_year_id, 'decision' => 'retain', 'from_year_level' => 'grade_11', 'to_year_level' => 'grade_11', 'decided_at' => now()]);
         Storage::fake('s3');
-        $id = $this->actingAs($e->student->user)->post('/api/me/dropping-requests', [
+        $id = $this->actingAs($e->student->user)->postJson('/api/me/dropping-requests', [
             'enrollmentId' => $e->id, 'reason' => 'Family circumstances',
-            'files' => [UploadedFile::fake()->create('signed-form.pdf', 20, 'application/pdf')],
-        ], ['Accept' => 'application/json'])->assertSuccessful()->assertJsonPath('data.status', 'submitted')->json('data.id');
+            'files' => [$this->pendingFile($e)],
+        ])->assertSuccessful()->assertJsonPath('data.status', 'submitted')->json('data.id');
         $this->assertSame('enrolled', $e->fresh()->status);
         $admin = User::factory()->create(['role' => Role::Admin]);
         $cashier = User::factory()->create(['role' => Role::Cashier]);
@@ -532,7 +599,7 @@ class DroppingRequestTest extends TestCase
         $admin = User::factory()->create(['role' => Role::Admin]);
         $this->actingAs($admin)->postJson("/api/admin/dropping-requests/$id/decision", ['version' => 1, 'outcome' => 'needs_correction', 'remarks' => 'Replace the blurry signature page'])->assertOk();
         $before = DroppingRequest::findOrFail($id)->submissions;
-        $this->actingAs($e->student->user)->post("/api/me/dropping-requests/$id/submit", ['reason' => 'Updated reason', 'files' => [UploadedFile::fake()->create('clear-form.pdf', 10, 'application/pdf')]], ['Accept' => 'application/json'])
+        $this->actingAs($e->student->user)->postJson("/api/me/dropping-requests/$id/submit", ['reason' => 'Updated reason', 'files' => [$this->pendingFile($e, 'clear-form.pdf')]])
             ->assertOk()->assertJsonCount(2, 'data.submissions')->assertJsonMissingPath('data.documentsVerifiedAt')->assertJsonMissingPath('data.financeOutcome');
         $this->assertEquals($before[0], DroppingRequest::findOrFail($id)->submissions[0]);
         $this->actingAs($admin)->postJson("/api/admin/dropping-requests/$id/confirm", ['version' => 1, 'effectiveDate' => now()->toDateString()])->assertStatus(409);
@@ -557,7 +624,7 @@ class DroppingRequestTest extends TestCase
         $teacher = User::factory()->create(['role' => Role::Teacher]);
         $this->actingAs($teacher)->getJson("/api/dropping-requests/$id")->assertForbidden();
         $this->actingAs($e->student->user)->postJson("/api/me/dropping-requests/$id/cancel")->assertOk();
-        $this->post("/api/me/dropping-requests/$id/submit", ['reason' => 'Retry', 'files' => [UploadedFile::fake()->create('form.pdf', 10, 'application/pdf')]], ['Accept' => 'application/json'])->assertStatus(422);
+        $this->postJson("/api/me/dropping-requests/$id/submit", ['reason' => 'Retry', 'files' => [$this->pendingFile($e)]])->assertStatus(422);
         $this->assertSame('enrolled', $e->fresh()->status);
         $newId = $this->draft($e);
         $this->assertNotEquals($id, $newId);
@@ -600,8 +667,8 @@ class DroppingRequestTest extends TestCase
     {
         $e = $this->enrollment();
         $id = $this->draft($e);
-        $this->post("/api/me/dropping-requests/$id/submit", ['reason' => 'Reason', 'files' => [UploadedFile::fake()->create('script.html', 10, 'text/html')]], ['Accept' => 'application/json'])->assertStatus(422);
-        $this->post("/api/me/dropping-requests/$id/submit", ['reason' => 'Reason', 'files' => [UploadedFile::fake()->create('big.pdf', 2049, 'application/pdf')]], ['Accept' => 'application/json'])->assertStatus(422);
+        $this->postJson("/api/me/dropping-requests/$id/submit", ['reason' => 'Reason', 'files' => [['name' => 'script.html', 'mime' => 'text/html', 'size' => 10, 'key' => 'invalid']]])->assertStatus(422);
+        $this->postJson("/api/me/dropping-requests/$id/submit", ['reason' => 'Reason', 'files' => [['name' => 'big.pdf', 'mime' => 'application/pdf', 'size' => 2049 * 1024, 'key' => 'invalid']]])->assertStatus(422);
         $this->packet($id);
         $admin = User::factory()->create(['role' => Role::Admin]);
         $this->actingAs($admin)->postJson("/api/admin/dropping-requests/$id/decision", ['version' => 1, 'outcome' => 'rejected', 'remarks' => 'Wrong enrollment'])->assertOk()->assertJsonPath('data.status', 'rejected');

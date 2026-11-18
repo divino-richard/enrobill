@@ -28,7 +28,7 @@ class DroppingRequestResource extends JsonResource
                 'availableCredit' => app(StudentCreditService::class)->availableFor($bill->student_id),
             ] : null,
             'submissions' => collect($this->submissions)->map(fn ($submission) => [
-                ...$submission, 'files' => collect($submission['files'])->map(fn ($file) => collect($file)->except(['path', 'disk'])->all())->all(),
+                ...$submission, 'files' => collect($submission['files'])->map(fn ($file) => collect($file)->only(['id', 'name', 'mime', 'size'])->all())->all(),
             ])->all(),
             'events' => $this->events,
             'effectiveDate' => $this->effective_date?->toDateString(), 'confirmedAt' => $this->confirmed_at?->toIso8601String(),

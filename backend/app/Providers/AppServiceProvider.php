@@ -11,7 +11,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Laravel merges its default local disks into configuration before providers run.
+        config(['filesystems.disks' => ['s3' => config('filesystems.disks.s3')]]);
     }
 
     /**

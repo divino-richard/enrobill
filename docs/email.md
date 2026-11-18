@@ -1,17 +1,59 @@
-# Email — AWS SES
+# Email configuration
 
-Enrobill sends transactional email through **Amazon SES**, using Laravel's
-built-in `ses` mail transport (backed by `aws/aws-sdk-php`). Email content is
-rendered from **Blade templates** in the app (e.g.
-`resources/views/emails/verify-email.blade.php`) and sent through SES.
+Enrobill defaults to **SMTP** for the Z.com/cPanel deployment. Laravel selects the
+mailer through `MAIL_MAILER`. **Amazon SES** remains available as an explicit
+alternative using `MAIL_MAILER=ses`; it is not an automatic fallback.
+
+Email content is rendered from Blade templates, including
+`resources/views/emails/verify-email.blade.php`. Verification and application
+decision emails use the configured default mailer, so switching providers does
+not require changing application code or templates.
 
 ## How it's wired
 
 | Where | Setting |
 |-------|---------|
-| `config/mail.php` | `mailers.ses` → `transport: ses` |
-| `config/services.php` | `services.ses` → key / secret / region from env |
-| `.env` | `MAIL_MAILER=ses`, `AWS_*`, `MAIL_FROM_ADDRESS` |
+| `config/mail.php` | Default `smtp`; SMTP and SES transports remain available |
+| `.env` | `MAIL_MAILER`, connection settings, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` |
+| `config/services.php` | Optional SES credentials and region from `AWS_*` |
+
+## Z.com/cPanel SMTP
+
+Create the sending mailbox in cPanel and use its **Connect Devices** settings.
+The checked-in environment example selects SMTP with implicit TLS on port 465.
+Replace the example values with the actual mailbox details:
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=mail.example.com
+MAIL_PORT=465
+MAIL_USERNAME=no-reply@example.com
+MAIL_PASSWORD="YOUR_MAILBOX_PASSWORD"
+MAIL_FROM_ADDRESS=no-reply@example.com
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+Use the hostname, port, and security mode supplied by the provider. The sender
+must be authorized for that mailbox/domain. Publish its MX, SPF, and DKIM records
+at the authoritative DNS provider, configure DMARC, and check the account's
+sending limits. The complete deployment steps are in the
+[Z.com launch checklist](zcom-launch-checklist.md).
+
+After changing production settings, rebuild Laravel's configuration cache:
+
+```bash
+php artisan config:cache
+```
+
+Verify both inbox delivery and the emailed verification link, then check an
+application decision email. Sending errors are logged without failing the main
+request, so a successful registration response alone does not prove delivery.
+These messages are sent after the response and do not require a queue worker.
+The scheduled installment reminders are in-app notifications, not emails.
+
+S3 continues to use the `AWS_*` settings independently of SMTP. Keep those
+credentials configured for document storage.
 
 ## Email verification (on registration)
 
@@ -28,7 +70,10 @@ When a student aspirant registers, the API:
 Opening the link validates the signature, sets `email_verified_at`, and
 redirects to `FRONTEND_URL/login?verified=1`.
 
-## What you need to provide (AWS side)
+## Optional AWS SES configuration
+
+To select SES, set `MAIL_MAILER=ses` and configure the following. SMTP settings are
+unused while SES is selected; keep them available for switching back.
 
 1. **AWS account** with access to SES.
 2. **IAM credentials** for an IAM user/role allowed to send:
@@ -46,6 +91,10 @@ redirects to `FRONTEND_URL/login?verified=1`.
 
 ## Local development
 
-SES sandbox can only send to verified recipients. For day-to-day local testing
-without AWS, set `MAIL_MAILER=log` (the rendered email + verify link is written
-to `storage/logs/laravel.log`), then switch back to `ses` for staging/prod.
+For local testing without sending email, set `MAIL_MAILER=log`. The rendered email
+and verification link are written to the configured Laravel log channel (with the
+default local logging settings, `storage/logs/laravel.log`). Run
+`php artisan config:clear` if local configuration was cached.
+
+Use `MAIL_MAILER=smtp` with the real cPanel mailbox settings for the Z.com launch.
+Use `MAIL_MAILER=ses` only when intentionally selecting the retained SES setup.

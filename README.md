@@ -11,7 +11,9 @@ A decoupled application:
 - **Node.js 20.19+ or 22+** (LTS 22 recommended) with npm — required by Vite 8.
 - **Git**
 
-The default database is **SQLite**, so no database server is required for local dev. (MySQL is optional — see the Docker section.) Email defaults to AWS SES; for local dev set `MAIL_MAILER=log` in `backend/.env` to skip AWS.
+The default database is **SQLite**, so no database server is required for local dev. (MySQL is optional — see the Docker section.) Email defaults to **SMTP** for Z.com/cPanel; fill in the mailbox settings in `backend/.env`, or set `MAIL_MAILER=log` for local development without sending email. AWS SES remains available with `MAIL_MAILER=ses`.
+
+For the first production launch, follow the [Z.com launch checklist](docs/zcom-launch-checklist.md). It covers an empty MySQL database, cPanel SMTP, and private S3 document storage. See the [email configuration guide](docs/email.md) for both supported email providers.
 
 ### Installing on Windows
 
@@ -148,8 +150,11 @@ under `dropping/` for verification, permanent copies, and temporary-file cleanup
 The limits remain 12 PDF/JPG/PNG files, 2 MB per file, and 7 MB total.
 
 Update both frontend and backend together, then restart the development servers
-(or rebuild the frontend for deployment). No database migration is needed. Older
-clients using multipart uploads still depend on PHP's upload temporary folder.
+(or rebuild the frontend for deployment). No data migration is needed for this
+first launch. Multipart dropping submissions are rejected with HTTP 415; use the
+current frontend's direct S3 upload flow. The official form is read from the
+private S3 key `forms/official-dropping-form.pdf`. No local document disks or
+`storage:link` are used.
 
 ## API endpoints
 
@@ -199,9 +204,9 @@ using Laravel's `Schedule` facade. Currently there's one: an installment
 due-date reminder (`notifications:installments-due`,
 [`backend/app/Console/Commands/NotifyUpcomingInstallments.php`](backend/app/Console/Commands/NotifyUpcomingInstallments.php)),
 which notifies students whose next installment is due within 3 days. It runs
-daily at **07:00 UTC** — the app's timezone (`backend/config/app.php`) is UTC,
-so adjust `APP_TIMEZONE` (or scope a `.timezone()` call onto the schedule
-entry) if you want it to fire at a specific local time instead.
+daily at **07:00 UTC (3:00 PM Manila)**. The app's timezone is configured as UTC in
+`backend/config/app.php`; `APP_TIMEZONE` is not read. For Z.com, configure the
+every-minute cPanel cron in the [launch checklist](docs/zcom-launch-checklist.md).
 
 Defining a schedule entry only says *what* should run and *when* — something
 still has to call `php artisan schedule:run` every minute to actually check

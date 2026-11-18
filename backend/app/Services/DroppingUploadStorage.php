@@ -27,7 +27,7 @@ class DroppingUploadStorage
             $id = (string) Str::uuid();
             $path = "dropping/{$dropping->id}/{$version}/{$id}.".DroppingUploads::TYPES[$file['mime']];
             // Track the destination before copying, so a lost storage response can be cleaned up.
-            $stored[] = ['id' => $id, 'path' => $path, 'disk' => 's3',
+            $stored[] = ['id' => $id, 'path' => $path,
                 'name' => $file['name'], 'mime' => $file['mime'], 'size' => (int) $file['size']];
             $this->copy($disk, $file['key'], $path, $file['mime']);
 

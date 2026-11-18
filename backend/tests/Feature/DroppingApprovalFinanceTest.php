@@ -211,7 +211,7 @@ class DroppingApprovalFinanceTest extends TestCase
         $this->assertEquals(2000, $bill->fresh()->netTotal());
         $this->deleteJson("/api/admin/bills/{$bill->id}/adjustments/{$adjustment->id}")->assertUnprocessable();
         $this->deleteJson("/api/admin/bills/{$bill->id}")->assertUnprocessable();
-        $this->deleteJson("/api/admin/discounts/{$voucher->id}")->assertUnprocessable();
+        $this->deleteJson("/api/admin/discounts/{$voucher->id}")->assertStatus(405);
         $this->assertDatabaseHas('bill_adjustments', ['id' => $adjustment->id, 'amount' => 11000]);
         $this->actingAs(User::factory()->create(['role' => Role::Cashier]));
         $payment = $bill->payments()->first();
