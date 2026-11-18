@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Actions\NotifyStudent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentDocumentResource;
 use App\Models\Enrollment;
@@ -141,7 +142,7 @@ class GradeController extends Controller
         ]);
     }
 
-    public function store(Request $request, Student $student): StudentDocumentResource
+    public function store(Request $request, Student $student, NotifyStudent $notify): StudentDocumentResource
     {
         $validated = $request->validate([
             'school_year_id' => ['required', 'integer', Rule::exists('school_years', 'id')],
@@ -166,7 +167,7 @@ class GradeController extends Controller
         abort_unless($disk->size($validated['key']) === $validated['size'], 422, 'The uploaded file size does not match. Upload it again.');
         abort_unless($disk->mimeType($validated['key']) === $validated['content_type'], 422, 'The uploaded file type does not match. Upload it again.');
 
-        [$document, $supersededKey] = DB::transaction(function () use ($request, $student, $schoolYear, $validated) {
+        [$document, $supersededKey] = DB::transaction(function () use ($request, $student, $schoolYear, $validated, $notify) {
             // Admin review takes the same lock before accepting this slot.
             $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
             $this->authorizeStudent($request, $student, $schoolYear->id);
@@ -191,6 +192,17 @@ class GradeController extends Controller
                 $standing->update(['grades_note' => null]);
             }
 
+            $action = $existing === null ? 'uploaded' : 'replaced';
+            $semesterLabel = $validated['semester'] === 'first' ? '1st Semester' : '2nd Semester';
+            $notify(
+                $student,
+                'documents',
+                "Grade slip {$action}",
+                "Your teacher {$action} your {$semesterLabel} grade slip for SY {$schoolYear->school_year}.",
+                ctaLabel: 'View grades',
+                ctaUrl: '/portal/programs?section=clearance-grades',
+            );
+
             return [$document, $supersededKey];
         });
 
@@ -201,12 +213,12 @@ class GradeController extends Controller
         return new StudentDocumentResource($document);
     }
 
-    public function destroy(Request $request, Student $student, StudentDocument $document): Response
+    public function destroy(Request $request, Student $student, StudentDocument $document, NotifyStudent $notify): Response
     {
         abort_unless($document->student_id === $student->id && $document->type === 'grades', 404);
         $schoolYear = $this->authorizeStudent($request, $student, $document->school_year_id);
 
-        $key = DB::transaction(function () use ($request, $student, $schoolYear, $document) {
+        $key = DB::transaction(function () use ($request, $student, $schoolYear, $document, $notify) {
             $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
             $this->authorizeStudent($request, $student, $schoolYear->id);
             [$existing, $standing] = $this->assertSlotWritable($student, $schoolYear, $document->semester);
@@ -218,6 +230,16 @@ class GradeController extends Controller
             if ($standing?->noteFor('grades') !== null) {
                 $standing->update(['grades_note' => null]);
             }
+
+            $semesterLabel = $document->semester === 'first' ? '1st Semester' : '2nd Semester';
+            $notify(
+                $student,
+                'documents',
+                'Grade slip removed',
+                "Your teacher removed your {$semesterLabel} grade slip for SY {$schoolYear->school_year}.",
+                ctaLabel: 'View grades',
+                ctaUrl: '/portal/programs?section=clearance-grades',
+            );
 
             return $key;
         });

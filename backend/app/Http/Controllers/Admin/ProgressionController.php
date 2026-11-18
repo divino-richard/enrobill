@@ -237,7 +237,7 @@ class ProgressionController extends Controller
 
         $field = $validated['field'];
 
-        $student = DB::transaction(function () use ($request, $active, $validated, $field) {
+        $student = DB::transaction(function () use ($request, $active, $validated, $field, $notify) {
             // Teacher grade changes take the same lock before checking approval.
             $student = Student::whereKey($validated['studentId'])->lockForUpdate()->firstOrFail();
             $isEnrolled = $student->enrollments()
@@ -279,23 +279,24 @@ class ProgressionController extends Controller
                 ],
             );
 
+            $fieldLabel = $field === 'clearance' ? 'Clearance' : 'Grades';
+            $documentLabel = $field === 'clearance' ? 'clearance' : 'grade slip';
+            $semesterLabel = $validated['semester'] === 'first' ? '1st Semester' : '2nd Semester';
+
+            $notify(
+                $student,
+                'documents',
+                $validated['accepted'] ? "{$fieldLabel} accepted" : "{$fieldLabel} returned",
+                $validated['accepted']
+                    ? "Your {$semesterLabel} {$documentLabel} for SY {$active->school_year} was accepted by an admin."
+                    : "Your {$semesterLabel} {$documentLabel} for SY {$active->school_year} was returned: {$validated['note']}",
+                ctaLabel: $field === 'grades' ? 'View grades' : 'View documents',
+                ctaUrl: '/portal/programs?section=clearance-grades',
+                actionRequired: ! $validated['accepted'],
+            );
+
             return $student;
         });
-
-        $fieldLabel = $field === 'clearance' ? 'Clearance' : 'Grades';
-        $semesterLabel = $validated['semester'] === 'first' ? '1st Semester' : '2nd Semester';
-
-        $notify(
-            $student,
-            'documents',
-            $validated['accepted'] ? "{$fieldLabel} accepted" : "{$fieldLabel} returned",
-            $validated['accepted']
-                ? "Your {$semesterLabel} {$field} was accepted."
-                : "Your {$semesterLabel} {$field} was returned: {$validated['note']}",
-            ctaLabel: 'View documents',
-            ctaUrl: '/portal/programs',
-            actionRequired: ! $validated['accepted'],
-        );
 
         return response()->json([
             'data' => ['eligible' => $this->closeout->isFullyCleared($student, $active)],
