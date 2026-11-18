@@ -24,7 +24,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/form/password-input";
+import { FieldLabel } from "@/components/form/field-label";
+import { PasswordRequirements } from "@/features/auth/components/password-requirements";
+import { passwordIsStrong } from "@/features/auth/password";
 import {
   Select,
   SelectContent,
@@ -81,6 +84,21 @@ function CreateUserDialog({
 }) {
   const createUser = useCreateUser();
   const [form, setForm] = useState<CreateUserForm>(EMPTY_USER_FORM);
+  const passwordValid = passwordIsStrong(form.password);
+  const passwordsMatch = Boolean(form.password) && form.password === form.passwordConfirmation;
+  const canCreate = Boolean(
+    form.firstName.trim() && form.lastName.trim() && form.email.trim() &&
+    form.role && passwordValid && passwordsMatch,
+  );
+
+  function changeOpen(next: boolean) {
+    if (createUser.isPending) return;
+    if (!next) {
+      setForm(EMPTY_USER_FORM);
+      createUser.reset();
+    }
+    onOpenChange(next);
+  }
 
   function update<K extends keyof CreateUserForm>(
     field: K,
@@ -91,18 +109,7 @@ function CreateUserDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!createUser.isPending) {
-          if (!next) {
-            setForm(EMPTY_USER_FORM);
-            createUser.reset();
-          }
-          onOpenChange(next);
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create user account</DialogTitle>
@@ -116,7 +123,7 @@ function CreateUserDialog({
           onSubmit={(event) => {
             event.preventDefault();
             const role = form.role;
-            if (!role) return;
+            if (!role || !canCreate || createUser.isPending) return;
 
             createUser.mutate({ ...form, role }, {
               onSuccess: () => {
@@ -131,7 +138,7 @@ function CreateUserDialog({
             className="grid gap-4 sm:grid-cols-2"
           >
             <div className="space-y-1.5">
-              <Label htmlFor="user-first-name">First name</Label>
+              <FieldLabel htmlFor="user-first-name" required>First name</FieldLabel>
               <Input
                 id="user-first-name"
                 required
@@ -142,7 +149,7 @@ function CreateUserDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="user-middle-name">Middle name</Label>
+              <FieldLabel htmlFor="user-middle-name" optional>Middle name</FieldLabel>
               <Input
                 id="user-middle-name"
                 maxLength={100}
@@ -151,7 +158,7 @@ function CreateUserDialog({
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="user-last-name">Last name</Label>
+              <FieldLabel htmlFor="user-last-name" required>Last name</FieldLabel>
               <Input
                 id="user-last-name"
                 required
@@ -161,7 +168,7 @@ function CreateUserDialog({
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="user-email">Email</Label>
+              <FieldLabel htmlFor="user-email" required>Email</FieldLabel>
               <Input
                 id="user-email"
                 type="email"
@@ -173,7 +180,7 @@ function CreateUserDialog({
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="user-role">Role</Label>
+              <FieldLabel htmlFor="user-role" required>Role</FieldLabel>
               <Select
                 required
                 value={form.role}
@@ -196,38 +203,50 @@ function CreateUserDialog({
                 Student and applicant accounts use their own registration flows.
               </p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="user-password">Temporary password</Label>
-              <Input
+            <div className="space-y-2 sm:col-span-2">
+              <FieldLabel htmlFor="user-password" required>Temporary password</FieldLabel>
+              <PasswordInput
                 id="user-password"
-                type="password"
                 required
                 minLength={8}
                 autoComplete="new-password"
+                aria-describedby="user-password-requirements"
                 value={form.password}
                 onChange={(event) => update("password", event.target.value)}
               />
+              <div id="user-password-requirements">
+                <PasswordRequirements value={form.password} />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="user-password-confirmation">
+            <div className="space-y-1.5 sm:col-span-2">
+              <FieldLabel htmlFor="user-password-confirmation" required>
                 Confirm password
-              </Label>
-              <Input
+              </FieldLabel>
+              <PasswordInput
                 id="user-password-confirmation"
-                type="password"
                 required
                 minLength={8}
                 autoComplete="new-password"
+                aria-describedby="user-password-confirmation-feedback"
+                aria-invalid={Boolean(form.passwordConfirmation) && !passwordsMatch}
                 value={form.passwordConfirmation}
                 onChange={(event) =>
                   update("passwordConfirmation", event.target.value)
                 }
               />
+              <p
+                id="user-password-confirmation-feedback"
+                role="status"
+                className={`text-xs ${form.passwordConfirmation ? passwordsMatch ? "text-emerald-700 dark:text-emerald-300" : "text-destructive" : "text-muted-foreground"}`}
+              >
+                {form.passwordConfirmation
+                  ? passwordsMatch
+                    ? "Passwords match."
+                    : "Passwords do not match. Re-enter the temporary password."
+                  : "Re-enter the temporary password exactly as entered above."}
+              </p>
             </div>
           </fieldset>
-          <p className="text-muted-foreground text-xs">
-            Use at least 8 characters with an uppercase letter and a number.
-          </p>
           {createUser.isError && (
             <p role="alert" className="text-destructive text-sm">
               {getErrorMessage(
@@ -241,24 +260,16 @@ function CreateUserDialog({
               type="button"
               variant="outline"
               disabled={createUser.isPending}
-              onClick={() => onOpenChange(false)}
+              onClick={() => changeOpen(false)}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={
-                createUser.isPending ||
-                !form.firstName.trim() ||
-                !form.lastName.trim() ||
-                !form.email.trim() ||
-                !form.role ||
-                !form.password ||
-                form.password !== form.passwordConfirmation
-              }
+              disabled={createUser.isPending || !canCreate}
             >
               {createUser.isPending && <Loader2Icon className="animate-spin" />}
-              Create user
+              {createUser.isPending ? "Creating user…" : "Create user"}
             </Button>
           </DialogFooter>
         </form>

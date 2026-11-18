@@ -2,7 +2,7 @@
 // live requirements checklist. Mirrors the backend rules:
 // at least 8 characters, with an uppercase letter, and a number.
 export const PASSWORD_RULES: { label: string; test: (value: string) => boolean }[] = [
-  { label: 'At least 8 characters', test: (value) => value.length >= 8 },
+  { label: 'At least 8 characters', test: (value) => Array.from(value).length >= 8 },
   { label: 'One uppercase letter', test: (value) => /[A-Z]/.test(value) },
   { label: 'One number', test: (value) => /\d/.test(value) },
 ]
