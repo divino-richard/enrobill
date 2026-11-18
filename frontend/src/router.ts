@@ -39,6 +39,7 @@ import AdminTransferRequestsPage from './pages/admin/transfer-requests-page'
 import AdminReferralsPage from './pages/admin/referrals-page'
 import AccountPage from './pages/account-page'
 import TeacherGradesPage from './pages/teacher/grades-page'
+import TeacherReportsPage from './pages/teacher/reports-page'
 import PortalHomePage from './pages/portal/home-page'
 import PortalBillsPage from './pages/portal/bills-page'
 import PortalBillDetailPage from './pages/portal/bill-detail-page'
@@ -87,7 +88,10 @@ export const router = createBrowserRouter([
           },
           {
             Component: TeacherGuard,
-            children: [{ path: 'my-students', Component: TeacherGradesPage }],
+            children: [
+              { path: 'my-students', Component: TeacherGradesPage },
+              { path: 'teacher-reports', Component: TeacherReportsPage },
+            ],
           },
 
           // Admin-only areas (cashiers are redirected away).

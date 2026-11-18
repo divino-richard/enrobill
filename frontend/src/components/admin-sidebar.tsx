@@ -79,6 +79,12 @@ const navGroups: NavGroup[] = [
         icon: GraduationCapIcon,
         ready: true,
       },
+      {
+        title: "Reports",
+        url: "/admin/teacher-reports",
+        icon: BarChart3Icon,
+        ready: true,
+      },
     ],
   },
   {

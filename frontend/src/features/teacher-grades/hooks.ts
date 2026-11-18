@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/features/auth/store";
 import type { Semester } from "@/features/student-documents/types";
 import { fetchTeacherGrades, removeTeacherGrade, uploadTeacherGrade } from "./api";
 
 export const teacherGradesQueryKey = ["teacher", "grades"] as const;
 
 export function useTeacherGrades(schoolYearId?: number) {
+  const teacherId = useAuthStore((state) => state.user?.id);
   return useQuery({
-    queryKey: [...teacherGradesQueryKey, schoolYearId],
+    queryKey: [...teacherGradesQueryKey, teacherId, schoolYearId],
     queryFn: () => fetchTeacherGrades(schoolYearId),
   });
 }
