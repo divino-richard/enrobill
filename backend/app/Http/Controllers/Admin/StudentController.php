@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Services\EnrollmentSettlementRules;
 use App\Services\ReturningEnrollmentRules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class StudentController extends Controller
 {
@@ -112,36 +115,55 @@ class StudentController extends Controller
             'status' => ['required', Rule::in(self::STATUSES)],
         ]);
 
-        if ($validated['status'] === 'enrolled') {
+        return DB::transaction(function () use ($validated, $student) {
+            $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
             $latest = $student->enrollments()->with('schoolYear')->get()
                 ->sortByDesc(fn ($enrollment) => $enrollment->schoolYear?->school_year)->first();
-            abort_if($latest && $latest->status !== 'enrolled' && ($latest->status === 'dropped' || app(ReturningEnrollmentRules::class)->source($latest)),
-                422, 'Activate the returning enrollment after its payment requirements are met.');
-        }
+            $oldLevel = array_search($student->year_level ?? $latest?->year_level, SchoolYear::YEAR_LEVELS, true);
+            $newLevel = array_search($validated['yearLevel'] ?? null, SchoolYear::YEAR_LEVELS, true);
+            $sourceYear = $latest?->schoolYear?->school_year ?? $student->school_year;
+            if ($oldLevel !== false && $newLevel !== false && $newLevel > $oldLevel
+                && $sourceYear && app(EnrollmentSettlementRules::class)->balance($student->id, $sourceYear, includeYear: true) > 0) {
+                throw ValidationException::withMessages(['yearLevel' => EnrollmentSettlementRules::MESSAGE]);
+            }
+            $targetYear = $validated['schoolYear'] ?? null;
+            if ($targetYear && $sourceYear && $targetYear > $sourceYear
+                && app(EnrollmentSettlementRules::class)->balance($student->id, $targetYear) > 0) {
+                throw ValidationException::withMessages(['schoolYear' => EnrollmentSettlementRules::MESSAGE]);
+            }
 
-        $student->update([
-            'first_name' => $validated['firstName'],
-            'middle_name' => $validated['middleName'] ?? null,
-            'last_name' => $validated['lastName'],
-            'extension' => $validated['extension'] ?? null,
-            'date_of_birth' => $validated['dateOfBirth'] ?? null,
-            'gender' => $validated['gender'] ?? null,
-            'nationality' => $validated['nationality'] ?? null,
-            'civil_status' => $validated['civilStatus'] ?? null,
-            'place_of_birth' => $validated['placeOfBirth'] ?? null,
-            'religion' => $validated['religion'] ?? null,
-            'email' => $validated['email'] ?? null,
-            'phone_number' => $validated['phoneNumber'] ?? null,
-            'address_province' => $validated['addressProvince'] ?? null,
-            'address_city' => $validated['addressCity'] ?? null,
-            'address_barangay' => $validated['addressBarangay'] ?? null,
-            'address_street' => $validated['addressStreet'] ?? null,
-            'track_or_strand' => $validated['trackOrStrand'] ?? null,
-            'year_level' => $validated['yearLevel'] ?? null,
-            'school_year' => $validated['schoolYear'] ?? null,
-            'status' => $validated['status'],
-        ]);
+            if ($validated['status'] === 'enrolled') {
+                if ($latest && $latest->status !== 'enrolled') {
+                    app(EnrollmentSettlementRules::class)->assertCanEnroll($latest);
+                }
+                abort_if($latest && $latest->status !== 'enrolled' && ($latest->status === 'dropped' || app(ReturningEnrollmentRules::class)->source($latest)),
+                    422, 'Activate the returning enrollment after its payment requirements are met.');
+            }
 
-        return new StudentResource($student->fresh());
+            $student->update([
+                'first_name' => $validated['firstName'],
+                'middle_name' => $validated['middleName'] ?? null,
+                'last_name' => $validated['lastName'],
+                'extension' => $validated['extension'] ?? null,
+                'date_of_birth' => $validated['dateOfBirth'] ?? null,
+                'gender' => $validated['gender'] ?? null,
+                'nationality' => $validated['nationality'] ?? null,
+                'civil_status' => $validated['civilStatus'] ?? null,
+                'place_of_birth' => $validated['placeOfBirth'] ?? null,
+                'religion' => $validated['religion'] ?? null,
+                'email' => $validated['email'] ?? null,
+                'phone_number' => $validated['phoneNumber'] ?? null,
+                'address_province' => $validated['addressProvince'] ?? null,
+                'address_city' => $validated['addressCity'] ?? null,
+                'address_barangay' => $validated['addressBarangay'] ?? null,
+                'address_street' => $validated['addressStreet'] ?? null,
+                'track_or_strand' => $validated['trackOrStrand'] ?? null,
+                'year_level' => $validated['yearLevel'] ?? null,
+                'school_year' => $validated['schoolYear'] ?? null,
+                'status' => $validated['status'],
+            ]);
+
+            return new StudentResource($student->fresh());
+        }, 3);
     }
 }

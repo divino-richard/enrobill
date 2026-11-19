@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Actions\ReferralLifecycle;
+use App\Services\EnrollmentSettlementRules;
 use App\Services\ReturningEnrollmentRules;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,8 @@ use Illuminate\Validation\ValidationException;
 ])]
 class Enrollment extends Model
 {
+    protected $attributes = ['status' => 'pending'];
+
     protected static function booted(): void
     {
         static::creating(function (self $enrollment): void {
@@ -30,8 +33,13 @@ class Enrollment extends Model
                     throw ValidationException::withMessages(['status' => $eligibility['blockers'] ?: ['Create a pending return and meet its payment requirements before activation.']]);
                 }
             }
+            app(EnrollmentSettlementRules::class)->assertCanEnroll($enrollment);
         });
         static::updating(function (self $enrollment): void {
+            if ($enrollment->isDirty(['status', 'school_year_id', 'year_level'])
+                && in_array($enrollment->status, ['pending', 'enrolled'], true)) {
+                app(EnrollmentSettlementRules::class)->assertCanEnroll($enrollment);
+            }
             if ($enrollment->isDirty('status') && $enrollment->status === 'pending') {
                 $rules = app(ReturningEnrollmentRules::class);
                 if ($source = $rules->source($enrollment)) {

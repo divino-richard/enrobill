@@ -8,6 +8,7 @@ use App\Models\ProgressionDecision;
 use App\Models\SchoolYear;
 use App\Models\SemesterStanding;
 use App\Models\Student;
+use App\Services\EnrollmentSettlementRules;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -80,6 +81,21 @@ class YearEndCloseout
                 ->where('school_year_id', $year->id)->where('status', 'enrolled')->exists());
     }
 
+    /** Keep recorded decisions visible while counting only settled students as ready. */
+    public function readyEnrollmentDecisions(SchoolYear $year): Collection
+    {
+        return $this->pendingEnrollmentDecisions($year)
+            ->filter(fn (ProgressionDecision $decision) => $this->settlement($decision->student, $year)['settlementBalance'] <= 0);
+    }
+
+    public function settlement(Student $student, SchoolYear $year): array
+    {
+        $balance = app(EnrollmentSettlementRules::class)->balance($student->id, $year->school_year, includeYear: true);
+
+        return ['settlementBalance' => $balance,
+            'settlementBlockers' => $balance > 0 ? [EnrollmentSettlementRules::MESSAGE] : []];
+    }
+
     /**
      * Record a decision for each eligible student in the ending year. Ineligible
      * students (e.g. promoting a top-grade student) are skipped. Returns the count
@@ -94,15 +110,18 @@ class YearEndCloseout
         }
 
         $students = $this->pendingStudents($year)
-            ->whereIn('id', $studentIds)
-            ->filter(fn (Student $s) => $this->eligibleFor($s, $year, $decision));
+            ->whereIn('id', $studentIds)->sortBy('id');
 
         return DB::transaction(function () use ($students, $year, $decision, $userId) {
             $done = 0;
             foreach ($students as $student) {
+                // Payment verification/rejection takes this lock first too.
+                $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
                 // Recheck under the same enrollment lock used by official dropping.
                 $source = $student->enrollments()->where('school_year_id', $year->id)->lockForUpdate()->first();
-                if ($source?->status !== 'enrolled') {
+                if ($source?->status !== 'enrolled'
+                    || $student->progressionDecisions()->where('from_school_year_id', $year->id)->exists()
+                    || ! $this->eligibleFor($student, $year, $decision)) {
                     continue;
                 }
                 $this->applyDecision($student, $year, $decision, $userId);
@@ -135,18 +154,24 @@ class YearEndCloseout
 
         return DB::transaction(function () use ($pending, $next, $year, $userId) {
             $done = 0;
-            foreach ($pending as $decision) {
+            foreach ($pending->sortBy('student_id') as $decision) {
+                $student = Student::whereKey($decision->student_id)->lockForUpdate()->firstOrFail();
+                $decision->refresh();
+                if (! $decision->needsMaterialization()) {
+                    continue;
+                }
                 // A decision made before an official drop must not enroll that
                 // student automatically. Returning students need a new enrollment.
-                $source = $decision->student->enrollments()->where('school_year_id', $year->id)->lockForUpdate()->first();
-                if ($source?->status !== 'enrolled') {
+                $source = $student->enrollments()->where('school_year_id', $year->id)->lockForUpdate()->first();
+                if ($source?->status !== 'enrolled'
+                    || app(EnrollmentSettlementRules::class)->balance($student->id, $next->school_year) > 0) {
                     continue;
                 }
                 // A voucher granted on admission covers the student's whole senior
                 // high run, and progression has no accept step to re-grant it, so
                 // it rides along to the new year's enrollment.
                 $enrollment = ($this->ensureEnrollment)(
-                    $decision->student,
+                    $student,
                     $next,
                     $userId,
                     $this->grantedVoucherId($decision->student, $year),
@@ -264,7 +289,8 @@ class YearEndCloseout
     {
         return match ($decision) {
             'promote' => $student->year_level !== $this->topLevel()
-                && $this->isFullyCleared($student, $year),
+                && $this->isFullyCleared($student, $year)
+                && $this->settlement($student, $year)['settlementBalance'] <= 0,
             'graduate' => $student->year_level === $this->topLevel()
                 && $this->isFullyCleared($student, $year),
             default => true, // retain — always allowed
@@ -342,11 +368,12 @@ class YearEndCloseout
         $student = $decision->student;
 
         if ($decision->decision === 'graduate') {
-            // Reopen the ending year's enrollment and restore enrolled standing.
+            // Restore the enrollment that was already active before graduation.
+            // Undoing that decision is not a new enrollment/grade advancement.
             $student->enrollments()
                 ->where('school_year_id', $year->id)
                 ->where('status', 'completed')
-                ->get()->each(fn (Enrollment $enrollment) => $enrollment->update(['status' => 'enrolled']));
+                ->update(['status' => 'enrolled']);
         } else {
             // Drop the (unbilled) next-year enrollment and restore the grade and
             // current-standing school year to the ending year they revert to.

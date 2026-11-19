@@ -52,6 +52,7 @@ export interface Enrollment {
   openBillCount?: number | null;
   openBillTotal?: number | null;
   openBills?: EnrollmentOpenBill[] | null;
+  settlementBlockers: string[];
   student: EnrollmentStudent | null;
 }
 

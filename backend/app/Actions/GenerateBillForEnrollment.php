@@ -7,6 +7,7 @@ use App\Models\Discount;
 use App\Models\Enrollment;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Services\EnrollmentSettlementRules;
 use App\Services\ReturningEnrollmentRules;
 use App\Services\StudentCreditService;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +46,10 @@ class GenerateBillForEnrollment
         $student = $enrollment->student;
 
         abort_if($schoolYear === null || $student === null, 422, 'This enrollment is incomplete.');
+
+        if ($enrollment->status === 'pending') {
+            app(EnrollmentSettlementRules::class)->assertCanEnroll($enrollment);
+        }
 
         $existing = Bill::query()
             ->where('student_id', $student->id)

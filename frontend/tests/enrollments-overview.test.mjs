@@ -17,6 +17,7 @@ const enrollment = {
   student: { id: 5, name: 'Berk Molina', studentNumber: '2026-00009' },
   openBillCount: 1, openBillTotal: 800,
   openBills: [{ id: 9, schoolYear: '2026-2027', status: 'partial', balance: 800, isCurrent: false }],
+  settlementBlockers: [],
 };
 
 function renderPage({ rows = [enrollment], role = 'cashier', error = false, fetching = false } = {}) {
@@ -58,6 +59,29 @@ test('only cashiers get a visible Generate bill action for an unbilled pending e
   assert.match(renderPage({ rows: [pending] }), />Generate bill</);
   assert.doesNotMatch(renderPage({ rows: [pending], role: 'admin' }), />Generate bill</);
   assert.doesNotMatch(renderPage({ rows: [{ ...pending, status: 'dropped' }] }), />Generate bill</);
+});
+
+test('unpaid prior bills disable bill generation and expose the reason to staff', () => {
+  const pending = { ...enrollment, status: 'pending', hasBill: false, bill: null,
+    settlementBlockers: ['Settle the remaining balance for SY 2026-2027.'] };
+  const html = renderPage({ rows: [pending] });
+  const generate = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(([markup]) => markup.includes('Generate bill'))?.[0];
+  assert.ok(generate);
+  assert.match(generate, /disabled=""/);
+  assert.match(generate, /aria-describedby="enrollment-settlement-10"/);
+  assert.match(html, /id="enrollment-settlement-10"/);
+  assert.match(html, /Settle prior bills before billing this enrollment/);
+  assert.match(html, /Settle the remaining balance for SY 2026-2027/);
+  assert.match(renderPage({ rows: [pending], role: 'admin' }), /Settle the remaining balance for SY 2026-2027/);
+});
+
+test('an unbilled pending enrollment without settlement blockers can generate its bill', () => {
+  const pending = { ...enrollment, status: 'pending', hasBill: false, bill: null };
+  const html = renderPage({ rows: [pending] });
+  const generate = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(([markup]) => markup.includes('Generate bill'))?.[0];
+  assert.ok(generate);
+  assert.doesNotMatch(generate, /disabled=""|aria-describedby=/);
+  assert.doesNotMatch(html, /Settle prior bills before billing/);
 });
 
 test('filters and row actions have stable names including student and school year', () => {

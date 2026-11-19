@@ -123,9 +123,14 @@ class ReturningEnrollmentRules
         if ($return !== null) {
             return $return['blockers'];
         }
+        $blockers = app(EnrollmentSettlementRules::class)->blockers($target);
         $bill = $target->bill()->first();
 
-        return $bill && $bill->enrollmentDownpaymentMet() ? [] : ['Meet this enrollment’s payment requirement before activation.'];
+        if (! $bill || ! $bill->enrollmentDownpaymentMet()) {
+            $blockers[] = 'Meet this enrollment’s payment requirement before activation.';
+        }
+
+        return $blockers;
     }
 
     public function collectionState(Bill $bill): string

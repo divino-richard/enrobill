@@ -73,10 +73,12 @@ function getEnrollmentBillingSnapshot(enrollment: Enrollment) {
   const otherOpenBills = openBills.filter((bill) => bill.id !== enrollment.bill?.id);
   const canGenerateBill =
     enrollment.status === "pending" && enrollment.hasBill === false && !enrollment.bill;
+  const settlementBlockers = enrollment.status === "pending" ? enrollment.settlementBlockers ?? [] : [];
 
   return {
     otherOpenBills,
     canGenerateBill,
+    settlementBlockers,
   };
 }
 
@@ -91,13 +93,14 @@ function EnrollmentActionsCell({
   onGenerateBill: (target: GenerateBillTarget) => void;
   disabled: boolean;
 }) {
-  const { canGenerateBill } = getEnrollmentBillingSnapshot(enrollment);
+  const { canGenerateBill, settlementBlockers } = getEnrollmentBillingSnapshot(enrollment);
   const studentId = enrollment.student?.id ?? null;
 
   return (
     <div className="flex items-center justify-end gap-1">
       {isCashier && canGenerateBill ? (
-        <Button variant="outline" size="sm" disabled={disabled}
+        <Button variant="outline" size="sm" disabled={disabled || settlementBlockers.length > 0}
+          aria-describedby={settlementBlockers.length > 0 ? `enrollment-settlement-${enrollment.id}` : undefined}
           onClick={() => onGenerateBill(toGenerateBillTarget(enrollment))}>
           Generate bill
         </Button>
@@ -253,6 +256,12 @@ function EnrollmentsPage() {
                   <Badge variant="outline" className="text-muted-foreground">
                     {billingSnapshot.otherOpenBills.length} other open bill{billingSnapshot.otherOpenBills.length === 1 ? "" : "s"}
                   </Badge>
+                </div>
+              )}
+              {billingSnapshot.settlementBlockers.length > 0 && (
+                <div id={`enrollment-settlement-${row.original.id}`} className="max-w-sm space-y-1 whitespace-normal text-xs text-amber-800 dark:text-amber-200">
+                  <p className="font-medium">Settle prior bills before billing this enrollment.</p>
+                  {billingSnapshot.settlementBlockers.map((reason, index) => <p key={index}>{reason}</p>)}
                 </div>
               )}
             </div>

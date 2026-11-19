@@ -34,12 +34,13 @@ export function useBills(params: BillListParams) {
   });
 }
 
-// Refresh the bills list, the enrollments hub, and per-student bill cards.
+// Refresh financial records and the progression readiness that depends on them.
 function useBillingMutationCallbacks() {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: billsQueryKey });
     queryClient.invalidateQueries({ queryKey: ["admin", "enrollments"] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "progression"] });
     queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
   };
 }
@@ -94,6 +95,8 @@ function useBillMutation<TArgs>(
       void queryClient.invalidateQueries({ queryKey: ["me", "re-enrollment"] });
       queryClient.setQueryData(billQueryKey(billId), bill);
       queryClient.invalidateQueries({ queryKey: billsQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["admin", "enrollments"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "progression"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "students"] });
     },
   });

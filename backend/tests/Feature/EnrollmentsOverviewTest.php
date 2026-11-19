@@ -28,14 +28,19 @@ class EnrollmentsOverviewTest extends TestCase
                 'school_year' => (2026 + $index).'-'.(2027 + $index),
                 'start_date' => (2026 + $index).'-06-01', 'end_date' => (2027 + $index).'-03-31',
             ]);
-            $enrollment = Enrollment::create([
+            // Historical records from before settlement was required still render.
+            $enrollment = Enrollment::withoutEvents(fn () => Enrollment::create([
                 'student_id' => $student->id, 'school_year_id' => $year->id,
                 'status' => $status === null ? 'pending' : 'enrolled', 'track' => 'gas', 'year_level' => 'grade_11',
-            ]);
+            ]));
             $bill = $status === null ? null : Bill::create([
                 'student_id' => $student->id, 'enrollment_id' => $enrollment->id, 'school_year_id' => $year->id,
                 'total' => 1000, 'amount_paid' => $status === 'paid' ? 1000 : 200, 'status' => $status,
             ]);
+            if ($bill !== null) {
+                $bill->payments()->create(['amount' => $status === 'paid' ? 1000 : 200,
+                    'status' => 'verified', 'method' => 'cash', 'paid_at' => now()]);
+            }
             $enrollments[$enrollment->id] = $bill;
         }
 

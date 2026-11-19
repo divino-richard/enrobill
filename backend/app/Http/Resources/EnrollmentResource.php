@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Bill;
 use App\Models\Enrollment;
+use App\Services\EnrollmentSettlementRules;
 use App\Services\ReturningEnrollmentRules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -28,6 +29,8 @@ class EnrollmentResource extends JsonResource
                 ? $this->dropping_category
                 : $this->bill?->droppingCategory(),
             'returnRequirements' => app(ReturningEnrollmentRules::class)->requirements($this->resource),
+            'settlementBlockers' => $this->status === 'pending'
+                ? app(EnrollmentSettlementRules::class)->blockers($this->resource) : [],
             'returningFromEnrollmentId' => $this->returning_from_enrollment_id,
             'schoolYear' => $this->schoolYear?->school_year,
             'program' => $this->track,

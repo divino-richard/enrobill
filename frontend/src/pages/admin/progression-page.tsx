@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { DecisionSection } from "@/features/progression/decision-section";
+import { progressionNeedsSettlement } from "@/features/progression/settlement";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -209,6 +210,18 @@ function ProgressionPage() {
         ) : null}
       </div>
 
+      {progressionOpen && summary && summary.blockedByBalance > 0 && (
+        <Alert>
+          <CircleAlertIcon className="size-4" aria-hidden="true" />
+          <AlertTitle>Prior bills must be settled</AlertTitle>
+          <AlertDescription>
+            {summary.blockedByBalance} {summary.blockedByBalance === 1 ? "student with a recorded decision is" : "students with recorded decisions are"} blocked from next-year enrollment by unpaid prior bills.
+            {summary.readyToEnroll > 0 && <> The {summary.readyToEnroll} ready {summary.readyToEnroll === 1 ? "student can" : "students can"} still be enrolled.</>}
+            {" "}Pending or unverified payments do not count toward settlement.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {summary?.carryForward && (
         <Alert className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
           <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -218,18 +231,21 @@ function ProgressionPage() {
                 Finish enrollment for SY {summary.carryForward.targetYear.schoolYear}
               </AlertTitle>
               <AlertDescription className="max-w-[75ch] text-sm leading-6">
-                {summary.carryForward.count} {summary.carryForward.count === 1 ? 'student has' : 'students have'} a
-                recorded promotion or retention from SY {summary.carryForward.sourceYear.schoolYear} but
-                no enrollment for the new year. Create their pending enrollments to continue billing and enrollment processing.
+                {summary.carryForward.count} {summary.carryForward.count === 1 ? 'student is' : 'students are'} ready
+                for enrollment after a recorded promotion or retention from SY {summary.carryForward.sourceYear.schoolYear}.
+                {summary.carryForward.count > 0 && " Create their pending enrollments to continue billing and enrollment processing."}
+                {(summary.carryForward.blockedByBalance ?? 0) > 0 && <>
+                  {" "}{summary.carryForward.blockedByBalance} {summary.carryForward.blockedByBalance === 1 ? "student is" : "students are"} blocked by unpaid prior bills. Settle those bills before creating their enrollments; pending or unverified payments do not count toward settlement.
+                </>}
               </AlertDescription>
             </div>
           </div>
           <Button
             className="ml-8 self-start lg:ml-0 lg:self-center"
-            disabled={materialize.isPending}
+            disabled={materialize.isPending || summary.carryForward.count === 0}
             onClick={() => materialize.mutate(summary.carryForward!.sourceYear.id)}
           >
-            {materialize.isPending ? 'Creating enrollments…' : `Create ${summary.carryForward.count} ${summary.carryForward.count === 1 ? 'enrollment' : 'enrollments'}`}
+            {materialize.isPending ? 'Creating enrollments…' : summary.carryForward.count === 0 ? 'Awaiting settlement' : `Create ${summary.carryForward.count} ${summary.carryForward.count === 1 ? 'enrollment' : 'enrollments'}`}
           </Button>
         </Alert>
       )}
@@ -493,6 +509,14 @@ function RosterTable({
 }
 
 function ReadinessBadge({ student }: { student: RosterStudent }) {
+  if (progressionNeedsSettlement(student)) {
+    return (
+      <Badge variant="outline" className="border-amber-200 bg-amber-50 font-normal text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <CircleAlertIcon className="size-3" aria-hidden="true" />
+        Unpaid prior bills
+      </Badge>
+    );
+  }
   if (student.eligible) {
     return (
       <Badge

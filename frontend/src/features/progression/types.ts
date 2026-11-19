@@ -34,8 +34,10 @@ export interface RosterStudent {
   isTopGrade: boolean;
   documents: StudentDocument[];
   review: Record<Semester, SemesterReview>;
-  // Every semester cleared and passed — the gate for promote / graduate.
+  // Academic clearance plus prior-bill settlement for promotion; graduation is academic-only.
   eligible: boolean;
+  settlementBalance: number;
+  settlementBlockers: string[];
   status: ProgressionStatus;
   decision: ProgressionDecisionKind | null;
   decisionId: number | null;
@@ -68,9 +70,11 @@ export interface ProgressionSummary {
   // Students still awaiting a year-end decision.
   pending: number;
   readyToEnroll: number;
+  blockedByBalance: number;
   carryForward: {
     sourceYear: YearRef;
     targetYear: YearRef;
     count: number;
+    blockedByBalance: number;
   } | null;
 }

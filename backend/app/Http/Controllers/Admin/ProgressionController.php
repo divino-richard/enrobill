@@ -36,10 +36,12 @@ class ProgressionController extends Controller
         $active = SchoolYear::active();
         $previous = $active ? $this->previousYear($active) : null;
         $outstanding = $previous ? $this->closeout->pendingEnrollmentDecisions($previous)->count() : 0;
+        $readyCarryForward = $previous ? $this->closeout->readyEnrollmentDecisions($previous)->count() : 0;
         $carryForward = $outstanding > 0 ? [
             'sourceYear' => $this->yearRef($previous),
             'targetYear' => $this->yearRef($active),
-            'count' => $outstanding,
+            'count' => $readyCarryForward,
+            'blockedByBalance' => $outstanding - $readyCarryForward,
         ] : null;
 
         if ($active === null || ! $active->isProgressionOpen()) {
@@ -50,13 +52,15 @@ class ProgressionController extends Controller
                     'progressionOpen' => false,
                     'pending' => 0,
                     'readyToEnroll' => 0,
+                    'blockedByBalance' => 0,
                     'carryForward' => $carryForward,
                 ],
             ]);
         }
 
         $next = $this->closeout->nextYear($active);
-        $readyToEnroll = $this->closeout->pendingEnrollmentDecisions($active)->count();
+        $readyToEnroll = $this->closeout->readyEnrollmentDecisions($active)->count();
+        $blockedByBalance = $this->closeout->pendingEnrollmentDecisions($active)->count() - $readyToEnroll;
 
         return response()->json([
             'data' => [
@@ -65,6 +69,7 @@ class ProgressionController extends Controller
                 'progressionOpen' => true,
                 'pending' => $this->closeout->pendingStudents($active)->count(),
                 'readyToEnroll' => $readyToEnroll,
+                'blockedByBalance' => $blockedByBalance,
                 'carryForward' => $carryForward,
             ],
         ]);
@@ -172,7 +177,7 @@ class ProgressionController extends Controller
 
         $top = $this->topLevel();
 
-        $rows = collect($page->items())->map(function (Student $student) use ($documents, $standings, $decisions, $top) {
+        $rows = collect($page->items())->map(function (Student $student) use ($active, $documents, $standings, $decisions, $top) {
             $docs = $documents->get($student->id, collect());
             $review = $this->buildReview($standings->get($student->id, collect()), $docs);
             $eligible = collect(SemesterStanding::SEMESTERS)->every(
@@ -181,6 +186,8 @@ class ProgressionController extends Controller
 
             $decision = $decisions->get($student->id);
             $billed = $decision?->toEnrollment && $decision->toEnrollment->bill;
+            $settlement = $this->closeout->settlement($student, $active);
+            $isTopGrade = $student->year_level === $top;
 
             return [
                 'studentId' => $student->id,
@@ -189,10 +196,11 @@ class ProgressionController extends Controller
                 'track' => $student->track_or_strand,
                 'yearLevel' => $student->year_level,
                 'nextYearLevel' => $this->nextLevel($student->year_level),
-                'isTopGrade' => $student->year_level === $top,
+                'isTopGrade' => $isTopGrade,
                 'documents' => StudentDocumentResource::collection($docs),
                 'review' => $review,
-                'eligible' => $eligible,
+                'eligible' => $eligible && ($isTopGrade || $settlement['settlementBalance'] <= 0),
+                ...$settlement,
                 'status' => $decision ? 'decided' : 'pending',
                 'decision' => $decision?->decision,
                 'decisionId' => $decision?->id,
@@ -298,7 +306,9 @@ class ProgressionController extends Controller
         });
 
         return response()->json([
-            'data' => ['eligible' => $this->closeout->isFullyCleared($student, $active)],
+            'data' => ['eligible' => $this->closeout->isFullyCleared($student, $active)
+                && ($student->year_level === $this->topLevel()
+                    || $this->closeout->settlement($student, $active)['settlementBalance'] <= 0)],
         ]);
     }
 
