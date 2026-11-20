@@ -178,6 +178,7 @@ function SectionSchedule({
   const change = useChangeSchedule(section.id);
   const teachers = useUsers({
     role: "teacher",
+    status: "active",
     perPage: 100,
     sort: "name",
     dir: "asc",
@@ -554,6 +555,11 @@ function SectionSchedule({
                       <SelectValue placeholder="Select teacher" />
                     </SelectTrigger>
                     <SelectContent>
+                      {draft.teacherId && !teachers.data?.rows.some((teacher) => teacher.id === draft.teacherId) && (
+                        <SelectItem value={String(draft.teacherId)} disabled>
+                          {draft.teacher || "Teacher"} (currently assigned)
+                        </SelectItem>
+                      )}
                       {teachers.data?.rows.map((teacher) => (
                         <SelectItem key={teacher.id} value={String(teacher.id)}>
                           {teacher.name}
@@ -566,6 +572,9 @@ function SectionSchedule({
                       Teachers could not be loaded. Reopen this class to retry.
                     </p>
                   )}
+                  <p className="text-muted-foreground text-xs">
+                    New or edited classes require an active teacher account.
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="class-room">Room</Label>

@@ -91,7 +91,7 @@ Route::post('/email/resend', [EmailVerificationController::class, 'resend'])
 Route::post('/login', [AuthController::class, 'login']);
 
 // Routes that require a valid Sanctum token.
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::middleware('role:student,admin')->group(function () {
@@ -215,6 +215,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
         Route::get('/users/{user}', [UserController::class, 'show']);
+        Route::patch('/users/{user}/status', [UserController::class, 'updateStatus']);
         // Route::put('/users/{user}', [UserController::class, 'update']);
 
         // All applications across every applicant.

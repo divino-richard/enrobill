@@ -9,6 +9,7 @@ import {
   fetchUsers,
   createUser,
   updateUserRole,
+  updateUserStatus,
   type UserListParams,
 } from "./api";
 import type { CreateUserInput, UserRole } from "./types";
@@ -49,6 +50,19 @@ export function useCreateUser() {
     mutationFn: (input: CreateUserInput) => createUser(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: usersQueryKey });
+    },
+  });
+}
+
+export function useUpdateUserStatus(id: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (isActive: boolean) => updateUserStatus(id, isActive),
+    onSuccess: (user) => {
+      queryClient.setQueryData([...usersQueryKey, "detail", id], user);
+      // Includes teacher choices in scheduling, which use the users list.
+      return queryClient.invalidateQueries({ queryKey: usersQueryKey });
     },
   });
 }

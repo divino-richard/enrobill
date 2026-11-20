@@ -85,10 +85,11 @@ class SectionController extends Controller
             'adviserTeacherId' => [
                 'nullable',
                 'integer',
-                Rule::exists('users', 'id')->where('role', 'teacher'),
+                Rule::exists('users', 'id')->where('role', 'teacher')->where('is_active', true),
             ],
         ], [
             'name.unique' => 'A section with this name already exists for this program and grade.',
+            'adviserTeacherId.exists' => 'Select an active teacher as the section adviser.',
         ]);
 
         $section = Section::create([
@@ -117,10 +118,13 @@ class SectionController extends Controller
             'adviserTeacherId' => [
                 'nullable',
                 'integer',
-                Rule::exists('users', 'id')->where('role', 'teacher'),
+                Rule::exists('users', 'id')->where('role', 'teacher')->where(fn ($query) => $query
+                    ->where('is_active', true)
+                    ->orWhere('id', $section->adviser_teacher_id)),
             ],
         ], [
             'name.unique' => 'A section with this name already exists for this program and grade.',
+            'adviserTeacherId.exists' => 'Select an active teacher as the section adviser.',
         ]);
 
         $section->update([

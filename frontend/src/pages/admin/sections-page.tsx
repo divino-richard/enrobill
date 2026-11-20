@@ -217,7 +217,7 @@ function SectionForm({
   onDone: () => void;
 }) {
   const groups = useProgramGroups();
-  const teachers = useUsers({ role: "teacher", perPage: 100, sort: "name", dir: "asc" });
+  const teachers = useUsers({ role: "teacher", status: "active", perPage: 100, sort: "name", dir: "asc" });
   const create = useCreateSection();
   const update = useUpdateSection(editing?.id ?? 0);
   const mutation = editing ? update : create;
@@ -343,6 +343,11 @@ function SectionForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No adviser assigned</SelectItem>
+                {editing?.adviser && !teachers.data?.rows.some((teacher) => teacher.id === editing.adviser?.id) && (
+                  <SelectItem value={String(editing.adviser.id)} disabled>
+                    {editing.adviser.name} (currently assigned)
+                  </SelectItem>
+                )}
                 {teachers.data?.rows.map((teacher) => (
                   <SelectItem key={teacher.id} value={String(teacher.id)}>
                     {teacher.name}
@@ -351,7 +356,7 @@ function SectionForm({
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">
-              Only the adviser can view this roster and upload student grade slips.
+              Choose an active teacher for new assignments. The adviser needs an active account to view this roster and upload grade slips.
             </p>
             {teachers.isError && (
               <p className="text-destructive text-xs">Teachers could not be loaded.</p>

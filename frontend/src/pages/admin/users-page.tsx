@@ -21,6 +21,8 @@ import {
   PlusIcon,
   SearchIcon,
   FunnelXIcon,
+  UserCheckIcon,
+  UserXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,7 @@ import { PasswordInput } from "@/components/form/password-input";
 import { FieldLabel } from "@/components/form/field-label";
 import { PasswordRequirements } from "@/features/auth/components/password-requirements";
 import { passwordIsStrong } from "@/features/auth/password";
+import { useAuthStore } from "@/features/auth/store";
 import {
   Select,
   SelectContent,
@@ -48,6 +51,8 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RowActions } from "@/components/row-actions";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { UserRoleBadge } from "@/features/users/components/user-role-badge";
+import { UserStatusBadge } from "@/features/users/components/user-status-badge";
+import { UserStatusDialog } from "@/features/users/components/user-status-dialog";
 import { useCreateUser, useUsers } from "@/features/users/hooks";
 import {
   CREATABLE_USER_ROLE_OPTIONS,
@@ -61,6 +66,7 @@ import { formatDate } from "@/features/applications/utils";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 type RoleFilter = UserRole | "all";
+type StatusFilter = "active" | "inactive" | "all";
 type CreateUserForm = Omit<CreateUserInput, "role"> & {
   role: CreatableUserRole | "";
 };
@@ -306,13 +312,16 @@ function SortHeader({
 
 function UsersPage() {
   const navigate = useNavigate();
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<User | null>(null);
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const [verified, setVerified] = useState("all");
   const [joined, setJoined] = useState("all");
   const [role, setRole] = useState<RoleFilter>("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "name", desc: false },
   ]);
@@ -323,7 +332,7 @@ function UsersPage() {
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [debouncedSearch, role, verified, joined]);
+  }, [debouncedSearch, role, verified, joined, status]);
 
   const sortState = sorting[0];
   const query = useUsers({
@@ -335,6 +344,7 @@ function UsersPage() {
     search: debouncedSearch || undefined,
     verified: verified === "all" ? undefined : verified,
     joined: joined === "all" ? undefined : joined,
+    status: status === "all" ? undefined : status,
   });
 
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
@@ -349,7 +359,12 @@ function UsersPage() {
         header: ({ column }) => <SortHeader column={column} title="Name" />,
         cell: ({ row }) => (
           <div className="flex flex-col gap-0.5 py-1.5">
-            <span className="font-medium">{row.original.name}</span>
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-medium">{row.original.name}</span>
+              {row.original.id === currentUserId && (
+                <span className="text-muted-foreground text-xs">You</span>
+              )}
+            </div>
             <span className="text-muted-foreground text-[0.8125rem]">
               {row.original.email}
             </span>
@@ -360,6 +375,12 @@ function UsersPage() {
         accessorKey: "role",
         header: ({ column }) => <SortHeader column={column} title="Role" />,
         cell: ({ row }) => <UserRoleBadge role={row.original.role} />,
+      },
+      {
+        accessorKey: "isActive",
+        header: "Account status",
+        enableSorting: false,
+        cell: ({ row }) => <UserStatusBadge isActive={row.original.isActive} />,
       },
       {
         id: "verified",
@@ -390,18 +411,27 @@ function UsersPage() {
         enableSorting: false,
         meta: { className: "text-right" },
         cell: ({ row }) => (
-          <RowActions>
+          <RowActions label={`Actions for ${row.original.name}`}>
             <DropdownMenuItem
               onClick={() => navigate(`/admin/users/${row.original.id}`)}
             >
               <Eye />
               View
             </DropdownMenuItem>
+            {row.original.id !== currentUserId && (
+              <DropdownMenuItem
+                variant={row.original.isActive ? "destructive" : "default"}
+                onClick={() => setStatusTarget(row.original)}
+              >
+                {row.original.isActive ? <UserXIcon /> : <UserCheckIcon />}
+                {row.original.isActive ? "Deactivate" : "Reactivate"}
+              </DropdownMenuItem>
+            )}
           </RowActions>
         ),
       },
     ],
-    [navigate],
+    [navigate, currentUserId],
   );
 
   // TanStack Table returns non-memoizable functions; the React Compiler lint
@@ -429,7 +459,7 @@ function UsersPage() {
     })),
   ];
 
-  const hasFilters = Boolean(search) || role !== "all" || verified !== "all" || joined !== "all";
+  const hasFilters = Boolean(search) || role !== "all" || verified !== "all" || joined !== "all" || status !== "all";
 
   return (
     <div className="space-y-4">
@@ -472,11 +502,15 @@ function UsersPage() {
               <SelectTrigger className="w-full sm:w-44" aria-label="Email verification"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">All email statuses</SelectItem><SelectItem value="verified">Verified email</SelectItem><SelectItem value="unverified">Unverified email</SelectItem></SelectContent>
             </Select>
+            <Select value={status} onValueChange={(value) => setStatus(value as StatusFilter)}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Account status"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All account statuses</SelectItem><SelectItem value="active">Active accounts</SelectItem><SelectItem value="inactive">Inactive accounts</SelectItem></SelectContent>
+            </Select>
             <Select value={joined} onValueChange={setJoined}>
               <SelectTrigger className="w-full sm:w-44" aria-label="Joined date"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">Any join date</SelectItem><SelectItem value="7">Last 7 days</SelectItem><SelectItem value="30">Last 30 days</SelectItem><SelectItem value="90">Last 90 days</SelectItem></SelectContent>
             </Select>
-            {hasFilters && <Button variant="outline" size="icon" className="size-9" aria-label="Clear filters" title="Clear filters" onClick={() => {setSearch("");setRole("all");setVerified("all");setJoined("all");}}><FunnelXIcon /></Button>}
+            {hasFilters && <Button variant="outline" size="icon" className="size-9" aria-label="Clear filters" title="Clear filters" onClick={() => {setSearch("");setRole("all");setVerified("all");setJoined("all");setStatus("all");}}><FunnelXIcon /></Button>}
           </TableToolbar>
 
           <DataTable
@@ -492,6 +526,9 @@ function UsersPage() {
         open={creatingUser}
         onOpenChange={setCreatingUser}
       />
+      {statusTarget && (
+        <UserStatusDialog user={statusTarget} onClose={() => setStatusTarget(null)} />
+      )}
     </div>
   );
 }

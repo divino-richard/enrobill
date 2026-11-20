@@ -15,12 +15,14 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'first_name', 'middle_name', 'last_name', 'email', 'password', 'role', 'email_verified_at'])]
+#[Fillable(['name', 'first_name', 'middle_name', 'last_name', 'email', 'password', 'role', 'email_verified_at', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, MustVerifyEmailTrait, Notifiable;
+
+    protected $attributes = ['is_active' => true];
 
     /**
      * Get the attributes that should be cast.
@@ -30,6 +32,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected function casts(): array
     {
         return [
+            'is_active' => 'boolean',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => Role::class,

@@ -7,6 +7,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -40,6 +41,8 @@ class UserController extends Controller
             )
             ->when($request->string('verified')->value() === 'verified', fn ($query) => $query->whereNotNull('email_verified_at'))
             ->when($request->string('verified')->value() === 'unverified', fn ($query) => $query->whereNull('email_verified_at'))
+            ->when($request->string('status')->value() === 'active', fn ($query) => $query->where('is_active', true))
+            ->when($request->string('status')->value() === 'inactive', fn ($query) => $query->where('is_active', false))
             ->when(in_array($request->string('joined')->value(), ['7', '30', '90'], true), fn ($query) => $query->where('created_at', '>=', now()->subDays($request->integer('joined'))))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search')->value().'%';
@@ -62,6 +65,26 @@ class UserController extends Controller
     public function show(User $user): UserResource
     {
         return new UserResource($user);
+    }
+
+    public function updateStatus(Request $request, User $user): UserResource
+    {
+        $request->validate(['is_active' => ['required', 'boolean']]);
+        $isActive = $request->boolean('is_active');
+
+        abort_if(! $isActive && $user->id === $request->user()->id,
+            422, "You can't deactivate your own account.");
+
+        return DB::transaction(function () use ($user, $isActive) {
+            $user = User::lockForUpdate()->findOrFail($user->id);
+            $user->update(['is_active' => $isActive]);
+
+            if (! $isActive) {
+                $user->tokens()->delete();
+            }
+
+            return new UserResource($user);
+        });
     }
 
     /**

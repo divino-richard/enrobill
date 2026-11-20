@@ -12,7 +12,11 @@ interface Wrapped<T> {
   data: T;
 }
 
-export type UserListParams = ListParams & { verified?: string; joined?: string };
+export type UserListParams = ListParams & {
+  verified?: string;
+  joined?: string;
+  status?: "active" | "inactive";
+};
 
 export interface UsersPage {
   rows: User[];
@@ -22,7 +26,12 @@ export interface UsersPage {
 // Paginated / searchable / sortable list of users (admin only).
 export async function fetchUsers(params: UserListParams): Promise<UsersPage> {
   const { data } = await api.get<LaravelPaginated<User>>("/users", {
-    params: { ...listParamsToQuery(params), verified: params.verified, joined: params.joined },
+    params: {
+      ...listParamsToQuery(params),
+      verified: params.verified,
+      joined: params.joined,
+      status: params.status,
+    },
   });
 
   return { rows: data.data, meta: toPageMeta(data.meta) };
@@ -53,5 +62,12 @@ export async function updateUserRole(
   role: UserRole,
 ): Promise<User> {
   const { data } = await api.put<Wrapped<User>>(`/users/${id}`, { role });
+  return data.data;
+}
+
+export async function updateUserStatus(id: number, isActive: boolean): Promise<User> {
+  const { data } = await api.patch<Wrapped<User>>(`/users/${id}/status`, {
+    is_active: isActive,
+  });
   return data.data;
 }

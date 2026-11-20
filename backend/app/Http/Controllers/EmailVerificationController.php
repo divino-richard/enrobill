@@ -23,7 +23,7 @@ class EmailVerificationController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if ($user && ! $user->hasVerifiedEmail()) {
+        if ($user && $user->is_active && ! $user->hasVerifiedEmail()) {
             $sendVerification($user);
         }
 

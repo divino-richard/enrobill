@@ -9,6 +9,7 @@ use App\Models\Section;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -63,7 +64,19 @@ class ClassScheduleController extends Controller
             return $entry;
         })->sortBy([['day', 'asc'], ['startTime', 'asc'], ['id', 'asc']])->values()->all();
 
-        return $this->mutate($request, $section, function (ClassTimetable $timetable) use ($section, $entries) {
+        return $this->mutate($request, $section, function (ClassTimetable $timetable) use ($section, $entries, $teachers) {
+            $previous = collect($timetable->entries ?? [])->keyBy('id');
+            foreach ($entries as $entry) {
+                $unchanged = array_diff_assoc(
+                    Arr::except($entry, ['teacher']),
+                    Arr::except($previous->get($entry['id'], []), ['teacher']),
+                ) === [];
+                if (! $unchanged && ! $teachers->get($entry['teacherId'])?->is_active) {
+                    throw ValidationException::withMessages([
+                        'entries' => 'Select an active teacher before adding or changing a class.',
+                    ]);
+                }
+            }
             $this->checkConflicts($section, $entries);
             $timetable->entries = $entries;
         });
@@ -184,6 +197,7 @@ class ClassScheduleController extends Controller
         $teachers = User::query()
             ->whereIn('id', $teacherIds)
             ->where('role', 'teacher')
+            ->where('is_active', true)
             ->get()
             ->keyBy('id');
 

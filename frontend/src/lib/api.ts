@@ -1,5 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/features/auth/store'
+import { queryClient } from './query-client'
 
 // Central axios instance used across the app to talk to the Laravel API.
 //
@@ -22,5 +23,27 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   }
   return config
 })
+
+// Revoked sessions must leave the signed-in UI on any protected request.
+api.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      const { token, clearAuth } = useAuthStore.getState()
+      const sentToken = error.config?.headers.Authorization
+      const sessionRejected = error.response?.status === 401 || (
+        error.response?.status === 403 &&
+        error.response.data?.code === 'account_deactivated'
+      )
+
+      // Ignore failures from an older session after another account signs in.
+      if (token && sentToken === `Bearer ${token}` && sessionRejected) {
+        clearAuth()
+        queryClient.clear()
+      }
+    }
+    return Promise.reject(error)
+  },
+)
 
 export default api

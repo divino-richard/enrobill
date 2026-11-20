@@ -7,6 +7,7 @@ export interface User {
   lastName: string | null;
   email: string;
   role: UserRole;
+  isActive: boolean;
   emailVerified: boolean;
   createdAt: string | null;
 }

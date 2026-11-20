@@ -7,6 +7,7 @@ use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -80,34 +81,44 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('email', $credentials['email'])->first();
+        return DB::transaction(function () use ($credentials) {
+            // Coordinate token issuance with account deactivation.
+            $user = User::where('email', $credentials['email'])->lockForUpdate()->first();
 
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
-        }
+            if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+                throw ValidationException::withMessages([
+                    'email' => ['The provided credentials are incorrect.'],
+                ]);
+            }
 
-        // Block access until the email address has been verified. The "code"
-        // lets the SPA offer a "resend verification email" action.
-        if (! $user->hasVerifiedEmail()) {
+            if (! $user->is_active) {
+                return response()->json([
+                    'message' => 'Your account has been deactivated. Contact the school administrator for assistance.',
+                    'code' => 'account_deactivated',
+                ], 403);
+            }
+
+            // Block access until the email address has been verified. The "code"
+            // lets the SPA offer a "resend verification email" action.
+            if (! $user->hasVerifiedEmail()) {
+                return response()->json([
+                    'message' => 'Please verify your email address before signing in. Check your inbox for the verification link.',
+                    'code' => 'email_unverified',
+                ], 403);
+            }
+
+            $token = $user->createToken('spa')->plainTextToken;
+
             return response()->json([
-                'message' => 'Please verify your email address before signing in. Check your inbox for the verification link.',
-                'code' => 'email_unverified',
-            ], 403);
-        }
-
-        $token = $user->createToken('spa')->plainTextToken;
-
-        return response()->json([
-            'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role->value,
-            ],
-        ]);
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role->value,
+                ],
+            ]);
+        });
     }
 
     /**
